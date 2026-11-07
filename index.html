@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LEGO Heróis & Guerra Urbana — Mundo Aberto 3D</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- Ponteiro / Mira sutil central -->
+  <div id="crosshair"></div>
+
+  <!-- Painel de Instruções e Status do Passo 1 -->
+  <div id="ui-overlay">
+    <div id="top-bar">
+      <div class="badge-lego">
+        <span class="stud-icon"></span>
+        <span>LEGO HERÓIS & GUERRA URBANA</span>
+        <span class="step-tag">PASSO 1 • BASE 3D & BONECO ARTICULADO</span>
+      </div>
+      <div id="stats-pill">
+        <span id="fps-counter">60 FPS</span>
+        <span class="sep">•</span>
+        <span id="anim-state">ESTADO: PARADO</span>
+      </div>
+    </div>
+
+    <div id="pointer-prompt" class="visible">
+      <div class="prompt-card">
+        <div class="prompt-title">🧱 CLIQUE NA TELA PARA CONTROLAR A CÂMERA 360°</div>
+        <div class="prompt-sub">Você também pode arrastar com o botão do mouse ou usar <b>ESC</b> para soltar o cursor</div>
+      </div>
+    </div>
+
+    <div id="controls-hud">
+      <div class="control-item"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span>Andar</span></div>
+      <div class="control-item"><kbd>Shift</kbd> <span>Correr</span></div>
+      <div class="control-item"><kbd>Espaço</kbd> <span>Pular</span></div>
+      <div class="control-item"><kbd>Mouse</kbd> <span>Girar Câmera 360°</span></div>
+      <div class="control-item"><kbd>Scroll</kbd> <span>Zoom</span></div>
+      <div class="control-item"><kbd>C</kbd> <span>Trocar Visual Teste</span></div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
+
