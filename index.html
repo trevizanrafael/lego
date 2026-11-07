@@ -17,17 +17,42 @@
 <body>
   <div id="game-container"></div>
 
-  <!-- Ponteiro / Mira sutil central -->
-  <div id="crosshair"></div>
+  <!-- Mira central para atirar / alinhar câmera -->
+  <div id="crosshair">
+    <span class="ch-dot"></span>
+  </div>
 
-  <!-- Painel de Instruções e Status do Passo 1 -->
+  <!-- Interface e HUD Clássica Estilo LEGO -->
   <div id="ui-overlay">
     <div id="top-bar">
-      <div class="badge-lego">
-        <span class="stud-icon"></span>
-        <span>LEGO HERÓIS & GUERRA URBANA</span>
-        <span class="step-tag">PASSO 1 • BASE 3D & BONECO ARTICULADO</span>
+      <!-- Canto Superior Esquerdo: HUD Clássica LEGO (Retrato + 4 Corações + Contador de Studs) -->
+      <div id="lego-classic-hud">
+        <div class="portrait-ring">
+          <canvas id="hud-portrait-canvas" width="76" height="76"></canvas>
+        </div>
+        <div class="hud-right-col">
+          <div class="hud-name-row">
+            <span id="hud-char-name">Comandante Caveira</span>
+          </div>
+          <!-- 4 Corações de LEGO de Vida -->
+          <div id="hud-hearts" class="hearts-row"></div>
+          <!-- Contador Animado de Studs -->
+          <div class="stud-counter-row">
+            <div id="hud-stud-coin" class="hud-stud-3d" data-tier="gold"></div>
+            <span id="hud-stud-count">0</span>
+            <span id="hud-stud-gain"></span>
+          </div>
+        </div>
       </div>
+
+      <!-- Topo Central: Barra de Progresso TRUE HERO (Verdadeiro Herói) -->
+      <div id="true-hero-bar">
+        <div id="true-hero-badge" class="true-hero-title">VERDADEIRO HERÓI</div>
+        <div id="true-hero-segments" class="true-hero-segments"></div>
+        <div id="true-hero-percent" class="true-hero-pct">0%</div>
+      </div>
+
+      <!-- Canto Superior Direito: FPS & Estado -->
       <div id="stats-pill">
         <span id="fps-counter">60 FPS</span>
         <span class="sep">•</span>
@@ -37,22 +62,22 @@
 
     <div id="pointer-prompt" class="visible">
       <div class="prompt-card">
-        <div class="prompt-title">🧱 CLIQUE NA TELA PARA CONTROLAR A CÂMERA 360°</div>
-        <div class="prompt-sub">Você também pode arrastar com o botão do mouse ou usar <b>ESC</b> para soltar o cursor</div>
+        <div class="prompt-title">🧱 CLIQUE NA TELA PARA JOGAR, SOCAR E ATIRAR</div>
+        <div class="prompt-sub">Quebre carros, hidrantes, postes, bancas, cercas e caixas para coletar Studs Prata, Ouro, Azul e Roxo!</div>
       </div>
     </div>
 
     <div id="controls-hud">
-      <div class="control-item"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span>Andar</span></div>
+      <div class="control-item"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span>Mover</span></div>
       <div class="control-item"><kbd>Shift</kbd> <span>Correr</span></div>
       <div class="control-item"><kbd>Espaço</kbd> <span>Pular</span></div>
-      <div class="control-item"><kbd>Mouse</kbd> <span>Girar Câmera 360°</span></div>
-      <div class="control-item"><kbd>Scroll</kbd> <span>Zoom</span></div>
-      <div class="control-item"><kbd>C</kbd> <span>Trocar Visual Teste</span></div>
+      <div class="control-item"><kbd>Clique Esq</kbd>/<kbd>E</kbd> <span>Socar / Quebrar</span></div>
+      <div class="control-item"><kbd>Clique Dir</kbd>/<kbd>F</kbd> <span>Atirar</span></div>
+      <div class="control-item"><kbd>C</kbd> <span>Visual</span></div>
+      <div class="control-item"><kbd>R</kbd> <span>Reconstruir Rua</span></div>
     </div>
   </div>
 
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
-

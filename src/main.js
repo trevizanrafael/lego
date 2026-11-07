@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Minifigure } from './entities/Minifigure.js';
 import { TestBlockWorld } from './world/TestBlockWorld.js';
+import { DestructibleManager } from './world/DestructibleManager.js';
 import { ThirdPersonController } from './controls/ThirdPersonController.js';
+import { LegoHud } from './ui/LegoHud.js';
 
 const STATE_LABELS = {
   IDLE: 'PARADO (RESPIRANDO)',
@@ -46,7 +48,6 @@ class LegoCityGame {
 
     this.scene = new THREE.Scene();
 
-    // Environment Map procedural para dar reflexo realista de plástico ABS brilhante nas peças LEGO
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.55;
@@ -60,19 +61,27 @@ class LegoCityGame {
   }
 
   _initEntities() {
-    // 1. Constrói o quarteirão inicial de teste (asfalto, calçadas com studs, prédios e carros LEGO)
-    this.world = new TestBlockWorld(this.scene);
+    // 1. HUD Clássica Estilo LEGO (Retrato + 4 Corações + Contador de Studs + Barra True Hero)
+    this.hud = new LegoHud(35000);
 
-    // 2. Cria a Minifigura LEGO 3D Articulada
+    // 2. Gerenciador de Destruição Física de Peças LEGO e Moedinhas (Studs)
+    this.destructibles = new DestructibleManager(this.scene, this.hud);
+
+    // 3. Constrói o quarteirão de teste registrando objetos quebráveis (Carros, Hidrantes, Postes, Bancas, Cercas e Caixas)
+    this.world = new TestBlockWorld(this.scene, this.destructibles);
+
+    // 4. Cria a Minifigura LEGO 3D Articulada
     this.playerMinifig = new Minifigure('caveira');
     this.scene.add(this.playerMinifig.root);
 
-    // 3. Controlador em 3ª pessoa (Mouse 360° + WASD + Shift + Espaço)
+    // 5. Controlador em 3ª pessoa com suporte a Soco (Clique Esq / E) e Tiro (Clique Dir / F)
     this.controller = new ThirdPersonController(
       this.camera,
       this.renderer.domElement,
       this.playerMinifig,
-      this.world
+      this.world,
+      this.destructibles,
+      this.hud
     );
   }
 
@@ -89,13 +98,14 @@ class LegoCityGame {
 
     const rawDt = (now - this.lastTime) * 0.001;
     this.lastTime = now;
-    const dt = Math.min(rawDt, 0.05); // Evita saltos grandes ao trocar de aba
+    const dt = Math.min(rawDt, 0.05);
 
     this.controller.update(dt);
+    this.destructibles.update(dt, this.controller.position);
+    this.hud.update(dt);
     this.world.update(dt);
     this.renderer.render(this.scene, this.camera);
 
-    // Atualiza contador de FPS e estado da animação na barra superior
     this.fpsFrames++;
     this.fpsTimer += rawDt;
     if (this.fpsTimer >= 0.4) {
@@ -115,4 +125,3 @@ class LegoCityGame {
 window.addEventListener('DOMContentLoaded', () => {
   new LegoCityGame();
 });
-

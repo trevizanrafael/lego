@@ -82,6 +82,11 @@ export class Minifigure {
     this.landingSquash = 0;
     this.wasGrounded = true;
 
+    // Timers de animação de ataque (Soco / Tiro)
+    this.punchTimer = 0;
+    this.punchHand = 1; // Alterna mão esquerda (+1) e direita (-1)
+    this.shootTimer = 0;
+
     this.presetOrder = ['caveira', 'solaris', 'classic'];
     this.currentPresetIndex = Math.max(0, this.presetOrder.indexOf(presetKey));
 
@@ -93,7 +98,16 @@ export class Minifigure {
     const key = this.presetOrder[this.currentPresetIndex];
     const preset = MINIFIG_PRESETS[key];
     this.buildModel(preset);
-    return preset.name;
+    return { key, name: preset.name };
+  }
+
+  triggerPunch() {
+    this.punchTimer = 0.24;
+    this.punchHand *= -1;
+  }
+
+  triggerShoot() {
+    this.shootTimer = 0.18;
   }
 
   buildModel(preset) {
@@ -601,6 +615,28 @@ export class Minifigure {
         targetCapeAngle + Math.sin(this.animTime * 6) * 0.04,
         lerpSpeed
       );
+    }
+
+    // Sobreposição de animação de Soco (Combo Corpo a Corpo)
+    if (this.punchTimer > 0) {
+      this.punchTimer = Math.max(0, this.punchTimer - dt);
+      const swing = Math.sin((this.punchTimer / 0.24) * Math.PI);
+      if (this.punchHand > 0) {
+        this.leftArmPivot.rotation.x = -1.65 * swing;
+        this.upperBodyGroup.rotation.y = -0.38 * swing;
+      } else {
+        this.rightArmPivot.rotation.x = -1.65 * swing;
+        this.upperBodyGroup.rotation.y = 0.38 * swing;
+      }
+      this.upperBodyGroup.rotation.x += 0.18 * swing;
+    }
+
+    // Sobreposição de animação de Tiro / Disparo
+    if (this.shootTimer > 0) {
+      this.shootTimer = Math.max(0, this.shootTimer - dt);
+      const recoil = Math.sin((this.shootTimer / 0.18) * Math.PI);
+      this.rightArmPivot.rotation.x = -1.55 + recoil * 0.25;
+      this.rightArmPivot.rotation.z = -0.05;
     }
   }
 }

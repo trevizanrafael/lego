@@ -7,9 +7,10 @@ import {
 } from '../materials/LegoMaterials.js';
 
 export class TestBlockWorld {
-  constructor(scene) {
+  constructor(scene, destructibleManager = null) {
     this.scene = scene;
-    this.colliders = []; // Lista de AABBs: { minX, maxX, minZ, maxZ, maxY }
+    this.destructibles = destructibleManager;
+    this.colliders = []; // Lista de AABBs: { minX, maxX, minZ, maxZ, maxY, disabled }
     this.clouds = [];
 
     this._setupSkyAndLights();
@@ -18,30 +19,31 @@ export class TestBlockWorld {
     this._buildSurroundingBuildings();
     this._buildParkedLegoCars();
     this._buildStreetProps();
+    this._buildNewsstandsAndFences();
     this._buildLegoClouds();
   }
 
   addCollider(x, z, width, depth, height) {
-    this.colliders.push({
+    const col = {
       minX: x - width * 0.5,
       maxX: x + width * 0.5,
       minZ: z - depth * 0.5,
       maxZ: z + depth * 0.5,
-      maxY: height
-    });
+      maxY: height,
+      disabled: false
+    };
+    this.colliders.push(col);
+    return col;
   }
 
   _setupSkyAndLights() {
-    // Céu diurno vibrante
     this.scene.background = new THREE.Color(0x60a5fa);
     this.scene.fog = new THREE.FogExp2(0x93c5fd, 0.0042);
 
-    // Iluminação Hemisférica (Céu azul claro / Rebatedor quente do chão)
     const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x475569, 0.85);
     hemiLight.position.set(0, 80, 0);
     this.scene.add(hemiLight);
 
-    // Luz Solar Direcional com Sombras em Tempo Real
     const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.2);
     sunLight.position.set(42, 68, 36);
     sunLight.castShadow = true;
@@ -59,7 +61,6 @@ export class TestBlockWorld {
     sunLight.shadow.normalBias = 0.02;
     this.scene.add(sunLight);
 
-    // Sol de blocos LEGO brilhante no céu
     const sunGroup = new THREE.Group();
     const sunCore = new THREE.Mesh(
       new THREE.BoxGeometry(8, 8, 8),
@@ -71,7 +72,6 @@ export class TestBlockWorld {
   }
 
   _buildAsphaltAndRoadMarkings() {
-    // Base de asfalto principal
     const asphaltMat = getLegoMaterial(0x1e293b, {
       roughness: 0.55,
       clearcoat: 0.15
@@ -86,7 +86,6 @@ export class TestBlockWorld {
     const yellowStripeMat = getLegoMaterial(LEGO_COLORS.yellow, { roughness: 0.3 });
     const whiteStripeMat = getLegoMaterial(LEGO_COLORS.white, { roughness: 0.3 });
 
-    // Faixa dupla amarela central na Avenida Principal (Eixo Z, X = 0)
     for (const offsetZ of [-52, 52]) {
       const segLen = 68;
       for (const xOff of [-0.25, 0.25]) {
@@ -97,7 +96,6 @@ export class TestBlockWorld {
       }
     }
 
-    // Faixa dupla amarela na Rua Transversal (Eixo X, Z = 0)
     for (const offsetX of [-52, 52]) {
       const segLen = 68;
       for (const zOff of [-0.25, 0.25]) {
@@ -108,7 +106,6 @@ export class TestBlockWorld {
       }
     }
 
-    // Faixas tracejadas brancas nas pistas
     for (let z = -80; z <= 80; z += 7) {
       if (Math.abs(z) < 18) continue;
       for (const xLane of [-4.8, 4.8]) {
@@ -129,7 +126,6 @@ export class TestBlockWorld {
       }
     }
 
-    // 4 Faixas de Pedestre (Crosswalks) no cruzamento central
     this._createCrosswalk(0, -14.5, true, whiteStripeMat);
     this._createCrosswalk(0, 14.5, true, whiteStripeMat);
     this._createCrosswalk(-14.5, 0, false, whiteStripeMat);
@@ -155,10 +151,9 @@ export class TestBlockWorld {
   }
 
   _buildSidewalksWithStuds() {
-    // 4 grandes quarteirões de calçada ao redor do cruzamento (Avenida largura 20: X e Z de -10 a +10)
     const sidewalkHeight = 0.26;
     const blockSize = 72;
-    const blockOffset = 10 + blockSize * 0.5; // Centro em +-46
+    const blockOffset = 10 + blockSize * 0.5;
 
     const quadrants = [
       { x: -blockOffset, z: -blockOffset },
@@ -171,7 +166,6 @@ export class TestBlockWorld {
     const tileMat = getLegoMaterial(LEGO_COLORS.darkGrey, { roughness: 0.3, clearcoat: 0.35 });
 
     quadrants.forEach((q) => {
-      // Base da calçada
       const base = new THREE.Mesh(
         new THREE.BoxGeometry(blockSize, sidewalkHeight, blockSize),
         curbMat
@@ -181,7 +175,6 @@ export class TestBlockWorld {
       base.castShadow = true;
       this.scene.add(base);
 
-      // Piso interno escuro estilo placas LEGO
       const inner = new THREE.Mesh(
         new THREE.BoxGeometry(blockSize - 1.6, 0.04, blockSize - 1.6),
         tileMat
@@ -190,10 +183,7 @@ export class TestBlockWorld {
       inner.receiveShadow = true;
       this.scene.add(inner);
 
-      // Registra colisão da calçada (permite subir/pular nela)
       this.addCollider(q.x, q.z, blockSize, blockSize, sidewalkHeight);
-
-      // Fileiras de Pinos de LEGO (Studs) nas bordas da calçada
       this._populateSidewalkStuds(q.x, q.z, blockSize, sidewalkHeight, curbMat);
     });
   }
@@ -203,12 +193,10 @@ export class TestBlockWorld {
     const half = size * 0.5 - 0.5;
     const positions = [];
 
-    // Pinos ao longo das duas bordas voltadas para a rua
     const edgeX = qx < 0 ? qx + half : qx - half;
     const edgeZ = qz < 0 ? qz + half : qz - half;
 
     for (let t = -half; t <= half; t += step) {
-      // Duas fileiras de pinos LEGO no meio-fio
       positions.push([edgeX, height, qz + t]);
       positions.push([edgeX + (qx < 0 ? -0.6 : 0.6), height, qz + t]);
 
@@ -233,13 +221,10 @@ export class TestBlockWorld {
   _buildSurroundingBuildings() {
     const sidewalkY = 0.26;
 
-    // Lista de prédios LEGO ao redor do quarteirão central para compor a cidade
     const buildings = [
-      // Quarteirão Noroeste (-X, -Z)
       {
         x: -26, z: -26, w: 18, d: 18, h: 24,
-        color: LEGO_COLORS.blue, accent: LEGO_COLORS.white, roofStudColor: LEGO_COLORS.blue,
-        title: 'TORRE COMERCIAL LEGO'
+        color: LEGO_COLORS.blue, accent: LEGO_COLORS.white, roofStudColor: LEGO_COLORS.blue
       },
       {
         x: -48, z: -24, w: 16, d: 14, h: 14,
@@ -249,8 +234,6 @@ export class TestBlockWorld {
         x: -25, z: -48, w: 15, d: 16, h: 16,
         color: LEGO_COLORS.sandGreen, accent: LEGO_COLORS.white, roofStudColor: LEGO_COLORS.sandGreen
       },
-
-      // Quarteirão Nordeste (+X, -Z)
       {
         x: 26, z: -26, w: 20, d: 18, h: 28,
         color: LEGO_COLORS.charcoal, accent: LEGO_COLORS.gold, roofStudColor: LEGO_COLORS.gold
@@ -263,8 +246,6 @@ export class TestBlockWorld {
         x: 26, z: -50, w: 16, d: 16, h: 19,
         color: LEGO_COLORS.navy, accent: LEGO_COLORS.lightGrey, roofStudColor: LEGO_COLORS.navy
       },
-
-      // Quarteirão Sudoeste (-X, +Z)
       {
         x: -26, z: 26, w: 18, d: 16, h: 18,
         color: LEGO_COLORS.tan, accent: LEGO_COLORS.brown, roofStudColor: LEGO_COLORS.tan
@@ -273,8 +254,6 @@ export class TestBlockWorld {
         x: -48, z: 26, w: 16, d: 16, h: 22,
         color: LEGO_COLORS.purple, accent: LEGO_COLORS.cyan, roofStudColor: LEGO_COLORS.purple
       },
-
-      // Quarteirão Sudeste (+X, +Z)
       {
         x: 26, z: 26, w: 18, d: 18, h: 21,
         color: LEGO_COLORS.white, accent: LEGO_COLORS.blue, roofStudColor: LEGO_COLORS.blue
@@ -300,28 +279,24 @@ export class TestBlockWorld {
       const wallMat = getLegoMaterial(b.color, { roughness: 0.25, clearcoat: 0.4 });
       const accentMat = getLegoMaterial(b.accent, { roughness: 0.25, clearcoat: 0.4 });
 
-      // Corpo do prédio
       const body = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), wallMat);
       body.position.y = b.h * 0.5;
       body.castShadow = true;
       body.receiveShadow = true;
       group.add(body);
 
-      // Cornija / Topo com Pinos de LEGO (Studs) no terraço
       const roofRim = createLegoBrick(b.w + 0.6, 0.7, b.d + 0.6, b.roofStudColor, {
         studStep: 1.2
       });
       roofRim.position.y = b.h + 0.35;
       group.add(roofRim);
 
-      // Base térrea destacada
       const baseTrim = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.4, 3.2, b.d + 0.4), accentMat);
       baseTrim.position.y = 1.6;
       baseTrim.castShadow = true;
       baseTrim.receiveShadow = true;
       group.add(baseTrim);
 
-      // Janelas 3D nas 4 fachadas
       const floors = Math.floor((b.h - 4) / 3.4);
       const colsX = Math.floor((b.w - 3) / 3.2);
       const colsZ = Math.floor((b.d - 3) / 3.2);
@@ -329,7 +304,6 @@ export class TestBlockWorld {
       for (let f = 0; f < floors; f++) {
         const wy = 4.6 + f * 3.3;
 
-        // Frente e Trás
         for (let c = 0; c < colsX; c++) {
           const wx = (c - (colsX - 1) * 0.5) * 3.1;
           for (const dir of [-1, 1]) {
@@ -339,7 +313,6 @@ export class TestBlockWorld {
           }
         }
 
-        // Laterais
         for (let c = 0; c < colsZ; c++) {
           const wz = (c - (colsZ - 1) * 0.5) * 3.1;
           for (const dir of [-1, 1]) {
@@ -356,21 +329,17 @@ export class TestBlockWorld {
   }
 
   /**
-   * Constrói carros estacionados de LEGO 3D com colisores em degrau (capô + teto)
-   * para o jogador poder pular em cima deles livremente!
+   * Carros Estacionados LEGO (Subíveis e Quebráveis com Chuva de Studs!)
    */
   _buildParkedLegoCars() {
     const cars = [
-      // Viatura Policial / BOPE estacionada perto do jogador
       { x: -7.2, z: -8.0, rotY: 0, color: LEGO_COLORS.black, roofColor: LEGO_COLORS.white, type: 'police' },
-      // Táxi Amarelo LEGO
-      { x: 7.2, z: -22.0, rotY: Math.PI, color: LEGO_COLORS.yellow, roofColor: LEGO_COLORS.yellow, type: 'taxi' },
-      // Supercarro Esportivo Vermelho LEGO
-      { x: -7.2, z: 22.0, rotY: 0, color: LEGO_COLORS.red, roofColor: LEGO_COLORS.white, type: 'sport' },
-      // Caminhonete Azul LEGO na rua transversal
-      { x: -23.0, z: 7.2, rotY: Math.PI / 2, color: LEGO_COLORS.blue, roofColor: LEGO_COLORS.white, type: 'suv' },
-      // Viatura Preta na outra esquina
-      { x: 23.0, z: -7.2, rotY: -Math.PI / 2, color: LEGO_COLORS.charcoal, roofColor: LEGO_COLORS.black, type: 'police' }
+      { x: 7.2, z: -9.5, rotY: Math.PI, color: LEGO_COLORS.yellow, roofColor: LEGO_COLORS.yellow, type: 'taxi' },
+      { x: -7.2, z: 18.0, rotY: 0, color: LEGO_COLORS.red, roofColor: LEGO_COLORS.white, type: 'sport' },
+      { x: 7.2, z: 20.0, rotY: Math.PI, color: LEGO_COLORS.green, roofColor: LEGO_COLORS.white, type: 'sport' },
+      { x: -22.0, z: 7.2, rotY: Math.PI / 2, color: LEGO_COLORS.blue, roofColor: LEGO_COLORS.white, type: 'suv' },
+      { x: 22.0, z: -7.2, rotY: -Math.PI / 2, color: LEGO_COLORS.charcoal, roofColor: LEGO_COLORS.black, type: 'police' },
+      { x: -25.0, z: -7.2, rotY: Math.PI / 2, color: LEGO_COLORS.orange, roofColor: LEGO_COLORS.yellow, type: 'taxi' }
     ];
 
     cars.forEach((cfg) => {
@@ -379,25 +348,34 @@ export class TestBlockWorld {
       carGroup.rotation.y = cfg.rotY;
       this.scene.add(carGroup);
 
-      // Calcula dimensões alinhadas ao mundo para o colisor do chassi/capô e da cabine
       const isRotated90 = Math.abs(Math.sin(cfg.rotY)) > 0.7;
       const carWidth = isRotated90 ? 4.8 : 2.4;
       const carDepth = isRotated90 ? 2.4 : 4.8;
       const cabinWidth = isRotated90 ? 2.5 : 2.1;
       const cabinDepth = isRotated90 ? 2.1 : 2.5;
 
-      // Colisor 1: Capô / Porta-malas (altura 1.15m - fácil de pular em cima do chão ou calçada!)
-      this.addCollider(cfg.x, cfg.z, carWidth, carDepth, 1.15);
-      // Colisor 2: Teto da cabine (altura 1.82m - dá para subir do capô para o teto!)
-      this.addCollider(cfg.x, cfg.z, cabinWidth, cabinDepth, 1.82);
+      const col1 = this.addCollider(cfg.x, cfg.z, carWidth, carDepth, 1.15);
+      const col2 = this.addCollider(cfg.x, cfg.z, cabinWidth, cabinDepth, 1.82);
+
+      if (this.destructibles) {
+        this.destructibles.registerDestructible({
+          mesh: carGroup,
+          type: 'car',
+          hp: 54,
+          radius: 2.5,
+          height: 1.9,
+          colliders: [col1, col2],
+          debrisColors: [cfg.color, cfg.roofColor, LEGO_COLORS.black, LEGO_COLORS.yellow],
+          studDrops: { silver: 6, gold: 5, blue: 2, purple: cfg.type === 'sport' ? 1 : 0 },
+          groundY: 0.0
+        });
+      }
     });
   }
 
   _createLegoCarMesh(cfg) {
     const group = new THREE.Group();
 
-    const bodyMat = getLegoMaterial(cfg.color, { roughness: 0.2, clearcoat: 0.55 });
-    const roofMat = getLegoMaterial(cfg.roofColor, { roughness: 0.22, clearcoat: 0.5 });
     const bumperMat = getLegoMaterial(LEGO_COLORS.lightGrey, { roughness: 0.3 });
     const tireMat = getLegoMaterial(LEGO_COLORS.black, { roughness: 0.65, clearcoat: 0.05 });
     const rimMat = getLegoMaterial(LEGO_COLORS.silver, { metalness: 0.4, roughness: 0.25 });
@@ -407,12 +385,10 @@ export class TestBlockWorld {
       opacity: 0.72
     });
 
-    // Chassi principal de blocos LEGO
     const chassis = createLegoBrick(2.3, 0.75, 4.7, cfg.color, { studStep: 0.65 });
     chassis.position.set(0, 0.72, 0);
     group.add(chassis);
 
-    // Para-choques dianteiro e traseiro
     const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.28, 0.35), bumperMat);
     frontBumper.position.set(0, 0.46, 2.38);
     frontBumper.castShadow = true;
@@ -423,7 +399,6 @@ export class TestBlockWorld {
     rearBumper.castShadow = true;
     group.add(rearBumper);
 
-    // Cabine com para-brisa e teto com pinos LEGO
     const cabinGlass = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.58, 2.3), glassMat);
     cabinGlass.position.set(0, 1.38, -0.1);
     cabinGlass.castShadow = true;
@@ -433,7 +408,6 @@ export class TestBlockWorld {
     roofPlate.position.set(0, 1.72, -0.1);
     group.add(roofPlate);
 
-    // Sirene policial ou placa de Táxi
     if (cfg.type === 'police') {
       const redLight = new THREE.Mesh(
         new THREE.BoxGeometry(0.65, 0.18, 0.32),
@@ -454,7 +428,6 @@ export class TestBlockWorld {
       group.add(taxiSign);
     }
 
-    // Faróis Dianteiros (Amarelo/Branco) e Lanternas Traseiras (Vermelho)
     const headLightMat = getLegoMaterial(0xfef08a, { emissive: 0xfef08a, emissiveIntensity: 0.7 });
     const tailLightMat = getLegoMaterial(0xef4444, { emissive: 0xef4444, emissiveIntensity: 0.6 });
 
@@ -470,7 +443,6 @@ export class TestBlockWorld {
       group.add(tl);
     }
 
-    // 4 Rodas LEGO com calota e pino central
     const wheelOffsets = [
       [-1.15, 0.42, 1.45],
       [1.15, 0.42, 1.45],
@@ -500,11 +472,11 @@ export class TestBlockWorld {
   _buildStreetProps() {
     const sidewalkY = 0.26;
 
-    // Postes de Luz LEGO nas esquinas e ao longo da avenida
+    // 1. Postes de Luz Quebráveis
     const lampCoords = [
-      [-11.5, -11.5], [11.5, -11.5], [-11.5, 11.5], [11.5, 11.5],
-      [-11.5, -28], [11.5, -28], [-11.5, 28], [11.5, 28],
-      [-28, -11.5], [28, -11.5], [-28, 11.5], [28, 11.5]
+      [-11.2, -11.2], [11.2, -11.2], [-11.2, 11.2], [11.2, 11.2],
+      [-11.2, -26], [11.2, -26], [-11.2, 26], [11.2, 26],
+      [-26, -11.2], [26, -11.2], [-26, 11.2], [26, 11.2]
     ];
 
     const poleMat = getLegoMaterial(LEGO_COLORS.darkGrey);
@@ -532,12 +504,27 @@ export class TestBlockWorld {
       lamp.add(bulb);
 
       this.scene.add(lamp);
-      this.addCollider(lx, lz, 0.7, 0.7, sidewalkY + 5.4);
+      const col = this.addCollider(lx, lz, 0.7, 0.7, sidewalkY + 5.4);
+
+      if (this.destructibles) {
+        this.destructibles.registerDestructible({
+          mesh: lamp,
+          type: 'streetlamp',
+          hp: 30,
+          radius: 1.0,
+          height: 5.3,
+          colliders: [col],
+          debrisColors: [LEGO_COLORS.darkGrey, LEGO_COLORS.lightGrey, LEGO_COLORS.yellow],
+          studDrops: { silver: 5, gold: 3, blue: 0, purple: 0 },
+          groundY: sidewalkY
+        });
+      }
     });
 
-    // Hidrantes Vermelhos LEGO nas calçadas
+    // 2. Hidrantes Vermelhos LEGO (Esguicham Água ao Quebrar!)
     const hydrantCoords = [
-      [-11.5, -18], [11.5, 18], [-18, 11.5], [18, -11.5]
+      [-11.2, -15.5], [11.2, -15.5], [-11.2, 15.5], [11.2, 15.5],
+      [-15.5, -11.2], [15.5, -11.2], [-15.5, 11.2], [15.5, 11.2]
     ];
     const redMat = getLegoMaterial(LEGO_COLORS.red);
     const silverMat = getLegoMaterial(LEGO_COLORS.silver, { metalness: 0.4 });
@@ -546,28 +533,42 @@ export class TestBlockWorld {
       const hyd = new THREE.Group();
       hyd.position.set(hx, sidewalkY, hz);
 
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.85, 16), redMat);
-      body.position.y = 0.42;
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.9, 16), redMat);
+      body.position.y = 0.45;
       body.castShadow = true;
       hyd.add(body);
 
-      const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.62, 12), silverMat);
+      const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.66, 12), silverMat);
       nozzle.rotation.z = Math.PI / 2;
-      nozzle.position.y = 0.52;
+      nozzle.position.y = 0.55;
       hyd.add(nozzle);
 
       const topStud = new THREE.Mesh(SHARED_STUD_GEO, redMat);
-      topStud.position.y = 0.85;
+      topStud.position.y = 0.9;
       hyd.add(topStud);
 
       this.scene.add(hyd);
-      this.addCollider(hx, hz, 0.6, 0.6, sidewalkY + 0.95);
+      const col = this.addCollider(hx, hz, 0.65, 0.65, sidewalkY + 0.98);
+
+      if (this.destructibles) {
+        this.destructibles.registerDestructible({
+          mesh: hyd,
+          type: 'hydrant',
+          hp: 18,
+          radius: 0.95,
+          height: 1.1,
+          colliders: [col],
+          debrisColors: [LEGO_COLORS.red, LEGO_COLORS.silver, 0x38bdf8],
+          studDrops: { silver: 4, gold: 3, blue: 1, purple: 0 },
+          groundY: sidewalkY
+        });
+      }
     });
 
-    // Árvores de LEGO nas calçadas
+    // 3. Árvores de LEGO nas calçadas
     const treeCoords = [
-      [-14, -22], [-14, -36], [14, -22], [14, -36],
-      [-14, 22], [-14, 36], [14, 22], [14, 36]
+      [-14.5, -24], [-14.5, -36], [14.5, -24], [14.5, -36],
+      [-14.5, 24], [-14.5, 36], [14.5, 24], [14.5, 36]
     ];
     const trunkMat = getLegoMaterial(LEGO_COLORS.brown);
 
@@ -596,18 +597,151 @@ export class TestBlockWorld {
       this.addCollider(tx, tz, 0.9, 0.9, sidewalkY + 4.8);
     });
 
-    // Caixas / Degraus de LEGO empilhados perto da esquina Noroeste para testar pulos altos
+    // 4. Caixas Quebráveis de LEGO (Incluindo Caixas Douradas/Roxas de Recompensa!)
     const crateConfigs = [
-      { x: -15.5, z: -14.0, w: 1.6, d: 1.6, h: 1.0, color: LEGO_COLORS.orange },
-      { x: -15.5, z: -15.8, w: 1.6, d: 1.6, h: 1.9, color: LEGO_COLORS.yellow },
-      { x: -15.5, z: -17.6, w: 1.6, d: 1.6, h: 2.8, color: LEGO_COLORS.red }
+      // Escada de caixas na esquina Noroeste
+      { x: -15.5, z: -14.0, w: 1.5, d: 1.5, h: 1.0, color: LEGO_COLORS.orange, special: false },
+      { x: -15.5, z: -15.8, w: 1.5, d: 1.5, h: 1.8, color: LEGO_COLORS.yellow, special: false },
+      { x: -15.5, z: -17.6, w: 1.5, d: 1.5, h: 2.6, color: LEGO_COLORS.red, special: true },
+      // Caixas perto do jogador na calçada Sudoeste e Sudeste
+      { x: -12.8, z: 13.2, w: 1.4, d: 1.4, h: 1.2, color: LEGO_COLORS.gold, special: true },
+      { x: -14.4, z: 13.2, w: 1.3, d: 1.3, h: 1.0, color: LEGO_COLORS.orange, special: false },
+      { x: 12.8, z: 13.2, w: 1.4, d: 1.4, h: 1.2, color: LEGO_COLORS.purple, special: true },
+      { x: 14.4, z: 13.2, w: 1.3, d: 1.3, h: 1.0, color: LEGO_COLORS.blue, special: false },
+      { x: 12.8, z: -13.2, w: 1.4, d: 1.4, h: 1.2, color: LEGO_COLORS.gold, special: true }
     ];
 
     crateConfigs.forEach((c) => {
       const crate = createLegoBrick(c.w, c.h, c.d, c.color, { studStep: 0.55 });
       crate.position.set(c.x, sidewalkY + c.h * 0.5, c.z);
       this.scene.add(crate);
-      this.addCollider(c.x, c.z, c.w, c.d, sidewalkY + c.h);
+      const col = this.addCollider(c.x, c.z, c.w, c.d, sidewalkY + c.h);
+
+      if (this.destructibles) {
+        this.destructibles.registerDestructible({
+          mesh: crate,
+          type: 'crate',
+          hp: c.special ? 24 : 15,
+          radius: 1.15,
+          height: c.h,
+          colliders: [col],
+          debrisColors: [c.color, LEGO_COLORS.yellow, LEGO_COLORS.brown],
+          studDrops: c.special
+            ? { silver: 3, gold: 4, blue: 2, purple: 1 }
+            : { silver: 5, gold: 2, blue: 0, purple: 0 },
+          groundY: sidewalkY
+        });
+      }
+    });
+  }
+
+  /**
+   * Bancas de Jornal e Cercas Quebráveis de LEGO nas 4 calçadas
+   */
+  _buildNewsstandsAndFences() {
+    const sidewalkY = 0.26;
+
+    // 1. Bancas de Jornal (Newsstands) nas 4 esquinas
+    const stands = [
+      { x: -14.0, z: -19.5, rotY: Math.PI / 2, awningColor: LEGO_COLORS.red },
+      { x: 14.0, z: -19.5, rotY: -Math.PI / 2, awningColor: LEGO_COLORS.blue },
+      { x: -14.0, z: 19.5, rotY: Math.PI / 2, awningColor: LEGO_COLORS.green },
+      { x: 14.0, z: 19.5, rotY: -Math.PI / 2, awningColor: LEGO_COLORS.orange }
+    ];
+
+    stands.forEach((cfg) => {
+      const standGroup = new THREE.Group();
+      standGroup.position.set(cfg.x, sidewalkY, cfg.z);
+      standGroup.rotation.y = cfg.rotY;
+
+      // Base/Balcão da banca de jornal
+      const counter = createLegoBrick(2.8, 1.1, 1.7, LEGO_COLORS.tan, { studStep: 0.6 });
+      counter.position.y = 0.55;
+      standGroup.add(counter);
+
+      // Parede de fundo e colunas laterais
+      const backWall = createLegoBrick(2.8, 1.3, 0.35, LEGO_COLORS.brown, { studs: false });
+      backWall.position.set(0, 1.75, -0.68);
+      standGroup.add(backWall);
+
+      // Revistas e jornais coloridos no balcão
+      const magColors = [LEGO_COLORS.red, LEGO_COLORS.yellow, LEGO_COLORS.cyan, LEGO_COLORS.purple];
+      magColors.forEach((mc, idx) => {
+        const mag = createLegoBrick(0.5, 0.12, 0.65, mc, { studs: true, studStep: 0.25 });
+        mag.position.set(-0.9 + idx * 0.6, 1.16, 0.25);
+        standGroup.add(mag);
+      });
+
+      // Toldo superior de LEGO com pinos (Studs)
+      const awning = createLegoBrick(3.1, 0.38, 2.1, cfg.awningColor, { studStep: 0.6 });
+      awning.position.set(0, 2.55, 0);
+      standGroup.add(awning);
+
+      this.scene.add(standGroup);
+      const col = this.addCollider(cfg.x, cfg.z, 2.1, 3.0, sidewalkY + 2.75);
+
+      if (this.destructibles) {
+        this.destructibles.registerDestructible({
+          mesh: standGroup,
+          type: 'newsstand',
+          hp: 34,
+          radius: 1.9,
+          height: 2.7,
+          colliders: [col],
+          debrisColors: [cfg.awningColor, LEGO_COLORS.tan, LEGO_COLORS.white, LEGO_COLORS.yellow],
+          studDrops: { silver: 6, gold: 4, blue: 2, purple: 0 },
+          groundY: sidewalkY
+        });
+      }
+    });
+
+    // 2. Cercas Brancas de LEGO ao longo das calçadas (Quebram facilmente com 1 golpe ou tiro!)
+    const fencePositions = [
+      // Cercas horizontais (ao longo de X)
+      { x: -19.5, z: -11.4, rotY: 0 },
+      { x: -22.2, z: -11.4, rotY: 0 },
+      { x: 19.5, z: -11.4, rotY: 0 },
+      { x: 22.2, z: -11.4, rotY: 0 },
+      { x: -19.5, z: 11.4, rotY: 0 },
+      { x: -22.2, z: 11.4, rotY: 0 },
+      { x: 19.5, z: 11.4, rotY: 0 },
+      { x: 22.2, z: 11.4, rotY: 0 }
+    ];
+
+    fencePositions.forEach((f) => {
+      const fenceGroup = new THREE.Group();
+      fenceGroup.position.set(f.x, sidewalkY, f.z);
+      fenceGroup.rotation.y = f.rotY;
+
+      // Dois pilares com pinos + duas barras horizontais estilo cerca LEGO clássica
+      const postL = createLegoBrick(0.32, 1.05, 0.32, LEGO_COLORS.white);
+      postL.position.set(-0.95, 0.52, 0);
+      const postR = createLegoBrick(0.32, 1.05, 0.32, LEGO_COLORS.white);
+      postR.position.set(0.95, 0.52, 0);
+
+      const railTop = createLegoBrick(2.2, 0.18, 0.2, LEGO_COLORS.white, { studStep: 0.45 });
+      railTop.position.set(0, 0.85, 0);
+      const railBot = createLegoBrick(2.2, 0.18, 0.2, LEGO_COLORS.white, { studs: false });
+      railBot.position.set(0, 0.38, 0);
+
+      fenceGroup.add(postL, postR, railTop, railBot);
+      this.scene.add(fenceGroup);
+
+      const col = this.addCollider(f.x, f.z, 2.2, 0.45, sidewalkY + 1.05);
+
+      if (this.destructibles) {
+        this.destructibles.registerDestructible({
+          mesh: fenceGroup,
+          type: 'fence',
+          hp: 10,
+          radius: 1.25,
+          height: 1.05,
+          colliders: [col],
+          debrisColors: [LEGO_COLORS.white, LEGO_COLORS.lightGrey],
+          studDrops: { silver: 3, gold: 1, blue: 0, purple: 0 },
+          groundY: sidewalkY
+        });
+      }
     });
   }
 
@@ -629,7 +763,6 @@ export class TestBlockWorld {
   }
 
   update(dt) {
-    // Movimento suave das nuvens de LEGO no céu
     for (const cloud of this.clouds) {
       cloud.position.x += dt * 0.8;
       if (cloud.position.x > 110) {
@@ -638,4 +771,3 @@ export class TestBlockWorld {
     }
   }
 }
-

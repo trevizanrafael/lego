@@ -20,25 +20,31 @@ html, body {
   inset: 0;
   width: 100vw;
   height: 100vh;
-  cursor: grab;
-}
-
-#game-container:active {
-  cursor: grabbing;
+  cursor: crosshair;
 }
 
 #crosshair {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: 10px;
-  height: 10px;
+  width: 22px;
+  height: 22px;
   transform: translate(-50%, -50%);
-  border: 2px solid rgba(255, 255, 255, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.72);
   border-radius: 50%;
   pointer-events: none;
   z-index: 5;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.65);
+}
+
+.ch-dot {
+  width: 4px;
+  height: 4px;
+  background: #facc15;
+  border-radius: 50%;
 }
 
 #ui-overlay {
@@ -49,50 +55,226 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 18px 24px;
+  padding: 16px 22px;
 }
 
 #top-bar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
-.badge-lego {
+/* ===================================================
+   HUD CLÁSSICA ESTILO LEGO (Canto Superior Esquerdo)
+   =================================================== */
+#lego-classic-hud {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(15, 23, 42, 0.82);
-  border: 2px solid #facc15;
-  border-radius: 12px;
-  padding: 8px 14px;
-  font-weight: 800;
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.82));
+  border: 2px solid rgba(250, 204, 21, 0.85);
+  border-radius: 48px 18px 18px 48px;
+  padding: 6px 18px 6px 6px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(8px);
 }
 
-.stud-icon {
-  width: 16px;
-  height: 16px;
+.portrait-ring {
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #fef08a, #eab308 65%, #a16207);
-  border: 2px solid #fef9c3;
-  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5);
+  border: 3px solid #facc15;
+  background: #0f172a;
+  overflow: hidden;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.45), inset 0 2px 6px rgba(0, 0, 0, 0.7);
+  flex-shrink: 0;
 }
 
-.step-tag {
-  background: #dc2626;
-  color: #fff;
-  padding: 3px 8px;
-  border-radius: 6px;
+#hud-portrait-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hud-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 175px;
+}
+
+.hud-name-row {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fde047;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.hearts-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lego-heart {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  transition: transform 0.2s ease;
+}
+
+.stud-counter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  position: relative;
+}
+
+.hud-stud-3d {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 32%, #fef9c3, #facc15 62%, #a16207);
+  border: 2px solid #fef08a;
+  box-shadow: inset 0 -3px 4px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.6);
+  position: relative;
+  transition: transform 0.16s ease;
+}
+
+.hud-stud-3d::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+}
+
+.hud-stud-3d[data-tier="silver"] {
+  background: radial-gradient(circle at 32% 32%, #ffffff, #cbd5e1 62%, #475569);
+  border-color: #f8fafc;
+}
+.hud-stud-3d[data-tier="gold"] {
+  background: radial-gradient(circle at 32% 32%, #fef9c3, #facc15 62%, #a16207);
+  border-color: #fef08a;
+}
+.hud-stud-3d[data-tier="blue"] {
+  background: radial-gradient(circle at 32% 32%, #bae6fd, #3b82f6 62%, #1d4ed8);
+  border-color: #93c5fd;
+}
+.hud-stud-3d[data-tier="purple"] {
+  background: radial-gradient(circle at 32% 32%, #f3e8ff, #a855f7 62%, #6b21a8);
+  border-color: #d8b4fe;
+}
+
+.hud-stud-3d.pop {
+  animation: studPop 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes studPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35) rotate(15deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+#hud-stud-count {
+  font-size: 1.32rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.85);
+}
+
+#hud-stud-gain {
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#hud-stud-gain.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#hud-stud-gain[data-tier="silver"] { color: #e2e8f0; }
+#hud-stud-gain[data-tier="gold"] { color: #facc15; }
+#hud-stud-gain[data-tier="blue"] { color: #60a5fa; }
+#hud-stud-gain[data-tier="purple"] { color: #c084fc; }
+
+/* ===================================================
+   BARRA DE TRUE HERO (Topo Central)
+   =================================================== */
+#true-hero-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: rgba(15, 23, 42, 0.84);
+  border: 1.5px solid rgba(250, 204, 21, 0.55);
+  border-radius: 14px;
+  padding: 7px 18px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+}
+
+.true-hero-title {
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #fef08a;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
+.true-hero-title.achieved {
+  color: #facc15;
+  animation: pulseGold 1s infinite alternate;
+}
+
+@keyframes pulseGold {
+  from { text-shadow: 0 0 4px #facc15; transform: scale(1); }
+  to { text-shadow: 0 0 14px #facc15, 0 0 24px #f59e0b; transform: scale(1.06); }
+}
+
+.true-hero-segments {
+  display: flex;
+  gap: 5px;
+}
+
+.true-hero-stud-seg {
+  width: 18px;
+  height: 11px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.true-hero-stud-seg.filled {
+  background: linear-gradient(180deg, #fef08a, #facc15 60%, #d97706);
+  border-color: #fef9c3;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.75);
+  transform: scaleY(1.12);
+}
+
+.true-hero-pct {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #cbd5e1;
+}
+
+/* ===================================================
+   STATUS PILL & RODAPÉ DE CONTROLES
+   =================================================== */
 #stats-pill {
   background: rgba(15, 23, 42, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -158,10 +340,10 @@ html, body {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  background: rgba(15, 23, 42, 0.82);
+  background: rgba(15, 23, 42, 0.84);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 14px;
-  padding: 10px 16px;
+  padding: 9px 16px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(8px);
 }
@@ -169,10 +351,10 @@ html, body {
 .control-item {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.8rem;
+  gap: 4px;
+  font-size: 0.78rem;
   color: #e2e8f0;
-  padding: 2px 6px;
+  padding: 2px 5px;
 }
 
 kbd {
@@ -182,9 +364,8 @@ kbd {
   border-radius: 6px;
   padding: 2px 7px;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: 0.73rem;
   font-weight: 800;
   color: #f8fafc;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
 }
-
