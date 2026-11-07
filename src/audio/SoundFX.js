@@ -19,15 +19,11 @@ class SoundFX {
     return this.ctx;
   }
 
-  /**
-   * Som metálico cristalino clássico de coletar Studs LEGO
-   */
   playStudCollect(value = 10) {
     const ctx = this._ensureContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    // Frequência sobe conforme a raridade do Stud (Prata < Ouro < Azul < Roxo)
     const baseFreq =
       value >= 10000 ? 1320 :
       value >= 1000 ? 1100 :
@@ -59,9 +55,6 @@ class SoundFX {
     osc2.stop(now + 0.17);
   }
 
-  /**
-   * Som de batida em peça plástica LEGO
-   */
   playPlasticHit() {
     const ctx = this._ensureContext();
     if (!ctx) return;
@@ -74,7 +67,7 @@ class SoundFX {
     osc.frequency.setValueAtTime(280 + Math.random() * 90, now);
     osc.frequency.exponentialRampToValueAtTime(95, now + 0.06);
 
-    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.setValueAtTime(0.11, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
 
     osc.connect(gain);
@@ -84,9 +77,28 @@ class SoundFX {
     osc.stop(now + 0.07);
   }
 
-  /**
-   * Som satisfatório de objeto LEGO desmontando em várias pecinhas plásticas
-   */
+  playMetalRicochet() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1450, now);
+    osc.frequency.exponentialRampToValueAtTime(620, now + 0.09);
+
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+
   playLegoBreak(isBig = false) {
     const ctx = this._ensureContext();
     if (!ctx) return;
@@ -116,9 +128,9 @@ class SoundFX {
   }
 
   /**
-   * Som de disparo / tiro rápido
+   * Som de disparo do Fuzil Tático do Comandante Caveira
    */
-  playShot() {
+  playRifleShot() {
     const ctx = this._ensureContext();
     if (!ctx) return;
 
@@ -127,22 +139,145 @@ class SoundFX {
     const gain = ctx.createGain();
 
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(520, now);
-    osc.frequency.exponentialRampToValueAtTime(110, now + 0.08);
+    osc.frequency.setValueAtTime(420 + Math.random() * 60, now);
+    osc.frequency.exponentialRampToValueAtTime(85, now + 0.075);
 
-    gain.gain.setValueAtTime(0.11, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+    gain.gain.setValueAtTime(0.13, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.09);
+    osc.stop(now + 0.085);
   }
 
   /**
-   * Som de soco / golpe no ar
+   * Som de disparo de Bola de Fogo do Solaris
    */
+  playFireballCast() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.16);
+
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.18);
+  }
+
+  /**
+   * Som de Explosão (Granada do Caveira / Bola de Fogo / Supernova)
+   */
+  playExplosion(scale = 1.0) {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const duration = 0.38 * scale;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(28, now + duration);
+
+    gain.gain.setValueAtTime(Math.min(0.26, 0.18 * scale), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  /**
+   * Pulso sonoro do Raio Solar Contínuo
+   */
+  playSolarBeamTick() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(680 + Math.random() * 140, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+
+    gain.gain.setValueAtTime(0.055, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.06);
+  }
+
+  /**
+   * Som de Rolamento Tático / Esquiva
+   */
+  playTacticalRoll() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(190, now);
+    osc.frequency.exponentialRampToValueAtTime(340, now + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.24);
+
+    gain.gain.setValueAtTime(0.11, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.26);
+  }
+
+  /**
+   * Som de Troca Instantânea de Herói (Tab / 1 / 2)
+   */
+  playHeroSwap() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const freqs = [440, 660, 880];
+    freqs.forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      const t = now + i * 0.045;
+      osc.frequency.setValueAtTime(f, t);
+      gain.gain.setValueAtTime(0.11, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.13);
+    });
+  }
+
   playPunchSwing() {
     const ctx = this._ensureContext();
     if (!ctx) return;
@@ -165,9 +300,6 @@ class SoundFX {
     osc.stop(now + 0.09);
   }
 
-  /**
-   * Fanfarra quando atinge 100% da barra True Hero
-   */
   playTrueHeroFanfare() {
     const ctx = this._ensureContext();
     if (!ctx) return;
@@ -191,4 +323,3 @@ class SoundFX {
 }
 
 export const soundFX = new SoundFX();
-

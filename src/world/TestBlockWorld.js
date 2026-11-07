@@ -20,6 +20,7 @@ export class TestBlockWorld {
     this._buildParkedLegoCars();
     this._buildStreetProps();
     this._buildNewsstandsAndFences();
+    this._buildGoldenLegoObjectsAndRooftops();
     this._buildLegoClouds();
   }
 
@@ -743,6 +744,112 @@ export class TestBlockWorld {
         });
       }
     });
+  }
+
+  /**
+   * Cria Objetos Dourados de LEGO (que só derretem com o Raio Solar do Solaris)
+   * nas esquinas e nos terraços dos prédios mais altos!
+   */
+  _buildGoldenLegoObjectsAndRooftops() {
+    const sidewalkY = 0.26;
+
+    const goldVaultLocations = [
+      // Na calçada perto do cruzamento para teste rápido
+      { x: -12.6, z: -12.6, y: sidewalkY, scale: 1.0 },
+      { x: 12.6, z: 12.6, y: sidewalkY, scale: 1.0 },
+      // No topo do Prédio Mais Alto (Nordeste: x=26, z=-26, altura=28.96)
+      { x: 26.0, z: -26.0, y: sidewalkY + 28.7, scale: 1.35 },
+      // No topo da Torre Comercial (Noroeste: x=-26, z=-26, altura=24.96)
+      { x: -26.0, z: -26.0, y: sidewalkY + 24.7, scale: 1.25 }
+    ];
+
+    const goldShinyMat = getLegoMaterial(LEGO_COLORS.gold, {
+      metalness: 0.72,
+      roughness: 0.14,
+      clearcoat: 0.85,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.28
+    });
+
+    goldVaultLocations.forEach((loc) => {
+      const vaultGroup = new THREE.Group();
+      vaultGroup.position.set(loc.x, loc.y, loc.z);
+
+      const w = 1.9 * loc.scale;
+      const h = 2.1 * loc.scale;
+      const d = 1.9 * loc.scale;
+
+      // Pedestal + Cofre/Monolito de Ouro LEGO
+      const base = createLegoBrick(w + 0.3, 0.35, d + 0.3, LEGO_COLORS.gold, {
+        metalness: 0.65,
+        roughness: 0.16,
+        studStep: 0.55
+      });
+      base.position.y = 0.175;
+      vaultGroup.add(base);
+
+      const core = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), goldShinyMat);
+      core.position.y = 0.35 + h * 0.5;
+      core.castShadow = true;
+      vaultGroup.add(core);
+
+      // Porta circular de cofre dourado na frente e trás
+      const dialGeo = new THREE.CylinderGeometry(w * 0.32, w * 0.32, 0.18, 20);
+      dialGeo.rotateX(Math.PI / 2);
+      for (const dir of [-1, 1]) {
+        const dial = new THREE.Mesh(dialGeo, goldShinyMat);
+        dial.position.set(0, 0.35 + h * 0.5, dir * (d * 0.5 + 0.05));
+        vaultGroup.add(dial);
+      }
+
+      // Topo cravejado de pinos dourados (Studs)
+      const topPlate = createLegoBrick(w, 0.25, d, LEGO_COLORS.gold, {
+        metalness: 0.7,
+        roughness: 0.15,
+        studStep: 0.5
+      });
+      topPlate.position.y = 0.35 + h + 0.125;
+      vaultGroup.add(topPlate);
+
+      this.scene.add(vaultGroup);
+      const col = this.addCollider(loc.x, loc.z, w + 0.2, d + 0.2, loc.y + h + 0.5);
+
+      if (this.destructibles) {
+        this.destructibles.registerDestructible({
+          mesh: vaultGroup,
+          type: 'gold_vault',
+          hp: 45,
+          radius: w * 0.85,
+          height: h + 0.6,
+          colliders: [col],
+          debrisColors: [LEGO_COLORS.gold, LEGO_COLORS.yellow, 0xfef08a],
+          studDrops: { silver: 0, gold: 8, blue: 4, purple: 2 },
+          groundY: loc.y,
+          goldOnly: true // Só derrete com o Raio Solar Contínuo / Supernova do Solaris!
+        });
+      }
+    });
+
+    // Heliponto no topo do prédio mais alto (x=26, z=-26, y=28.96)
+    const heliPad = new THREE.Group();
+    heliPad.position.set(26, sidewalkY + 28.72, -26);
+    const padCircle = new THREE.Mesh(
+      new THREE.CylinderGeometry(6.5, 6.5, 0.08, 32),
+      getLegoMaterial(LEGO_COLORS.darkGrey)
+    );
+    const hLine1 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.12, 5.2),
+      getLegoMaterial(LEGO_COLORS.yellow)
+    );
+    hLine1.position.x = -1.8;
+    const hLine2 = hLine1.clone();
+    hLine2.position.x = 1.8;
+    const hCross = new THREE.Mesh(
+      new THREE.BoxGeometry(3.6, 0.12, 0.6),
+      getLegoMaterial(LEGO_COLORS.yellow)
+    );
+    heliPad.add(padCircle, hLine1, hLine2, hCross);
+    this.scene.add(heliPad);
   }
 
   _buildLegoClouds() {

@@ -1,0 +1,13 @@
+{
+  "name": "lego-cidade-de-deus",
+  "version": "0.3.0",
+  "description": "LEGO: Cidade de Deus — Mundo Aberto 3D em Three.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "python -m http.server 5173"
+  },
+  "dependencies": {
+    "three": "0.160.0"
+  }
+}

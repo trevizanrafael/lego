@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Testes Automatizados — LEGO: Cidade de Deus</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 32px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #facc15;
+      margin-bottom: 8px;
+    }
+    .summary {
+      background: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+    .test-item {
+      background: #1e293b;
+      border-left: 5px solid #4ade80;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .test-item.fail {
+      border-left-color: #ef4444;
+      background: rgba(127, 29, 29, 0.35);
+    }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      background: rgba(74, 222, 128, 0.2);
+      color: #4ade80;
+    }
+    .fail .badge {
+      background: rgba(239, 68, 68, 0.25);
+      color: #f87171;
+    }
+    a.back-btn {
+      display: inline-block;
+      margin-bottom: 18px;
+      color: #38bdf8;
+      text-decoration: none;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-btn" href="../index.html">← Voltar para o Jogo</a>
+  <h1>🧪 Suíte de Testes Automatizados — LEGO: Cidade de Deus</h1>
+  <div id="summary" class="summary">Executando testes...</div>
+  <div id="results"></div>
+
+  <!-- Elementos ocultos de suporte da HUD para os testes no navegador -->
+  <div style="display:none">
+    <canvas id="hud-portrait-canvas" width="76" height="76"></canvas>
+    <div id="hud-stud-count"></div>
+    <div id="hud-stud-gain"></div>
+    <div id="hud-stud-coin"></div>
+    <div id="hud-char-name"></div>
+    <div id="hud-char-sub"></div>
+    <div id="hud-hearts"></div>
+    <div id="true-hero-segments"></div>
+    <div id="true-hero-percent"></div>
+    <div id="true-hero-badge"></div>
+    <div id="crosshair"></div>
+    <div id="pill-caveira"></div>
+    <div id="pill-solaris"></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { LEGO_COLORS, getLegoMaterial, createLegoBrick } from '../src/materials/LegoMaterials.js';
+    import { Minifigure } from '../src/entities/Minifigure.js';
+    import { LegoHud } from '../src/ui/LegoHud.js';
+    import { DestructibleManager, STUD_TIERS } from '../src/world/DestructibleManager.js';
+    import { TestBlockWorld } from '../src/world/TestBlockWorld.js';
+    import { ThirdPersonController } from '../src/controls/ThirdPersonController.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    let passed = 0;
+    let failed = 0;
+
+    function runCheck(name, fn) {
+      const t0 = performance.now();
+      const item = document.createElement('div');
+      try {
+        fn();
+        const ms = (performance.now() - t0).toFixed(1);
+        passed++;
+        item.className = 'test-item';
+        item.innerHTML = `<span>✔ ${name}</span><span class="badge">PASS (${ms}ms)</span>`;
+      } catch (err) {
+        failed++;
+        item.className = 'test-item fail';
+        item.innerHTML = `<span>✖ ${name}: ${err.message}</span><span class="badge">FAIL</span>`;
+      }
+      resultsEl.appendChild(item);
+    }
+
+    runCheck('Materiais ABS LEGO (MeshPhysicalMaterial + Clearcoat)', () => {
+      const mat = getLegoMaterial(LEGO_COLORS.red);
+      if (!(mat instanceof THREE.MeshPhysicalMaterial) || mat.clearcoat < 0.35) {
+        throw new Error('Material inválido');
+      }
+    });
+
+    runCheck('Gerador de Blocos com Pinos LEGO (InstancedMesh Studs)', () => {
+      const brick = createLegoBrick(2.4, 1.0, 1.2, LEGO_COLORS.yellow, { studStep: 0.6 });
+      if (brick.children.length !== 2) throw new Error('Studs ausentes');
+    });
+
+    runCheck('Minifigura 3D Articulada & Soco Horizontal em Guarda de Boxe', () => {
+      const mf = new Minifigure('caveira');
+      mf.triggerPunch();
+      mf.updateAnimation(0.05, 0, 12.8, true, 0);
+      if (mf.leftArmPivot.rotation.x > -1.4 || mf.leftArmPivot.position.z <= 0.15) {
+        throw new Error('Soco não está na linha horizontal do ombro');
+      }
+    });
+
+    runCheck('Valores Oficiais dos 4 Tipos de Studs (10, 100, 1.000 e 10.000)', () => {
+      if (
+        STUD_TIERS.silver.value !== 10 ||
+        STUD_TIERS.gold.value !== 100 ||
+        STUD_TIERS.blue.value !== 1000 ||
+        STUD_TIERS.purple.value !== 10000
+      ) {
+        throw new Error('Valores de Studs incorretos');
+      }
+    });
+
+    runCheck('Objetos Quebráveis de Rua, Hidrante com Chafariz & Coleta Magnética de Studs', () => {
+      const scene = new THREE.Scene();
+      const hud = new LegoHud(10000);
+      const dm = new DestructibleManager(scene, hud);
+      new TestBlockWorld(scene, dm);
+
+      const hyd = dm.objects.find((o) => o.type === 'hydrant');
+      dm.damageObject(hyd, 100);
+      if (!hyd.destroyed || dm.geysers.length !== 1) {
+        throw new Error('Hidrante não gerou chafariz');
+      }
+    });
+
+    runCheck('Câmera Over-the-Shoulder Estilo Fortnite & Mira Central Precisa', () => {
+      const scene = new THREE.Scene();
+      const cam = new THREE.PerspectiveCamera(58, 16 / 9, 0.1, 450);
+      const dm = new DestructibleManager(scene, new LegoHud());
+      const world = new TestBlockWorld(scene, dm);
+      const mf = new Minifigure('caveira');
+      const ctrl = new ThirdPersonController(cam, document.createElement('canvas'), mf, world, dm);
+      ctrl.position.set(0, 0, 0);
+      ctrl.yaw = 0;
+      for (let i = 0; i < 15; i++) ctrl.update(0.03);
+      if (ctrl.cameraLookTarget.x <= 0.7) {
+        throw new Error('Câmera não deslocou para a direita (Over-the-Shoulder)');
+      }
+    });
+
+    runCheck('Voo Cometa do Solaris, Derretimento de Ouro LEGO & Troca no Ar com Rolamento do Caveira', () => {
+      const scene = new THREE.Scene();
+      const cam = new THREE.PerspectiveCamera(58, 16 / 9, 0.1, 450);
+      const dm = new DestructibleManager(scene, new LegoHud());
+      const world = new TestBlockWorld(scene, dm);
+      const mf = new Minifigure('solaris');
+      const ctrl = new ThirdPersonController(cam, document.createElement('canvas'), mf, world, dm);
+      ctrl.isFlying = true;
+      ctrl.keys.forward = true;
+      ctrl.keys.sprint = true;
+      ctrl.keys.jump = true;
+      for (let i = 0; i < 30; i++) ctrl.update(0.04);
+      if (!ctrl.isSupersonic) throw new Error('Voo Supersônico de Cometa não ativou');
+
+      ctrl.keys.jump = false;
+      ctrl.position.set(0, 22, 4);
+      ctrl.switchToHero('caveira');
+      let rolled = false;
+      for (let i = 0; i < 60; i++) {
+        ctrl.update(0.03);
+        if (mf.state === 'ROLL' || mf.rollTimer > 0) {
+          rolled = true;
+          break;
+        }
+      }
+      if (!rolled) throw new Error('Comandante Caveira não executou rolamento ao pousar de queda alta');
+    });
+
+    summaryEl.textContent = `Resultado: ${passed} aprovados • ${failed} falhas`;
+    summaryEl.style.borderColor = failed === 0 ? '#4ade80' : '#ef4444';
+  </script>
+</body>
+</html>

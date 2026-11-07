@@ -33,7 +33,8 @@ const materialCache = new Map();
  * Retorna um MeshPhysicalMaterial com acabamento de plástico ABS LEGO brilhante
  */
 export function getLegoMaterial(colorHex, options = {}) {
-  const key = `${colorHex}_${JSON.stringify(options)}`;
+  const { map, ...restOptions } = options;
+  const key = `${colorHex}_${map ? map.uuid : 'nomap'}_${JSON.stringify(restOptions)}`;
   if (materialCache.has(key)) {
     return materialCache.get(key);
   }

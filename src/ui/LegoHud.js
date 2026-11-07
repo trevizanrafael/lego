@@ -1,11 +1,11 @@
 import { soundFX } from '../audio/SoundFX.js';
 
 /**
- * Gerencia a HUD Clássica Estilo LEGO:
- * - Retrato do personagem atual (Canvas 2D estilo cabeça LEGO)
- * - 4 Corações de LEGO de vida
- * - Contador animado de Studs (moedinhas) + popups de coleta (+10, +100, +1.000, +10.000)
- * - Barra de Progresso "True Hero" (Verdadeiro Herói) no topo
+ * Gerencia a HUD Tática Urbana Angular (IDV LEGO: Cidade de Deus):
+ * - Retrato LEGO em moldura chanfrada 45° + tag operacional (OP-01 / OP-02)
+ * - 4 Corações de LEGO facetados angulares
+ * - Contador de Studs solto de alto contraste + popups técnicos
+ * - Régua compacta de blocos paralelogramos "True Hero" no topo
  */
 export class LegoHud {
   constructor(trueHeroGoal = 35000) {
@@ -20,16 +20,25 @@ export class LegoHud {
     this.studGainEl = document.getElementById('hud-stud-gain');
     this.studCoinEl = document.getElementById('hud-stud-coin');
     this.charNameEl = document.getElementById('hud-char-name');
+    this.charSubEl = document.getElementById('hud-char-sub');
+    this.opTagEl = document.getElementById('hud-op-tag');
     this.portraitCanvas = document.getElementById('hud-portrait-canvas');
     this.heartsContainer = document.getElementById('hud-hearts');
     this.trueHeroSegmentsEl = document.getElementById('true-hero-segments');
     this.trueHeroPercentEl = document.getElementById('true-hero-percent');
     this.trueHeroBadgeEl = document.getElementById('true-hero-badge');
+    this.crosshairEl = document.getElementById('crosshair');
+    this.pillCaveiraEl = document.getElementById('pill-caveira');
+    this.pillSolarisEl = document.getElementById('pill-solaris');
 
     this._gainTimeout = null;
     this._initHearts();
     this._initTrueHeroBar();
-    this.setCharacterPortrait('caveira', 'Comandante Caveira');
+    this.setCharacterPortrait(
+      'caveira',
+      'COMANDANTE CAVEIRA',
+      'BOPE // FUZIL • GRANADA JUMP • ROLAMENTO'
+    );
   }
 
   _initHearts() {
@@ -38,11 +47,12 @@ export class LegoHud {
     for (let i = 0; i < this.maxHearts; i++) {
       const heart = document.createElement('div');
       heart.className = 'lego-heart active';
+      // Coração LEGO Facetado Angular (Cortes geométricos 45° + pino superior)
       heart.innerHTML = `
-        <svg viewBox="0 0 32 32" width="24" height="24">
-          <path d="M16 28 C16 28 3 19.5 3 10.5 C3 6 6.5 3 10.5 3 C13.2 3 15.2 4.5 16 6.5 C16.8 4.5 18.8 3 21.5 3 C25.5 3 29 6 29 10.5 C29 19.5 16 28 16 28 Z"
-            fill="#ef4444" stroke="#7f1d1d" stroke-width="2.2"/>
-          <ellipse cx="10.5" cy="9.5" rx="3" ry="1.8" transform="rotate(-25 10.5 9.5)" fill="rgba(255,255,255,0.55)"/>
+        <svg viewBox="0 0 32 30" width="23" height="22">
+          <polygon points="16,28 3,15 3,7 8,2 13,2 16,6 19,2 24,2 29,7 29,15"
+            fill="#ef4444" stroke="#090a0d" stroke-width="2.6" stroke-linejoin="miter"/>
+          <polygon points="8,5 12,5 14,8 6,12 6,7" fill="rgba(255,255,255,0.45)"/>
         </svg>
       `;
       this.heartsContainer.appendChild(heart);
@@ -61,13 +71,9 @@ export class LegoHud {
     }
   }
 
-  /**
-   * Adiciona Studs coletados e dispara animações na HUD
-   */
   addStuds(amount, colorName = 'silver') {
     this.totalStuds += amount;
 
-    // Atualiza cor da moedinha da HUD conforme o último Stud pego
     if (this.studCoinEl) {
       this.studCoinEl.dataset.tier = colorName;
       this.studCoinEl.classList.remove('pop');
@@ -75,7 +81,6 @@ export class LegoHud {
       this.studCoinEl.classList.add('pop');
     }
 
-    // Mostra popup do valor coletado (+10, +100, +1.000, +10.000)
     if (this.studGainEl) {
       this.studGainEl.textContent = `+${amount.toLocaleString('pt-BR')}`;
       this.studGainEl.dataset.tier = colorName;
@@ -108,54 +113,65 @@ export class LegoHud {
       this.isTrueHero = true;
       if (this.trueHeroBadgeEl) {
         this.trueHeroBadgeEl.classList.add('achieved');
-        this.trueHeroBadgeEl.textContent = '★ VERDADEIRO HERÓI LEGO! ★';
+        this.trueHeroBadgeEl.textContent = '★ VERDADEIRO HERÓI ★';
       }
       soundFX.playTrueHeroFanfare();
     }
   }
 
-  /**
-   * Desenha o retrato 2D estilizado de cabeça LEGO no canto superior esquerdo
-   */
-  setCharacterPortrait(presetKey, displayName) {
+  setCharacterPortrait(presetKey, displayName, subtitle = '') {
     if (this.charNameEl && displayName) {
-      this.charNameEl.textContent = displayName;
+      this.charNameEl.textContent = displayName.toUpperCase();
+    }
+    if (this.charSubEl && subtitle) {
+      this.charSubEl.textContent = subtitle.toUpperCase();
+    }
+    if (this.opTagEl) {
+      this.opTagEl.textContent = presetKey === 'solaris' ? 'OP-02' : 'OP-01';
+    }
+    if (this.crosshairEl) {
+      this.crosshairEl.dataset.hero = presetKey;
+    }
+    if (this.pillCaveiraEl) {
+      this.pillCaveiraEl.classList.toggle('active', presetKey === 'caveira');
+    }
+    if (this.pillSolarisEl) {
+      this.pillSolarisEl.classList.toggle('active', presetKey === 'solaris');
     }
     if (!this.portraitCanvas) return;
+
     const ctx = this.portraitCanvas.getContext('2d');
     const w = this.portraitCanvas.width;
     const h = this.portraitCanvas.height;
 
     ctx.clearRect(0, 0, w, h);
 
-    // Fundo radial dentro do medalhão
-    const bgGrad = ctx.createRadialGradient(w * 0.5, h * 0.45, 6, w * 0.5, h * 0.5, w * 0.52);
-    if (presetKey === 'solaris') {
-      bgGrad.addColorStop(0, '#f97316');
-      bgGrad.addColorStop(1, '#7f1d1d');
-    } else if (presetKey === 'classic') {
-      bgGrad.addColorStop(0, '#3b82f6');
-      bgGrad.addColorStop(1, '#1e3a8a');
-    } else {
-      bgGrad.addColorStop(0, '#334155');
-      bgGrad.addColorStop(1, '#0f172a');
-    }
-    ctx.fillStyle = bgGrad;
+    // Fundo tático seco em Preto Asfalto + Faixa Diagonal Militar
+    ctx.fillStyle = '#0d1017';
     ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = presetKey === 'solaris' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(250, 204, 21, 0.18)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.75);
+    ctx.lineTo(w * 0.75, 0);
+    ctx.moveTo(w * 0.25, h);
+    ctx.lineTo(w, h * 0.25);
+    ctx.stroke();
 
     // Pino superior da cabeça LEGO (Stud)
     ctx.fillStyle = '#eab308';
-    ctx.strokeStyle = '#713f12';
+    ctx.strokeStyle = '#090a0d';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.roundRect(w * 0.37, 9, w * 0.26, 9, 3);
+    ctx.roundRect(w * 0.37, 9, w * 0.26, 9, 2);
     ctx.fill();
     ctx.stroke();
 
     // Cabeça cilíndrica amarela LEGO
     ctx.fillStyle = '#facc15';
     ctx.beginPath();
-    ctx.roundRect(w * 0.22, 17, w * 0.56, 38, 9);
+    ctx.roundRect(w * 0.22, 17, w * 0.56, 38, 6);
     ctx.fill();
     ctx.stroke();
 
@@ -164,7 +180,7 @@ export class LegoHud {
       presetKey === 'solaris' ? '#dc2626' :
       presetKey === 'classic' ? '#2563eb' : '#171717';
     ctx.beginPath();
-    ctx.roundRect(w * 0.14, 54, w * 0.72, 24, 6);
+    ctx.roundRect(w * 0.14, 54, w * 0.72, 24, 4);
     ctx.fill();
     ctx.stroke();
 
@@ -176,14 +192,14 @@ export class LegoHud {
       ctx.fill();
       ctx.stroke();
 
-      // Óculos escuros táticos
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(w * 0.27, 28, 14, 9);
-      ctx.fillRect(w * 0.53, 28, 14, 9);
-      ctx.fillRect(w * 0.41, 30, 8, 3);
+      // Óculos escuros táticos angulares
+      ctx.fillStyle = '#090a0d';
+      ctx.fillRect(w * 0.26, 27, 15, 9);
+      ctx.fillRect(w * 0.53, 27, 15, 9);
+      ctx.fillRect(w * 0.41, 29, 12, 3);
 
       // Sorriso
-      ctx.strokeStyle = '#171717';
+      ctx.strokeStyle = '#090a0d';
       ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(w * 0.5, 43, 8, 0.15 * Math.PI, 0.85 * Math.PI);
@@ -200,29 +216,15 @@ export class LegoHud {
       ctx.arc(w * 0.62, 33, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = '#171717';
+      ctx.strokeStyle = '#090a0d';
       ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(w * 0.5, 42, 8, 0.15 * Math.PI, 0.85 * Math.PI);
-      ctx.stroke();
-    } else {
-      // Rosto clássico LEGO
-      ctx.fillStyle = '#171717';
-      ctx.beginPath();
-      ctx.arc(w * 0.38, 33, 3.5, 0, Math.PI * 2);
-      ctx.arc(w * 0.62, 33, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = '#171717';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.arc(w * 0.5, 41, 8, 0.15 * Math.PI, 0.85 * Math.PI);
       ctx.stroke();
     }
   }
 
   update(dt) {
-    // Faz o contador de Studs rolar suavemente até o total atual
     if (this.displayedStuds < this.totalStuds) {
       const diff = this.totalStuds - this.displayedStuds;
       const step = Math.max(1, Math.ceil(diff * Math.min(1, dt * 16)));
@@ -233,4 +235,3 @@ export class LegoHud {
     }
   }
 }
-

@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LEGO Heróis & Guerra Urbana — Mundo Aberto 3D</title>
+  <title>LEGO: Cidade de Deus — Mundo Aberto 3D</title>
+  <!-- Fontes Oficiais da IDV Tática Urbana: Teko, Chakra Petch e JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./style.css" />
   <script type="importmap">
     {
@@ -17,26 +21,37 @@
 <body>
   <div id="game-container"></div>
 
-  <!-- Mira central para atirar / alinhar câmera -->
-  <div id="crosshair">
+  <!-- Mira Central Tática Estilo Valorant / Fortnite -->
+  <div id="crosshair" data-hero="caveira">
+    <span class="ch-line ch-top"></span>
+    <span class="ch-line ch-right"></span>
+    <span class="ch-line ch-bottom"></span>
+    <span class="ch-line ch-left"></span>
     <span class="ch-dot"></span>
   </div>
 
-  <!-- Interface e HUD Clássica Estilo LEGO -->
+  <!-- Interface Tática Urbana Angular (Tela Limpa de Jogo Real) -->
   <div id="ui-overlay">
     <div id="top-bar">
-      <!-- Canto Superior Esquerdo: HUD Clássica LEGO (Retrato + 4 Corações + Contador de Studs) -->
+      <!-- Canto Superior Esquerdo: Retrato Tático + 4 Corações LEGO + Contador de Studs Solto -->
       <div id="lego-classic-hud">
-        <div class="portrait-ring">
+        <div class="tactical-portrait-frame" id="hud-portrait-ring">
+          <div class="frame-corner-tl"></div>
+          <div class="frame-corner-br"></div>
           <canvas id="hud-portrait-canvas" width="76" height="76"></canvas>
+          <span id="hud-op-tag" class="op-code-tag">OP-01</span>
         </div>
+
         <div class="hud-right-col">
           <div class="hud-name-row">
-            <span id="hud-char-name">Comandante Caveira</span>
+            <span id="hud-char-name">COMANDANTE CAVEIRA</span>
           </div>
-          <!-- 4 Corações de LEGO de Vida -->
+          <div id="hud-char-sub" class="hud-sub-row">BOPE // FUZIL • GRANADA ROCKET • ROLAMENTO</div>
+
+          <!-- 4 Corações de LEGO Facetados -->
           <div id="hud-hearts" class="hearts-row"></div>
-          <!-- Contador Animado de Studs -->
+
+          <!-- Contador de Studs Solto (Alto Contraste Tático, Sem Caixa Prendendo) -->
           <div class="stud-counter-row">
             <div id="hud-stud-coin" class="hud-stud-3d" data-tier="gold"></div>
             <span id="hud-stud-count">0</span>
@@ -45,36 +60,63 @@
         </div>
       </div>
 
-      <!-- Topo Central: Barra de Progresso TRUE HERO (Verdadeiro Herói) -->
+      <!-- Topo Central: Régua Tática Compacta TRUE HERO -->
       <div id="true-hero-bar">
-        <div id="true-hero-badge" class="true-hero-title">VERDADEIRO HERÓI</div>
+        <div class="th-header">
+          <span id="true-hero-badge" class="true-hero-title">VERDADEIRO HERÓI</span>
+          <span id="true-hero-percent" class="true-hero-pct">0%</span>
+        </div>
         <div id="true-hero-segments" class="true-hero-segments"></div>
-        <div id="true-hero-percent" class="true-hero-pct">0%</div>
       </div>
 
-      <!-- Canto Superior Direito: FPS & Estado -->
+      <!-- Canto Superior Direito: Telemetria Minimalista -->
       <div id="stats-pill">
         <span id="fps-counter">60 FPS</span>
-        <span class="sep">•</span>
-        <span id="anim-state">ESTADO: PARADO</span>
+        <span class="sep">//</span>
+        <span id="anim-state">PARADO</span>
       </div>
     </div>
 
+    <!-- Aviso de Clique para Travar Mira (Some assim que clica na tela!) -->
     <div id="pointer-prompt" class="visible">
       <div class="prompt-card">
-        <div class="prompt-title">🧱 CLIQUE NA TELA PARA JOGAR, SOCAR E ATIRAR</div>
-        <div class="prompt-sub">Quebre carros, hidrantes, postes, bancas, cercas e caixas para coletar Studs Prata, Ouro, Azul e Roxo!</div>
+        <div class="prompt-tag">SISTEMA DE COMBATE // LEGO: CIDADE DE DEUS</div>
+        <div class="prompt-title">CLIQUE NA TELA PARA TRAVAR A MIRA EM 3ª PESSOA</div>
+        <div class="prompt-sub">
+          <b>[TAB]</b> Alterna entre <b>Comandante Caveira</b> e <b>Solaris</b> • <b>[H]</b> Exibe Comandos
+        </div>
       </div>
     </div>
 
-    <div id="controls-hud">
-      <div class="control-item"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <span>Mover</span></div>
-      <div class="control-item"><kbd>Shift</kbd> <span>Correr</span></div>
-      <div class="control-item"><kbd>Espaço</kbd> <span>Pular</span></div>
-      <div class="control-item"><kbd>Clique Esq</kbd>/<kbd>E</kbd> <span>Socar / Quebrar</span></div>
-      <div class="control-item"><kbd>Clique Dir</kbd>/<kbd>F</kbd> <span>Atirar</span></div>
-      <div class="control-item"><kbd>C</kbd> <span>Visual</span></div>
-      <div class="control-item"><kbd>R</kbd> <span>Reconstruir Rua</span></div>
+    <!-- Rodapé Limpo: Micro-Indicadores Táticos + Gaveta de Comandos Ocultável [H] -->
+    <div id="bottom-bar">
+      <div id="hero-switcher-pills">
+        <div id="pill-caveira" class="hero-pill active">
+          <span class="pill-key">1</span>
+          <span class="pill-label">CAVEIRA</span>
+        </div>
+        <div id="pill-solaris" class="hero-pill">
+          <span class="pill-key">2</span>
+          <span class="pill-label">SOLARIS</span>
+        </div>
+        <div class="hero-swap-tag"><b>[TAB]</b> TROCAR</div>
+      </div>
+
+      <!-- Gaveta de Comandos (Oculta por padrão para deixar a tela limpa, abre com H) -->
+      <div id="controls-hud" class="hidden">
+        <div class="control-item"><kbd>WASD</kbd> <span>MOVER</span></div>
+        <div class="control-item"><kbd>SHIFT</kbd> <span>CORRER / COMETA</span></div>
+        <div class="control-item"><kbd>2x ESPAÇO</kbd> <span>VOAR (SOLARIS)</span></div>
+        <div class="control-item"><kbd>MOUSE 1</kbd> <span>ATIRAR</span></div>
+        <div class="control-item"><kbd>MOUSE 2</kbd>/<kbd>E</kbd> <span>GRANADA JUMP / RAIO SOLAR</span></div>
+        <div class="control-item"><kbd>Q</kbd>/<kbd>F</kbd> <span>ROLAMENTO / SUPERNOVA</span></div>
+        <div class="control-item"><kbd>V</kbd> <span>SOCO</span></div>
+        <div class="control-item"><kbd>R</kbd> <span>RECONSTRUIR RUA</span></div>
+      </div>
+
+      <div id="help-toggle-hint">
+        <span class="pill-key">H</span> <span id="help-toggle-label">COMANDOS</span>
+      </div>
     </div>
   </div>
 

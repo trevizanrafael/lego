@@ -19,6 +19,7 @@ Este arquivo contém **todo o contexto, regras de negócio, decisões de design 
 
 ## 🛠️ 2. Stack Tecnológica & Padrões Visuais
 
+* **Identidade Visual (IDV Oficial):** Todas as telas, HUD, minimapa, menus e alertas devem seguir rigorosamente o documento **`IDV.md`** (Estética **Tático Urbano Angular** estilo GTA / Valorant / BOPE: cortes chanfrados em 45° via `clip-path`, alto contraste Preto Asfalto `#090a0d` + Amarelo Alerta `#facc15`, fontes `Teko` / `Chakra Petch` / `JetBrains Mono`, sombras duras geométricas, tela limpa sem poluição visual e **zero glassmorphism/pílulas redondas de IA**).
 * **Tecnologia:** **Three.js (WebGL 3D em JavaScript ES6 Modules + HTML5/CSS3)** sem dependência de engines pesadas externas (sem Unity/Godot/Blender).
 * **Execução:** Deve rodar direto no navegador (via Vite ou servidor HTTP local simples) a **60 FPS constantes**, em tela cheia (`100vw x 100vh`), com `PointerLockControls` ou câmera orbital suave em 3ª pessoa controlada pelo mouse.
 * **Estética LEGO 3D Obrigatória:**
