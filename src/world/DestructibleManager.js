@@ -1638,6 +1638,7 @@ export class DestructibleManager {
       const flame = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.95, 10), whiteCyanGlow);
       flame.rotation.x = -Math.PI / 2;
       flame.position.set(sx, 0.74, -1.96);
+      flame.visible = false;
       bikeGroup.add(thruster, flame);
       turboFlames.push(flame);
     }
@@ -1655,12 +1656,15 @@ export class DestructibleManager {
       openTop: true,
       canWheelie: true,
       rammingPower: 'unstoppable',
-      maxForward: 175.0,    // ~562 KM/H normal no [W]
-      turboSpeed: 232.0,    // ~746 KM/H no [Q] / Overdrive (PASSA DE 700 KM/H!)
-      maxReverse: -48.0,
-      accel: 185.0,         // Arrancada instantânea brutal
-      turnRate: 3.6,
-      driftTurnRate: 4.8,
+      maxForward: 68.0,     // ~218 KM/H controlada no [W] normal
+      turboSpeed: 232.0,    // ~746 KM/H segurando [Q] (PASSA DE 700 KM/H!)
+      maxReverse: -36.0,
+      accel: 38.0,          // Aceleração progressiva e gostosa de controlar no [W]
+      turboAccel: 76.0,     // Aceleração progressiva do Turbo [Q] até 746 KM/H
+      brakeDecel: 245.0,    // Freio ultra-forte e responsivo no [S] ou [Espaço]
+      coastFriction: 68.0,  // Desaceleração rápida ao soltar o acelerador
+      turnRate: 3.4,
+      driftTurnRate: 4.6,
       seatedYOffset: 0.78,
       seatZOffset: -0.26,
       rearAxleZ: 1.15,

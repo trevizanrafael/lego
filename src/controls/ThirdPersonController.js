@@ -1268,15 +1268,16 @@ export class ThirdPersonController {
     const bikeObj = this.destructibles.summonTurboEnergyBike(this.position, this.facingAngle);
     if (bikeObj) {
       this.enterVehicle(bikeObj);
-      this.vehicleSpeed = 95.0; // Arrancada instantânea já em ~300 KM/H! Segure [Q] para bater 740+ KM/H!
-      this.turboOverdriveActive = Boolean(this.keys.turbo);
-      this.isTurboActive = Boolean(this.keys.turbo);
+      this.vehicleSpeed = 0; // Spawna parada e sem turbo! Você acelera no [W] ou segura [Q] pro Turbo!
+      this.turboOverdriveActive = false;
+      this.isTurboActive = false;
+      this.keys.turbo = false;
       this._lastLightWallPos = this.position.clone();
       if (this.hud) {
         this.hud.setCharacterPortrait(
           'turbo',
-          'TURBO FANTASMA [MOTO 740 KM/H]',
-          'MOTO FANTASMA ATIVA • SEGURE [Q] TURBO 740 KM/H • [MOUSE 1] ESPADA DE PLASMA'
+          'TURBO FANTASMA [MOTO FANTASMA]',
+          'MOTO FANTASMA • [W] ACELERAR • [S / ESPAÇO] FREIO FORTE • SEGURE [Q] TURBO 740 KM/H'
         );
       }
     }
@@ -2252,32 +2253,40 @@ export class ThirdPersonController {
         ? spec.maxForward * 0.94
         : spec.maxForward;
     const maxReverse = spec.maxReverse;
-    const accel = this.isTurboActive ? spec.accel * 1.95 : spec.accel;
-    const brakeDecel = 38.0;
-    const coastFriction = this.isDrifting ? 11.5 : 9.0;
+    const accel = this.isTurboActive ? (spec.turboAccel ?? spec.accel * 1.95) : spec.accel;
+    const brakeDecel = spec.brakeDecel ?? 48.0;
+    const baseCoast = spec.coastFriction ?? 12.0;
+    const coastFriction = this.isDrifting ? baseCoast * 1.25 : baseCoast;
 
-    // Motos (CV, PCC e Polícia): Espaço empina a moto na roda traseira em vez de frear!
+    // Motos: Espaço empina a moto APENAS se estiver acelerando ([W] ou [Q]); sem [W]/[Q], Espaço é Freio de Mão forte!
     const isDoingWheelie = Boolean(
-      spec.canWheelie && this.keys.jump && (this.keys.forward || this.isTurboActive || this.vehicleSpeed >= 0)
+      spec.canWheelie && this.keys.jump && (this.keys.forward || this.isTurboActive)
     );
 
-    if (this.keys.jump && !spec.canWheelie) {
-      // Freio de mão (Espaço — para carros e caminhões)
-      this.vehicleSpeed = THREE.MathUtils.lerp(this.vehicleSpeed, 0, Math.min(1, dt * 8.5));
-    } else if (this.keys.forward || this.isTurboActive || isDoingWheelie) {
-      const rate = this.vehicleSpeed < 0 ? brakeDecel : accel;
-      this.vehicleSpeed = Math.min(maxForward, this.vehicleSpeed + rate * dt);
-    } else if (this.keys.backward) {
+    if (this.keys.jump && !isDoingWheelie) {
+      // Freio de mão forte (Espaço)
+      if (Math.abs(this.vehicleSpeed) < 0.5) {
+        this.vehicleSpeed = 0;
+      } else {
+        this.vehicleSpeed -= Math.sign(this.vehicleSpeed) * brakeDecel * 1.15 * dt;
+      }
+    } else if (this.keys.backward && !this.isTurboActive) {
+      // Freio forte na tecla [S] (quando indo para frente) ou Ré
       const rate = this.vehicleSpeed > 0 ? brakeDecel : accel * 0.85;
       this.vehicleSpeed = Math.max(maxReverse, this.vehicleSpeed - rate * dt);
+    } else if (this.keys.forward || this.isTurboActive || isDoingWheelie) {
+      const rate = this.vehicleSpeed < 0 ? brakeDecel : accel;
+      if (this.vehicleSpeed > maxForward) {
+        // Se acabou de soltar o [Q] Turbo e continua no [W], desacelera suavemente até a velocidade normal do [W]
+        this.vehicleSpeed = Math.max(maxForward, this.vehicleSpeed - brakeDecel * 0.75 * dt);
+      } else {
+        this.vehicleSpeed = Math.min(maxForward, this.vehicleSpeed + rate * dt);
+      }
     } else {
-      if (Math.abs(this.vehicleSpeed) < 0.25) {
+      if (Math.abs(this.vehicleSpeed) < 0.45) {
         this.vehicleSpeed = 0;
       } else {
         this.vehicleSpeed -= Math.sign(this.vehicleSpeed) * coastFriction * dt;
-      }
-      if (this.vehicleSpeed > maxForward) {
-        this.vehicleSpeed = THREE.MathUtils.lerp(this.vehicleSpeed, maxForward, Math.min(1, dt * 6));
       }
     }
 
@@ -3128,7 +3137,8 @@ export class ThirdPersonController {
             this.minifigure.rightArmPivot.rotation.z = -0.55;
           }
         }
-        if (Math.abs(this.vehicleSpeed) > 6.0 && this.destructibles) {
+        // Só deixa a Muralha de Luz Ciano na moto enquanto estiver segurando [Q] (Turbo ativo) ou muito rápido!
+        if (this.isTurboActive && Math.abs(this.vehicleSpeed) > 6.0 && this.destructibles) {
           if (!this._lastLightWallPos) {
             this._lastLightWallPos = prevCarPos.clone();
           } else if (this.position.distanceTo(this._lastLightWallPos) >= 1.1) {
