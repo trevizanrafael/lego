@@ -1356,7 +1356,9 @@ body.hero-wheel-active #crosshair {
 }
 
 .dossier-card {
-  width: min(760px, 94vw);
+  width: 780px;
+  max-width: 94vw;
+  height: 530px;
   background: var(--idv-black);
   border: 2px solid var(--idv-alert);
   border-left-width: 6px;
@@ -1372,7 +1374,9 @@ body.hero-wheel-active #crosshair {
   box-shadow: 8px 8px 0 #000000;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
 }
 
 .dossier-header {
@@ -1381,6 +1385,8 @@ body.hero-wheel-active #crosshair {
   align-items: center;
   border-bottom: 2px solid var(--idv-steel);
   padding-bottom: 10px;
+  height: 78px;
+  flex-shrink: 0;
   gap: 14px;
 }
 
@@ -1461,15 +1467,21 @@ body.hero-wheel-active #crosshair {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  height: 64px;
+  flex-shrink: 0;
 }
 
 .dossier-meta-box {
   background: var(--idv-carbon);
   border: 1.5px solid var(--idv-steel);
   padding: 8px 12px;
+  height: 64px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
+  overflow: hidden;
 }
 
 .meta-label {
@@ -1482,8 +1494,11 @@ body.hero-wheel-active #crosshair {
 
 .meta-val {
   font-family: var(--font-tactical);
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: var(--idv-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dossier-section-title {
@@ -1494,12 +1509,16 @@ body.hero-wheel-active #crosshair {
   letter-spacing: 0.1em;
   border-bottom: 1.5px solid var(--idv-steel);
   padding-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .dossier-controls-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, 66px);
   gap: 8px;
+  height: 214px;
+  flex-shrink: 0;
 }
 
 .dossier-control-card {
@@ -1507,10 +1526,14 @@ body.hero-wheel-active #crosshair {
   border: 1.5px solid var(--idv-steel);
   border-left: 4px solid var(--idv-alert);
   padding: 8px 12px;
+  height: 66px;
+  box-sizing: border-box;
   clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 4px;
+  overflow: hidden;
 }
 
 .dossier-ctrl-top {

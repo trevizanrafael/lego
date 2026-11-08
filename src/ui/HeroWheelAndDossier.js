@@ -17,9 +17,11 @@ export const HERO_CATALOG = [
     passive: 'Rolamento Tático evasivo com invulnerabilidade curta e Rocket Jump com granadas.',
     controls: [
       { key: 'MOUSE 1', title: 'FUZIL DE ASSALTO TÁTICO', desc: 'Disparo automático de alta precisão e cadência constante.' },
-      { key: 'MOUSE 2', title: 'GRANADA EXPLOSIVA / ROCKET JUMP', desc: 'Arremessa granada de fragmentação que impulsiona o herói no ar.' },
+      { key: 'MOUSE 2', title: 'GRANADA / ROCKET JUMP', desc: 'Arremessa granada explosiva que impulsiona o herói no ar.' },
       { key: 'Q / CTRL', title: 'ROLAMENTO TÁTICO BOPE', desc: 'Esquiva rápida para frente com reposicionamento imediato.' },
-      { key: 'V', title: 'CORONHADA TÁTICA', desc: 'Golpe físico de curta distância para quebrar objetos.' }
+      { key: 'V', title: 'CORONHADA TÁTICA', desc: 'Golpe físico de curta distância para quebrar objetos.' },
+      { key: 'ESPAÇO', title: 'SALTO DE OPERADOR', desc: 'Salto tático para transpor barricadas, muros e veículos.' },
+      { key: 'SHIFT', title: 'CORRIDA TÁTICA', desc: 'Velocidade de deslocamento acelerada em patrulha urbana.' }
     ]
   },
   {
@@ -33,10 +35,11 @@ export const HERO_CATALOG = [
     specialty: 'Domínio Aéreo Supersônico & Fusão de Estruturas de Ouro LEGO',
     passive: 'Voo livre tridimensional (2x Espaço) e modo Cometa Supersônico (Shift no ar).',
     controls: [
-      { key: '2x ESPAÇO', title: 'VOO & LEVITAÇÃO SOLAR', desc: 'Ativa voo livre. Segure ESPAÇO para subir e CTRL/C para descer.' },
-      { key: 'SHIFT (NO AR)', title: 'VOO DE COMETA SUPERSÔNICO', desc: 'Propulsão extrema com rastro de plasma pelos arranha-céus.' },
+      { key: '2x ESPAÇO', title: 'VOO & LEVITAÇÃO SOLAR', desc: 'Ativa voo livre. Segure ESPAÇO para subir no ar.' },
+      { key: 'CTRL / C', title: 'MERGULHO / DESCIDA AÉREA', desc: 'Reduz altitude rapidamente durante a levitação solar.' },
+      { key: 'SHIFT (AR)', title: 'VOO DE COMETA SUPERSÔNICO', desc: 'Propulsão extrema com rastro de plasma pelos prédios.' },
       { key: 'MOUSE 1', title: 'BOLAS DE FOGO', desc: 'Dispara projéteis ígneos explosivos em sequência.' },
-      { key: 'MOUSE 2', title: 'RAIO SOLAR CONTÍNUO', desc: 'Feixe térmico concentrado capaz de derreter objetos de OURO LEGO.' },
+      { key: 'MOUSE 2', title: 'RAIO SOLAR CONTÍNUO', desc: 'Feixe térmico concentrado que derrete objetos de OURO LEGO.' },
       { key: 'Q / F', title: 'EXPLOSÃO SUPERNOVA', desc: 'Detona uma onda de choque solar em 360° ao redor do herói.' }
     ]
   },
@@ -51,11 +54,12 @@ export const HERO_CATALOG = [
     specialty: 'Demolição de Paredes Rachadas, Arremesso de Veículos & Impacto Sísmico',
     passive: 'Chassi Big-Fig blindado com Super-Pulo a jato que racha o asfalto ao pousar.',
     controls: [
-      { key: 'MOUSE 1', title: 'METRALHADORA ROTATIVA (4 CANOS)', desc: 'Rajada pesada contínua de munição energética ciano.' },
-      { key: 'MOUSE 2 / F', title: 'AGARRAR E ARREMESSAR CARROS', desc: 'Levanta carros da rua acima da cabeça e os arremessa como bombas.' },
-      { key: 'V', title: 'SOCO FOGUETE DEMOLIDOR', desc: 'Avança com propulsão a jato destruindo PAREDES RACHADAS LEGO.' },
-      { key: 'Q', title: 'TERREMOTO DE ESCUDO', desc: 'Impacto sísmico no solo que destrói estruturas e paredes rachadas.' },
-      { key: 'ESPAÇO', title: 'SUPER-PULO PESADO', desc: 'Salto propulsado de grande altitude com impacto explosivo no pouso.' }
+      { key: 'MOUSE 1', title: 'METRALHADORA ROTATIVA', desc: 'Rajada pesada contínua de 4 canos com munição ciano.' },
+      { key: 'MOUSE 2 / F', title: 'AGARRAR & ARREMESSAR CARRO', desc: 'Levanta carros acima da cabeça e os arremessa como bombas.' },
+      { key: 'V', title: 'SOCO FOGUETE DEMOLIDOR', desc: 'Avança a jato destruindo PAREDES RACHADAS LEGO.' },
+      { key: 'Q', title: 'TERREMOTO DE ESCUDO', desc: 'Impacto sísmico no solo que destrói estruturas e paredes.' },
+      { key: 'ESPAÇO', title: 'SUPER-PULO PESADO', desc: 'Salto propulsado de grande altitude com impacto no pouso.' },
+      { key: 'SHIFT', title: 'MARCHA BLINDADA', desc: 'Avanço pesado de alta tração do chassi Mecha Big-Fig.' }
     ]
   },
   {
@@ -69,11 +73,12 @@ export const HERO_CATALOG = [
     specialty: 'Demolição de Objetos de LEGO Prateado Brilhante & Poder de Fogo Bruto',
     passive: 'Carrega 3 armas pesadas intercambiáveis em tempo real (SMGs Duplas, Escopeta e RPG).',
     controls: [
-      { key: 'R / MOUSE 2', title: 'TROCAR ARMA DO ARSENAL (3 ARMAS)', desc: 'Alterna entre Duas Submetralhadoras, Escopeta de Impacto e Bazuca RPG.' },
-      { key: 'MOUSE 1 (SMG)', title: 'DUAS SUBMETRALHADORAS', desc: 'Cadência dupla insana com recuo alternado nos dois braços.' },
-      { key: 'MOUSE 1 (SHOTGUN)', title: 'ESCOPETA DE IMPACTO', desc: 'Disparo em cone de 7 balotes incendiários de alto dano.' },
-      { key: 'MOUSE 1 (RPG)', title: 'BAZUCA RPG ANTI-PRATA', desc: 'Dispara foguete pesado que destrói OBJETOS DE LEGO PRATEADO.' },
-      { key: 'Q', title: 'GRANADA TÁTICA', desc: 'Lança granada explosiva de fragmentação.' }
+      { key: 'R / MOUSE 2', title: 'ALTERNAR ARMA (3 ARMAS)', desc: 'Troca entre Duas SMGs, Escopeta de Impacto e Bazuca RPG.' },
+      { key: 'MOUSE 1 (1)', title: 'DUAS SUBMETRALHADORAS', desc: 'Cadência dupla insana com recuo alternado nos braços.' },
+      { key: 'MOUSE 1 (2)', title: 'ESCOPETA DE IMPACTO', desc: 'Disparo em cone de 7 balotes incendiários de alto dano.' },
+      { key: 'MOUSE 1 (3)', title: 'BAZUCA RPG ANTI-PRATA', desc: 'Dispara foguete pesado que destrói OBJETOS PRATEADOS.' },
+      { key: 'Q', title: 'GRANADA DE FRAGMENTAÇÃO', desc: 'Lança granada explosiva tática à distância.' },
+      { key: 'V', title: 'GOLPE DE CORONHA PESADA', desc: 'Ataque físico corpo a corpo para quebrar obstáculos.' }
     ]
   },
   {
@@ -87,10 +92,12 @@ export const HERO_CATALOG = [
     specialty: 'Travessia Vertical com Gancho Magnético, Infiltração Furtiva & Katanas',
     passive: 'Agilidade acrobática aumentada e camuflagem óptica para atravessar lasers.',
     controls: [
-      { key: 'MOUSE 2 / F', title: 'GANCHO MAGNÉTICO AÉREO', desc: 'Dispara cabo laser nos prédios e puxa o herói pelo ar (ESPAÇO solta com pulo).' },
-      { key: 'MOUSE 1 / V', title: 'CORTE DUPLO DE KATANAS', desc: 'Golpeia com as duas lâminas lançando uma onda crescente de energia escarlate.' },
-      { key: 'Q', title: 'BOMBA DE FUMAÇA & INVISIBILIDADE', desc: 'Cria cortina de fumaça e fica invisível por 6.5s (ignora lasers do Banco).' },
-      { key: 'G', title: 'PUXÃO MAGNÉTICO', desc: 'Atrai todos os Studs em 28m instantaneamente e atinge o alvo na mira.' }
+      { key: 'MOUSE 2 / F', title: 'GANCHO MAGNÉTICO AÉREO', desc: 'Dispara cabo laser nos prédios e puxa o herói voando pelo ar.' },
+      { key: 'ESPAÇO (AR)', title: 'IMPULSO ACROBÁTICO', desc: 'Solta o cabo do gancho no ar com salto mortal elevado.' },
+      { key: 'MOUSE 1 / V', title: 'CORTE DUPLO DE KATANAS', desc: 'Golpeia com as duas lâminas lançando onda de energia escarlate.' },
+      { key: 'Q', title: 'BOMBA DE FUMAÇA FURTIVA', desc: 'Cria cortina de fumaça e fica invisível por 6.5 segundos.' },
+      { key: 'G', title: 'PUXÃO MAGNÉTICO', desc: 'Atrai todos os Studs em 28m e atinge o alvo na mira.' },
+      { key: 'SHIFT', title: 'PASSO FANTASMA SHINOBI', desc: 'Corrida ninja silenciosa de alta velocidade.' }
     ]
   }
 ];
