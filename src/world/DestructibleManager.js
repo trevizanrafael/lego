@@ -885,88 +885,227 @@ export class DestructibleManager {
   }
 
   // ============================================================================
-  // HERÓI #4: VINGADOR DE CHUMBO — DUAS SMGs, ESCOPETA DE IMPACTO & BAZUCA RPG
+  // HERÓI #4: VINGADOR DE CHUMBO (O JUSTICEIRO) — CASTIGADORAS .50, DOZE 18 BAGOS, BAZUCA ROCKET JUMP & FUROR [Q]
   // ============================================================================
 
-  spawnDualSmgBullets(leftOrigin, rightOrigin, targetPoint) {
-    soundFX.playRifleShot();
-    const tracerMat = getLegoMaterial(0xe2e8f0, {
-      emissive: 0xfacc15,
-      emissiveIntensity: 2.0,
-      roughness: 0.1
+  /**
+   * Ejeta uma cápsula de munição dourada/vermelha 3D que gira no ar
+   */
+  _spawnEjectedBrassShell(origin, isShotgunShell = false) {
+    const shellMat = new THREE.MeshBasicMaterial({
+      color: isShotgunShell ? 0xdc2626 : 0xfacc15,
+      transparent: true,
+      opacity: 0.95
+    });
+    const shellMesh = new THREE.Mesh(TRAIL_CUBE_GEO, shellMat);
+    shellMesh.position.copy(origin);
+    shellMesh.scale.set(isShotgunShell ? 0.65 : 0.45, isShotgunShell ? 0.65 : 0.45, isShotgunShell ? 1.35 : 0.95);
+    this.scene.add(shellMesh);
+
+    this.fxParticles.push({
+      mesh: shellMesh,
+      vel: new THREE.Vector3(
+        (Math.random() - 0.5) * 5.5,
+        3.2 + Math.random() * 3.5,
+        (Math.random() - 0.5) * 5.5
+      ),
+      life: 0.55,
+      maxLife: 0.55
+    });
+  }
+
+  /**
+   * Micro-explosão de impacto da Munição Calibre .50 Explosiva/Perfurante das "Castigadoras Gêmeas"
+   */
+  _triggerMicroImpactBlast(hitPos) {
+    soundFX.playPlasticHit();
+    const flashMat = new THREE.MeshBasicMaterial({
+      color: 0xf97316,
+      transparent: true,
+      opacity: 0.92
+    });
+    const flashSphere = new THREE.Mesh(FIREBALL_GEO, flashMat);
+    flashSphere.position.copy(hitPos);
+    flashSphere.scale.setScalar(1.85);
+    this.scene.add(flashSphere);
+    this.fxParticles.push({
+      mesh: flashSphere,
+      vel: new THREE.Vector3(0, 0.5, 0),
+      life: 0.14,
+      maxLife: 0.14
     });
 
-    for (const orig of [leftOrigin, rightOrigin]) {
+    const sparkColors = [0xffffff, 0xfef08a, 0xf97316, 0xef4444];
+    for (let i = 0; i < 8; i++) {
+      const sMat = new THREE.MeshBasicMaterial({
+        color: sparkColors[i % sparkColors.length],
+        transparent: true,
+        opacity: 0.95
+      });
+      const spark = new THREE.Mesh(TRAIL_CUBE_GEO, sMat);
+      spark.position.copy(hitPos);
+      spark.scale.setScalar(0.85);
+      this.scene.add(spark);
+      this.fxParticles.push({
+        mesh: spark,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 14.0,
+          2.5 + Math.random() * 8.5,
+          (Math.random() - 0.5) * 14.0
+        ),
+        life: 0.24,
+        maxLife: 0.24
+      });
+    }
+
+    // Dano explosivo concentrado ao redor do ponto de impacto do calibre .50
+    for (const obj of this.objects) {
+      if (obj.destroyed || obj.isDriven) continue;
+      const d = Math.hypot(obj.basePos.x - hitPos.x, obj.basePos.z - hitPos.z);
+      const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - hitPos.y);
+      if (d <= obj.radius + 2.4 && dy <= obj.height + 1.8) {
+        this.damageObject(obj, 22, hitPos, false, { canBreakCrackedWall: true });
+      }
+    }
+  }
+
+  /**
+   * ARMA 1 ("CASTIGADORAS GÊMEAS"): Dispara Munição Calibre .50 Explosiva/Perfurante Alternada (115 m/s)
+   */
+  spawnDualSmgBullets(leftOrigin, rightOrigin, targetPoint, recoilSide = 0) {
+    soundFX.playRifleShot();
+    soundFX.playExplosion(0.32);
+
+    const coreMat = getLegoMaterial(0xffffff, {
+      emissive: 0xfef08a,
+      emissiveIntensity: 2.6,
+      roughness: 0.08
+    });
+    const jacketMat = getLegoMaterial(0xff1e42, {
+      emissive: 0xf97316,
+      emissiveIntensity: 2.2,
+      roughness: 0.12
+    });
+
+    const origins = recoilSide < 0 ? [leftOrigin] : recoilSide > 0 ? [rightOrigin] : [leftOrigin, rightOrigin];
+    for (const orig of origins) {
+      this._spawnEjectedBrassShell(orig, false);
+
       const spreadTarget = targetPoint.clone().add(
-        new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.8)
+        new THREE.Vector3((Math.random() - 0.5) * 0.45, (Math.random() - 0.5) * 0.32, (Math.random() - 0.5) * 0.45)
       );
       const dir = spreadTarget.sub(orig).normalize();
-      const mesh = new THREE.Mesh(BULLET_GEO, tracerMat);
-      mesh.position.copy(orig);
-      mesh.lookAt(targetPoint);
-      this.scene.add(mesh);
+
+      const bulletGroup = new THREE.Group();
+      const coreMesh = new THREE.Mesh(BULLET_GEO, coreMat);
+      coreMesh.scale.set(2.1, 2.1, 1.8);
+      const auraMesh = new THREE.Mesh(BULLET_GEO, jacketMat);
+      auraMesh.scale.set(2.9, 2.9, 1.4);
+      bulletGroup.add(auraMesh, coreMesh);
+
+      bulletGroup.position.copy(orig);
+      bulletGroup.lookAt(orig.clone().add(dir));
+      this.scene.add(bulletGroup);
 
       this.projectiles.push({
-        mesh,
-        type: 'bullet',
-        vel: dir.multiplyScalar(82),
-        life: 1.1,
-        damage: 13,
-        isSolar: false
+        mesh: bulletGroup,
+        type: 'punisher_50cal',
+        vel: dir.multiplyScalar(115.0),
+        life: 0.95,
+        damage: 36,
+        isSolar: false,
+        canBreakCrackedWall: true
       });
     }
   }
 
+  /**
+   * ARMA 2 (ESCOPETA DE TAMBOR "JUIZ FINAL"): Dispara 18 BAGOS INCENDIÁRIOS (Dragon's Breath) em cone denso!
+   */
   spawnShotgunBlast(origin, targetPoint) {
-    soundFX.playExplosion(0.75);
-    const mainDir = targetPoint.clone().sub(origin).normalize();
-    const pelletMat = getLegoMaterial(0xf97316, {
-      emissive: 0xfef08a,
-      emissiveIntensity: 2.2
-    });
+    soundFX.playExplosion(0.92);
+    soundFX.playRifleShot();
+    this._spawnEjectedBrassShell(origin, true);
 
-    for (let i = 0; i < 7; i++) {
+    const mainDir = targetPoint.clone().sub(origin).normalize();
+    const pelletColors = [0xffffff, 0xfef08a, 0xf97316, 0xef4444];
+
+    // Cortina de fumaça e fogo na boca do cano da Doze
+    for (let s = 0; s < 10; s++) {
+      const smokeMat = new THREE.MeshBasicMaterial({
+        color: s < 5 ? 0xf97316 : 0x334155,
+        transparent: true,
+        opacity: 0.86
+      });
+      const puff = new THREE.Mesh(FIREBALL_GEO, smokeMat);
+      puff.position.copy(origin).addScaledVector(mainDir, 0.5 + Math.random() * 0.8);
+      puff.scale.setScalar(0.9 + Math.random() * 0.9);
+      this.scene.add(puff);
+      this.fxParticles.push({
+        mesh: puff,
+        vel: mainDir.clone().multiplyScalar(8 + Math.random() * 10).add(
+          new THREE.Vector3((Math.random() - 0.5) * 5, 1.5 + Math.random() * 3, (Math.random() - 0.5) * 5)
+        ),
+        life: 0.28,
+        maxLife: 0.28
+      });
+    }
+
+    // 18 BAGOS INCENDIÁRIOS DE CALIBRE 12 (18 pellets) varrendo tudo à frente!
+    for (let i = 0; i < 18; i++) {
+      const pColor = pelletColors[i % pelletColors.length];
+      const pelletMat = getLegoMaterial(pColor, {
+        emissive: i % 2 === 0 ? 0xf97316 : 0xef4444,
+        emissiveIntensity: 2.5
+      });
+
       const spreadDir = mainDir.clone().add(
         new THREE.Vector3(
-          (Math.random() - 0.5) * 0.18,
-          (Math.random() - 0.5) * 0.12,
-          (Math.random() - 0.5) * 0.18
+          (Math.random() - 0.5) * 0.26,
+          (Math.random() - 0.5) * 0.16,
+          (Math.random() - 0.5) * 0.26
         )
       ).normalize();
 
       const mesh = new THREE.Mesh(BULLET_GEO, pelletMat);
-      mesh.scale.set(1.4, 1.4, 1.2);
+      mesh.scale.set(1.85, 1.85, 1.5);
       mesh.position.copy(origin);
       mesh.lookAt(origin.clone().add(spreadDir));
       this.scene.add(mesh);
 
       this.projectiles.push({
         mesh,
-        type: 'bullet',
-        vel: spreadDir.multiplyScalar(64),
-        life: 0.48,
-        damage: 18,
-        isSolar: false
+        type: 'shotgun_pellet',
+        vel: spreadDir.multiplyScalar(74.0 + (Math.random() - 0.5) * 10.0),
+        life: 0.46,
+        damage: 22,
+        isSolar: false,
+        canBreakCrackedWall: true
       });
     }
   }
 
   /**
-   * Dispara Foguete da Bazuca RPG do Vingador de Chumbo (destrói Objetos Prateados Brilhantes e Blindados!)
+   * ARMA 3 (BAZUCA PESADA "ANIQUILADORA"): Dispara Foguete Rápido (85 m/s) que destrói LEGO Prateado e aplica ROCKET JUMP 4X!
    */
-  spawnRpgRocket(origin, targetPoint) {
-    soundFX.playExplosion(0.95);
+  spawnRpgRocket(origin, targetPoint, onExplode = null) {
+    soundFX.playExplosion(1.05);
     const dir = targetPoint.clone().sub(origin).normalize();
 
     const rocketGroup = new THREE.Group();
-    const bodyMat = getLegoMaterial(0x365314, { roughness: 0.3 });
-    const noseMat = getLegoMaterial(0xd97706, { emissive: 0xef4444, emissiveIntensity: 1.5 });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.65, 10), bodyMat);
+    const bodyMat = getLegoMaterial(0x1e293b, { roughness: 0.25, metalness: 0.5 });
+    const noseMat = getLegoMaterial(0xdc2626, { emissive: 0xef4444, emissiveIntensity: 1.8 });
+    const thrusterMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.72, 12), bodyMat);
     body.rotation.x = Math.PI / 2;
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.32, 10), noseMat);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.38, 12), noseMat);
     nose.rotation.x = Math.PI / 2;
-    nose.position.z = 0.45;
-    rocketGroup.add(body, nose);
+    nose.position.z = 0.52;
+    const jetCone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.42, 10), thrusterMat);
+    jetCone.rotation.x = -Math.PI / 2;
+    jetCone.position.z = -0.52;
+    rocketGroup.add(body, nose, jetCone);
 
     rocketGroup.position.copy(origin);
     rocketGroup.lookAt(targetPoint);
@@ -974,15 +1113,105 @@ export class DestructibleManager {
 
     this.projectiles.push({
       mesh: rocketGroup,
-      type: 'fireball',
-      vel: dir.multiplyScalar(56),
-      life: 2.0,
-      damage: 165,
-      blastRadius: 7.5,
+      type: 'rpg_rocket',
+      vel: dir.multiplyScalar(85.0),
+      life: 2.2,
+      damage: 210,
+      blastRadius: 9.5,
       isSolar: false,
       canBreakSilver: true,
-      canBreakCrackedWall: true
+      canBreakCrackedWall: true,
+      onExplode
     });
+  }
+
+  /**
+   * HABILIDADE [Q] DO VINGADOR DE CHUMBO ("INVESTIDA IMPLACÁVEL + FUROR DO JUSTICEIRO"):
+   * Dispara uma Onda de Choque de Calibre 12 em 360° nos pés dele que destrói obstáculos próximos e impulsiona o Dash!
+   */
+  spawnVingadorThrusterBlast(centerPos) {
+    soundFX.playExplosion(1.1);
+    soundFX.playTacticalRoll();
+
+    const origin = new THREE.Vector3(centerPos.x, centerPos.y + 0.55, centerPos.z);
+
+    // Anel de Choque de Calibre 12 ejetando cartuchos e chamas em 360°
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      const isFire = i % 2 === 0;
+      const pMat = new THREE.MeshBasicMaterial({
+        color: isFire ? 0xf97316 : 0x1e293b,
+        transparent: true,
+        opacity: 0.92
+      });
+      const puff = new THREE.Mesh(isFire ? TRAIL_CUBE_GEO : FIREBALL_GEO, pMat);
+      puff.position.set(
+        origin.x + Math.cos(angle) * 0.7,
+        origin.y,
+        origin.z + Math.sin(angle) * 0.7
+      );
+      puff.scale.setScalar(isFire ? 1.65 : 1.35);
+      this.scene.add(puff);
+
+      this.fxParticles.push({
+        mesh: puff,
+        vel: new THREE.Vector3(
+          Math.cos(angle) * (14.0 + Math.random() * 8.0),
+          1.5 + Math.random() * 4.0,
+          Math.sin(angle) * (14.0 + Math.random() * 8.0)
+        ),
+        life: 0.36,
+        maxLife: 0.36
+      });
+
+      if (i % 2 === 0) {
+        this._spawnEjectedBrassShell(origin, i % 4 === 0);
+      }
+    }
+
+    // Destrói obstáculos próximos nos pés durante a largada da Investida!
+    for (const obj of this.objects) {
+      if (obj.destroyed || obj.isDriven) continue;
+      const d = Math.hypot(obj.basePos.x - origin.x, obj.basePos.z - origin.z);
+      const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - origin.y);
+      if (d <= obj.radius + 6.8 && dy <= obj.height + 3.2) {
+        this.damageObject(obj, 130, origin, false, { canBreakCrackedWall: true });
+      }
+    }
+  }
+
+  /**
+   * Rastro de Fumaça Escura do Sobretudo + Cápsulas de Munição Douradas Ejetadas durante o "Furor do Justiceiro" [Q]
+   */
+  spawnVingadorShellAndSmokeTrail(pos) {
+    const smokeMat = new THREE.MeshBasicMaterial({
+      color: Math.random() < 0.35 ? 0xdc2626 : 0x111827,
+      transparent: true,
+      opacity: 0.84
+    });
+    const puff = new THREE.Mesh(TRAIL_CUBE_GEO, smokeMat);
+    puff.position.set(
+      pos.x + (Math.random() - 0.5) * 0.65,
+      pos.y + 0.25 + Math.random() * 0.65,
+      pos.z + (Math.random() - 0.5) * 0.65
+    );
+    puff.scale.setScalar(1.35);
+    this.scene.add(puff);
+
+    this.fxParticles.push({
+      mesh: puff,
+      vel: new THREE.Vector3(
+        (Math.random() - 0.5) * 2.2,
+        1.2 + Math.random() * 2.2,
+        (Math.random() - 0.5) * 2.2
+      ),
+      life: 0.34,
+      maxLife: 0.34
+    });
+
+    if (Math.random() < 0.45) {
+      this._spawnEjectedBrassShell(new THREE.Vector3(pos.x, pos.y + 1.1, pos.z), false);
+    }
   }
 
   // ============================================================================
@@ -2067,8 +2296,10 @@ export class DestructibleManager {
         continue;
       }
 
-      if (p.type === 'fireball' && Math.random() < 0.65) {
-        this.spawnFlameTrailParticle(p.mesh.position, 0.7);
+      if ((p.type === 'fireball' || p.type === 'rpg_rocket') && Math.random() < 0.78) {
+        this.spawnFlameTrailParticle(p.mesh.position, p.type === 'rpg_rocket' ? 1.1 : 0.7);
+      } else if (p.type === 'shotgun_pellet' && Math.random() < 0.35) {
+        this.spawnFlameTrailParticle(p.mesh.position, 0.55);
       }
 
       let hit = false;
@@ -2078,10 +2309,11 @@ export class DestructibleManager {
         const dz = p.mesh.position.z - obj.basePos.z;
         const dy = p.mesh.position.y - (obj.basePos.y + obj.height * 0.5);
 
-        if (Math.hypot(dx, dz) <= obj.radius + 0.4 && Math.abs(dy) <= obj.height * 0.65 + 0.45) {
-          if (p.type === 'fireball') {
+        if (Math.hypot(dx, dz) <= obj.radius + 0.45 && Math.abs(dy) <= obj.height * 0.65 + 0.5) {
+          if (p.type === 'fireball' || p.type === 'rpg_rocket') {
+            const blastPos = p.mesh.position.clone();
             this._triggerExplosion(
-              p.mesh.position.clone(),
+              blastPos,
               p.blastRadius ?? 4.2,
               p.damage,
               false,
@@ -2091,6 +2323,14 @@ export class DestructibleManager {
                 canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
               }
             );
+            if (typeof p.onExplode === 'function') {
+              p.onExplode(blastPos);
+            }
+          } else if (p.type === 'punisher_50cal') {
+            this.damageObject(obj, p.damage, p.mesh.position, false, {
+              canBreakCrackedWall: true
+            });
+            this._triggerMicroImpactBlast(p.mesh.position.clone());
           } else {
             this.damageObject(obj, p.damage, p.mesh.position, p.isSolar, {
               canBreakSilver: Boolean(p.canBreakSilver),
@@ -2102,10 +2342,48 @@ export class DestructibleManager {
         }
       }
 
-      if (!hit && p.mesh.position.y <= 0.1) {
-        if (p.type === 'fireball') {
+      // Colisão contra prédios/muros (world.colliders) para Bazuca RPG e Calibre .50 (permite Rocket Jump em paredes!)
+      if (!hit && (p.type === 'rpg_rocket' || p.type === 'punisher_50cal') && this.world?.colliders) {
+        const px = p.mesh.position.x;
+        const py = p.mesh.position.y;
+        const pz = p.mesh.position.z;
+        for (const col of this.world.colliders) {
+          if (col.disabled) continue;
+          const colMinY = col.minY ?? 0;
+          if (
+            px >= col.minX - 0.25 &&
+            px <= col.maxX + 0.25 &&
+            pz >= col.minZ - 0.25 &&
+            pz <= col.maxZ + 0.25 &&
+            py >= colMinY &&
+            py <= col.maxY
+          ) {
+            if (p.type === 'rpg_rocket') {
+              const blastPos = p.mesh.position.clone();
+              this._triggerExplosion(blastPos, p.blastRadius ?? 9.5, p.damage, false, true, {
+                canBreakSilver: true,
+                canBreakCrackedWall: true
+              });
+              if (typeof p.onExplode === 'function') {
+                p.onExplode(blastPos);
+              }
+            } else {
+              this._triggerMicroImpactBlast(p.mesh.position.clone());
+            }
+            hit = true;
+            break;
+          }
+        }
+      }
+
+      const floorY = this.world?.getTerrainHeightAt
+        ? this.world.getTerrainHeightAt(p.mesh.position.x, p.mesh.position.z)
+        : 0;
+      if (!hit && p.mesh.position.y <= floorY + 0.22) {
+        const blastPos = new THREE.Vector3(p.mesh.position.x, floorY + 0.2, p.mesh.position.z);
+        if (p.type === 'fireball' || p.type === 'rpg_rocket') {
           this._triggerExplosion(
-            p.mesh.position.clone(),
+            blastPos,
             p.blastRadius ?? 4.2,
             p.damage,
             false,
@@ -2115,6 +2393,11 @@ export class DestructibleManager {
               canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
             }
           );
+          if (typeof p.onExplode === 'function') {
+            p.onExplode(blastPos);
+          }
+        } else if (p.type === 'punisher_50cal') {
+          this._triggerMicroImpactBlast(blastPos);
         }
         hit = true;
       }

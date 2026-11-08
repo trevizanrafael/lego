@@ -114,6 +114,9 @@ export class ThirdPersonController {
     this.titaJumpChargeSoundTimer = 0;
     this.rocketPunchTimer = 0;
     this.rocketPunchDir = new THREE.Vector3(0, 0, -1);
+    this.vingadorDiveTimer = 0;
+    this.vingadorDiveDir = new THREE.Vector3(0, 0, -1);
+    this.vingadorFurorTimer = 0;
     this.cameraShakeTimer = 0;
     this.grappleState = null; // { anchor: Vector3, timer: number }
     this.stealthTimer = 0;
@@ -326,12 +329,15 @@ export class ThirdPersonController {
     }
     this._stopGrapple();
     this.stealthTimer = 0;
+    this.vingadorDiveTimer = 0;
+    this.vingadorFurorTimer = 0;
     this.titaSuperJumpActive = false;
     this.titaJumpCharging = false;
     this.titaJumpChargeTime = 0;
     if (this.minifigure) {
       this.minifigure.titaJumpChargeRatio = 0;
       this.minifigure.isDashing = false;
+      this.minifigure.isDiveSliding = false;
     }
 
     const preset = this.minifigure.setHero(heroKey);
@@ -446,37 +452,63 @@ export class ThirdPersonController {
       );
       this.destructibles.spawnTitaRotaryBullet(muzzlePos, aimData.point);
     } else if (hero === 'vingador') {
-      this.minifigure.triggerShoot();
+      const furorMult = this.vingadorFurorTimer > 0 ? 0.4 : 1.0; // +60% Cadência de Tiro durante o Modo Furor [Q]!
       const wKey = this.minifigure.vingadorWeapon || 'dual_smg';
       if (wKey === 'dual_smg') {
-        this.primaryCooldown = 0.09;
+        this.primaryCooldown = 0.065 * furorMult;
+        const recoilSide = this.minifigure.triggerVingadorDualRecoil
+          ? this.minifigure.triggerVingadorDualRecoil()
+          : 0;
         const leftMuzzle = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 0.9 - rightVec.x * 0.48,
+          this.position.x + Math.sin(this.facingAngle) * 0.98 - rightVec.x * 0.48,
           this.position.y + 1.28,
-          this.position.z + Math.cos(this.facingAngle) * 0.9 - rightVec.z * 0.48
+          this.position.z + Math.cos(this.facingAngle) * 0.98 - rightVec.z * 0.48
         );
         const rightMuzzle = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 0.9 + rightVec.x * 0.48,
+          this.position.x + Math.sin(this.facingAngle) * 0.98 + rightVec.x * 0.48,
           this.position.y + 1.28,
-          this.position.z + Math.cos(this.facingAngle) * 0.9 + rightVec.z * 0.48
+          this.position.z + Math.cos(this.facingAngle) * 0.98 + rightVec.z * 0.48
         );
-        this.destructibles.spawnDualSmgBullets(leftMuzzle, rightMuzzle, aimData.point);
+        this.destructibles.spawnDualSmgBullets(leftMuzzle, rightMuzzle, aimData.point, recoilSide);
       } else if (wKey === 'shotgun') {
-        this.primaryCooldown = 0.46;
+        this.minifigure.triggerShoot();
+        this.primaryCooldown = 0.26 * furorMult;
         const muzzlePos = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 1.05 + rightVec.x * 0.45,
+          this.position.x + Math.sin(this.facingAngle) * 1.12 + rightVec.x * 0.45,
           this.position.y + 1.28,
-          this.position.z + Math.cos(this.facingAngle) * 1.05 + rightVec.z * 0.45
+          this.position.z + Math.cos(this.facingAngle) * 1.12 + rightVec.z * 0.45
         );
         this.destructibles.spawnShotgunBlast(muzzlePos, aimData.point);
+
+        // MOBILIDADE COM A DOZE (Shotgun Force-Jump):
+        // Se atirar com a Escopeta no ar ou olhando para baixo, aplica recuo oposto à mira (16.5 m/s) para Double/Triple Jumps!
+        const aimDir = new THREE.Vector3();
+        this.camera.getWorldDirection(aimDir);
+        if (!this.isGrounded || aimDir.y < -0.18) {
+          const recoilDir = aimDir.clone().negate().normalize();
+          this.isGrounded = false;
+          this.position.y += 0.24;
+          this.velocity.y = Math.max(this.velocity.y * 0.35 + recoilDir.y * 16.5, 13.5);
+          this.blastVelocity.set(
+            this.velocity.x * 0.55 + recoilDir.x * 16.5,
+            0,
+            this.velocity.z * 0.55 + recoilDir.z * 16.5
+          );
+          this.blastJumpTimer = Math.max(this.blastJumpTimer, 0.52);
+          this.velocity.x = this.blastVelocity.x;
+          this.velocity.z = this.blastVelocity.z;
+        }
       } else {
-        this.primaryCooldown = 0.78;
+        this.minifigure.triggerShoot();
+        this.primaryCooldown = 0.72 * furorMult;
         const muzzlePos = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 1.15 + rightVec.x * 0.5,
+          this.position.x + Math.sin(this.facingAngle) * 1.25 + rightVec.x * 0.5,
           this.position.y + 1.38,
-          this.position.z + Math.cos(this.facingAngle) * 1.15 + rightVec.z * 0.5
+          this.position.z + Math.cos(this.facingAngle) * 1.25 + rightVec.z * 0.5
         );
-        this.destructibles.spawnRpgRocket(muzzlePos, aimData.point);
+        this.destructibles.spawnRpgRocket(muzzlePos, aimData.point, (blastPos) => {
+          this.applyRocketJumpImpulse(blastPos);
+        });
       }
     } else if (hero === 'sombra') {
       // Combo Místico de 3 Cortes da Lua de Sangue (Projétil Crescente de 3.6m a 56 m/s)
@@ -851,9 +883,9 @@ export class ThirdPersonController {
   _cycleVingadorWeapon() {
     const order = ['dual_smg', 'shotgun', 'rpg'];
     const labels = {
-      dual_smg: 'ARMA ATIVA: DUAS SUBMETRALHADORAS [R PARA TROCAR]',
-      shotgun: 'ARMA ATIVA: ESCOPETA DE IMPACTO [R PARA TROCAR]',
-      rpg: 'ARMA ATIVA: BAZUCA RPG ANTI-PRATA [R PARA TROCAR]'
+      dual_smg: 'ARMA 1: CASTIGADORAS GÊMEAS (.50 EXPLOSIVA) • [R] TROCAR • [Q] FUROR',
+      shotgun: 'ARMA 2: DOZE "JUIZ FINAL" (18 BAGOS + FORCE-JUMP) • [R] TROCAR • [Q] FUROR',
+      rpg: 'ARMA 3: BAZUCA "ANIQUILADORA" (ROCKET JUMP 4X) • [R] TROCAR • [Q] FUROR'
     };
     const cur = this.minifigure.vingadorWeapon || 'dual_smg';
     const next = order[(order.indexOf(cur) + 1) % order.length];
@@ -861,6 +893,84 @@ export class ThirdPersonController {
     soundFX.playHeroSwap();
     if (this.hud) {
       this.hud.setCharacterPortrait('vingador', 'VINGADOR DE CHUMBO', labels[next]);
+    }
+  }
+
+  /**
+   * HERÓI #4 (Vingador de Chumbo): Super Impulso de ROCKET JUMP (4x) na explosão da Bazuca "Aniquiladora"!
+   * Se o foguete explodir a até 18m do Vingador, catapulta ele pelos ares (sem tomar dano!)
+   */
+  applyRocketJumpImpulse(blastPos) {
+    if (this.minifigure.currentHeroKey !== 'vingador' || this.currentVehicle) return;
+    const playerCenter = new THREE.Vector3(this.position.x, this.position.y + 1.1, this.position.z);
+    const dist = playerCenter.distanceTo(blastPos);
+    const maxRadius = 18.0;
+    if (dist > maxRadius) return;
+
+    const factor = Math.pow(1.0 - dist / maxRadius, 0.55);
+    const awayX = this.position.x - blastPos.x;
+    const awayZ = this.position.z - blastPos.z;
+    const horizLen = Math.hypot(awayX, awayZ);
+    const dirX = horizLen > 0.12 ? awayX / horizLen : -Math.sin(this.yaw);
+    const dirZ = horizLen > 0.12 ? awayZ / horizLen : -Math.cos(this.yaw);
+
+    // 4X Impulso de Rocket Jump: velocidade vertical de 26 a 34 m/s + impulso horizontal de 32 a 42 m/s!
+    const horizBoost = 32.0 + factor * 10.0;
+    const vertBoost = 26.0 + factor * 8.0;
+
+    this.isGrounded = false;
+    this.position.y += 0.45;
+    this.velocity.y = Math.max(0, this.velocity.y) + vertBoost;
+    this.blastVelocity.set(dirX * horizBoost, 0, dirZ * horizBoost);
+    this.blastJumpTimer = 1.15;
+    this.cameraShakeTimer = 0.35;
+    this.velocity.x = this.blastVelocity.x;
+    this.velocity.z = this.blastVelocity.z;
+  }
+
+  /**
+   * HERÓI #4 (Vingador de Chumbo): Habilidade [Q] — "INVESTIDA IMPLACÁVEL + MODO FUROR DO JUSTICEIRO"
+   * - Super-Dash / Mergulho Tático Propulsado a 50 m/s por 0.35s exatamente na direção da câmera (no chão ou voando em diagonal estilo Max Payne!)
+   * - Dispara Onda de Choque de Calibre 12 em 360° nos pés na largada
+   * - Ativa "Furor do Justiceiro" por 4.0s (Velocidade de corrida 32.0 m/s + 60% Cadência de Tiro nas 3 armas!)
+   */
+  _triggerVingadorThrusterDive() {
+    if (this.supernovaCooldown > 0) return;
+    this.supernovaCooldown = 2.2;
+
+    const aimDir = this._alignCharacterToCrosshair();
+    this.vingadorDiveDir.copy(aimDir).normalize();
+    this.vingadorDiveTimer = 0.35;
+    this.minifigure.isDiveSliding = true;
+
+    // Se olhar para cima/diagonal ou estiver no ar, lança o Vingador voando em salto cinematográfico!
+    if (aimDir.y > 0.08 || !this.isGrounded) {
+      this.isGrounded = false;
+      this.position.y += 0.35;
+      this.velocity.y = Math.max(12.5, aimDir.y * 46.0);
+    } else {
+      this.velocity.y = Math.max(this.velocity.y, 4.5);
+    }
+
+    this.velocity.x = this.vingadorDiveDir.x * 50.0;
+    this.velocity.z = this.vingadorDiveDir.z * 50.0;
+    this.currentSpeed = 32.0;
+
+    if (this.destructibles) {
+      this.destructibles.spawnVingadorThrusterBlast(this.position);
+    }
+
+    // Ativa o Buff de 4.0 segundos de "Furor do Justiceiro"!
+    this.vingadorFurorTimer = 4.0;
+    if (this.minifigure.setVingadorFurorVisual) {
+      this.minifigure.setVingadorFurorVisual(true);
+    }
+    if (this.hud) {
+      this.hud.setCharacterPortrait(
+        'vingador',
+        'VINGADOR DE CHUMBO [FUROR!]',
+        'FUROR DO JUSTICEIRO ATIVO (VELOCIDADE 32M/S + 60% CADÊNCIA DE TIRO!)'
+      );
     }
   }
 
@@ -1219,7 +1329,7 @@ export class ThirdPersonController {
           } else if (hero === 'tita') {
             this._triggerTitaEarthquake();
           } else if (hero === 'vingador') {
-            this._throwCaveiraGrenade();
+            this._triggerVingadorThrusterDive();
           } else if (hero === 'sombra') {
             this._triggerSombraSmokeBomb();
           }
@@ -2773,6 +2883,46 @@ export class ThirdPersonController {
         if (isSombra && this.destructibles && Math.random() < 0.72) {
           this.destructibles.spawnSombraShadowStepTrail(this.position, 1.15);
         }
+      } else if (this.vingadorDiveTimer > 0) {
+        // Super-Dash / Mergulho Tático Propulsado [Q] do Vingador de Chumbo (50 m/s por 0.35s)!
+        this.vingadorDiveTimer = Math.max(0, this.vingadorDiveTimer - dt);
+        this.minifigure.isDiveSliding = this.vingadorDiveTimer > 0;
+        const diveSpeed = 50.0;
+        this.velocity.x = this.vingadorDiveDir.x * diveSpeed;
+        this.velocity.z = this.vingadorDiveDir.z * diveSpeed;
+        if (this.vingadorDiveDir.y > 0.08) {
+          this.velocity.y = Math.max(this.velocity.y, this.vingadorDiveDir.y * 38.0);
+        }
+        this.currentSpeed = 32.0;
+
+        if (this.destructibles) {
+          if (Math.random() < 0.85) {
+            this.destructibles.spawnVingadorShellAndSmokeTrail(this.position);
+          }
+          // Estoura obstáculos no caminho durante o Mergulho Tático!
+          const diveImpactPos = new THREE.Vector3(
+            this.position.x + this.vingadorDiveDir.x * 1.8,
+            this.position.y + 1.1,
+            this.position.z + this.vingadorDiveDir.z * 1.8
+          );
+          for (const obj of this.destructibles.objects) {
+            if (obj.destroyed || obj.isDriven) continue;
+            const dx = obj.basePos.x - diveImpactPos.x;
+            const dz = obj.basePos.z - diveImpactPos.z;
+            const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - diveImpactPos.y);
+            if (Math.hypot(dx, dz) <= obj.radius + 2.5 && dy <= obj.height + 2.0) {
+              this.destructibles.damageObject(obj, 110, diveImpactPos, false, {
+                canBreakCrackedWall: true
+              });
+            }
+          }
+        }
+
+        // Ao finalizar o impulso no ar, preserva a inércia horizontal sem frear bruscamente!
+        if (this.vingadorDiveTimer <= 0 && !this.isGrounded) {
+          this.blastVelocity.set(this.velocity.x * 0.82, 0, this.velocity.z * 0.82);
+          this.blastJumpTimer = Math.max(this.blastJumpTimer, 0.55);
+        }
       } else if (this.rocketPunchTimer > 0) {
         this.rocketPunchTimer = Math.max(0, this.rocketPunchTimer - dt);
         this.minifigure.isDashing = this.rocketPunchTimer > 0;
@@ -2861,6 +3011,8 @@ export class ThirdPersonController {
         if (this.destructibles && Math.random() < 0.78) {
           if (this.minifigure.currentHeroKey === 'sombra') {
             this.destructibles.spawnSombraShadowStepTrail(this.position, 1.05);
+          } else if (this.minifigure.currentHeroKey === 'vingador') {
+            this.destructibles.spawnVingadorShellAndSmokeTrail(this.position);
           } else {
             this.destructibles.spawnCaveiraBlastJumpTrail(this.position);
           }
@@ -2868,10 +3020,17 @@ export class ThirdPersonController {
       } else {
         const isCaveira = this.minifigure.currentHeroKey === 'caveira';
         const isSombra = this.minifigure.currentHeroKey === 'sombra';
-        const heroWalkSpeed = isSombra ? 15.5 : isCaveira ? 13.0 : this.walkSpeed;
-        const heroRunSpeed = isSombra ? 32.0 : isCaveira ? 27.5 : this.runSpeed;
+        const isVingador = this.minifigure.currentHeroKey === 'vingador';
+        const heroWalkSpeed = isSombra ? 15.5 : isVingador ? 13.5 : isCaveira ? 13.0 : this.walkSpeed;
+        const heroRunSpeed = isSombra
+          ? 32.0
+          : isVingador
+            ? (this.vingadorFurorTimer > 0 ? 32.0 : 26.0)
+            : isCaveira
+              ? 27.5
+              : this.runSpeed;
         const stealthMult = this.stealthTimer > 0 ? (38.0 / 32.0) : 1.0;
-        const targetMaxSpeed = (this.keys.sprint ? heroRunSpeed : heroWalkSpeed) * stealthMult;
+        const targetMaxSpeed = (this.keys.sprint || (isVingador && this.vingadorFurorTimer > 0) ? heroRunSpeed : heroWalkSpeed) * stealthMult;
         const targetSpeed = hasInput ? targetMaxSpeed : 0;
 
         const accelRate = hasInput ? 22.0 : 22.0;
@@ -2883,6 +3042,14 @@ export class ThirdPersonController {
 
         if (isCaveira && hasInput && this.keys.sprint && this.isGrounded && this.destructibles && Math.random() < 0.35) {
           this.destructibles.spawnCaveiraBlastJumpTrail(this.position);
+        } else if (
+          isVingador &&
+          hasInput &&
+          (this.vingadorFurorTimer > 0 || this.keys.sprint) &&
+          this.destructibles &&
+          Math.random() < (this.vingadorFurorTimer > 0 ? 0.65 : 0.28)
+        ) {
+          this.destructibles.spawnVingadorShellAndSmokeTrail(this.position);
         } else if (
           isSombra &&
           hasInput &&
@@ -2924,6 +3091,23 @@ export class ThirdPersonController {
             'sombra',
             'SOMBRA ESCARLATE',
             'GANCHO 360° [MOUSE 2] • KATANAS LUA DE SANGUE [MOUSE 1] • ROLAMENTO INVISÍVEL [Q]'
+          );
+        }
+      }
+    }
+
+    // Atualiza timer do Modo "Furor do Justiceiro" [Q] do Vingador de Chumbo (4.0s de Velocidade 32m/s + 60% Cadência!)
+    if (this.vingadorFurorTimer > 0) {
+      this.vingadorFurorTimer = Math.max(0, this.vingadorFurorTimer - dt);
+      if (this.vingadorFurorTimer <= 0) {
+        if (this.minifigure.setVingadorFurorVisual) {
+          this.minifigure.setVingadorFurorVisual(false);
+        }
+        if (this.hud && this.minifigure.currentHeroKey === 'vingador') {
+          this.hud.setCharacterPortrait(
+            'vingador',
+            'VINGADOR DE CHUMBO',
+            '[R] TROCAR ARMA: CASTIGADORAS .50 • DOZE 18 BAGOS • BAZUCA ROCKET JUMP • [Q] FUROR'
           );
         }
       }
@@ -3132,15 +3316,21 @@ export class ThirdPersonController {
    * à esquerda da tela e o centro da mira (#crosshair) fique 100% livre!
    */
   _updateCamera(dt, camRight, isAimingBeam = false) {
-    // FOV dinâmico (aumenta no Voo Supersônico do Solaris, Gancho/Stealth do Sombra, Blast Jump do Caveira e Turbo Nitro dos Carros!)
+    // FOV dinâmico (aumenta no Voo Supersônico do Solaris, Gancho/Stealth do Sombra, Rocket Jump/Furor do Vingador, Blast Jump do Caveira e Turbo Nitro dos Carros!)
     const isCaveiraBlast =
-      (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
+      (this.minifigure.currentHeroKey === 'caveira' ||
+        this.minifigure.currentHeroKey === 'sombra' ||
+        this.minifigure.currentHeroKey === 'vingador') &&
       this.blastJumpTimer > 0 &&
       !this.isGrounded;
-    const isSombraGrapple = this.minifigure.currentHeroKey === 'sombra' && Boolean(this.grappleState);
+    const isSombraGrapple =
+      (this.minifigure.currentHeroKey === 'sombra' && Boolean(this.grappleState)) ||
+      (this.minifigure.currentHeroKey === 'vingador' && this.vingadorDiveTimer > 0);
     const isHeroSprint =
-      (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
-      (this.keys.sprint || this.stealthTimer > 0) &&
+      (this.minifigure.currentHeroKey === 'caveira' ||
+        this.minifigure.currentHeroKey === 'sombra' ||
+        this.minifigure.currentHeroKey === 'vingador') &&
+      (this.keys.sprint || this.stealthTimer > 0 || this.vingadorFurorTimer > 0) &&
       this.currentSpeed > 18;
     const desiredFov = (this.isSupersonic || this.isTurboActive || isSombraGrapple)
       ? 74

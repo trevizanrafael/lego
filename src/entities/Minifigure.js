@@ -81,13 +81,13 @@ export const MINIFIG_PRESETS = {
   vingador: {
     key: 'vingador',
     name: 'Vingador de Chumbo',
-    subtitle: '[R] Trocar Arma: Duas SMGs • Escopeta • Bazuca RPG',
+    subtitle: '[R] Trocar Arma: Castigadoras .50 • Doze 18 Bagos • Bazuca Rocket Jump • [Q] Furor',
     headColor: LEGO_COLORS.yellow,
-    torsoColor: 0x111827,
-    armColor: 0x1f2937,
-    handColor: LEGO_COLORS.darkGrey,
-    hipColor: LEGO_COLORS.silver,
-    legColor: 0x090a0d,
+    torsoColor: 0x0c0e13,
+    armColor: 0x10131a,
+    handColor: 0x090a0d,
+    hipColor: 0xe2e8f0,
+    legColor: 0x0c0e13,
     facePreset: 'vingador',
     torsoPreset: 'vingador',
     headgear: 'tactical_bandana',
@@ -150,6 +150,14 @@ export class Minifigure {
     this.isDashing = false;
     this.sombraScarfStrips = [];
     this.katanaAuraFlames = [];
+    this.vingadorCoatTails = [];
+    this.vingadorSkullEyes = [];
+    this.vingadorBackShotgun = null;
+    this.vingadorBackRpg = null;
+    this.vingadorHolsteredPistols = [];
+    this.vingadorDualRecoilSide = 1;
+    this.vingadorFurorActive = false;
+    this.isDiveSliding = false;
     this.muzzleFlashMesh = null;
     this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
@@ -167,6 +175,8 @@ export class Minifigure {
     this.currentHeroKey = preset.key;
     this.isBigFig = Boolean(preset.isBigFig);
     this.isStealth = false;
+    this.vingadorFurorActive = false;
+    this.isDiveSliding = false;
     this.buildModel(preset);
     return preset;
   }
@@ -187,6 +197,13 @@ export class Minifigure {
     this.isDashing = false;
     this.sombraScarfStrips = [];
     this.katanaAuraFlames = [];
+    this.vingadorCoatTails = [];
+    this.vingadorSkullEyes = [];
+    this.vingadorBackShotgun = null;
+    this.vingadorBackRpg = null;
+    this.vingadorHolsteredPistols = [];
+    this.vingadorFurorActive = false;
+    this.isDiveSliding = false;
     this.muzzleFlashMesh = null;
     this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
@@ -306,6 +323,7 @@ export class Minifigure {
     } else if (preset.weapon === 'tita_rig') {
       this._attachTitaBigFigRig(this.leftHandGroup, this.rightHandGroup);
     } else if (preset.weapon === 'vingador_arsenal') {
+      this._attachVingadorArmorAndCoat(preset);
       this._attachVingadorArsenal(this.leftHandGroup, this.rightHandGroup);
     } else if (preset.weapon === 'dual_katanas') {
       this._attachDualKatanas(this.leftHandGroup, this.rightHandGroup);
@@ -689,22 +707,64 @@ export class Minifigure {
         this.headGroup.add(earPod, earStripe, antenna);
       }
     } else if (preset.headgear === 'tactical_bandana') {
-      // Cabelo Militar + Bandana Tática Preta/Prateada do Vingador de Chumbo
-      const hairMat = getLegoMaterial(0x090a0d, { roughness: 0.35 });
-      const silverMat = getLegoMaterial(LEGO_COLORS.silver, { metalness: 0.6, roughness: 0.2 });
+      // =========================================================================
+      // CABELO MILITAR PENTEADO PARA TRÁS (FRANK CASTLE) + FAIXA TÁTICA PRETA 3D
+      // =========================================================================
+      const hairMat = getLegoMaterial(0x090a0d, { roughness: 0.34, clearcoat: 0.22 });
+      const bandMat = getLegoMaterial(0x111827, { roughness: 0.28, clearcoat: 0.3 });
+      const silverTrimMat = getLegoMaterial(0xe2e8f0, { metalness: 0.65, roughness: 0.18 });
 
-      const hairCap = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.38, 0.14, 24), hairMat);
-      hairCap.position.set(0, 0.62, 0);
+      // Topo volumoso do cabelo penteado para trás
+      const hairCap = new THREE.Mesh(new THREE.CylinderGeometry(0.372, 0.382, 0.16, 28), hairMat);
+      hairCap.position.set(0, 0.62, -0.01);
+      hairCap.castShadow = true;
       this.headGroup.add(hairCap);
 
-      const headband = new THREE.Mesh(new THREE.CylinderGeometry(0.368, 0.368, 0.09, 24), silverMat);
-      headband.position.set(0, 0.54, 0);
+      // Mechas superiores e frontais 3D em relevo jogadas para trás (Slicked-back military locks)
+      for (let i = -2; i <= 2; i++) {
+        const strand = new THREE.Mesh(
+          new THREE.BoxGeometry(0.11, 0.085, 0.44),
+          hairMat
+        );
+        strand.position.set(i * 0.125, 0.68 - Math.abs(i) * 0.014, -0.01);
+        strand.rotation.x = -0.14;
+        strand.rotation.z = -i * 0.08;
+        strand.castShadow = true;
+        this.headGroup.add(strand);
+      }
+
+      // Costeletas e nuca 3D do corte militar
+      const backHair = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.28, 0.14), hairMat);
+      backHair.position.set(0, 0.44, -0.31);
+      this.headGroup.add(backHair);
+
+      for (const side of [-1, 1]) {
+        const sideburn = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.16), hairMat);
+        sideburn.position.set(side * 0.345, 0.42, 0.04);
+        this.headGroup.add(sideburn);
+      }
+
+      // Faixa Tática Preta (Headband) amarrada na testa com detalhe metálico frontal
+      const headband = new THREE.Mesh(new THREE.CylinderGeometry(0.374, 0.374, 0.088, 28), bandMat);
+      headband.position.set(0, 0.535, 0);
       this.headGroup.add(headband);
 
-      const knotTail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.1), hairMat);
-      knotTail.position.set(0, 0.46, -0.38);
-      knotTail.rotation.x = 0.35;
-      this.headGroup.add(knotTail);
+      const frontStudPlate = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.045, 0.04), silverTrimMat);
+      frontStudPlate.position.set(0, 0.535, 0.365);
+      this.headGroup.add(frontStudPlate);
+
+      // Nó traseiro e 2 fitas curtas da bandana atrás da cabeça
+      const bandKnot = new THREE.Mesh(new THREE.SphereGeometry(0.068, 10, 10), bandMat);
+      bandKnot.position.set(0, 0.52, -0.37);
+      this.headGroup.add(bandKnot);
+
+      for (const side of [-1, 1]) {
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.24, 0.045), bandMat);
+        tail.position.set(side * 0.065, 0.41, -0.4);
+        tail.rotation.x = 0.34;
+        tail.rotation.z = side * 0.24;
+        this.headGroup.add(tail);
+      }
     } else if (preset.headgear === 'ninja_hood') {
       // =========================================================================
       // CAPUZ SHINOBI ASSASSINO 3D + MÁSCARA ONI MENPO + CHIFRES ESCARLATES
@@ -1379,91 +1439,549 @@ export class Minifigure {
   }
 
   /**
-   * Constrói o Arsenal Triplo 3D do Vingador de Chumbo (#4):
-   * 1) Duas Submetralhadoras (Dual SMGs nas duas mãos)
-   * 2) Escopeta de Impacto (Pump-Action Shotgun pesada)
-   * 3) Bazuca RPG (Lança-Foguetes anticarro/antiprata)
+   * Constrói o Visual 3D Completo do Vingador de Chumbo (#4 — Estilo O Justiceiro / Frank Castle):
+   * - Sobretudo Longo de Couro Preto 3D (Gola Alta Levantada, Lapelas Abertas com Botões Prateados, Ombreiras com Tachas e Abas Traseiras/Laterais Articuladas até os joelhos)
+   * - Peitoral Balístico 3D com a Caveira Branca do Justiceiro em Alto-Relevo + Bandoleiras Cruzadas em X (Cartuchos 12GA e Granadas 40mm)
+   * - Cinto Tático Branco/Prata Clássico do Justiceiro + Coldres Duplos de Coxa + Joelheiras Metálicas + Botas Pesadas
+   * - Arsenal Guardado Visível nas Costas (Escopeta e Bazuca cruzadas nas costas quando não estão na mão!)
    */
-  _attachVingadorArsenal(leftHandGroup, rightHandGroup) {
-    const gunMetal = getLegoMaterial(0x1e293b, { roughness: 0.25, metalness: 0.5 });
-    const darkBlack = getLegoMaterial(0x090a0d, { roughness: 0.32 });
-    const silverMat = getLegoMaterial(LEGO_COLORS.silver, { roughness: 0.18, metalness: 0.7 });
-    const redShellMat = getLegoMaterial(LEGO_COLORS.red, { roughness: 0.25 });
+  _attachVingadorArmorAndCoat() {
+    const leatherMat = getLegoMaterial(0x10131a, { roughness: 0.42, clearcoat: 0.24 });
+    const matteBlackMat = getLegoMaterial(0x090a0d, { roughness: 0.32, clearcoat: 0.28 });
+    const kevlarMat = getLegoMaterial(0x141821, { roughness: 0.35, metalness: 0.25 });
+    const skullWhiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.18, clearcoat: 0.5 });
+    const chromeSilverMat = getLegoMaterial(0xd8dde6, { roughness: 0.16, metalness: 0.78, clearcoat: 0.6 });
+    const redShellMat = getLegoMaterial(0xdc2626, { roughness: 0.22 });
+    const brassMat = getLegoMaterial(0xfacc15, { roughness: 0.18, metalness: 0.68 });
     const oliveMat = getLegoMaterial(0x365314, { roughness: 0.32 });
-    const warheadMat = getLegoMaterial(0xd97706, { roughness: 0.22, metalness: 0.45 });
-    const flashMat = getLegoMaterial(0xfef08a, {
-      emissive: 0xfacc15,
-      emissiveIntensity: 2.2,
-      transparent: true,
-      opacity: 0.9
+    const eyeGlowMat = getLegoMaterial(0xffffff, {
+      emissive: 0xf8fafc,
+      emissiveIntensity: 1.4,
+      roughness: 0.1
     });
 
-    // 1. DUAS SUBMETRALHADORAS (Dual SMGs)
-    const buildSmg = (isLeft) => {
-      const smg = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.42), gunMetal);
-      body.position.set(0, 0, 0.18);
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.28, 10), silverMat);
-      barrel.rotation.x = Math.PI / 2;
-      barrel.position.set(0, 0.03, 0.46);
-      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.09), darkBlack);
-      mag.position.set(0, -0.18, 0.16);
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.32), silverMat);
-      rail.position.set(0, 0.09, 0.18);
-      smg.add(body, barrel, mag, rail);
+    const rigGroup = new THREE.Group();
+    this.vingadorCoatTails = [];
+    this.vingadorSkullEyes = [];
+    this.vingadorHolsteredPistols = [];
 
-      const flash = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), flashMat);
-      flash.scale.set(0.8, 0.8, 2.0);
-      flash.position.set(0, 0.03, 0.66);
+    // 1. GOLA ALTA LEVANTADA DO SOBRETUDO DE COURO PRETO (High Upturned Trenchcoat Collar)
+    const backCollar = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.24, 0.11), leatherMat);
+    backCollar.position.set(0, 0.78, -0.2);
+    backCollar.rotation.x = -0.14;
+    rigGroup.add(backCollar);
+
+    for (const side of [-1, 1]) {
+      const sideCollar = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.24, 0.38), leatherMat);
+      sideCollar.position.set(side * 0.34, 0.77, -0.02);
+      sideCollar.rotation.z = -side * 0.18;
+      sideCollar.castShadow = true;
+
+      // Lapelas Frontais Abertas 3D (Front Leather Lapels) deixando o centro do peito aberto para a Caveira Branca!
+      const frontLapel = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.08), leatherMat);
+      frontLapel.position.set(side * 0.35, 0.38, 0.22);
+      frontLapel.rotation.y = -side * 0.22;
+      frontLapel.castShadow = true;
+
+      // Botões metálicos prateados nas lapelas do sobretudo
+      for (const by of [0.58, 0.38, 0.18]) {
+        const lapelBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.03, 10), chromeSilverMat);
+        lapelBtn.rotation.x = Math.PI / 2;
+        lapelBtn.position.set(side * 0.36, by, 0.26);
+        rigGroup.add(lapelBtn);
+      }
+
+      rigGroup.add(sideCollar, frontLapel);
+    }
+
+    // Costas superiores do Sobretudo de Couro Preto com costuras e cinto dorsal
+    const coatBackPanel = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.76, 0.09), leatherMat);
+    coatBackPanel.position.set(0, 0.38, -0.23);
+    coatBackPanel.castShadow = true;
+    const backStrap = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.1, 0.11), matteBlackMat);
+    backStrap.position.set(0, 0.12, -0.24);
+    const backBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.13, 0.12), chromeSilverMat);
+    backBuckle.position.set(0, 0.12, -0.245);
+    rigGroup.add(coatBackPanel, backStrap, backBuckle);
+
+    // 2. ABAS TRASEIRAS E LATERAIS ARTICULADAS DO SOBRETUDO (Trenchcoat Tails até os joelhos y = -0.38)
+    for (const side of [-1, 1]) {
+      const tailPivot = new THREE.Group();
+      tailPivot.position.set(side * 0.22, 0.04, -0.22);
+
+      // Aba traseira principal (dividida por fenda central traseira)
+      const backTail = new THREE.Mesh(new THREE.BoxGeometry(0.39, 0.68, 0.065), leatherMat);
+      backTail.position.set(0, -0.32, 0);
+      backTail.castShadow = true;
+
+      // Barra chanfrada inferior e tira de ajuste com fivela prateada
+      const hemTrim = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.075), matteBlackMat);
+      hemTrim.position.set(0, -0.63, 0);
+      const tailStrap = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.06, 0.08), matteBlackMat);
+      tailStrap.position.set(0, -0.36, -0.01);
+      const tailStud = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.09), chromeSilverMat);
+      tailStud.position.set(side * 0.08, -0.36, -0.015);
+
+      // Aba lateral do sobretudo cobrindo a lateral da coxa
+      const sideFlap = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.64, 0.38), leatherMat);
+      sideFlap.position.set(side * 0.21, -0.3, 0.16);
+      sideFlap.castShadow = true;
+
+      tailPivot.add(backTail, hemTrim, tailStrap, tailStud, sideFlap);
+      tailPivot.rotation.x = 0.12;
+      tailPivot.rotation.z = side * 0.06;
+      rigGroup.add(tailPivot);
+
+      this.vingadorCoatTails.push({
+        pivot: tailPivot,
+        side,
+        baseRotX: 0.12,
+        baseRotZ: side * 0.06,
+        phase: side < 0 ? 0 : 1.4
+      });
+    }
+
+    // 3. PEITORAL BALÍSTICO 3D COM A CAVEIRA BRANCA DO JUSTICEIRO EM ALTO-RELEVO
+    const vestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.66, 0.06), kevlarMat);
+    vestPlate.position.set(0, 0.39, 0.22);
+    rigGroup.add(vestPlate);
+
+    // Crânio Superior e Têmporas em Alto-Relevo 3D Branco
+    const skullCranium = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.2, 0.045), skullWhiteMat);
+    skullCranium.position.set(0, 0.56, 0.252);
+    const skullForehead = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.048), skullWhiteMat);
+    skullForehead.position.set(0, 0.65, 0.252);
+    rigGroup.add(skullCranium, skullForehead);
+
+    // Maçãs do rosto angulares 3D + Ponte Nasal + Órbitas Oculares Furiosas
+    for (const side of [-1, 1]) {
+      const cheekBone = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.048), skullWhiteMat);
+      cheekBone.position.set(side * 0.14, 0.4, 0.254);
+      cheekBone.rotation.z = -side * 0.25;
+
+      const eyeSocket = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.075, 0.052), matteBlackMat);
+      eyeSocket.position.set(side * 0.11, 0.49, 0.256);
+      eyeSocket.rotation.z = -side * 0.28;
+
+      const eyeCore = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.036, 0.056), eyeGlowMat.clone());
+      eyeCore.position.set(side * 0.11, 0.49, 0.258);
+      eyeCore.rotation.z = -side * 0.28;
+      this.vingadorSkullEyes.push(eyeCore);
+
+      rigGroup.add(cheekBone, eyeSocket, eyeCore);
+    }
+
+    const nasalCavity = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.09, 3), matteBlackMat);
+    nasalCavity.position.set(0, 0.41, 0.26);
+    rigGroup.add(nasalCavity);
+
+    // 4 Dentes Compridos Icônicos da Caveira do Justiceiro descendo até o abdômen
+    for (const tx of [-0.12, -0.04, 0.04, 0.12]) {
+      const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.25, 0.048), skullWhiteMat);
+      tooth.position.set(tx, 0.23, 0.254);
+      rigGroup.add(tooth);
+    }
+
+    // 4. BANDOLEIRAS 3D CRUZADAS EM X (Cartuchos Vermelhos/Dourados de Calibre 12 + Granadas 40mm)
+    const bandolier1 = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.84, 0.5), matteBlackMat);
+    bandolier1.position.set(0, 0.42, 0.01);
+    bandolier1.rotation.z = 0.56;
+    const bandolier2 = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.84, 0.49), matteBlackMat);
+    bandolier2.position.set(0, 0.42, 0.01);
+    bandolier2.rotation.z = -0.56;
+    rigGroup.add(bandolier1, bandolier2);
+
+    // 6 Cartuchos 3D de Escopeta Calibre 12 atravessados no peito
+    for (let i = 0; i < 6; i++) {
+      const t = (i - 2.5) * 0.105;
+      const shellGroup = new THREE.Group();
+      const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.075, 8), redShellMat);
+      const brass = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.026, 8), brassMat);
+      brass.position.y = -0.042;
+      shellGroup.add(hull, brass);
+      shellGroup.position.set(-t * 0.85, 0.43 + t, 0.268);
+      shellGroup.rotation.z = -0.95;
+      rigGroup.add(shellGroup);
+    }
+
+    // 3 Granadas 3D de 40mm Douradas/Prateadas no outro lado da bandoleira
+    for (let i = 0; i < 3; i++) {
+      const grenGroup = new THREE.Group();
+      const gBody = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.065, 10), chromeSilverMat);
+      const gTip = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 10), brassMat);
+      gTip.position.y = 0.032;
+      grenGroup.add(gBody, gTip);
+      grenGroup.position.set(-0.2 + i * 0.08, 0.62 - i * 0.09, 0.265);
+      grenGroup.rotation.z = 0.65;
+      rigGroup.add(grenGroup);
+    }
+
+    // 5. OMBREIRAS DE COURO COM TACHAS PRATEADAS & BRAÇADEIRAS TÁTICAS NOS DOIS BRAÇOS
+    for (const [armPivot, forearmGroup, side] of [
+      [this.leftArmPivot, this.leftHandGroup, 1],
+      [this.rightArmPivot, this.rightHandGroup, -1]
+    ]) {
+      const epaulette = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.34), leatherMat);
+      epaulette.position.set(side * 0.04, 0.06, 0);
+      epaulette.rotation.z = -side * 0.16;
+      armPivot.add(epaulette);
+
+      for (const sz of [-0.1, 0, 0.1]) {
+        const stud = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.045, 6), chromeSilverMat);
+        stud.position.set(side * 0.06, 0.12, sz);
+        armPivot.add(stud);
+      }
+
+      if (forearmGroup) {
+        const bracer = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.25), matteBlackMat);
+        bracer.position.set(0, -0.15, 0);
+        const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.04, 0.26), chromeSilverMat);
+        buckle.position.set(0, -0.15, 0);
+        forearmGroup.add(bracer, buckle);
+      }
+    }
+
+    // 6. CINTO TÁTICO BRANCO/PRATA CLÁSSICO DO JUSTICEIRO + COLDRES DE COXA + JOELHEIRAS METÁLICAS
+    const beltStrap = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.14, 0.5), matteBlackMat);
+    beltStrap.position.set(0, 0.07, 0);
+    this.hipGroup.add(beltStrap);
+
+    const centerBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.15, 0.06), skullWhiteMat);
+    centerBuckle.position.set(0, 0.07, 0.25);
+    this.hipGroup.add(centerBuckle);
+
+    // Pouches brancos/prateados ao redor da cintura
+    for (const [px, pz, rotY] of [
+      [-0.24, 0.24, 0],
+      [0.24, 0.24, 0],
+      [-0.43, 0, Math.PI / 2],
+      [0.43, 0, Math.PI / 2],
+      [-0.22, -0.24, 0],
+      [0.22, -0.24, 0]
+    ]) {
+      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.08), skullWhiteMat);
+      pouch.position.set(px, 0.07, pz);
+      pouch.rotation.y = rotY;
+      this.hipGroup.add(pouch);
+    }
+
+    for (const [legPivot, side] of [
+      [this.leftLegPivot, 1],
+      [this.rightLegPivot, -1]
+    ]) {
+      // Coldre Tático 3D na Coxa + Pistola .50 Guardada (visível quando usa Escopeta ou Bazuca)
+      const thighStrap = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.06, 0.44), matteBlackMat);
+      thighStrap.position.set(0, -0.22, 0);
+      const holsterBox = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.26, 0.2), leatherMat);
+      holsterBox.position.set(side * 0.21, -0.22, 0.02);
+
+      const holsteredGun = new THREE.Group();
+      const hgSlide = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.22, 0.12), chromeSilverMat);
+      hgSlide.position.set(side * 0.22, -0.16, 0.02);
+      const hgGrip = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.1, 0.16), matteBlackMat);
+      hgGrip.position.set(side * 0.22, -0.05, -0.03);
+      holsteredGun.add(hgSlide, hgGrip);
+      this.vingadorHolsteredPistols.push(holsteredGun);
+
+      // Joelheira Metálica Blindada + Bota Pesada de Assalto
+      const kneePad = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.08), chromeSilverMat);
+      kneePad.position.set(0, -0.38, 0.22);
+      const bootCuff = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.22, 0.45), matteBlackMat);
+      bootCuff.position.set(0, -0.58, 0.02);
+
+      legPivot.add(thighStrap, holsterBox, holsteredGun, kneePad, bootCuff);
+    }
+
+    // 7. ARSENAL GUARDADO VISÍVEL NAS COSTAS (Escopeta "Juiz Final" e Bazuca "Aniquiladora" cruzadas em X!)
+    const backShotgun = new THREE.Group();
+    const bSgBody = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.18, 0.56), matteBlackMat);
+    const bSgBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.65, 10), chromeSilverMat);
+    bSgBarrel.rotation.x = Math.PI / 2;
+    bSgBarrel.position.set(0, 0.04, 0.45);
+    const bSgDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.14, 14), matteBlackMat);
+    bSgDrum.rotation.x = Math.PI / 2;
+    bSgDrum.position.set(0, -0.12, 0.12);
+    const bSgDrumRim = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.15, 12), redShellMat);
+    bSgDrumRim.rotation.x = Math.PI / 2;
+    bSgDrumRim.position.set(0, -0.12, 0.12);
+    backShotgun.add(bSgBody, bSgBarrel, bSgDrum, bSgDrumRim);
+    backShotgun.position.set(-0.06, 0.44, -0.33);
+    backShotgun.rotation.set(0.15, Math.PI / 2, 0.68);
+    rigGroup.add(backShotgun);
+    this.vingadorBackShotgun = backShotgun;
+
+    const backRpg = new THREE.Group();
+    const bRpgTube = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.088, 1.08, 12), oliveMat);
+    bRpgTube.rotation.x = Math.PI / 2;
+    const bRpgBell = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.085, 0.22, 12), matteBlackMat);
+    bRpgBell.rotation.x = Math.PI / 2;
+    bRpgBell.position.set(0, 0, -0.58);
+    const bRpgWarhead = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.34, 12), redShellMat);
+    bRpgWarhead.rotation.x = Math.PI / 2;
+    bRpgWarhead.position.set(0, 0, 0.66);
+    backRpg.add(bRpgTube, bRpgBell, bRpgWarhead);
+    backRpg.position.set(0.06, 0.46, -0.42);
+    backRpg.rotation.set(-0.15, Math.PI / 2, -0.68);
+    rigGroup.add(backRpg);
+    this.vingadorBackRpg = backRpg;
+
+    this.upperBodyGroup.add(rigGroup);
+  }
+
+  /**
+   * Constrói o Arsenal Triplo Remodelado 3D do Vingador de Chumbo (#4 — O Justiceiro):
+   * 1) "CASTIGADORAS GÊMEAS" — Duas Desert Eagles / Auto-Magnums Calibre .50 em Aço Cromado & Preto com Mira Laser e Caveira
+   * 2) ESCOPETA DE TAMBOR "JUIZ FINAL" (Estilo AA-12 / SPAS-12 com Tambor Gigante, Escudo Térmico, Cartuchos e Baioneta Serrilhada)
+   * 3) BAZUCA PESADA "ANIQUILADORA" (Tubo Militar Verde-Oliva/Preto com Ogiva Vermelha/Preta Aparente, Visor Óptico e Mira Laser)
+   */
+  _attachVingadorArsenal(leftHandGroup, rightHandGroup) {
+    const gunMetal = getLegoMaterial(0x1e293b, { roughness: 0.22, metalness: 0.58 });
+    const matteBlack = getLegoMaterial(0x111318, { roughness: 0.3, clearcoat: 0.25 });
+    const chromeSilver = getLegoMaterial(0xd8dde6, { roughness: 0.14, metalness: 0.82, clearcoat: 0.65 });
+    const skullWhite = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
+    const redShellMat = getLegoMaterial(0xdc2626, { roughness: 0.22 });
+    const brassMat = getLegoMaterial(0xfacc15, { roughness: 0.18, metalness: 0.7 });
+    const oliveMat = getLegoMaterial(0x365314, { roughness: 0.32 });
+    const redLaserMat = getLegoMaterial(0xff1e42, {
+      emissive: 0xef4444,
+      emissiveIntensity: 2.5,
+      roughness: 0.1
+    });
+    const scopeGreenMat = getLegoMaterial(0x22c55e, {
+      emissive: 0x16a34a,
+      emissiveIntensity: 2.0
+    });
+    const flashMat = getLegoMaterial(0xfef08a, {
+      emissive: 0xf97316,
+      emissiveIntensity: 2.6,
+      transparent: true,
+      opacity: 0.94
+    });
+
+    // =========================================================================
+    // 1. ARMA 1: "CASTIGADORAS GÊMEAS" (DUAS DESERT EAGLES / AUTO-MAGNUMS .50)
+    // =========================================================================
+    const buildPunisherMagnum = (isLeft) => {
+      const gun = new THREE.Group();
+
+      // Frame inferior em Preto Fosco + Cabo ergonômico com Emblema da Caveira Branca
+      const lowerFrame = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.11, 0.56), matteBlack);
+      lowerFrame.position.set(0, -0.02, 0.24);
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.26, 0.15), matteBlack);
+      grip.position.set(0, -0.15, 0.02);
+      grip.rotation.x = -0.22;
+
+      // Carregador estendido calibre .50 saindo da base do punho
+      const extMag = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.22, 0.11), gunMetal);
+      extMag.position.set(0, -0.28, 0.06);
+      extMag.rotation.x = -0.22;
+      const magBumper = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.14), chromeSilver);
+      magBumper.position.set(0, -0.38, 0.08);
+
+      // Emblema da Caveira Branca nas laterais do cabo
+      const skullGripDecal = new THREE.Mesh(new THREE.BoxGeometry(0.108, 0.11, 0.09), skullWhite);
+      skullGripDecal.position.set(0, -0.13, 0.02);
+      skullGripDecal.rotation.x = -0.22;
+
+      // Ferrolho Triangular Pesado (Slide da Desert Eagle .50) em Aço Prata Cromado
+      const heavySlide = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.145, 0.62), chromeSilver);
+      heavySlide.position.set(0, 0.075, 0.27);
+      heavySlide.castShadow = true;
+
+      // Ranhuras de ventilação laterais e trilho superior Picatinny no cano cromado
+      for (const vz of [0.18, 0.28, 0.38, 0.48]) {
+        const vent = new THREE.Mesh(new THREE.BoxGeometry(0.132, 0.045, 0.04), matteBlack);
+        vent.position.set(0, 0.085, vz);
+        gun.add(vent);
+      }
+      const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.032, 0.54), matteBlack);
+      topRail.position.set(0, 0.155, 0.26);
+
+      // Compensador de Freio de Boca Gigante na ponta (Muzzle Brake Calibre .50)
+      const muzzleBrake = new THREE.Mesh(new THREE.BoxGeometry(0.138, 0.16, 0.16), matteBlack);
+      muzzleBrake.position.set(0, 0.07, 0.64);
+      const boreHole = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.18, 12), chromeSilver);
+      boreHole.rotation.x = Math.PI / 2;
+      boreHole.position.set(0, 0.075, 0.65);
+
+      // Módulo de Mira Laser Vermelha 3D embaixo do cano + Feixe Laser Curto
+      const laserPod = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.075, 0.22), matteBlack);
+      laserPod.position.set(0, -0.08, 0.42);
+      const laserLens = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.04, 10), redLaserMat);
+      laserLens.rotation.x = Math.PI / 2;
+      laserLens.position.set(0, -0.08, 0.54);
+      const laserBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.55, 6), redLaserMat);
+      laserBeam.rotation.x = Math.PI / 2;
+      laserBeam.position.set(0, -0.08, 0.82);
+
+      gun.add(
+        lowerFrame,
+        grip,
+        extMag,
+        magBumper,
+        skullGripDecal,
+        heavySlide,
+        topRail,
+        muzzleBrake,
+        boreHole,
+        laserPod,
+        laserLens,
+        laserBeam
+      );
+
+      const flash = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), flashMat);
+      flash.scale.set(0.95, 0.95, 2.4);
+      flash.position.set(0, 0.075, 0.82);
       flash.visible = false;
-      smg.add(flash);
+      gun.add(flash);
       if (isLeft) this.leftMuzzleFlashMesh = flash;
       else this.muzzleFlashMesh = flash;
 
-      smg.position.set(0, -0.34, 0.1);
-      smg.rotation.x = Math.PI / 2 - 0.15;
-      return smg;
+      gun.position.set(0, -0.34, 0.1);
+      gun.rotation.x = Math.PI / 2 - 0.15;
+      return gun;
     };
 
-    this.dualSmgLeft = buildSmg(true);
-    this.dualSmgRight = buildSmg(false);
+    this.dualSmgLeft = buildPunisherMagnum(true);
+    this.dualSmgRight = buildPunisherMagnum(false);
     leftHandGroup.add(this.dualSmgLeft);
     rightHandGroup.add(this.dualSmgRight);
 
-    // 2. ESCOPETA DE IMPACTO (Heavy Tactical Shotgun)
+    // =========================================================================
+    // 2. ARMA 2: ESCOPETA AUTOMÁTICA DE TAMBOR "JUIZ FINAL" (AA-12 / SPAS-12)
+    // =========================================================================
     const shotgun = new THREE.Group();
-    const sgReceiver = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.56), darkBlack);
-    sgReceiver.position.set(0, 0, 0.24);
-    const sgBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.68, 12), silverMat);
+
+    // Receiver robusto preto/prata com trilho tático superior
+    const sgReceiver = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.64), matteBlack);
+    sgReceiver.position.set(0, 0.02, 0.24);
+    const sgSidePlate = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.12, 0.42), chromeSilver);
+    sgSidePlate.position.set(0, 0.03, 0.22);
+
+    // Tambor Cilíndrico Gigante (Drum Magazine de 20 Cartuchos) embaixo do receiver!
+    const drumGroup = new THREE.Group();
+    drumGroup.position.set(0, -0.2, 0.32);
+    const drumBody = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.2, 18), matteBlack);
+    drumBody.rotation.x = Math.PI / 2;
+    const drumFace = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.21, 16), chromeSilver);
+    drumFace.rotation.x = Math.PI / 2;
+    const drumCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 12), redShellMat);
+    drumCenter.rotation.x = Math.PI / 2;
+    drumGroup.add(drumBody, drumFace, drumCenter);
+    shotgun.add(drumGroup);
+
+    // Cano Duplo / Largo + Escudo Térmico Perfurado (Perforated Heat Shield)
+    const sgBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.82, 14), chromeSilver);
     sgBarrel.rotation.x = Math.PI / 2;
-    sgBarrel.position.set(0, 0.05, 0.64);
-    const sgTube = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.58, 10), gunMetal);
-    sgTube.rotation.x = Math.PI / 2;
-    sgTube.position.set(0, -0.03, 0.58);
-    const sgPump = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.11, 0.28), redShellMat);
-    sgPump.position.set(0, -0.04, 0.58);
-    const sgStock = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.16, 0.28), darkBlack);
-    sgStock.position.set(0, -0.03, -0.14);
-    shotgun.add(sgReceiver, sgBarrel, sgTube, sgPump, sgStock);
+    sgBarrel.position.set(0, 0.08, 0.72);
+    const sgGasTube = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.68, 12), gunMetal);
+    sgGasTube.rotation.x = Math.PI / 2;
+    sgGasTube.position.set(0, -0.01, 0.66);
+    const heatShield = new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.11, 0.56), matteBlack);
+    heatShield.position.set(0, 0.1, 0.68);
+    const sgMuzzleBrake = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.072, 0.16, 12), matteBlack);
+    sgMuzzleBrake.rotation.x = Math.PI / 2;
+    sgMuzzleBrake.position.set(0, 0.08, 1.14);
+
+    // 4 Cartuchos Vermelhos/Dourados presos no Side-Saddle lateral
+    for (let i = 0; i < 4; i++) {
+      const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.09, 8), redShellMat);
+      shell.position.set(0.095, 0.03, 0.1 + i * 0.08);
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.025, 8), brassMat);
+      rim.position.set(0.095, -0.02, 0.1 + i * 0.08);
+      shotgun.add(shell, rim);
+    }
+
+    // Baioneta Serrilhada Prateada embaixo da ponta do cano!
+    const bayonetBlade = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.09, 0.38), chromeSilver);
+    bayonetBlade.position.set(0, -0.08, 1.08);
+    const bayonetTip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 4), chromeSilver);
+    bayonetTip.rotation.x = Math.PI / 2;
+    bayonetTip.position.set(0, -0.08, 1.34);
+
+    // Coronha tática vazada
+    const sgStock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.34), matteBlack);
+    sgStock.position.set(0, -0.02, -0.18);
+
+    shotgun.add(
+      sgReceiver,
+      sgSidePlate,
+      sgBarrel,
+      sgGasTube,
+      heatShield,
+      sgMuzzleBrake,
+      bayonetBlade,
+      bayonetTip,
+      sgStock
+    );
     shotgun.position.set(0, -0.34, 0.12);
     shotgun.rotation.x = Math.PI / 2 - 0.15;
     rightHandGroup.add(shotgun);
     this.shotgunGroup = shotgun;
 
-    // 3. BAZUCA RPG (Destruidora de Objetos Prateados & Blindados)
+    // =========================================================================
+    // 3. ARMA 3: BAZUCA PESADA "ANIQUILADORA" (LANÇA-FOGUETES COM ROCKET JUMP)
+    // =========================================================================
     const rpg = new THREE.Group();
-    const rpgTube = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 1.18, 14), oliveMat);
+
+    // Tubo Militar Pesado Verde-Oliva e Preto Fosco com anéis de reforço
+    const rpgTube = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 1.32, 16), oliveMat);
     rpgTube.rotation.x = Math.PI / 2;
-    rpgTube.position.set(0, 0.06, 0.34);
-    const rpgBell = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.09, 0.24, 14), darkBlack);
+    rpgTube.position.set(0, 0.08, 0.38);
+
+    for (const rz of [-0.1, 0.25, 0.65, 0.95]) {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.126, 0.126, 0.07, 16), matteBlack);
+      band.rotation.x = Math.PI / 2;
+      band.position.set(0, 0.08, rz);
+      rpg.add(band);
+    }
+
+    // Bocal Traseiro de Exaustão Flarejado (Venturi Cone)
+    const rpgBell = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.105, 0.28, 16), matteBlack);
     rpgBell.rotation.x = Math.PI / 2;
-    rpgBell.position.set(0, 0.06, -0.28);
-    const warheadCone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.38, 14), warheadMat);
+    rpgBell.position.set(0, 0.08, -0.36);
+
+    // Ogiva Cônica Vermelha/Preta Aparente na Frente + Aletas Estabilizadoras
+    const warheadBody = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.1, 0.24, 14), matteBlack);
+    warheadBody.rotation.x = Math.PI / 2;
+    warheadBody.position.set(0, 0.08, 1.12);
+    const warheadCone = new THREE.Mesh(new THREE.ConeGeometry(0.145, 0.38, 14), redShellMat);
     warheadCone.rotation.x = Math.PI / 2;
-    warheadCone.position.set(0, 0.06, 1.06);
-    const rpgGrip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.22, 0.12), darkBlack);
+    warheadCone.position.set(0, 0.08, 1.41);
+    const warheadTip = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.12, 10), chromeSilver);
+    warheadTip.rotation.x = Math.PI / 2;
+    warheadTip.position.set(0, 0.08, 1.62);
+
+    // Visor Óptico Iluminado Lateral + Mira Laser Vermelha + Emblema de Caveira Branca
+    const opticHousing = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.26), matteBlack);
+    opticHousing.position.set(0.15, 0.16, 0.48);
+    const opticLens = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.28, 12), scopeGreenMat);
+    opticLens.rotation.x = Math.PI / 2;
+    opticLens.position.set(0.15, 0.16, 0.48);
+    const rpgLaser = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.22, 10), redLaserMat);
+    rpgLaser.rotation.x = Math.PI / 2;
+    rpgLaser.position.set(-0.14, 0.12, 0.72);
+    const rpgSkullStencil = new THREE.Mesh(new THREE.BoxGeometry(0.245, 0.12, 0.16), skullWhite);
+    rpgSkullStencil.position.set(0, 0.08, 0.46);
+
+    const rpgGrip = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.24, 0.13), matteBlack);
     rpgGrip.position.set(0, -0.1, 0.26);
-    rpg.add(rpgTube, rpgBell, warheadCone, rpgGrip);
+    const rpgForegrip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.22, 0.11), matteBlack);
+    rpgForegrip.position.set(0, -0.09, 0.68);
+
+    rpg.add(
+      rpgTube,
+      rpgBell,
+      warheadBody,
+      warheadCone,
+      warheadTip,
+      opticHousing,
+      opticLens,
+      rpgLaser,
+      rpgSkullStencil,
+      rpgGrip,
+      rpgForegrip
+    );
     rpg.position.set(0, -0.34, 0.12);
     rpg.rotation.x = Math.PI / 2 - 0.15;
     rightHandGroup.add(rpg);
@@ -1474,6 +1992,7 @@ export class Minifigure {
 
   /**
    * Alterna a arma ativa do Vingador de Chumbo ('dual_smg' | 'shotgun' | 'rpg')
+   * e atualiza automaticamente o Arsenal 3D Guardado nas Costas e nos Coldres!
    */
   setVingadorWeapon(weaponKey) {
     this.vingadorWeapon = weaponKey;
@@ -1481,7 +2000,46 @@ export class Minifigure {
     if (this.dualSmgRight) this.dualSmgRight.visible = weaponKey === 'dual_smg';
     if (this.shotgunGroup) this.shotgunGroup.visible = weaponKey === 'shotgun';
     if (this.rpgGroup) this.rpgGroup.visible = weaponKey === 'rpg';
+
+    // Mostra nas costas exatamente as armas que NÃO estão na mão no momento!
+    if (this.vingadorBackShotgun) {
+      this.vingadorBackShotgun.visible = weaponKey !== 'shotgun';
+    }
+    if (this.vingadorBackRpg) {
+      this.vingadorBackRpg.visible = weaponKey !== 'rpg';
+    }
+    if (this.vingadorHolsteredPistols && this.vingadorHolsteredPistols.length > 0) {
+      for (const hp of this.vingadorHolsteredPistols) {
+        hp.visible = weaponKey !== 'dual_smg';
+      }
+    }
     return this.vingadorWeapon;
+  }
+
+  /**
+   * Ativa/desativa o brilho incandescente nos olhos da Caveira do Peito durante o "Furor do Justiceiro" [Q]
+   */
+  setVingadorFurorVisual(isActive) {
+    this.vingadorFurorActive = Boolean(isActive);
+    if (this.vingadorSkullEyes && this.vingadorSkullEyes.length > 0) {
+      for (const eye of this.vingadorSkullEyes) {
+        if (eye.material) {
+          eye.material.color.setHex(isActive ? 0xff1e42 : 0xffffff);
+          eye.material.emissive.setHex(isActive ? 0xef4444 : 0xf8fafc);
+          eye.material.emissiveIntensity = isActive ? 3.2 : 1.4;
+        }
+      }
+    }
+  }
+
+  /**
+   * Aplica coice alternado nos braços esquerdo/direito ao disparar as "Castigadoras Gêmeas" (.50)
+   */
+  triggerVingadorDualRecoil() {
+    this.shootTimer = 0.14;
+    this.muzzleFlashTimer = 0.05;
+    this.vingadorDualRecoilSide = -this.vingadorDualRecoilSide;
+    return this.vingadorDualRecoilSide;
   }
 
   /**
@@ -2546,11 +3104,21 @@ export class Minifigure {
     this.animTime += dt;
 
     this.muzzleFlashTimer = Math.max(0, this.muzzleFlashTimer - dt);
-    if (this.muzzleFlashMesh) {
-      this.muzzleFlashMesh.visible = this.muzzleFlashTimer > 0;
-    }
-    if (this.leftMuzzleFlashMesh) {
-      this.leftMuzzleFlashMesh.visible = this.muzzleFlashTimer > 0;
+    if (this.currentHeroKey === 'vingador' && this.vingadorWeapon === 'dual_smg') {
+      const flashActive = this.muzzleFlashTimer > 0;
+      if (this.leftMuzzleFlashMesh) {
+        this.leftMuzzleFlashMesh.visible = flashActive && this.vingadorDualRecoilSide < 0;
+      }
+      if (this.muzzleFlashMesh) {
+        this.muzzleFlashMesh.visible = flashActive && this.vingadorDualRecoilSide > 0;
+      }
+    } else {
+      if (this.muzzleFlashMesh) {
+        this.muzzleFlashMesh.visible = this.muzzleFlashTimer > 0;
+      }
+      if (this.leftMuzzleFlashMesh) {
+        this.leftMuzzleFlashMesh.visible = this.muzzleFlashTimer > 0;
+      }
     }
 
     if (isGrounded && !this.wasGrounded) {
@@ -2636,6 +3204,23 @@ export class Minifigure {
         const slide = Math.sin(this.animTime * 9.0 + kf.phase) * 0.08;
         kf.mesh.scale.set(1.0, pulse, 1.0);
         kf.mesh.position.z = kf.baseZ + slide;
+      }
+    }
+
+    // Ondulação das Abas Traseiras e Laterais do Sobretudo de Couro Preto do Vingador de Chumbo (O Justiceiro)
+    if (this.vingadorCoatTails && this.vingadorCoatTails.length > 0) {
+      const speedRatio = Math.min(1.6, moveSpeed / Math.max(1, maxRunSpeed));
+      const baseLift = this.isDiveSliding
+        ? 0.88
+        : !isGrounded
+          ? 0.56
+          : 0.14 + speedRatio * 0.42;
+      const waveFreq = 7.5 + speedRatio * 6.5;
+      const waveAmp = 0.08 + speedRatio * 0.12;
+      for (const ct of this.vingadorCoatTails) {
+        const w = Math.sin(this.animTime * waveFreq + ct.phase);
+        ct.pivot.rotation.x = baseLift + w * waveAmp;
+        ct.pivot.rotation.z = ct.baseRotZ + ct.side * (speedRatio * 0.09 + Math.abs(w) * 0.06);
       }
     }
 
@@ -3032,6 +3617,18 @@ export class Minifigure {
       this.upperBodyGroup.rotation.x = 0.32;
     }
 
+    // Pose de Mergulho Tático / Combat Slide [Q] do Vingador de Chumbo (Estilo Max Payne / Justiceiro)!
+    if (this.isDiveSliding) {
+      this.visualRoot.position.y = isGrounded ? -0.24 : 0.08;
+      this.upperBodyGroup.rotation.x = isGrounded ? -0.36 : 0.48;
+      this.leftLegPivot.rotation.x = isGrounded ? -1.15 : 0.52;
+      this.rightLegPivot.rotation.x = isGrounded ? 0.38 : -0.35;
+      this.leftArmPivot.rotation.x = -1.62;
+      this.rightArmPivot.rotation.x = -1.62;
+      this.leftArmPivot.rotation.z = 0.18;
+      this.rightArmPivot.rotation.z = -0.18;
+    }
+
     // Guarda de Boxe / Combate e Soco Reto Horizontal (Jab -> Direto -> Gancho)
     if (this.combatStanceTimer > 0) {
       this.combatStanceTimer = Math.max(0, this.combatStanceTimer - dt);
@@ -3136,16 +3733,25 @@ export class Minifigure {
         this.titaMinigunBarrelGroup.rotation.z += 38.0 * dt;
       }
       const recoil = Math.sin((this.shootTimer / 0.16) * Math.PI);
-      this.rightArmPivot.rotation.x = -1.52 + recoil * 0.14;
-      this.rightArmPivot.position.z = -recoil * 0.1;
-      this.rightArmPivot.rotation.z = -0.04;
-      if (this.rightHandGroup) this.rightHandGroup.rotation.x = -0.15;
 
       if (this.currentHeroKey === 'vingador' && this.vingadorWeapon === 'dual_smg') {
-        this.leftArmPivot.rotation.x = -1.52 + recoil * 0.16;
-        this.leftArmPivot.position.z = -recoil * 0.12;
-        this.leftArmPivot.rotation.z = 0.04;
-        if (this.leftHandGroup) this.leftHandGroup.rotation.x = -0.15;
+        // Coice alternado nos dois braços para as "Castigadoras Gêmeas" (.50)!
+        const leftKick = this.vingadorDualRecoilSide < 0 ? recoil * 0.28 : recoil * 0.06;
+        const rightKick = this.vingadorDualRecoilSide > 0 ? recoil * 0.28 : recoil * 0.06;
+        this.leftArmPivot.rotation.x = -1.52 + leftKick;
+        this.leftArmPivot.position.z = -leftKick * 0.65;
+        this.leftArmPivot.rotation.z = 0.06;
+        if (this.leftHandGroup) this.leftHandGroup.rotation.x = -0.14;
+
+        this.rightArmPivot.rotation.x = -1.52 + rightKick;
+        this.rightArmPivot.position.z = -rightKick * 0.65;
+        this.rightArmPivot.rotation.z = -0.06;
+        if (this.rightHandGroup) this.rightHandGroup.rotation.x = -0.14;
+      } else {
+        this.rightArmPivot.rotation.x = -1.52 + recoil * 0.18;
+        this.rightArmPivot.position.z = -recoil * 0.12;
+        this.rightArmPivot.rotation.z = -0.04;
+        if (this.rightHandGroup) this.rightHandGroup.rotation.x = -0.15;
       }
     }
   }

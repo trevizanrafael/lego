@@ -67,18 +67,18 @@ export const HERO_CATALOG = [
     opCode: 'OP-04',
     shortName: 'VINGADOR',
     name: 'VINGADOR DE CHUMBO',
-    role: 'JUSTICEIRO URBANO // ARSENAL PESADO TRIPLO',
-    accent: '#cbd5e1',
+    role: 'VIGILANTE IMPLACÁVEL (O JUSTICEIRO) // ARSENAL DE DEMOLIÇÃO',
+    accent: '#f8fafc',
     icon: 'crosshair',
-    specialty: 'Demolição de Objetos de LEGO Prateado Brilhante & Poder de Fogo Bruto',
-    passive: 'Carrega 3 armas pesadas intercambiáveis em tempo real (SMGs Duplas, Escopeta e RPG).',
+    specialty: 'Castigadoras .50 Explosivas, Doze de 18 Bagos (Force-Jump), Bazuca (Rocket Jump) & Furor',
+    passive: 'Carrega todo o arsenal visível nas costas e usa o recuo da Doze e a explosão da Bazuca para voar pelos prédios.',
     controls: [
-      { key: 'R / MOUSE 2', title: 'ALTERNAR ARMA (3 ARMAS)', desc: 'Troca entre Duas SMGs, Escopeta de Impacto e Bazuca RPG.' },
-      { key: 'MOUSE 1 (1)', title: 'DUAS SUBMETRALHADORAS', desc: 'Cadência dupla insana com recuo alternado nos braços.' },
-      { key: 'MOUSE 1 (2)', title: 'ESCOPETA DE IMPACTO', desc: 'Disparo em cone de 7 balotes incendiários de alto dano.' },
-      { key: 'MOUSE 1 (3)', title: 'BAZUCA RPG ANTI-PRATA', desc: 'Dispara foguete pesado que destrói OBJETOS PRATEADOS.' },
-      { key: 'Q', title: 'GRANADA DE FRAGMENTAÇÃO', desc: 'Lança granada explosiva tática à distância.' },
-      { key: 'V', title: 'GOLPE DE CORONHA PESADA', desc: 'Ataque físico corpo a corpo para quebrar obstáculos.' }
+      { key: 'R / MOUSE 2', title: 'ALTERNAR ARSENAL (3 ARMAS)', desc: 'Troca entre Castigadoras .50, Escopeta Juiz Final e Bazuca Aniquiladora.' },
+      { key: 'MOUSE 1 (1)', title: 'CASTIGADORAS GÊMEAS (.50)', desc: 'Duas Desert Eagles/SMGs .50 cromadas com tiros micro-explosivos e recuo alternado.' },
+      { key: 'MOUSE 1 (2)', title: 'DOZE "JUIZ FINAL" (18 BAGOS)', desc: 'Tempestade de 18 bagos incendiários + Recoil Force-Jump quando dispara no ar/para baixo!' },
+      { key: 'MOUSE 1 (3)', title: 'BAZUCA + ROCKET JUMP (4X)', desc: 'Destrói LEGO Prateado e catapulta o Vingador pelos ares ao atirar nos pés/paredes!' },
+      { key: 'Q', title: 'INVESTIDA + FUROR DO JUSTICEIRO', desc: 'Super-Dash propulsado a 50m/s na direção da mira + 4s de Velocidade 32m/s e +60% Cadência!' },
+      { key: 'SHIFT', title: 'CORRIDA TÁTICA IMPLACÁVEL', desc: 'Avanço rápido a 26m/s (32m/s em Furor) com sobretudo de couro preto esvoaçante.' }
     ]
   },
   {
@@ -340,17 +340,75 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     ctx.arc(76 * 0.5, 65, 5.5, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'vingador') {
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillRect(76 * 0.21, 16, 76 * 0.58, 6);
+    // Cabelo Militar Preto Penteado para Trás (Frank Castle) + Faixa Tática Preta na Testa
     ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.27, 26, 12, 8);
-    ctx.fillRect(76 * 0.55, 26, 12, 8);
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(76 * 0.22, 37, 76 * 0.56, 17);
-    ctx.fillStyle = '#e2e8f0';
-    for (let gx = 76 * 0.3; gx <= 76 * 0.66; gx += 7) {
-      ctx.fillRect(gx, 40, 4, 11);
-    }
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.2, 20);
+    ctx.lineTo(76 * 0.22, 10);
+    ctx.lineTo(76 * 0.35, 8);
+    ctx.lineTo(76 * 0.5, 7);
+    ctx.lineTo(76 * 0.65, 8);
+    ctx.lineTo(76 * 0.78, 10);
+    ctx.lineTo(76 * 0.8, 20);
+    ctx.closePath();
+    ctx.fill();
+
+    // Faixa tática preta (Headband) na testa
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(76 * 0.21, 17, 76 * 0.58, 5.5);
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(76 * 0.21, 17, 76 * 0.58, 5.5);
+
+    // Sombreamento pesado nos olhos + Cicatriz no olho direito
+    ctx.fillStyle = 'rgba(9, 10, 13, 0.78)';
+    ctx.fillRect(76 * 0.24, 24, 76 * 0.52, 10);
+    ctx.strokeStyle = '#991b1b';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.62, 22);
+    ctx.lineTo(76 * 0.58, 39);
+    ctx.stroke();
+
+    // Sobrancelhas grossas arqueadas em fúria + Olhos brancos estreitos intimidadores
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.26, 24);
+    ctx.lineTo(76 * 0.46, 28);
+    ctx.moveTo(76 * 0.74, 24);
+    ctx.lineTo(76 * 0.54, 28);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(76 * 0.29, 28, 10, 3.8);
+    ctx.fillRect(76 * 0.57, 28, 10, 3.8);
+
+    // Barba por fazer escura (stubble) na mandíbula + Dentes cerrados de veterano
+    ctx.fillStyle = 'rgba(17, 24, 39, 0.58)';
+    ctx.fillRect(76 * 0.24, 37, 76 * 0.52, 16);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(76 * 0.34, 41, 76 * 0.32, 5.5);
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(76 * 0.34, 41, 76 * 0.32, 5.5);
+
+    // Gola Alta Levantada do Sobretudo de Couro Preto + Grande Caveira Branca do Justiceiro no Peito
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.14, 50, 11, 12);
+    ctx.fillRect(76 * 0.72, 50, 11, 12);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 62, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(76 * 0.42, 66, 76 * 0.16, 9);
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.44, 60, 3.5, 3);
+    ctx.fillRect(76 * 0.52, 60, 3.5, 3);
+    ctx.fillRect(76 * 0.45, 68, 1.8, 6);
+    ctx.fillRect(76 * 0.49, 68, 1.8, 6);
+    ctx.fillRect(76 * 0.53, 68, 1.8, 6);
   } else if (presetKey === 'sombra') {
     // Capuz Shinobi com Chifres Oni Escarlates + Bandana com Placa Metálica + Olhos Carmesins + Máscara Oni
     ctx.fillStyle = '#090a0d';

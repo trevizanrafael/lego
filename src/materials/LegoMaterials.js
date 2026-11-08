@@ -467,43 +467,132 @@ export function createMinifigFaceTexture(preset = 'caveira') {
       ctx.fill();
     }
   } else if (preset === 'vingador') {
-    // Rosto Justiceiro Urbano: pintura de guerra tática nos olhos + bandana de caveira prateada na boca
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
-    ctx.fillRect(26, 66, 204, 52);
+    // =========================================================================
+    // ROSTO "O JUSTICEIRO / FRANK CASTLE" (512x256, centro cx=256, cy=128)
+    // =========================================================================
+    // 1. Pele LEGO amarela clássica (#f6c92d) em 100% da cabeça com sombreamento pesado de veterano
+    ctx.fillStyle = '#f6c92d';
+    ctx.fillRect(0, 0, 512, 256);
 
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 10;
+    // Sombreamento de olheiras profundas e pintura de guerra fosca ao redor dos olhos (centrado em cx = 256)
+    const eyeShadowGrad = ctx.createLinearGradient(cx - 115, 62, cx + 115, 134);
+    eyeShadowGrad.addColorStop(0, 'rgba(9, 10, 13, 0.25)');
+    eyeShadowGrad.addColorStop(0.2, 'rgba(9, 10, 13, 0.82)');
+    eyeShadowGrad.addColorStop(0.5, 'rgba(15, 23, 42, 0.88)');
+    eyeShadowGrad.addColorStop(0.8, 'rgba(9, 10, 13, 0.82)');
+    eyeShadowGrad.addColorStop(1, 'rgba(9, 10, 13, 0.25)');
+    ctx.fillStyle = eyeShadowGrad;
+    ctx.fillRect(cx - 115, 64, 230, 62);
+
+    // Faixa tática preta na testa (Headband do Frank Castle envolvendo 0..512)
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 16, 512, 34);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 22, 512, 8);
+
+    // 2. Barba Cerrada Escura (Stubble acinzentado pesado na mandíbula e queixo, centrado em cx = 256)
+    ctx.fillStyle = 'rgba(17, 24, 39, 0.56)';
+    ctx.beginPath();
+    ctx.moveTo(cx - 102, 128);
+    ctx.lineTo(cx - 76, 152);
+    ctx.lineTo(cx + 76, 152);
+    ctx.lineTo(cx + 102, 128);
+    ctx.lineTo(cx + 92, 238);
+    ctx.lineTo(cx - 92, 238);
+    ctx.closePath();
+    ctx.fill();
+
+    // Pontilhado de barba por fazer (stubble) e vincos de veterano
+    ctx.fillStyle = 'rgba(9, 10, 13, 0.45)';
+    for (let sx = cx - 80; sx <= cx + 80; sx += 10) {
+      for (let sy = 142; sy <= 226; sy += 10) {
+        if ((sx + sy) % 20 === 0) {
+          ctx.fillRect(sx, sy, 3, 3);
+        }
+      }
+    }
+
+    // 3. Cicatrizes de Batalha no Nariz e Sobrancelha Direita
+    ctx.strokeStyle = '#991b1b';
+    ctx.lineWidth = 4.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(56, 70);
-    ctx.lineTo(108, 86);
-    ctx.moveTo(200, 70);
-    ctx.lineTo(148, 86);
+    // Cicatriz vertical cortando a sobrancelha e olho direito
+    ctx.moveTo(cx + 48, 52);
+    ctx.lineTo(cx + 38, 132);
+    // Cicatriz diagonal na ponte do nariz
+    ctx.moveTo(cx - 18, 118);
+    ctx.lineTo(cx + 22, 134);
     ctx.stroke();
+
+    // 4. Sobrancelhas Grossas Arqueadas em Fúria (Preto Asfalto)
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 12;
+    ctx.lineCap = 'square';
+    ctx.beginPath();
+    ctx.moveTo(cx - 86, 68);
+    ctx.lineTo(cx - 18, 86);
+    ctx.moveTo(cx + 86, 68);
+    ctx.lineTo(cx + 18, 86);
+    ctx.stroke();
+
+    // 5. Olhos Furiosos Estreitos com Brilho Branco Intimidador (Estilo Justiceiro)
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(cx - 78, 84, 54, 24);
+    ctx.fillRect(cx + 24, 84, 54, 24);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(cx - 74, 88);
+    ctx.lineTo(cx - 26, 94);
+    ctx.lineTo(cx - 30, 105);
+    ctx.lineTo(cx - 70, 102);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 74, 88);
+    ctx.lineTo(cx + 26, 94);
+    ctx.lineTo(cx + 30, 105);
+    ctx.lineTo(cx + 70, 102);
+    ctx.closePath();
+    ctx.fill();
+
+    // Íris escura feroz + reflexo frio
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - 52, 91, 10, 11);
+    ctx.fillRect(cx + 42, 91, 10, 11);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(cx - 55, 92, 4, 4);
+    ctx.fillRect(cx + 39, 92, 4, 4);
+
+    // 6. Expressão Brutal de Dentes Cerrados em Rosnado (Grimace) centralizada em cx = 256
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.roundRect(cx - 56, 156, 112, 38, 6);
+    ctx.fill();
 
     ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(66, 86, 36, 18);
-    ctx.fillRect(154, 86, 36, 18);
-    ctx.fillStyle = '#dc2626';
-    ctx.fillRect(78, 89, 12, 12);
-    ctx.fillRect(166, 89, 12, 12);
+    ctx.fillRect(cx - 50, 161, 100, 28);
 
-    // Máscara/Bandana preta inferior com dentes de Caveira Prateada
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(22, 128, 212, 110);
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 5;
+    // Divisórias dos dentes cerrados
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(22, 128);
-    ctx.lineTo(234, 128);
+    ctx.moveTo(cx - 50, 175);
+    ctx.lineTo(cx + 50, 175);
+    for (let tx = cx - 34; tx <= cx + 34; tx += 17) {
+      ctx.moveTo(tx, 161);
+      ctx.lineTo(tx, 189);
+    }
     ctx.stroke();
 
-    ctx.fillStyle = '#e2e8f0';
-    for (let tx = 70; tx <= 174; tx += 24) {
-      ctx.fillRect(tx, 146, 16, 44);
-    }
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(66, 166, 124, 6);
+    // Covinha / queixo quadrado marcado de Frank Castle
+    ctx.strokeStyle = 'rgba(9, 10, 13, 0.75)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, 212, 12, 1.15 * Math.PI, 1.85 * Math.PI);
+    ctx.stroke();
   } else if (preset === 'sombra') {
     // =========================================================================
     // ROSTO CYBER-SHINOBI MÍSTICO DO SOMBRA ESCARLATE (512x256, centro cx=256)
@@ -811,70 +900,101 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
     ctx.fillStyle = '#dc2626';
     ctx.fillRect(96, 212, 64, 26);
   } else if (preset === 'vingador') {
-    // Colete Pesado do Vingador de Chumbo (Preto/Grafite + Caveira Prateada + Bandoleira de Cartuchos)
-    ctx.fillStyle = '#111827';
+    // Colete Tático Kevlar Preto Fosco (#0c0e13) com a Icônica Caveira Branca Gigante do Justiceiro (The Punisher)
+    ctx.fillStyle = '#0c0e13';
     ctx.fillRect(0, 0, 256, 256);
 
-    ctx.fillStyle = '#1f2937';
-    ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 6;
+    // Textura de trama de Kevlar balístico e placas peitorais
+    ctx.fillStyle = '#141821';
+    ctx.strokeStyle = '#262b38';
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.roundRect(22, 18, 212, 184, 12);
+    ctx.roundRect(16, 12, 224, 192, 10);
     ctx.fill();
     ctx.stroke();
 
-    // Grande Crânio Justiceiro Prateado no Peito
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.lineWidth = 2;
+    for (let ky = 20; ky < 200; ky += 12) {
+      ctx.beginPath();
+      ctx.moveTo(20, ky);
+      ctx.lineTo(236, ky);
+      ctx.stroke();
+    }
+
+    // ICÔNICA CAVEIRA BRANCA GIGANTE DO JUSTICEIRO (Ocupando todo o peito até o abdômen)
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    // Topo e têmporas largas do crânio
+    ctx.moveTo(128, 22);
+    ctx.bezierCurveTo(188, 22, 206, 62, 196, 104);
+    // Maçãs do rosto salientes e angulares
+    ctx.lineTo(176, 124);
+    ctx.lineTo(164, 134);
+    // Maxilar descendo em dentes longos até o abdômen
+    ctx.lineTo(162, 198);
+    ctx.lineTo(94, 198);
+    ctx.lineTo(92, 134);
+    ctx.lineTo(80, 124);
+    ctx.lineTo(60, 104);
+    ctx.bezierCurveTo(50, 62, 68, 22, 128, 22);
+    ctx.closePath();
+    ctx.fill();
+
+    // Órbitas Oculares Furiosas e Angulares da Caveira do Justiceiro
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(72, 72);
+    ctx.lineTo(118, 86);
+    ctx.lineTo(112, 112);
+    ctx.lineTo(68, 98);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(184, 72);
+    ctx.lineTo(138, 86);
+    ctx.lineTo(144, 112);
+    ctx.lineTo(188, 98);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cavidade nasal triangular invertida
+    ctx.beginPath();
+    ctx.moveTo(128, 98);
+    ctx.lineTo(115, 126);
+    ctx.lineTo(141, 126);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dentes Compridos Icônicos do Justiceiro (4 fendas profundas verticais)
+    ctx.fillStyle = '#090a0d';
+    for (const gx of [106, 120, 134, 148]) {
+      ctx.fillRect(gx - 2, 136, 5, 64);
+    }
+
+    // Rachaduras de batalha no crânio pintado
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(96, 32);
+    ctx.lineTo(106, 56);
+    ctx.lineTo(98, 74);
+    ctx.moveTo(166, 44);
+    ctx.lineTo(154, 68);
+    ctx.stroke();
+
+    // Cinto Tático Branco/Prata Clássico do Justiceiro na cintura
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(8, 206, 240, 42);
     ctx.fillStyle = '#e2e8f0';
-    ctx.beginPath();
-    ctx.arc(128, 92, 44, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(98, 122, 60, 44);
-
-    // Olhos angulares escuros do crânio
-    ctx.fillStyle = '#090a0d';
-    ctx.beginPath();
-    ctx.moveTo(96, 82);
-    ctx.lineTo(122, 92);
-    ctx.lineTo(118, 108);
-    ctx.lineTo(92, 100);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(160, 82);
-    ctx.lineTo(134, 92);
-    ctx.lineTo(138, 108);
-    ctx.lineTo(164, 100);
-    ctx.closePath();
-    ctx.fill();
-
-    // Dentes longos prateados/pretos
-    for (let gx = 108; gx <= 148; gx += 13) {
-      ctx.fillRect(gx, 130, 5, 34);
+    for (const px of [18, 58, 166, 206]) {
+      ctx.fillRect(px, 212, 32, 28);
     }
-
-    // Bandoleira diagonal de cartuchos vermelhos/dourados de Escopeta
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 22;
-    ctx.beginPath();
-    ctx.moveTo(28, 24);
-    ctx.lineTo(228, 198);
-    ctx.stroke();
-
-    for (let i = 0; i < 6; i++) {
-      const bx = 46 + i * 30;
-      const by = 40 + i * 26;
-      ctx.fillStyle = '#dc2626';
-      ctx.fillRect(bx - 6, by - 10, 12, 16);
-      ctx.fillStyle = '#facc15';
-      ctx.fillRect(bx - 6, by + 6, 12, 6);
-    }
-
-    // Cinto de munição pesado
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(104, 210, 48, 32);
     ctx.fillStyle = '#090a0d';
-    ctx.fillRect(10, 208, 236, 38);
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillRect(104, 214, 48, 26);
+    ctx.fillRect(114, 218, 28, 16);
   } else if (preset === 'sombra') {
     // Traje Cyber-Shinobi do Sombra Escarlate (Preto Fosco + Armadura Escarlate Cruzada)
     ctx.fillStyle = '#090a0d';
