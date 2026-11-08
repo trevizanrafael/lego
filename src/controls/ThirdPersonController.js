@@ -118,6 +118,8 @@ export class ThirdPersonController {
     this.vingadorDiveDir = new THREE.Vector3(0, 0, -1);
     this.vingadorFurorTimer = 0;
     this.turboOverdriveTimer = 0;
+    this.turboOverdriveActive = false;
+    this.voltaicoGlideFxTimer = 0;
     this._lastLightWallPos = null;
     this.cameraShakeTimer = 0;
     this.grappleState = null; // { anchor: Vector3, timer: number }
@@ -219,8 +221,12 @@ export class ThirdPersonController {
         }
       } else if (e.button === 2) {
         this.mouseButtons.right = true;
-        if (!this.currentVehicle) {
-          const hero = this.minifigure.currentHeroKey;
+        const hero = this.minifigure.currentHeroKey;
+        if (this.currentVehicle) {
+          if (hero === 'turbo') {
+            this._summonAndMountTurboGhostBike();
+          }
+        } else {
           if (hero === 'caveira') {
             this._throwCaveiraGrenade();
           } else if (hero === 'tita') {
@@ -350,6 +356,7 @@ export class ThirdPersonController {
     this.vingadorDiveTimer = 0;
     this.vingadorFurorTimer = 0;
     this.turboOverdriveTimer = 0;
+    this.turboOverdriveActive = false;
     this._lastLightWallPos = null;
     this.titaSuperJumpActive = false;
     this.titaJumpCharging = false;
@@ -557,24 +564,34 @@ export class ThirdPersonController {
       );
       this.destructibles.fireChainLightning(staffTip, aimData.point);
     } else if (hero === 'vortex') {
-      // Devastação de Tentáculos Simbiontes em área frontal (quebra Paredes Rachadas!)
-      this.primaryCooldown = 0.26;
+      // Combo de 3 Golpes de Tentáculos Simbiontes + Onda Voraz de Biomassa (quebra Paredes Rachadas e LEGO Prateado!)
+      this.primaryCooldown = 0.25;
       this.minifigure.triggerPunch();
       this.destructibles.performVortexTentacleStrike(
         this.position,
         this.facingAngle,
-        this.minifigure.isVortexMonster
+        this.minifigure.isVortexMonster,
+        aimData.point
       );
     }
   }
 
   /**
-   * Dispara armas acopladas aos veículos (Moto 600cc CV, Picape Artilhada CV, Hover-APC A.R.E.S. e Tanque Titan-M1)
+   * Dispara armas acopladas aos veículos (Moto Fantasma 740 KM/H do Turbo, Moto 600cc CV, Picape Artilhada CV, Hover-APC A.R.E.S. e Tanque Titan-M1)
    */
   _fireVehicleWeapon() {
     if (this.primaryCooldown > 0 || !this.currentVehicle || !this.destructibles) return;
     const carObj = this.currentVehicle;
     const spec = carObj.mesh.userData?.vehicleSpec;
+
+    if (spec?.isGhostBike) {
+      this.primaryCooldown = 0.22;
+      this.minifigure.triggerPunch();
+      const aimData = this.destructibles.getAimTargetPoint(this.camera, 95);
+      this.destructibles.performTurboChainWhip(carObj.mesh.position, this.vehicleHeading, aimData.point);
+      return;
+    }
+
     if (!spec || !spec.weapon) return;
 
     const aimData = this.destructibles.getAimTargetPoint(this.camera, 110);
@@ -1211,8 +1228,8 @@ export class ThirdPersonController {
   }
 
   /**
-   * HERÓI #6 (Turbo Fantasma): Invoca instantaneamente sua Moto Energética Ciano [Mouse 2 / G]
-   * e já monta nela em alta velocidade deixando a Muralha de Luz!
+   * HERÓI #6 (Turbo Fantasma): Invoca instantaneamente sua Moto Energética Ciano (740+ KM/H) [Mouse 2 / F / G]
+   * e já monta nela em alta velocidade deixando a Muralha de Luz Infinita!
    */
   _summonAndMountTurboGhostBike() {
     if (!this.destructibles) return;
@@ -1224,55 +1241,174 @@ export class ThirdPersonController {
     const bikeObj = this.destructibles.summonTurboEnergyBike(this.position, this.facingAngle);
     if (bikeObj) {
       this.enterVehicle(bikeObj);
-      this.vehicleSpeed = 40.0;
+      this.vehicleSpeed = 95.0; // Arrancada instantânea já em ~300 KM/H subindo para 740+ KM/H!
+      this.turboOverdriveActive = true;
       this.isTurboActive = true;
       this._lastLightWallPos = this.position.clone();
+      if (this.hud) {
+        this.hud.setCharacterPortrait(
+          'turbo',
+          'TURBO FANTASMA [MOTO 740 KM/H]',
+          'MOTO FANTASMA ATIVA • [W / Q] 740 KM/H + MURALHA INFINITA • [MOUSE 1] ESPADA DE PLASMA'
+        );
+      }
     }
   }
 
   /**
-   * HERÓI #6 (Turbo Fantasma): Arrancada Fantasma + Muralha de Luz [Q]
+   * HERÓI #6 (Turbo Fantasma): Modo Overdrive Infinito + Muralha de Luz Sem Limite [Q]
+   * Alterna (Toggle) sem limite de tempo e sem cooldown!
    */
   _triggerTurboOverdrive() {
-    if (this.supernovaCooldown > 0) return;
-    this.supernovaCooldown = 1.4;
-    this.turboOverdriveTimer = 3.2;
+    this.turboOverdriveActive = !this.turboOverdriveActive;
+    this.turboOverdriveTimer = this.turboOverdriveActive ? 999999 : 0;
     this._lastLightWallPos = this.position.clone();
-    this._alignCharacterToCrosshair();
-    this.currentSpeed = 44.0;
-    this.velocity.x = Math.sin(this.facingAngle) * 44.0;
-    this.velocity.z = Math.cos(this.facingAngle) * 44.0;
-    soundFX.playHeroSwap();
-    soundFX.playExplosion(0.5);
+
+    if (this.turboOverdriveActive) {
+      if (!this.currentVehicle) {
+        this._alignCharacterToCrosshair();
+        this.currentSpeed = 52.0;
+        this.velocity.x = Math.sin(this.facingAngle) * 52.0;
+        this.velocity.z = Math.cos(this.facingAngle) * 52.0;
+      } else {
+        this.isTurboActive = true;
+      }
+      soundFX.playHeroSwap();
+      soundFX.playExplosion(0.55);
+      if (this.hud) {
+        this.hud.setCharacterPortrait(
+          'turbo',
+          'TURBO FANTASMA [OVERDRIVE INFINITO]',
+          'MODO OVERDRIVE INFINITO ATIVO [Q] • MURALHA DE LUZ CIANO SEMPRE LIGADA!'
+        );
+      }
+    } else {
+      soundFX.playHeroSwap();
+      if (this.hud) {
+        this.hud.setCharacterPortrait(
+          'turbo',
+          'TURBO FANTASMA',
+          'MOTO 740 KM/H [MOUSE 2 / F] • ESPADA DE PLASMA [MOUSE 1] • OVERDRIVE INFINITO [Q]'
+        );
+      }
+    }
   }
 
   /**
-   * HERÓI #7 (Voltaico): Teleporte de Relâmpago (Lightning Blink) [Mouse 2 / F]
-   * Teleporta na velocidade da luz para o poste, antena, prédio ou ponto mirado (até 92m)!
+   * HERÓI #7 (Voltaico): Teleporte de Relâmpago Instantâneo (Lightning Blink) [Mouse 2 / F / G]
+   * Teleporta 100% garantido na direção da mira (postes, prédios, tetos, rua ou ar até 96m)!
    */
   _triggerVoltaicoLightningBlink() {
     if (this.secondaryCooldown > 0 || !this.destructibles) return;
-    this.secondaryCooldown = 0.32;
-    this._alignCharacterToCrosshair();
-    const aimData = this.destructibles.getAimTargetPoint(this.camera, 92);
+    this.secondaryCooldown = 0.14;
+    const aimDir = this._alignCharacterToCrosshair();
     const fromPos = this.position.clone();
-    const targetPt = aimData.point.clone();
 
-    // Se mirou num poste de luz ou objeto alto, pousa no topo dele!
-    if (aimData.hitObj && !aimData.hitObj.destroyed) {
-      targetPt.x = aimData.hitObj.basePos.x;
-      targetPt.z = aimData.hitObj.basePos.z;
-      targetPt.y = aimData.hitObj.basePos.y + (aimData.hitObj.height || 2.0) + 0.35;
-    } else {
-      const floorY = this._findGroundSupportAt(targetPt.x, targetPt.z, targetPt.y + 1.5);
-      targetPt.y = Math.max(floorY, targetPt.y + 0.35);
+    // Inicia o raio a partir do plano do jogador para NUNCA colidir com objetos atrás da câmera!
+    const playerEye = new THREE.Vector3(this.position.x, this.position.y + 1.45, this.position.z);
+    const camToPlayerDist = Math.max(0, this.camera.position.distanceTo(playerEye) - 0.4);
+    const rayOrigin = this.camera.position.clone().addScaledVector(aimDir, camToPlayerDist);
+
+    const maxBlinkDist = 96.0;
+    let bestT = maxBlinkDist;
+    let targetPt = null;
+
+    // 1. Verifica se mirou num poste de luz, antena ou objeto próximo ao raio
+    for (const obj of this.destructibles.objects) {
+      if (obj.destroyed || obj.isDriven) continue;
+      const objTop = new THREE.Vector3(obj.basePos.x, obj.basePos.y + (obj.height || 2.0), obj.basePos.z);
+      const toObj = objTop.clone().sub(rayOrigin);
+      const dist = toObj.length();
+      if (dist < 3.0 || dist > bestT) continue;
+      const dot = toObj.clone().normalize().dot(aimDir);
+      if (dot < 0.86) continue;
+      const perp = dist * Math.sqrt(Math.max(0, 1 - dot * dot));
+      if (perp <= (obj.radius || 1.2) + 2.5) {
+        bestT = dist;
+        targetPt = new THREE.Vector3(obj.basePos.x, obj.basePos.y + (obj.height || 2.0) + 0.35, obj.basePos.z);
+      }
+    }
+
+    // 2. Interseção 3D exata com prédios, tetos, pontes e muros (world.colliders)
+    if (this.world?.colliders) {
+      for (const col of this.world.colliders) {
+        if (col.disabled) continue;
+        const colMinY = col.minY ?? 0;
+        let tMin = 0.0;
+        let tMax = bestT;
+        const axes = [
+          [rayOrigin.x, aimDir.x, col.minX, col.maxX],
+          [rayOrigin.y, aimDir.y, colMinY, col.maxY],
+          [rayOrigin.z, aimDir.z, col.minZ, col.maxZ]
+        ];
+        let hitBox = true;
+        for (const [orig, d, minB, maxB] of axes) {
+          if (Math.abs(d) < 1e-6) {
+            if (orig < minB || orig > maxB) {
+              hitBox = false;
+              break;
+            }
+          } else {
+            let t1 = (minB - orig) / d;
+            let t2 = (maxB - orig) / d;
+            if (t1 > t2) {
+              const tmp = t1;
+              t1 = t2;
+              t2 = tmp;
+            }
+            tMin = Math.max(tMin, t1);
+            tMax = Math.min(tMax, t2);
+            if (tMin > tMax) {
+              hitBox = false;
+              break;
+            }
+          }
+        }
+        if (hitBox && tMin >= 2.5 && tMin < bestT) {
+          bestT = tMin;
+          const hitPt = rayOrigin.clone().addScaledVector(aimDir, Math.max(1.5, tMin - 0.85));
+          // Se bateu perto do topo do prédio/estrutura, pousa direto em cima do terraço!
+          if (hitPt.y >= col.maxY - 3.2) {
+            hitPt.y = col.maxY + 0.35;
+          }
+          targetPt = hitPt;
+        }
+      }
+    }
+
+    // 3. Interseção com o chão/rua quando olha para baixo
+    if (aimDir.y < -0.01) {
+      for (let d = 3.0; d <= bestT; d += 1.5) {
+        const px = rayOrigin.x + aimDir.x * d;
+        const py = rayOrigin.y + aimDir.y * d;
+        const pz = rayOrigin.z + aimDir.z * d;
+        const terrainY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(px, pz) : 0;
+        if (py <= terrainY + 0.3) {
+          bestT = d;
+          targetPt = new THREE.Vector3(px, terrainY + 0.35, pz);
+          break;
+        }
+      }
+    }
+
+    // 4. Fallback no ar livre na direção exata da mira (permite teleportar para o alto no céu!)
+    if (!targetPt) {
+      const blinkReach = 62.0;
+      const fx = rayOrigin.x + aimDir.x * blinkReach;
+      const fz = rayOrigin.z + aimDir.z * blinkReach;
+      const floorY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(fx, fz) : 0;
+      const fy = Math.max(floorY + 0.45, rayOrigin.y + aimDir.y * blinkReach);
+      targetPt = new THREE.Vector3(fx, fy, fz);
     }
 
     this.destructibles.spawnLightningTeleportStrike(fromPos, targetPt);
     this.position.copy(targetPt);
-    this.velocity.set(0, 7.5, 0);
+    if (this.minifigure?.root) {
+      this.minifigure.root.position.copy(targetPt);
+    }
+    this.velocity.set(aimDir.x * 14.0, Math.max(9.5, aimDir.y * 18.0 + 6.0), aimDir.z * 14.0);
     this.isGrounded = false;
-    this.cameraShakeTimer = 0.22;
+    this.cameraShakeTimer = 0.26;
   }
 
   /**
@@ -1280,7 +1416,7 @@ export class ThirdPersonController {
    */
   _triggerVoltaicoEmp() {
     if (this.supernovaCooldown > 0 || !this.destructibles) return;
-    this.supernovaCooldown = 1.2;
+    this.supernovaCooldown = 0.85;
     this.minifigure.triggerPunch();
     this.cameraShakeTimer = 0.45;
     this.destructibles.triggerVoltaicoEmpPulse(this.position, 28.0);
@@ -1309,12 +1445,17 @@ export class ThirdPersonController {
   }
 
   /**
-   * HERÓI #8 (Vórtex): Laço Abissal [Mouse 2 / G] — Puxa helicópteros/carros pro chão ou lança o Vórtex!
+   * HERÓI #8 (Vórtex): Laço Abissal Preciso [Mouse 2 / G] —
+   * Puxa helicópteros/carros pro chão OU faz um Estilingue Simbionte (Venom Web-Zip) direto para o ponto mirado!
    */
   _triggerVortexAbyssalLasso() {
+    if (this.grappleState) {
+      this._stopGrapple(true);
+      return;
+    }
     if (this.secondaryCooldown > 0 || !this.destructibles) return;
-    this.secondaryCooldown = 0.42;
-    this._alignCharacterToCrosshair();
+    this.secondaryCooldown = 0.24;
+    const aimDir = this._alignCharacterToCrosshair();
     this.minifigure.triggerPunch();
     const res = this.destructibles.performAbyssalLasso(
       this.position,
@@ -1323,14 +1464,22 @@ export class ThirdPersonController {
       this.world ? this.world.colliders : []
     );
     if (res?.pulledVehicle) {
-      this.cameraShakeTimer = 0.35;
+      this.cameraShakeTimer = 0.38;
     } else if (res?.pullPoint) {
-      const dir = res.pullPoint.clone().sub(this.position).normalize();
+      const bestAnchor = res.pullPoint;
+      const isDiveGrapple = !this.isGrounded && aimDir.y < -0.15 && bestAnchor.y < this.position.y - 1.5;
+      this.grappleState = {
+        anchor: bestAnchor,
+        timer: 0.48,
+        pullSpeed: 74.0,
+        isDiveGrapple,
+        isSymbioteLasso: true
+      };
       this.isGrounded = false;
-      this.position.y += 0.4;
-      this.velocity.y = Math.max(15.5, dir.y * 42.0 + 10.0);
-      this.blastVelocity.set(dir.x * 42.0, 0, dir.z * 42.0);
-      this.blastJumpTimer = 0.72;
+      if (!isDiveGrapple && this.position.y <= bestAnchor.y) {
+        this.velocity.y = Math.max(this.velocity.y, 11.5);
+      }
+      this.minifigure.isGrappling = true;
     }
   }
 
@@ -1528,8 +1677,12 @@ export class ThirdPersonController {
         break;
       case 'KeyQ':
         this.keys.turbo = isDown;
+        if (this.minifigure.currentHeroKey === 'turbo' && isDown && !e.repeat) {
+          // No Turbo Fantasma, [Q] alterna a Arrancada Overdrive Infinita (a pé ou na Moto Energética de 740 KM/H)!
+          this._triggerTurboOverdrive();
+        }
         if (this.currentVehicle) {
-          // No carro: Q aciona TURBO e cancela o Drift (só pode Drift OU Turbo, nunca os dois juntos!)
+          // No carro/moto: Q aciona TURBO e cancela o Drift (só pode Drift OU Turbo, nunca os dois juntos!)
           if (isDown) {
             this.keys.sprint = false;
             this.isDrifting = false;
@@ -1550,8 +1703,6 @@ export class ThirdPersonController {
             this._triggerVingadorThrusterDive();
           } else if (hero === 'sombra') {
             this._triggerSombraSmokeBomb();
-          } else if (hero === 'turbo') {
-            this._triggerTurboOverdrive();
           } else if (hero === 'voltaico') {
             this._triggerVoltaicoEmp();
           } else if (hero === 'vortex') {
@@ -1571,6 +1722,9 @@ export class ThirdPersonController {
           } else if (!this.currentVehicle && hero === 'voltaico') {
             // No Voltaico, [F] aciona o Teleporte Elétrico (Lightning Blink)!
             this._triggerVoltaicoLightningBlink();
+          } else if (hero === 'turbo') {
+            // No Turbo Fantasma, [F] SEMPRE invoca e monta (ou desmonta) a Moto Energética!
+            this._summonAndMountTurboGhostBike();
           } else if (this.currentVehicle || this.findNearbyVehicle()) {
             this.toggleVehicleInteraction();
           } else {
@@ -1587,27 +1741,27 @@ export class ThirdPersonController {
               this._cycleVingadorWeapon();
             } else if (hero === 'sombra') {
               this._triggerSombraGrapple();
-            } else if (hero === 'turbo') {
-              this._summonAndMountTurboGhostBike();
             }
           }
         }
         break;
       case 'KeyG':
-        if (isDown && !e.repeat && !this.currentVehicle) {
+        if (isDown && !e.repeat) {
           const hero = this.minifigure.currentHeroKey;
-          if (hero === 'tita') {
-            this._toggleTitaCarGrabOrThrow();
-          } else if (hero === 'sombra') {
-            this._triggerSombraMagneticPull();
-          } else if (hero === 'vingador') {
-            this._cycleVingadorWeapon();
-          } else if (hero === 'turbo') {
+          if (hero === 'turbo') {
             this._summonAndMountTurboGhostBike();
-          } else if (hero === 'voltaico') {
-            this._triggerVoltaicoLightningBlink();
-          } else if (hero === 'vortex') {
-            this._triggerVortexAbyssalLasso();
+          } else if (!this.currentVehicle) {
+            if (hero === 'tita') {
+              this._toggleTitaCarGrabOrThrow();
+            } else if (hero === 'sombra') {
+              this._triggerSombraMagneticPull();
+            } else if (hero === 'vingador') {
+              this._cycleVingadorWeapon();
+            } else if (hero === 'voltaico') {
+              this._triggerVoltaicoLightningBlink();
+            } else if (hero === 'vortex') {
+              this._triggerVortexAbyssalLasso();
+            }
           }
         }
         break;
@@ -2050,7 +2204,14 @@ export class ThirdPersonController {
     }
 
     // Regra de Exclusividade Mútua: Só pode dar DRIFT (Shift) OU TURBO (Q), um por vez!
-    if (this.keys.sprint && !this.keys.turbo && Math.abs(this.vehicleSpeed) > 3.5) {
+    // Na Moto Energética Fantasma (Ghost Bike), Q (toggle Overdrive infinito) ou Shift também liberam o Turbo de 740+ KM/H!
+    const ghostBikeTurbo = Boolean(
+      spec.isGhostBike && (this.keys.turbo || this.turboOverdriveActive || this.keys.sprint)
+    );
+    if (ghostBikeTurbo) {
+      this.isTurboActive = true;
+      this.isDrifting = Boolean(this.keys.sprint && Math.abs(this.vehicleSpeed) > 8.0);
+    } else if (this.keys.sprint && !this.keys.turbo && Math.abs(this.vehicleSpeed) > 3.5) {
       this.isDrifting = true;
       this.isTurboActive = false;
     } else if (this.keys.turbo && !this.keys.sprint) {
@@ -2933,13 +3094,24 @@ export class ThirdPersonController {
     if (this.currentVehicle) {
       const prevCarPos = this.position.clone();
       this._updateVehicleDriving(dt, camRight);
-      // Se o Turbo Fantasma estiver pilotando sua Moto Energética (ou qualquer veículo em alta velocidade), deixa a Muralha de Luz Ciano!
-      if (this.minifigure.currentHeroKey === 'turbo' && Math.abs(this.vehicleSpeed) > 6.0 && this.destructibles) {
-        if (!this._lastLightWallPos) {
-          this._lastLightWallPos = prevCarPos.clone();
-        } else if (this.position.distanceTo(this._lastLightWallPos) >= 1.1) {
-          this.destructibles.spawnTurboLightWallSegment(this._lastLightWallPos, this.position);
-          this._lastLightWallPos.copy(this.position);
+      // Se o Turbo Fantasma estiver pilotando sua Moto Energética, anima o corte da Espada de Plasma e deixa a Muralha de Luz Ciano!
+      if (this.minifigure.currentHeroKey === 'turbo') {
+        if (this.minifigure.punchTimer > 0) {
+          this.minifigure.punchTimer = Math.max(0, this.minifigure.punchTimer - dt);
+          const slashProgress = 1 - this.minifigure.punchTimer / Math.max(0.01, this.minifigure.punchDuration || 0.28);
+          if (this.minifigure.rightArmPivot) {
+            this.minifigure.rightArmPivot.rotation.x = -1.65;
+            this.minifigure.rightArmPivot.rotation.y = 1.25 - slashProgress * 2.5;
+            this.minifigure.rightArmPivot.rotation.z = -0.55;
+          }
+        }
+        if (Math.abs(this.vehicleSpeed) > 6.0 && this.destructibles) {
+          if (!this._lastLightWallPos) {
+            this._lastLightWallPos = prevCarPos.clone();
+          } else if (this.position.distanceTo(this._lastLightWallPos) >= 1.1) {
+            this.destructibles.spawnTurboLightWallSegment(this._lastLightWallPos, this.position);
+            this._lastLightWallPos.copy(this.position);
+          }
         }
       }
       return;
@@ -3215,12 +3387,13 @@ export class ThirdPersonController {
           }
         }
       } else if (this.grappleState) {
-        // Gancho Ninja 360° (Zip-Dash & Dive-Grapple) do Sombra Escarlate!
+        // Gancho Ninja 360° (Sombra Escarlate) ou Laço Abissal Simbionte (Vórtex)!
         this.grappleState.timer -= dt;
         const handPos = new THREE.Vector3(this.position.x, this.position.y + 1.45, this.position.z);
         const toAnchor = this.grappleState.anchor.clone().sub(handPos);
         const dist = toAnchor.length();
         const isDive = Boolean(this.grappleState.isDiveGrapple);
+        const isSymbiote = Boolean(this.grappleState.isSymbioteLasso);
 
         if (dist <= 3.6 || this.grappleState.timer <= 0) {
           if (isDive) {
@@ -3231,6 +3404,14 @@ export class ThirdPersonController {
             }
           } else {
             this._stopGrapple(true);
+            if (isSymbiote && this.destructibles) {
+              this.destructibles.performVortexTentacleStrike(
+                this.position,
+                this.facingAngle,
+                this.minifigure.isVortexMonster,
+                2
+              );
+            }
           }
         } else {
           const pullDir = toAnchor.normalize();
@@ -3246,14 +3427,23 @@ export class ThirdPersonController {
           }
 
           if (this.destructibles && Math.random() < 0.85) {
-            this.destructibles.spawnSombraShadowStepTrail(this.position, 1.25);
+            if (isSymbiote) {
+              this.destructibles._spawnExplosion(
+                new THREE.Vector3(this.position.x, this.position.y + 0.8, this.position.z),
+                0xa855f7,
+                4,
+                0.75
+              );
+            } else {
+              this.destructibles.spawnSombraShadowStepTrail(this.position, 1.25);
+            }
           }
 
           if (this.grappleCableMesh && this.grappleAnchorMesh) {
             this.grappleCableMesh.visible = true;
             this.grappleCableMesh.position.copy(handPos);
             this.grappleCableMesh.lookAt(this.grappleState.anchor);
-            this.grappleCableMesh.scale.set(1, 1, dist);
+            this.grappleCableMesh.scale.set(isSymbiote ? 2.4 : 1, isSymbiote ? 2.4 : 1, dist);
             this.grappleAnchorMesh.visible = true;
             this.grappleAnchorMesh.position.copy(this.grappleState.anchor);
             this.grappleAnchorMesh.lookAt(this.grappleState.anchor.clone().add(pullDir));
@@ -3283,29 +3473,30 @@ export class ThirdPersonController {
         const isTurbo = hero === 'turbo';
         const isVoltaico = hero === 'voltaico';
         const isVortex = hero === 'vortex';
+        const isVoltaicoGliding = isVoltaico && !this.isGrounded && this.keys.jump;
 
         const heroWalkSpeed =
           isSombra ? 15.5 :
-          isTurbo ? 14.5 :
-          isVoltaico ? 14.0 :
-          isVortex ? (this.minifigure.isVortexMonster ? 12.5 : 15.0) :
+          isTurbo ? 16.0 :
+          isVoltaico ? (isVoltaicoGliding ? 28.0 : 15.5) :
+          isVortex ? (this.minifigure.isVortexMonster ? 14.5 : 16.5) :
           isVingador ? 13.5 :
           isCaveira ? 13.0 :
           this.walkSpeed;
 
         const heroRunSpeed =
           isSombra ? 32.0 :
-          isTurbo ? (this.turboOverdriveTimer > 0 ? 44.0 : 28.5) :
-          isVoltaico ? 27.0 :
-          isVortex ? (this.minifigure.isVortexMonster ? 24.5 : 30.0) :
+          isTurbo ? (this.turboOverdriveActive ? 54.0 : 32.0) :
+          isVoltaico ? (isVoltaicoGliding ? 38.0 : 30.0) :
+          isVortex ? (this.minifigure.isVortexMonster ? 28.0 : 33.0) :
           isVingador ? (this.vingadorFurorTimer > 0 ? 32.0 : 26.0) :
           isCaveira ? 27.5 :
           this.runSpeed;
 
         const stealthMult = this.stealthTimer > 0 ? (38.0 / 32.0) : 1.0;
-        const forceRun = (isVingador && this.vingadorFurorTimer > 0) || (isTurbo && this.turboOverdriveTimer > 0);
+        const forceRun = (isVingador && this.vingadorFurorTimer > 0) || (isTurbo && this.turboOverdriveActive) || isVoltaicoGliding;
         const targetMaxSpeed = (this.keys.sprint || forceRun ? heroRunSpeed : heroWalkSpeed) * stealthMult;
-        const targetSpeed = hasInput || (isTurbo && this.turboOverdriveTimer > 0) ? targetMaxSpeed : 0;
+        const targetSpeed = hasInput || (isTurbo && this.turboOverdriveActive) ? targetMaxSpeed : 0;
 
         const accelRate = 22.0;
         this.currentSpeed = THREE.MathUtils.lerp(
@@ -3333,13 +3524,22 @@ export class ThirdPersonController {
           Math.random() < 0.48
         ) {
           this.destructibles.spawnSombraShadowStepTrail(this.position, this.stealthTimer > 0 ? 1.25 : 0.92);
+        } else if (isVoltaico && this.destructibles && (isVoltaicoGliding || (hasInput && this.keys.sprint))) {
+          this.voltaicoGlideFxTimer -= dt;
+          if (this.voltaicoGlideFxTimer <= 0) {
+            this.voltaicoGlideFxTimer = isVoltaicoGliding ? 0.045 : 0.075;
+            this.destructibles.spawnVoltaicoElectricGlideFX(this.position, isVoltaicoGliding);
+          }
         }
 
-        if (hasInput) {
-          this.velocity.x = moveInput.x * this.currentSpeed;
-          this.velocity.z = moveInput.z * this.currentSpeed;
+        if (hasInput || (isTurbo && this.turboOverdriveActive)) {
+          const moveDir = hasInput
+            ? moveInput
+            : new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+          this.velocity.x = moveDir.x * this.currentSpeed;
+          this.velocity.z = moveDir.z * this.currentSpeed;
 
-          if (!isUsingSolarBeam && !this.mouseButtons.left) {
+          if (hasInput && !isUsingSolarBeam && !this.mouseButtons.left) {
             const desiredAngle = Math.atan2(moveInput.x, moveInput.z);
             this.facingAngle = lerpAngle(this.facingAngle, desiredAngle, Math.min(1, dt * 16));
             this.minifigure.root.rotation.y = this.facingAngle;
@@ -3352,17 +3552,16 @@ export class ThirdPersonController {
 
       if (!this.grappleState) {
         this.velocity.y += this.gravity * dt;
-        // Planagem Eletromagnética do Voltaico segurando [Espaço] no ar!
-        if (this.minifigure.currentHeroKey === 'voltaico' && !this.isGrounded && this.keys.jump && this.velocity.y < -2.2) {
-          this.velocity.y = -2.2;
+        // Levitação & Planagem Eletromagnética do Voltaico segurando [Espaço] no ar!
+        if (this.minifigure.currentHeroKey === 'voltaico' && !this.isGrounded && this.keys.jump && this.velocity.y < -1.35) {
+          this.velocity.y = -1.35;
         }
       }
     }
 
-    // Atualiza Arrancada Overdrive + Muralha de Luz a pé [Q] do Turbo Fantasma
-    if (this.turboOverdriveTimer > 0) {
-      this.turboOverdriveTimer = Math.max(0, this.turboOverdriveTimer - dt);
-      if (this.minifigure.currentHeroKey === 'turbo' && this.destructibles) {
+    // Atualiza Arrancada Overdrive Infinita + Muralha de Luz a pé [Q] do Turbo Fantasma!
+    if (this.turboOverdriveActive && this.minifigure.currentHeroKey === 'turbo') {
+      if (this.destructibles) {
         if (!this._lastLightWallPos) {
           this._lastLightWallPos = this.position.clone();
         } else if (this.position.distanceTo(this._lastLightWallPos) >= 1.0) {

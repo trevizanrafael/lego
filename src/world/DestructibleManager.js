@@ -81,7 +81,9 @@ export class DestructibleManager {
     this.explosions = [];
     this.fxParticles = [];
     this.lightWallSegments = [];
+    this.timedBeams = [];
     this._turboGhostBikeObj = null;
+    this._vortexComboStep = 0;
 
     this.magnetRadius = 5.2;
     this.collectRadius = 0.9;
@@ -1509,95 +1511,137 @@ export class DestructibleManager {
       bike.destroyed = false;
       bike.hp = bike.maxHp;
       bike.isGrabbed = false;
+      bike.isDriven = false;
       bike.mesh.visible = true;
       bike.mesh.position.set(pos.x, pos.y, pos.z);
       bike.mesh.rotation.set(0, facingAngle, 0);
       bike.basePos.copy(bike.mesh.position);
+      bike.baseRot.copy(bike.mesh.rotation);
+      bike.groundY = pos.y;
       for (const col of bike.colliders) col.disabled = true;
       return bike;
     }
 
-    // Constrói a Moto Energética Futurista Ciano 3D (Estilo Tron / Ghost Rider Ciano)
+    // Constrói a Moto Energética Futurista Ciano 3D (Estilo Tron / Ghost Rider Ciano — 740+ KM/H!)
     const bikeGroup = new THREE.Group();
     bikeGroup.position.set(pos.x, pos.y, pos.z);
     bikeGroup.rotation.set(0, facingAngle, 0);
 
-    const blackMat = getLegoMaterial(0x090a0d, { roughness: 0.2, clearcoat: 0.7 });
-    const chromeMat = getLegoMaterial(0xe2e8f0, { metalness: 0.85, roughness: 0.14 });
+    const blackMat = getLegoMaterial(0x090a0d, { roughness: 0.18, clearcoat: 0.78 });
+    const chromeMat = getLegoMaterial(0xe2e8f0, { metalness: 0.88, roughness: 0.12 });
     const cyanGlow = getLegoMaterial(0x22d3ee, {
       emissive: 0x06b6d4,
-      emissiveIntensity: 2.5,
+      emissiveIntensity: 2.6,
       roughness: 0.08
     });
     const whiteCyanGlow = getLegoMaterial(0xe0f2fe, {
       emissive: 0x38bdf8,
-      emissiveIntensity: 2.8,
-      roughness: 0.06
+      emissiveIntensity: 3.0,
+      roughness: 0.05
     });
 
-    // Chassi aerodinâmico baixo e alongado
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.56, 2.65), blackMat);
-    body.position.set(0, 0.62, 0);
+    // Chassi aerodinâmico baixo e alongado + Motor de Plasma Exposto
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.54, 2.75), blackMat);
+    body.position.set(0, 0.58, 0);
     body.castShadow = true;
     bikeGroup.add(body);
 
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.34, 1.32), cyanGlow);
-    canopy.position.set(0, 0.92, 0.38);
-    canopy.rotation.x = 0.22;
+    const reactorCore = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.92, 16), whiteCyanGlow);
+    reactorCore.rotation.z = Math.PI / 2;
+    reactorCore.position.set(0, 0.56, 0.12);
+    bikeGroup.add(reactorCore);
+
+    // Carenagem Dianteira Agressiva + Farol de Caveira Ciano + Guidão Cromado
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.36, 1.38), cyanGlow);
+    canopy.position.set(0, 0.9, 0.44);
+    canopy.rotation.x = 0.24;
     bikeGroup.add(canopy);
 
-    // Faixas laterais de neon ciano + Reator central
+    const skullHeadlight = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 1), whiteCyanGlow);
+    skullHeadlight.position.set(0, 0.78, 1.36);
+    bikeGroup.add(skullHeadlight);
+
+    const handlebar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.98, 10), chromeMat);
+    handlebar.rotation.z = Math.PI / 2;
+    handlebar.position.set(0, 1.06, 0.48);
+    bikeGroup.add(handlebar);
+
+    // Faixas laterais de neon ciano + Correntes Cromadas nas Laterais
     for (const sx of [-0.45, 0.45]) {
-      const neonStrip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 2.48), whiteCyanGlow);
+      const neonStrip = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.14, 2.58), whiteCyanGlow);
       neonStrip.position.set(sx, 0.64, 0);
       bikeGroup.add(neonStrip);
     }
 
-    // Rodas de Luz Ciano Neon Gigantes (Dianteira e Traseira)
-    for (const wz of [-1.05, 1.05]) {
-      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.36, 24), blackMat);
+    // Rodas de Luz Ciano Neon Gigantes (Dianteira e Traseira) com grupos de rotação real!
+    const wheels = [];
+    for (const [wz, isFront] of [[-1.15, false], [1.15, true]]) {
+      const steerGroup = new THREE.Group();
+      steerGroup.position.set(0, 0.54, wz);
+      const spinGroup = new THREE.Group();
+
+      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.38, 24), blackMat);
       tire.rotation.z = Math.PI / 2;
-      tire.position.set(0, 0.52, wz);
-      const rimGlow = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.065, 10, 24), cyanGlow);
+      const rimGlow = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.07, 10, 24), cyanGlow);
       rimGlow.rotation.y = Math.PI / 2;
-      rimGlow.position.set(0.19, 0.52, wz);
+      rimGlow.position.set(0.2, 0, 0);
       const rimGlowL = rimGlow.clone();
-      rimGlowL.position.x = -0.19;
-      bikeGroup.add(tire, rimGlow, rimGlowL);
-    }
+      rimGlowL.position.x = -0.2;
+      const hubGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.42, 14), whiteCyanGlow);
+      hubGlow.rotation.z = Math.PI / 2;
 
-    // Escapamentos Duplos de Plasma Traseiros
-    for (const sx of [-0.26, 0.26]) {
-      const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.55, 12), chromeMat);
+      spinGroup.add(tire, rimGlow, rimGlowL, hubGlow);
+      steerGroup.add(spinGroup);
+      bikeGroup.add(steerGroup);
+      wheels.push({ steerGroup, spinGroup, isFront });
+    }
+    bikeGroup.userData.wheels = wheels;
+
+    // 4 Escapamentos de Plasma Traseiros com Chamas Ciano-Brancas
+    const turboFlames = [];
+    for (const sx of [-0.28, 0.28]) {
+      const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.62, 12), chromeMat);
       thruster.rotation.x = Math.PI / 2;
-      thruster.position.set(sx, 0.72, -1.35);
-      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.65, 10), whiteCyanGlow);
+      thruster.position.set(sx, 0.74, -1.38);
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.95, 10), whiteCyanGlow);
       flame.rotation.x = -Math.PI / 2;
-      flame.position.set(sx, 0.72, -1.78);
+      flame.position.set(sx, 0.74, -1.96);
       bikeGroup.add(thruster, flame);
+      turboFlames.push(flame);
     }
+    bikeGroup.userData.turboFlames = turboFlames;
 
+    // IMPORTANTE: Marca isOptimizedGroup = true ANTES de registerDestructible para preservar a malha dinâmica!
+    bikeGroup.userData.isOptimizedGroup = true;
     bikeGroup.userData.isDriveableCar = true;
-    bikeGroup.userData.carName = 'MOTO FANTASMA CIANO';
+    bikeGroup.userData.carName = 'MOTO FANTASMA CIANO (740 KM/H)';
     bikeGroup.userData.vehicleSpec = {
+      id: 'moto_fantasma_turbo',
       category: 'car',
-      maxSpeed: 54.0,
-      turboMaxSpeed: 76.0,
-      accel: 46.0,
-      turnRate: 3.4,
-      seatHeight: 0.55,
-      cameraDist: 7.4,
-      kmh: 280,
-      isGhostBike: true
+      isGhostBike: true,
+      isMotorcycle: true,
+      openTop: true,
+      canWheelie: true,
+      rammingPower: 'unstoppable',
+      maxForward: 175.0,    // ~562 KM/H normal no [W]
+      turboSpeed: 232.0,    // ~746 KM/H no [Q] / Overdrive (PASSA DE 700 KM/H!)
+      maxReverse: -48.0,
+      accel: 185.0,         // Arrancada instantânea brutal
+      turnRate: 3.6,
+      driftTurnRate: 4.8,
+      seatedYOffset: 0.78,
+      seatZOffset: -0.26,
+      rearAxleZ: 1.15,
+      enterRadius: 5.5
     };
 
     this.scene.add(bikeGroup);
     const bikeObj = this.registerDestructible({
       mesh: bikeGroup,
       type: 'car',
-      hp: 260,
-      radius: 1.6,
-      height: 1.4,
+      hp: 450,
+      radius: 1.65,
+      height: 1.45,
       colliders: [],
       debrisColors: [0x090a0d, 0x22d3ee, 0xe0f2fe],
       studDrops: { silver: 4, gold: 4, blue: 2, purple: 0 },
@@ -1615,12 +1659,12 @@ export class DestructibleManager {
     const dx = toPos.x - fromPos.x;
     const dz = toPos.z - fromPos.z;
     const len = Math.hypot(dx, dz);
-    if (len < 0.35 || len > 18.0) return;
+    if (len < 0.35 || len > 26.0) return;
 
     const midX = (fromPos.x + toPos.x) * 0.5;
     const midZ = (fromPos.z + toPos.z) * 0.5;
     const baseY = Math.min(fromPos.y, toPos.y);
-    const wallH = 1.75;
+    const wallH = 1.85;
     const yaw = Math.atan2(dx, dz);
 
     const wallGroup = new THREE.Group();
@@ -1630,17 +1674,17 @@ export class DestructibleManager {
     const wallMat = new THREE.MeshBasicMaterial({
       color: 0x06b6d4,
       transparent: true,
-      opacity: 0.72
+      opacity: 0.76
     });
-    const wallPanel = new THREE.Mesh(new THREE.BoxGeometry(0.16, wallH, len + 0.15), wallMat);
+    const wallPanel = new THREE.Mesh(new THREE.BoxGeometry(0.18, wallH, len + 0.18), wallMat);
     wallGroup.add(wallPanel);
 
     const railMat = new THREE.MeshBasicMaterial({
       color: 0xe0f2fe,
       transparent: true,
-      opacity: 0.96
+      opacity: 0.98
     });
-    const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, len + 0.18), railMat);
+    const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, len + 0.2), railMat);
     topRail.position.y = wallH * 0.5;
     const botRail = topRail.clone();
     botRail.position.y = -wallH * 0.5 + 0.08;
@@ -1652,142 +1696,277 @@ export class DestructibleManager {
       wallMat,
       railMat,
       midPos: new THREE.Vector3(midX, baseY + wallH * 0.5, midZ),
-      halfLen: len * 0.5 + 0.4,
-      life: 3.8,
-      maxLife: 3.8
+      halfLen: len * 0.5 + 0.45,
+      life: 4.5,
+      maxLife: 4.5
     });
   }
 
   /**
-   * Açoite de Correntes Giratórias de Plasma Ciano [Mouse 1 / V] do Turbo Fantasma:
-   * Chicoteia correntes incandescentes em arco frontal amplo + lança lâmina giratória de corrente (32m)!
+   * Golpe da Espada Colossal de Plasma Ciano + Projétil "Lâmina Fantasma & Motosserra de Corrente" [Mouse 1 / V] do Turbo Fantasma:
+   * - Talho devastador em arco frontal de 7.5m (185 de dano, quebra Paredes Rachadas e LEGO Prateado!)
+   * - Dispara um Projétil Gigante de Onda Crescente de Plasma Ciano + Motosserra de Corrente Giratória a 82 m/s (alcance ~78m, 195 de dano)!
    */
   performTurboChainWhip(playerPos, facingAngle, targetPoint = null) {
     soundFX.playPunchSwing();
     soundFX.playLaserShot();
 
     const origin = new THREE.Vector3(
-      playerPos.x + Math.sin(facingAngle) * 1.35,
-      playerPos.y + 1.25,
-      playerPos.z + Math.cos(facingAngle) * 1.35
+      playerPos.x + Math.sin(facingAngle) * 1.45,
+      playerPos.y + 1.28,
+      playerPos.z + Math.cos(facingAngle) * 1.45
     );
     const dir = targetPoint
       ? targetPoint.clone().sub(origin).normalize()
       : new THREE.Vector3(Math.sin(facingAngle), 0, Math.cos(facingAngle)).normalize();
 
-    const whipGroup = new THREE.Group();
-    const cyanMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.95 });
-    const whiteMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.98 });
+    const projGroup = new THREE.Group();
+    const cyanMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.94 });
+    const brightCyanMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.98 });
+    const whiteHotMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 1.0 });
 
-    const ringOuter = new THREE.Mesh(new THREE.TorusGeometry(2.15, 0.11, 8, 28), cyanMat);
-    ringOuter.rotation.x = Math.PI / 2;
-    const ringInner = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.08, 8, 24), whiteMat);
-    ringInner.rotation.x = Math.PI / 2;
-    whipGroup.add(ringOuter, ringInner);
+    // 1. Onda Crescente de Espada de Plasma Ciano (3.8m de envergadura!)
+    const crescentOuter = new THREE.Mesh(
+      new THREE.TorusGeometry(2.15, 0.16, 10, 28, Math.PI * 1.15),
+      cyanMat
+    );
+    crescentOuter.rotation.x = Math.PI / 2;
+    crescentOuter.rotation.z = -Math.PI * 0.08;
 
-    for (let b = 0; b < 6; b++) {
-      const ang = (b / 6) * Math.PI * 2;
-      const hook = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.65, 4), whiteMat);
-      hook.position.set(Math.cos(ang) * 2.2, 0, Math.sin(ang) * 2.2);
-      hook.rotation.x = Math.PI / 2;
-      hook.rotation.z = -ang;
-      whipGroup.add(hook);
+    const crescentCore = new THREE.Mesh(
+      new THREE.TorusGeometry(2.08, 0.085, 8, 26, Math.PI * 1.08),
+      whiteHotMat
+    );
+    crescentCore.rotation.x = Math.PI / 2;
+    crescentCore.rotation.z = -Math.PI * 0.04;
+    projGroup.add(crescentOuter, crescentCore);
+
+    // 2. Anel Interno de Motosserra de Corrente Giratória (8 Lâminas Serrilhadas de Plasma Ciano)
+    const sawRingGroup = new THREE.Group();
+    const innerRing = new THREE.Mesh(new THREE.TorusGeometry(1.38, 0.09, 8, 24), brightCyanMat);
+    innerRing.rotation.x = Math.PI / 2;
+    sawRingGroup.add(innerRing);
+
+    for (let b = 0; b < 8; b++) {
+      const ang = (b / 8) * Math.PI * 2;
+      const tooth = new THREE.Mesh(
+        new THREE.ConeGeometry(0.18, 0.72, 4),
+        b % 2 === 0 ? whiteHotMat : brightCyanMat
+      );
+      tooth.position.set(Math.cos(ang) * 1.55, 0, Math.sin(ang) * 1.55);
+      tooth.rotation.x = Math.PI / 2;
+      tooth.rotation.z = -ang - 0.35;
+      sawRingGroup.add(tooth);
     }
+    projGroup.add(sawRingGroup);
+    projGroup.userData.spinRing = sawRingGroup;
 
-    whipGroup.position.copy(origin);
-    this.scene.add(whipGroup);
+    projGroup.position.copy(origin);
+    projGroup.lookAt(origin.clone().add(dir));
+    this.scene.add(projGroup);
 
-    // Dano imediato em arco largo de 6.5m ao redor do chicote de correntes
+    // Dano imediato brutal da Espada de Plasma em arco frontal de 7.5m (quebra Paredes Rachadas e LEGO Prateado!)
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - origin.x, obj.basePos.z - origin.z);
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - origin.y);
-      if (d <= obj.radius + 5.8 && dy <= obj.height + 2.6) {
-        this.damageObject(obj, 95, origin, false, { canBreakCrackedWall: true });
+      if (d <= obj.radius + 7.2 && dy <= obj.height + 3.2) {
+        this.damageObject(obj, 185, origin, false, {
+          canBreakCrackedWall: true,
+          canBreakSilver: true
+        });
       }
     }
 
     this.projectiles.push({
-      mesh: whipGroup,
-      type: 'katana_slash',
-      vel: dir.clone().multiplyScalar(54.0),
-      life: 0.62,
-      damage: 90,
-      slashRadius: 2.6,
+      mesh: projGroup,
+      type: 'turbo_plasma_slash',
+      vel: dir.clone().multiplyScalar(82.0),
+      life: 0.95,
+      damage: 195,
+      slashRadius: 3.8,
       hitObjects: new Set(),
-      canBreakCrackedWall: true
+      canBreakCrackedWall: true,
+      canBreakSilver: true
     });
   }
 
   // ============================================================================
-  // HERÓI #7: VOLTAICO (OP-07) — CORRENTE DE RAIOS (CHAIN LIGHTNING), TELEPORTE & PULSO EMP
+  // HERÓI #7: VOLTAICO (OP-07) — CORRENTE DE RAIOS (CHAIN LIGHTNING), PLANAGEM ELÉTRICA, TELEPORTE & PULSO EMP
   // ============================================================================
 
   /**
-   * Desenha um Raio Elétrico 3D Quebrado (Zig-Zag) entre 2 pontos no espaço!
+   * Desenha um Feixe de Raio Elétrico 3D Multi-Filamento (Zig-Zag Branco + Ciano + Dourado) entre 2 pontos no espaço!
+   * Armazenado em this.timedBeams (NUNCA em fxParticles) para manter os pontos de início e fim 100% travados!
    */
-  _spawnJaggedLightningBolt(startPt, endPt, radius = 0.09, duration = 0.24, isSkyBolt = false) {
+  _spawnJaggedLightningBolt(startPt, endPt, radius = 0.11, duration = 0.28, isSkyBolt = false) {
     const dist = startPt.distanceTo(endPt);
-    const segments = Math.max(4, Math.min(14, Math.ceil(dist / 2.6)));
+    const segments = Math.max(5, Math.min(16, Math.ceil(dist / 2.2)));
     const boltGroup = new THREE.Group();
 
     const coreMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.98
+      opacity: 1.0
     });
-    const glowMat = new THREE.MeshBasicMaterial({
+    const cyanMat = new THREE.MeshBasicMaterial({
       color: isSkyBolt ? 0x38bdf8 : 0x22d3ee,
+      transparent: true,
+      opacity: 0.92
+    });
+    const goldMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
       transparent: true,
       opacity: 0.85
     });
 
-    const pts = [startPt.clone()];
-    for (let i = 1; i < segments; i++) {
-      const u = i / segments;
-      const p = new THREE.Vector3().lerpVectors(startPt, endPt, u);
-      const jitter = isSkyBolt ? 1.45 : 0.75;
-      p.x += (Math.random() - 0.5) * jitter;
-      p.y += (Math.random() - 0.5) * jitter * 0.7;
-      p.z += (Math.random() - 0.5) * jitter;
-      pts.push(p);
-    }
-    pts.push(endPt.clone());
+    const buildStrand = (mat, rad, jitterScale) => {
+      const pts = [startPt.clone()];
+      for (let i = 1; i < segments; i++) {
+        const u = i / segments;
+        const p = new THREE.Vector3().lerpVectors(startPt, endPt, u);
+        const jitter = (isSkyBolt ? 1.65 : 0.85) * jitterScale;
+        p.x += (Math.random() - 0.5) * jitter;
+        p.y += (Math.random() - 0.5) * jitter * 0.75;
+        p.z += (Math.random() - 0.5) * jitter;
+        pts.push(p);
+      }
+      pts.push(endPt.clone());
 
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i];
-      const b = pts[i + 1];
-      const segLen = Math.max(0.05, a.distanceTo(b));
-      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        const segLen = Math.max(0.05, a.distanceTo(b));
+        const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
 
-      const segMesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, segLen, 6), i % 2 === 0 ? coreMat : glowMat);
-      segMesh.position.copy(mid);
-      segMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
-      boltGroup.add(segMesh);
-    }
+        const segMesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(rad, rad, segLen, 6),
+          mat
+        );
+        segMesh.position.copy(mid);
+        segMesh.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          b.clone().sub(a).normalize()
+        );
+        boltGroup.add(segMesh);
+      }
+    };
+
+    // 3 Filamentos de Raio Entrelaçados (Núcleo Branco + Arco Ciano Grosso + Faísca Dourada)
+    buildStrand(coreMat, radius * 0.78, 0.75);
+    buildStrand(cyanMat, radius * 1.35, 1.0);
+    buildStrand(goldMat, radius * 0.58, 1.45);
+
+    // Esferas de Descarga Elétrica nas pontas
+    const startFlare = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.2, 10, 10), coreMat);
+    startFlare.position.copy(startPt);
+    const endFlare = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.8, 12, 12), cyanMat);
+    endFlare.position.copy(endPt);
+    boltGroup.add(startFlare, endFlare);
 
     this.scene.add(boltGroup);
-    this.fxParticles.push({
+    this.timedBeams.push({
       mesh: boltGroup,
-      vel: new THREE.Vector3(0, 0, 0),
+      materials: [
+        { mat: coreMat, baseOpacity: 1.0 },
+        { mat: cyanMat, baseOpacity: 0.92 },
+        { mat: goldMat, baseOpacity: 0.85 }
+      ],
       life: duration,
       maxLife: duration
     });
   }
 
   /**
+   * Efeito Visual 3D de Planagem Eletromagnética & Corrida Tempestuosa do Voltaico [Espaço no Ar / Shift]:
+   * Cria Anéis de Levitação Tesla sob os pés + Raios 3D estalando ao redor do corpo!
+   */
+  spawnVoltaicoElectricGlideFX(playerPos, isAirborne = true) {
+    const hoverGroup = new THREE.Group();
+    hoverGroup.position.set(playerPos.x, playerPos.y + 0.14, playerPos.z);
+
+    const cyanMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.88
+    });
+    const goldMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      transparent: true,
+      opacity: 0.92
+    });
+    const whiteMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.96
+    });
+
+    const outerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(isAirborne ? 1.25 : 0.95, 0.065, 8, 24),
+      cyanMat
+    );
+    outerRing.rotation.x = Math.PI / 2;
+
+    const innerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(isAirborne ? 0.72 : 0.55, 0.05, 8, 20),
+      goldMat
+    );
+    innerRing.rotation.x = Math.PI / 2;
+
+    const coreDisc = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.42, 0.42, 0.04, 16),
+      whiteMat
+    );
+    hoverGroup.add(outerRing, innerRing, coreDisc);
+
+    this.scene.add(hoverGroup);
+    this.timedBeams.push({
+      mesh: hoverGroup,
+      materials: [
+        { mat: cyanMat, baseOpacity: 0.88 },
+        { mat: goldMat, baseOpacity: 0.92 },
+        { mat: whiteMat, baseOpacity: 0.96 }
+      ],
+      life: 0.18,
+      maxLife: 0.18,
+      onUpdate: (dt, ratio) => {
+        const s = 1.0 + (1.0 - ratio) * 0.65;
+        hoverGroup.scale.set(s, 1.0, s);
+        hoverGroup.rotation.y += dt * 12.0;
+      }
+    });
+
+    // Dispara 2 arcos elétricos 3D reais saltando do corpo do Voltaico para o anel magnético!
+    for (let i = 0; i < 2; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const bodyPt = new THREE.Vector3(
+        playerPos.x + (Math.random() - 0.5) * 0.5,
+        playerPos.y + 0.75 + Math.random() * 0.8,
+        playerPos.z + (Math.random() - 0.5) * 0.5
+      );
+      const ringPt = new THREE.Vector3(
+        playerPos.x + Math.cos(ang) * 1.35,
+        playerPos.y + 0.1,
+        playerPos.z + Math.sin(ang) * 1.35
+      );
+      this._spawnJaggedLightningBolt(bodyPt, ringPt, 0.055, 0.12, false);
+    }
+  }
+
+  /**
    * Dispara Corrente de Raios (Chain Lightning) [Mouse 1] do Voltaico:
-   * Atinge o alvo mirado e salta automaticamente em cadeia para até 6 objetos/veículos/geradores próximos!
+   * Atinge o alvo mirado com feixe elétrico triplo e salta automaticamente em cadeia para até 7 objetos/veículos próximos!
    */
   fireChainLightning(origin, targetPoint) {
     soundFX.playLaserShot();
+    soundFX.playExplosion(0.32);
 
     const visited = new Set();
     let currentPt = origin.clone();
 
     // 1º Salto: do Cetro Tesla até o ponto/objeto mirado
     let firstTargetObj = null;
-    let bestDist = 8.5;
+    let bestDist = 9.5;
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
       const objCenter = new THREE.Vector3(obj.basePos.x, obj.basePos.y + obj.height * 0.5, obj.basePos.z);
@@ -1799,25 +1978,34 @@ export class DestructibleManager {
     }
 
     const firstPt = firstTargetObj
-      ? new THREE.Vector3(firstTargetObj.basePos.x, firstTargetObj.basePos.y + firstTargetObj.height * 0.5, firstTargetObj.basePos.z)
+      ? new THREE.Vector3(
+          firstTargetObj.basePos.x,
+          firstTargetObj.basePos.y + firstTargetObj.height * 0.5,
+          firstTargetObj.basePos.z
+        )
       : targetPoint.clone();
 
-    this._spawnJaggedLightningBolt(currentPt, firstPt, 0.11, 0.26, false);
+    this._spawnJaggedLightningBolt(currentPt, firstPt, 0.13, 0.28, false);
     this._triggerMicroImpactBlast(firstPt);
 
-    if (firstTargetObj) {
-      visited.add(firstTargetObj);
-      this.damageObject(firstTargetObj, 75, currentPt, true, {
-        canBreakCrackedWall: true,
-        canBreakSilver: true
-      });
+    // Choque elétrico em área de 4.8m no ponto de impacto inicial
+    for (const obj of this.objects) {
+      if (obj.destroyed || obj.isDriven) continue;
+      const d = Math.hypot(obj.basePos.x - firstPt.x, obj.basePos.z - firstPt.z);
+      if (d <= obj.radius + 4.8 && Math.abs(obj.basePos.y - firstPt.y) <= obj.height + 3.5) {
+        visited.add(obj);
+        this.damageObject(obj, 145, currentPt, true, {
+          canBreakCrackedWall: true,
+          canBreakSilver: true
+        });
+      }
     }
     currentPt = firstPt;
 
-    // Saltos em Cadeia (Chain Lightning — até 5 saltos extras em raio de 18m cada!)
-    for (let bounce = 0; bounce < 5; bounce++) {
+    // Saltos em Cadeia (Chain Lightning — até 6 saltos extras em raio de 22m cada!)
+    for (let bounce = 0; bounce < 6; bounce++) {
       let nextObj = null;
-      let minDist = 18.0;
+      let minDist = 22.0;
       for (const obj of this.objects) {
         if (obj.destroyed || obj.isDriven || visited.has(obj)) continue;
         const d = Math.hypot(obj.basePos.x - currentPt.x, obj.basePos.z - currentPt.z);
@@ -1834,8 +2022,9 @@ export class DestructibleManager {
         nextObj.basePos.y + nextObj.height * 0.5,
         nextObj.basePos.z
       );
-      this._spawnJaggedLightningBolt(currentPt, nextPt, 0.085, 0.28, false);
-      this.damageObject(nextObj, 65, currentPt, true, {
+      this._spawnJaggedLightningBolt(currentPt, nextPt, 0.1, 0.3, false);
+      this._triggerMicroImpactBlast(nextPt);
+      this.damageObject(nextObj, 130, currentPt, true, {
         canBreakCrackedWall: true,
         canBreakSilver: true
       });
@@ -1844,59 +2033,65 @@ export class DestructibleManager {
   }
 
   /**
-   * Teleporte Elétrico (Lightning Blink) [Mouse 2 / F] do Voltaico:
-   * Derruba um Raio Gigante do Céu na saída e outro no destino, causando choque elétrico na chegada!
+   * Teleporte Elétrico (Lightning Blink) [Mouse 2 / F / G] do Voltaico:
+   * Derruba um Raio Colossal do Céu na saída e outro no destino + Rastro de Relâmpago + Onda de Choque Elétrica!
    */
   spawnLightningTeleportStrike(fromPos, toPos) {
-    soundFX.playExplosion(0.55);
+    soundFX.playExplosion(0.72);
     soundFX.playLaserShot();
 
-    const skyFrom = new THREE.Vector3(fromPos.x, fromPos.y + 42.0, fromPos.z);
-    const skyTo = new THREE.Vector3(toPos.x, toPos.y + 42.0, toPos.z);
-    this._spawnJaggedLightningBolt(skyFrom, fromPos, 0.24, 0.34, true);
-    this._spawnJaggedLightningBolt(skyTo, toPos, 0.28, 0.38, true);
+    const skyFrom = new THREE.Vector3(fromPos.x, fromPos.y + 48.0, fromPos.z);
+    const skyTo = new THREE.Vector3(toPos.x, toPos.y + 48.0, toPos.z);
+    this._spawnJaggedLightningBolt(skyFrom, fromPos, 0.28, 0.38, true);
+    this._spawnJaggedLightningBolt(skyTo, toPos, 0.34, 0.42, true);
     this._spawnJaggedLightningBolt(
       new THREE.Vector3(fromPos.x, fromPos.y + 1.2, fromPos.z),
       new THREE.Vector3(toPos.x, toPos.y + 1.2, toPos.z),
-      0.14,
-      0.3,
+      0.18,
+      0.36,
       false
     );
 
-    // Choque elétrico de chegada (9m de raio)
+    // Anel de Explosão Eletromagnética na chegada do Teleporte
+    this.spawnVoltaicoElectricGlideFX(toPos, true);
+
+    // Choque elétrico devastador de chegada (10.5m de raio)
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - toPos.x, obj.basePos.z - toPos.z);
-      if (d <= obj.radius + 9.0 && Math.abs(obj.basePos.y - toPos.y) <= 6.5) {
-        this.damageObject(obj, 90, toPos, true, { canBreakCrackedWall: true });
+      if (d <= obj.radius + 10.5 && Math.abs(obj.basePos.y - toPos.y) <= 7.5) {
+        this.damageObject(obj, 160, toPos, true, {
+          canBreakCrackedWall: true,
+          canBreakSilver: true
+        });
       }
     }
   }
 
   /**
    * Super Pulso EMP & Tempestade de Trovões [Q] do Voltaico (Raio 28m):
-   * Expande um domo eletromagnético azul-ciano e derruba 10 raios do céu ao redor!
+   * Expande um domo eletromagnético azul-ciano e derruba 12 raios do céu ao redor!
    */
   triggerVoltaicoEmpPulse(centerPos, radius = 28.0) {
-    soundFX.playExplosion(1.3);
+    soundFX.playExplosion(1.35);
     soundFX.playLaserShot();
 
     const center = new THREE.Vector3(centerPos.x, centerPos.y + 1.1, centerPos.z);
     const domeMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.65
+      opacity: 0.68
     });
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xfacc15,
       transparent: true,
-      opacity: 0.92
+      opacity: 0.95
     });
     const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), domeMat);
     sphereMesh.position.copy(center);
     this.scene.add(sphereMesh);
 
-    const ringGeo = new THREE.TorusGeometry(1, 0.08, 10, 36);
+    const ringGeo = new THREE.TorusGeometry(1, 0.09, 10, 36);
     ringGeo.rotateX(Math.PI / 2);
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
     ringMesh.position.copy(center);
@@ -1912,27 +2107,27 @@ export class DestructibleManager {
       isSupernova: true,
       maxRadius: radius,
       age: 0,
-      duration: 0.65
+      duration: 0.68
     });
 
-    // Derruba 10 Raios Gigantes do Céu em círculo ao redor do Voltaico
-    for (let i = 0; i < 10; i++) {
-      const ang = (i / 10) * Math.PI * 2;
-      const dist = 6.0 + (i % 3) * 6.5;
+    // Derruba 12 Raios Gigantes do Céu em círculo ao redor do Voltaico
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2;
+      const dist = 6.0 + (i % 3) * 7.0;
       const strikePt = new THREE.Vector3(
         centerPos.x + Math.cos(ang) * dist,
         centerPos.y,
         centerPos.z + Math.sin(ang) * dist
       );
-      const skyPt = new THREE.Vector3(strikePt.x, strikePt.y + 46.0, strikePt.z);
-      this._spawnJaggedLightningBolt(skyPt, strikePt, 0.22, 0.45, true);
+      const skyPt = new THREE.Vector3(strikePt.x, strikePt.y + 48.0, strikePt.z);
+      this._spawnJaggedLightningBolt(skyPt, strikePt, 0.24, 0.48, true);
     }
 
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - centerPos.x, obj.basePos.z - centerPos.z);
-      if (d <= radius + obj.radius && Math.abs(obj.basePos.y - centerPos.y) <= 14.0) {
-        this.damageObject(obj, 165, center, true, {
+      if (d <= radius + obj.radius && Math.abs(obj.basePos.y - centerPos.y) <= 15.0) {
+        this.damageObject(obj, 185, center, true, {
           canBreakCrackedWall: true,
           canBreakSilver: true
         });
@@ -1941,8 +2136,132 @@ export class DestructibleManager {
   }
 
   // ============================================================================
-  // HERÓI #8: VÓRTEX (OP-08 — COLOSSO SIMBIONTE) — TENTÁCULOS, LAÇO ABISSAL & ERUPÇÃO [Q]
+  // HERÓI #8: VÓRTEX (OP-08 — COLOSSO SIMBIONTE) — TENTÁCULOS ORGÂNICOS 3D, LAÇO ABISSAL & ERUPÇÃO [Q]
   // ============================================================================
+
+  /**
+   * Constrói um Tentáculo Simbionte 3D Orgânico Curvado (CatmullRomCurve3 + TubeGeometry)
+   * com biomassa negra brilhante, veia espiral roxo-neon, espinhos brancos e mandíbula/presas na ponta!
+   * Armazenado em this.timedBeams (NUNCA em fxParticles) para manter o alinhamento exato com o alvo!
+   */
+  _spawnCurvedSymbioteTentacle(startPt, endPt, opts = {}) {
+    const {
+      baseRadius = 0.28,
+      duration = 0.34,
+      curveArchY = 1.4,
+      curveSideOffset = 1.2,
+      hasMawTip = true
+    } = opts;
+
+    const tentacleGroup = new THREE.Group();
+    const dir = endPt.clone().sub(startPt);
+    const dist = Math.max(1.0, dir.length());
+    const fwd = dir.clone().normalize();
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    if (right.lengthSq() < 0.001) right.set(1, 0, 0);
+    right.normalize();
+
+    const p0 = startPt.clone();
+    const p1 = startPt.clone()
+      .addScaledVector(fwd, dist * 0.28)
+      .addScaledVector(right, curveSideOffset * 0.85)
+      .add(new THREE.Vector3(0, curveArchY, 0));
+    const p2 = startPt.clone()
+      .addScaledVector(fwd, dist * 0.62)
+      .addScaledVector(right, -curveSideOffset * 0.55)
+      .add(new THREE.Vector3(0, curveArchY * 0.55, 0));
+    const p3 = endPt.clone();
+
+    const curve = new THREE.CatmullRomCurve3([p0, p1, p2, p3]);
+    const tubeGeo = new THREE.TubeGeometry(curve, 18, baseRadius, 8, false);
+
+    const blackMat = new THREE.MeshBasicMaterial({
+      color: 0x090a0d,
+      transparent: true,
+      opacity: 0.98
+    });
+    const purpleVeinMat = new THREE.MeshBasicMaterial({
+      color: 0xa855f7,
+      transparent: true,
+      opacity: 0.92
+    });
+    const boneWhiteMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.96
+    });
+
+    const mainTube = new THREE.Mesh(tubeGeo, blackMat);
+    tentacleGroup.add(mainTube);
+
+    // Veia Bioluminescente Roxo-Abissal entrelaçada ao tentáculo
+    const v1 = p1.clone().addScaledVector(right, -curveSideOffset * 0.45).add(new THREE.Vector3(0, 0.22, 0));
+    const v2 = p2.clone().addScaledVector(right, curveSideOffset * 0.45).add(new THREE.Vector3(0, -0.18, 0));
+    const veinCurve = new THREE.CatmullRomCurve3([p0, v1, v2, p3]);
+    const veinGeo = new THREE.TubeGeometry(veinCurve, 16, baseRadius * 0.46, 6, false);
+    const veinMesh = new THREE.Mesh(veinGeo, purpleVeinMat);
+    tentacleGroup.add(veinMesh);
+
+    // Espinhos Simbiontes (Brancos e Roxos) brotando ao longo da curva do tentáculo
+    const thornCount = Math.min(8, Math.max(4, Math.floor(dist / 2.4)));
+    for (let i = 1; i <= thornCount; i++) {
+      const u = i / (thornCount + 1);
+      const pt = curve.getPointAt(u);
+      const thorn = new THREE.Mesh(
+        new THREE.ConeGeometry(baseRadius * 0.55, baseRadius * 2.4, 5),
+        i % 2 === 0 ? boneWhiteMat : purpleVeinMat
+      );
+      thorn.position.copy(pt);
+      thorn.rotation.set(
+        (i % 2 === 0 ? 1 : -1) * 0.65,
+        i * 1.1,
+        (i % 3 - 1) * 0.55
+      );
+      tentacleGroup.add(thorn);
+    }
+
+    // Ponta Voraz de Mandíbula Simbionte / Ferrão Abissal com 3 Presas Brancas
+    if (hasMawTip) {
+      const mawGroup = new THREE.Group();
+      mawGroup.position.copy(endPt);
+      mawGroup.lookAt(endPt.clone().add(fwd));
+
+      const mawHead = new THREE.Mesh(
+        new THREE.ConeGeometry(baseRadius * 1.55, baseRadius * 3.8, 6),
+        purpleVeinMat
+      );
+      mawHead.rotation.x = Math.PI / 2;
+      mawGroup.add(mawHead);
+
+      for (let f = 0; f < 3; f++) {
+        const ang = (f / 3) * Math.PI * 2;
+        const fang = new THREE.Mesh(
+          new THREE.ConeGeometry(baseRadius * 0.48, baseRadius * 2.6, 4),
+          boneWhiteMat
+        );
+        fang.position.set(
+          Math.cos(ang) * baseRadius * 1.1,
+          Math.sin(ang) * baseRadius * 1.1,
+          baseRadius * 1.4
+        );
+        fang.rotation.x = Math.PI / 2 - 0.25;
+        mawGroup.add(fang);
+      }
+      tentacleGroup.add(mawGroup);
+    }
+
+    this.scene.add(tentacleGroup);
+    this.timedBeams.push({
+      mesh: tentacleGroup,
+      materials: [
+        { mat: blackMat, baseOpacity: 0.98 },
+        { mat: purpleVeinMat, baseOpacity: 0.92 },
+        { mat: boneWhiteMat, baseOpacity: 0.96 }
+      ],
+      life: duration,
+      maxLife: duration
+    });
+  }
 
   /**
    * Explosão de Biomassa Simbionte Negra/Roxa ao alternar com [F] entre Forma Ágil e Forma Big-Fig Monstruosa!
@@ -1977,131 +2296,213 @@ export class DestructibleManager {
   }
 
   /**
-   * Devastação de Tentáculos Simbiontes [Mouse 1 / V] do Vórtex:
-   * Lança 4 tentáculos colossais negros/roxos para frente estraçalhando veículos e Paredes Rachadas!
+   * Combo de 3 Golpes de Tentáculos Simbiontes com Alta Personalidade [Mouse 1 / V] do Vórtex:
+   * - Golpe 1: Chicotada Abissal em Leque (5 Tentáculos Curvos 3D + Onda Voraz de Biomassa Simbionte!)
+   * - Golpe 2: Pinça Predatória Colossal (2 Tentáculos Gigantes Cruzados Esmagando no Centro + Onda Simbionte!)
+   * - Golpe 3: Mandíbula Abissal & Erupção de Espinhos (6 Tentáculos Curvos + Espinhos Brotando do Chão!)
    */
-  performVortexTentacleStrike(playerPos, facingAngle, isMonsterForm = false) {
+  performVortexTentacleStrike(playerPos, facingAngle, isMonsterForm = false, targetPoint = null) {
     soundFX.playPunchSwing();
-    soundFX.playExplosion(isMonsterForm ? 0.65 : 0.38);
+    soundFX.playExplosion(isMonsterForm ? 0.68 : 0.42);
 
-    const reach = isMonsterForm ? 16.5 : 11.5;
+    this._vortexComboStep = ((this._vortexComboStep || 0) + 1) % 3;
+    const step = this._vortexComboStep;
+    const reach = isMonsterForm ? 18.5 : 13.5;
+    const baseRad = isMonsterForm ? 0.34 : 0.22;
+
     const origin = new THREE.Vector3(
-      playerPos.x + Math.sin(facingAngle) * 1.2,
-      playerPos.y + (isMonsterForm ? 2.1 : 1.3),
-      playerPos.z + Math.cos(facingAngle) * 1.2
+      playerPos.x + Math.sin(facingAngle) * 1.1,
+      playerPos.y + (isMonsterForm ? 2.15 : 1.35),
+      playerPos.z + Math.cos(facingAngle) * 1.1
     );
 
-    // Cria 4 Lanças/Tentáculos Simbiontes 3D disparando em leque frontal
-    for (let t = -1.5; t <= 1.5; t += 1.0) {
-      const spreadYaw = facingAngle + t * 0.22;
-      const tipPt = new THREE.Vector3(
-        origin.x + Math.sin(spreadYaw) * reach,
-        playerPos.y + 0.6,
-        origin.z + Math.cos(spreadYaw) * reach
+    if (step === 1) {
+      // GOLPE 1: Chicotada Abissal de 5 Tentáculos Orgânicos Curvados em Leque
+      for (let t = -2; t <= 2; t++) {
+        const spreadYaw = facingAngle + t * 0.22;
+        const tipPt = new THREE.Vector3(
+          origin.x + Math.sin(spreadYaw) * reach,
+          playerPos.y + 0.8 + Math.abs(t) * 0.25,
+          origin.z + Math.cos(spreadYaw) * reach
+        );
+        this._spawnCurvedSymbioteTentacle(origin, tipPt, {
+          baseRadius: baseRad,
+          duration: 0.32,
+          curveArchY: 1.3 + (t % 2) * 0.6,
+          curveSideOffset: t * 0.95,
+          hasMawTip: true
+        });
+      }
+    } else if (step === 2) {
+      // GOLPE 2: Pinça Predatória Colossal (2 Tentáculos Gigantes saindo das laterais e esmagando no centro!)
+      const crushCenter = new THREE.Vector3(
+        origin.x + Math.sin(facingAngle) * (reach * 0.88),
+        playerPos.y + 1.0,
+        origin.z + Math.cos(facingAngle) * (reach * 0.88)
       );
-      const midPt = new THREE.Vector3().addVectors(origin, tipPt).multiplyScalar(0.5);
-      const len = origin.distanceTo(tipPt);
-
-      const tentMat = new THREE.MeshBasicMaterial({
-        color: Math.abs(t) < 1 ? 0x090a0d : 0x9333ea,
-        transparent: true,
-        opacity: 0.95
-      });
-      const tentMesh = new THREE.Mesh(
-        new THREE.ConeGeometry(isMonsterForm ? 0.46 : 0.3, len, 8),
-        tentMat
-      );
-      tentMesh.position.copy(midPt);
-      tentMesh.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        tipPt.clone().sub(origin).normalize()
-      );
-      this.scene.add(tentMesh);
-      this.fxParticles.push({
-        mesh: tentMesh,
-        vel: new THREE.Vector3(0, 0.5, 0),
-        life: 0.26,
-        maxLife: 0.26
-      });
+      for (const side of [-1, 1]) {
+        const shoulderStart = new THREE.Vector3(
+          origin.x - Math.cos(facingAngle) * side * 1.2,
+          origin.y + 0.3,
+          origin.z + Math.sin(facingAngle) * side * 1.2
+        );
+        this._spawnCurvedSymbioteTentacle(shoulderStart, crushCenter, {
+          baseRadius: baseRad * 1.45,
+          duration: 0.36,
+          curveArchY: 1.8,
+          curveSideOffset: side * 4.2,
+          hasMawTip: true
+        });
+      }
+      this._triggerMicroImpactBlast(crushCenter);
+    } else {
+      // GOLPE 3: Impale da Mandíbula Abissal (6 Tentáculos Curvos + Espinhos Simbiontes brotando em linha!)
+      for (let t = 0; t < 6; t++) {
+        const spreadYaw = facingAngle + (t - 2.5) * 0.16;
+        const dist = reach * (0.75 + (t % 2) * 0.32);
+        const tipPt = new THREE.Vector3(
+          origin.x + Math.sin(spreadYaw) * dist,
+          playerPos.y + 1.4 + (t % 3) * 0.6,
+          origin.z + Math.cos(spreadYaw) * dist
+        );
+        this._spawnCurvedSymbioteTentacle(origin, tipPt, {
+          baseRadius: baseRad * 1.25,
+          duration: 0.38,
+          curveArchY: 2.2,
+          curveSideOffset: (t % 2 === 0 ? 1 : -1) * 1.6,
+          hasMawTip: true
+        });
+      }
     }
 
-    // Dano em cone/área frontal destruindo carros e Paredes Rachadas!
+    // Dispara também uma Onda Voraz de Biomassa Simbionte (Projétil de Mandíbula Negra/Roxa que viaja 52m!)
+    const projDir = targetPoint
+      ? targetPoint.clone().sub(origin).normalize()
+      : new THREE.Vector3(Math.sin(facingAngle), 0, Math.cos(facingAngle)).normalize();
+
+    const waveGroup = new THREE.Group();
+    const blackMat = new THREE.MeshBasicMaterial({ color: 0x090a0d, transparent: true, opacity: 0.96 });
+    const purpleMat = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.95 });
+    const fangMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc, transparent: true, opacity: 0.98 });
+
+    const waveScale = isMonsterForm ? 1.38 : 1.0;
+    const jawArcOuter = new THREE.Mesh(
+      new THREE.TorusGeometry(2.1 * waveScale, 0.24 * waveScale, 10, 24, Math.PI * 1.15),
+      blackMat
+    );
+    jawArcOuter.rotation.x = Math.PI / 2;
+    const jawArcVein = new THREE.Mesh(
+      new THREE.TorusGeometry(1.95 * waveScale, 0.12 * waveScale, 8, 22, Math.PI * 1.1),
+      purpleMat
+    );
+    jawArcVein.rotation.x = Math.PI / 2;
+    waveGroup.add(jawArcOuter, jawArcVein);
+
+    // 7 Presas Simbiontes Brancas cravadas na Onda Abissal
+    for (let f = -3; f <= 3; f++) {
+      const ang = f * 0.36;
+      const fang = new THREE.Mesh(
+        new THREE.ConeGeometry(0.16 * waveScale, 0.68 * waveScale, 4),
+        f % 2 === 0 ? fangMat : purpleMat
+      );
+      fang.position.set(Math.sin(ang) * 2.1 * waveScale, 0, Math.cos(ang) * 2.1 * waveScale);
+      fang.rotation.x = Math.PI / 2;
+      fang.rotation.z = -ang;
+      waveGroup.add(fang);
+    }
+
+    waveGroup.position.copy(origin);
+    waveGroup.lookAt(origin.clone().add(projDir));
+    this.scene.add(waveGroup);
+
+    this.projectiles.push({
+      mesh: waveGroup,
+      type: 'vortex_symbiote_wave',
+      vel: projDir.clone().multiplyScalar(64.0),
+      life: 0.78,
+      damage: isMonsterForm ? 195 : 140,
+      slashRadius: isMonsterForm ? 3.8 : 2.9,
+      hitObjects: new Set(),
+      canBreakCrackedWall: true,
+      canBreakSilver: true
+    });
+
+    // Dano imediato em cone frontal destruindo carros, Paredes Rachadas e LEGO Prateado!
     const strikeCenter = new THREE.Vector3(
       playerPos.x + Math.sin(facingAngle) * (reach * 0.55),
       playerPos.y + 1.2,
       playerPos.z + Math.cos(facingAngle) * (reach * 0.55)
     );
-    const hitRadius = isMonsterForm ? 10.5 : 7.2;
+    const hitRadius = isMonsterForm ? 11.5 : 8.2;
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - strikeCenter.x, obj.basePos.z - strikeCenter.z);
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - strikeCenter.y);
-      if (d <= obj.radius + hitRadius && dy <= obj.height + 4.5) {
-        this.damageObject(obj, isMonsterForm ? 160 : 95, origin, false, {
+      if (d <= obj.radius + hitRadius && dy <= obj.height + 4.8) {
+        this.damageObject(obj, isMonsterForm ? 185 : 130, origin, false, {
           canBreakCrackedWall: true,
-          canBreakSilver: isMonsterForm
+          canBreakSilver: true
         });
       }
     }
   }
 
   /**
-   * Laço Abissal Simbionte [Mouse 2 / G] do Vórtex:
-   * - Se houver um Helicóptero, Avião ou Veículo próximo da linha de mira (até 85m), lança um Tentáculo Gigante,
-   *   agarra o veículo e o PUXA VIOLENTAMENTE PARA O CHÃO na frente do Vórtex, explodindo no impacto!
-   * - Caso contrário, retorna o ponto de ancoragem para puxar o próprio Vórtex em um salto simbionte!
+   * Laço Abissal Simbionte [Mouse 2 / G] do Vórtex (100% Preciso na Mira Central!):
+   * - Se mirar num Helicóptero, Avião ou Veículo (até 92m), lança 2 Tentáculos Simbiontes Curvos até o veículo,
+   *   envolve-o em biomassa e o PUXA VIOLENTAMENTE PARA O CHÃO na frente do Vórtex!
+   * - Se mirar em prédio, parede, teto ou rua (até 95m), lança o Tentáculo exatamente no ponto mirado e retorna
+   *   pullPoint para o Vórtex dar um Estilingue Simbionte (Venom Web-Zip) direto até lá!
    */
   performAbyssalLasso(playerPos, facingAngle, camera, worldColliders = []) {
     soundFX.playPunchSwing();
+    soundFX.playLaserShot();
 
-    const origin = new THREE.Vector3(playerPos.x, playerPos.y + 1.6, playerPos.z);
+    const handOrigin = new THREE.Vector3(
+      playerPos.x + Math.sin(facingAngle) * 0.75,
+      playerPos.y + 1.55,
+      playerPos.z + Math.cos(facingAngle) * 0.75
+    );
     const rayDir = new THREE.Vector3();
     camera.getWorldDirection(rayDir);
+    // Inicia o raio na altura/frente do jogador para NUNCA acertar objetos atrás da câmera!
+    const camToPlayerDist = Math.max(0, camera.position.distanceTo(handOrigin) - 0.5);
+    const rayOrigin = camera.position.clone().addScaledVector(rayDir, camToPlayerDist);
 
-    // 1. Procura veículo aéreo ou terrestre próximo à linha de mira (até 85m) para puxar e esmagar no chão!
+    // 1. Procura veículo aéreo ou terrestre próximo à linha de mira (até 92m)
     let bestVehicle = null;
     let bestScore = Infinity;
     for (const obj of this.objects) {
       if (obj.destroyed || obj.type !== 'car' || obj.isDriven) continue;
       const vPos = obj.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0));
-      const toVec = vPos.clone().sub(origin);
+      const toVec = vPos.clone().sub(rayOrigin);
       const dist = toVec.length();
-      if (dist < 3.0 || dist > 85.0) continue;
+      if (dist < 2.5 || dist > 92.0) continue;
       const forwardDot = toVec.clone().normalize().dot(rayDir);
-      if (forwardDot < 0.72) continue;
+      if (forwardDot < 0.82) continue;
       const perpDist = dist * Math.sqrt(Math.max(0, 1 - forwardDot * forwardDot));
-      if (perpDist <= (obj.radius || 3.0) + 5.5 && dist < bestScore) {
+      if (perpDist <= (obj.radius || 3.0) + 4.2 && dist < bestScore) {
         bestScore = dist;
         bestVehicle = obj;
       }
     }
 
-    const drawSymbioteTendril = (targetPt) => {
-      const dist = origin.distanceTo(targetPt);
-      const mid = new THREE.Vector3().addVectors(origin, targetPt).multiplyScalar(0.5);
-      const tendrilMat = new THREE.MeshBasicMaterial({
-        color: 0x9333ea,
-        transparent: true,
-        opacity: 0.95
-      });
-      const tendrilMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, dist, 8), tendrilMat);
-      tendrilMesh.position.copy(mid);
-      tendrilMesh.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        targetPt.clone().sub(origin).normalize()
-      );
-      this.scene.add(tendrilMesh);
-      this.fxParticles.push({
-        mesh: tendrilMesh,
-        vel: new THREE.Vector3(0, 0, 0),
-        life: 0.32,
-        maxLife: 0.32
-      });
-    };
-
     if (bestVehicle) {
-      const vehPos = bestVehicle.mesh.position.clone();
-      drawSymbioteTendril(vehPos);
+      const vehPos = bestVehicle.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+      this._spawnCurvedSymbioteTentacle(handOrigin, vehPos, {
+        baseRadius: 0.28,
+        duration: 0.42,
+        curveArchY: 1.5,
+        curveSideOffset: 1.2,
+        hasMawTip: true
+      });
+      this._spawnCurvedSymbioteTentacle(handOrigin, vehPos, {
+        baseRadius: 0.22,
+        duration: 0.42,
+        curveArchY: 0.6,
+        curveSideOffset: -1.2,
+        hasMawTip: false
+      });
 
       // Puxa o helicóptero/veículo violentamente em direção ao chão na frente do Vórtex!
       const slamPoint = new THREE.Vector3(
@@ -2113,10 +2514,84 @@ export class DestructibleManager {
       return { pulledVehicle: bestVehicle, pullPoint: null };
     }
 
-    // Fallback: puxa o próprio Vórtex até o ponto mirado!
-    const aimData = this.getAimTargetPoint(camera, 68);
-    drawSymbioteTendril(aimData.point);
-    return { pulledVehicle: null, pullPoint: aimData.point };
+    // 2. Interseção 3D EXATA com Prédios/Muros/Pontes (worldColliders) ou Terreno na linha da mira!
+    const maxDist = 96.0;
+    let bestT = maxDist;
+    let exactAnchor = null;
+
+    if (Array.isArray(worldColliders)) {
+      for (const col of worldColliders) {
+        if (col.disabled) continue;
+        const colMinY = col.minY ?? 0;
+        let tMin = 0.0;
+        let tMax = bestT;
+        const axes = [
+          [rayOrigin.x, rayDir.x, col.minX, col.maxX],
+          [rayOrigin.y, rayDir.y, colMinY, col.maxY],
+          [rayOrigin.z, rayDir.z, col.minZ, col.maxZ]
+        ];
+        let hitBox = true;
+        for (const [orig, d, minB, maxB] of axes) {
+          if (Math.abs(d) < 1e-6) {
+            if (orig < minB || orig > maxB) {
+              hitBox = false;
+              break;
+            }
+          } else {
+            let t1 = (minB - orig) / d;
+            let t2 = (maxB - orig) / d;
+            if (t1 > t2) {
+              const tmp = t1;
+              t1 = t2;
+              t2 = tmp;
+            }
+            tMin = Math.max(tMin, t1);
+            tMax = Math.min(tMax, t2);
+            if (tMin > tMax) {
+              hitBox = false;
+              break;
+            }
+          }
+        }
+        if (hitBox && tMin >= 3.0 && tMin < bestT) {
+          bestT = tMin;
+          exactAnchor = rayOrigin.clone().addScaledVector(rayDir, tMin);
+        }
+      }
+    }
+
+    // Interseção com terreno/rua quando olha para baixo
+    if (rayDir.y < -0.01) {
+      for (let d = 3.0; d <= bestT; d += 1.5) {
+        const px = rayOrigin.x + rayDir.x * d;
+        const py = rayOrigin.y + rayDir.y * d;
+        const pz = rayOrigin.z + rayDir.z * d;
+        const terrainY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(px, pz) : 0;
+        if (py <= terrainY + 0.25) {
+          bestT = d;
+          exactAnchor = new THREE.Vector3(px, terrainY + 0.4, pz);
+          break;
+        }
+      }
+    }
+
+    if (!exactAnchor) {
+      const reach = 68.0;
+      const fx = rayOrigin.x + rayDir.x * reach;
+      const fz = rayOrigin.z + rayDir.z * reach;
+      const floorY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(fx, fz) : 0;
+      const fy = Math.max(floorY + 0.5, rayOrigin.y + rayDir.y * reach);
+      exactAnchor = new THREE.Vector3(fx, fy, fz);
+    }
+
+    this._spawnCurvedSymbioteTentacle(handOrigin, exactAnchor, {
+      baseRadius: 0.24,
+      duration: 0.42,
+      curveArchY: 0.9,
+      curveSideOffset: 0.65,
+      hasMawTip: true
+    });
+    return { pulledVehicle: null, pullPoint: exactAnchor };
   }
 
   /**
@@ -3002,20 +3477,64 @@ export class DestructibleManager {
       p.life -= dt;
       p.mesh.position.addScaledVector(p.vel, dt);
 
-      if (p.type === 'katana_slash') {
-        if (Math.random() < 0.85) {
-          this.spawnSombraShadowStepTrail(p.mesh.position, 1.4);
+      if (
+        p.type === 'katana_slash' ||
+        p.type === 'turbo_plasma_slash' ||
+        p.type === 'vortex_symbiote_wave'
+      ) {
+        if (p.mesh.userData?.spinRing) {
+          p.mesh.userData.spinRing.rotation.y += dt * 32.0;
         }
+        if (p.type === 'katana_slash' && Math.random() < 0.85) {
+          this.spawnSombraShadowStepTrail(p.mesh.position, 1.4);
+        } else if (p.type === 'turbo_plasma_slash' && Math.random() < 0.88) {
+          const sparkMat = new THREE.MeshBasicMaterial({
+            color: Math.random() > 0.4 ? 0x22d3ee : 0xe0f2fe,
+            transparent: true,
+            opacity: 0.92
+          });
+          const spark = new THREE.Mesh(TRAIL_CUBE_GEO, sparkMat);
+          spark.position.copy(p.mesh.position);
+          spark.scale.setScalar(1.35);
+          this.scene.add(spark);
+          this.fxParticles.push({
+            mesh: spark,
+            vel: new THREE.Vector3((Math.random() - 0.5) * 6, 2.5 + Math.random() * 4, (Math.random() - 0.5) * 6),
+            life: 0.25,
+            maxLife: 0.25
+          });
+        } else if (p.type === 'vortex_symbiote_wave' && Math.random() < 0.88) {
+          const bioMat = new THREE.MeshBasicMaterial({
+            color: Math.random() > 0.45 ? 0x090a0d : 0xa855f7,
+            transparent: true,
+            opacity: 0.94
+          });
+          const blob = new THREE.Mesh(FIREBALL_GEO, bioMat);
+          blob.position.copy(p.mesh.position);
+          blob.scale.setScalar(1.1);
+          this.scene.add(blob);
+          this.fxParticles.push({
+            mesh: blob,
+            vel: new THREE.Vector3((Math.random() - 0.5) * 5, 1.5 + Math.random() * 3.5, (Math.random() - 0.5) * 5),
+            life: 0.24,
+            maxLife: 0.24
+          });
+        }
+
         const slashR = p.slashRadius ?? 2.2;
         for (const obj of this.objects) {
           if (obj.destroyed || obj.isDriven || (p.hitObjects && p.hitObjects.has(obj))) continue;
           const dx = p.mesh.position.x - obj.basePos.x;
           const dz = p.mesh.position.z - obj.basePos.z;
           const dy = p.mesh.position.y - (obj.basePos.y + obj.height * 0.5);
-          if (Math.hypot(dx, dz) <= obj.radius + slashR && Math.abs(dy) <= obj.height * 0.75 + 1.4) {
+          if (Math.hypot(dx, dz) <= obj.radius + slashR && Math.abs(dy) <= obj.height * 0.75 + 1.8) {
             if (p.hitObjects) p.hitObjects.add(obj);
+            if (p.type === 'turbo_plasma_slash' || p.type === 'vortex_symbiote_wave') {
+              this._triggerMicroImpactBlast(obj.basePos.clone().add(new THREE.Vector3(0, 0.8, 0)));
+            }
             this.damageObject(obj, p.damage, p.mesh.position, false, {
-              canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
+              canBreakCrackedWall: Boolean(p.canBreakCrackedWall),
+              canBreakSilver: Boolean(p.canBreakSilver)
             });
           }
         }
@@ -3317,6 +3836,29 @@ export class DestructibleManager {
       fp.mesh.scale.setScalar(ratio);
       if (fp.mesh.material) {
         fp.mesh.material.opacity = ratio;
+      }
+    }
+
+    // 5a. Feixes 3D Direcionais (Raios do Voltaico, Anéis de Planagem e Tentáculos/Laço Simbiontes do Vórtex)
+    // NUNCA rotaciona nem encolhe em relação à origem (0,0,0), mantendo o feixe 100% travado no alvo!
+    for (let i = this.timedBeams.length - 1; i >= 0; i--) {
+      const tb = this.timedBeams[i];
+      tb.life -= dt;
+      if (tb.life <= 0) {
+        this.scene.remove(tb.mesh);
+        this.timedBeams.splice(i, 1);
+        continue;
+      }
+      const ratio = Math.max(0, tb.life / tb.maxLife);
+      if (typeof tb.onUpdate === 'function') {
+        tb.onUpdate(dt, ratio);
+      }
+      if (Array.isArray(tb.materials)) {
+        for (const m of tb.materials) {
+          if (m.mat) {
+            m.mat.opacity = m.baseOpacity * ratio;
+          }
+        }
       }
     }
 

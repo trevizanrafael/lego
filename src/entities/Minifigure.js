@@ -1057,33 +1057,103 @@ export class Minifigure {
     }
     this.upperBodyGroup.add(backRig);
 
-    // 3. Mãos: Correntes Giratórias de Plasma Ciano (Elos Metálicos + Lâmina-Gancho Ciano)
-    for (const [hand, sign] of [[leftHandGroup, 1], [rightHandGroup, -1]]) {
-      const chainGroup = new THREE.Group();
-      chainGroup.position.set(sign * 0.04, -0.28, 0.12);
+    // 3. Mão Esquerda: Corrente Giratória de Plasma Ciano (Elos Metálicos + Gancho Ciano)
+    const chainGroup = new THREE.Group();
+    chainGroup.position.set(0.04, -0.28, 0.12);
 
-      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.26, 10), chromeSteel);
-      handle.rotation.x = Math.PI / 2;
-      chainGroup.add(handle);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.26, 10), chromeSteel);
+    handle.rotation.x = Math.PI / 2;
+    chainGroup.add(handle);
 
-      for (let l = 0; l < 6; l++) {
-        const link = new THREE.Mesh(
-          new THREE.TorusGeometry(0.065, 0.022, 6, 12),
-          l % 2 === 0 ? cyanGlow : chromeSteel
-        );
-        link.position.set(0, -l * 0.04, 0.18 + l * 0.15);
-        link.rotation.y = (l % 2) * (Math.PI / 2);
-        chainGroup.add(link);
-      }
-
-      const hookBlade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.32, 4), cyanGlow);
-      hookBlade.position.set(0, -0.24, 1.12);
-      hookBlade.rotation.x = Math.PI * 0.65;
-      chainGroup.add(hookBlade);
-
-      hand.add(chainGroup);
-      this.turboChainGroups.push(chainGroup);
+    for (let l = 0; l < 6; l++) {
+      const link = new THREE.Mesh(
+        new THREE.TorusGeometry(0.065, 0.022, 6, 12),
+        l % 2 === 0 ? cyanGlow : chromeSteel
+      );
+      link.position.set(0, -l * 0.04, 0.18 + l * 0.15);
+      link.rotation.y = (l % 2) * (Math.PI / 2);
+      chainGroup.add(link);
     }
+
+    const hookBlade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.32, 4), cyanGlow);
+    hookBlade.position.set(0, -0.24, 1.12);
+    hookBlade.rotation.x = Math.PI * 0.65;
+    chainGroup.add(hookBlade);
+
+    leftHandGroup.add(chainGroup);
+    this.turboChainGroups.push(chainGroup);
+
+    // 4. Mão Direita: ESPADA COLOSSAL DE PLASMA CIANO & MOTOSSERRA DE CORRENTE ("LÂMINA FANTASMA 700KM/H")
+    const whiteHotMat = getLegoMaterial(0xe0f2fe, {
+      emissive: 0x38bdf8,
+      emissiveIntensity: 2.8,
+      roughness: 0.06
+    });
+    const swordGroup = new THREE.Group();
+
+    // Empunhadura longa cromada com anéis de couro e pomo de caveira ciano
+    const swordGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.05, 0.44, 12), leatherBlack);
+    swordGrip.rotation.x = Math.PI / 2;
+    swordGrip.position.set(0, 0, -0.06);
+    swordGroup.add(swordGrip);
+
+    for (const gz of [-0.22, -0.1, 0.02]) {
+      const gripRing = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 6, 14), chromeSteel);
+      gripRing.position.set(0, 0, gz);
+      swordGroup.add(gripRing);
+    }
+
+    const pommelSkull = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 1), cyanGlow);
+    pommelSkull.position.set(0, 0, -0.31);
+    swordGroup.add(pommelSkull);
+
+    // Guarda-mão (Crossguard) em formato de Motor V-Twin / Chifres de Escape Cromados + Núcleo de Plasma
+    const guardCore = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, 0.12), chromeSteel);
+    guardCore.position.set(0, 0, 0.18);
+    const guardReactor = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), whiteHotMat);
+    guardReactor.position.set(0, 0, 0.18);
+    swordGroup.add(guardCore, guardReactor);
+
+    for (const side of [-1, 1]) {
+      const exhaustHorn = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.28, 6), cyanGlow);
+      exhaustHorn.position.set(0, side * 0.21, 0.22);
+      exhaustHorn.rotation.x = side * 0.35;
+      exhaustHorn.rotation.z = side > 0 ? 0 : Math.PI;
+      swordGroup.add(exhaustHorn);
+    }
+
+    // Lâmina Gigante de Plasma Ciano (1.65m de comprimento) com dorso negro/cromo, fio duplo de plasma e dentes serrilhados!
+    const bladeSpine = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.11, 1.52), leatherBlack);
+    bladeSpine.position.set(0, -0.02, 0.96);
+    swordGroup.add(bladeSpine);
+
+    const bladeCore = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 1.58), whiteHotMat);
+    bladeCore.position.set(0, 0.02, 1.0);
+    swordGroup.add(bladeCore);
+
+    const bladePlasmaEdge = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.25, 1.62), cyanGlow);
+    bladePlasmaEdge.position.set(0, 0.04, 1.02);
+    swordGroup.add(bladePlasmaEdge);
+
+    const swordTip = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.36, 4), whiteHotMat);
+    swordTip.rotation.x = Math.PI / 2;
+    swordTip.rotation.z = Math.PI / 4;
+    swordTip.scale.set(0.35, 1.0, 1.0);
+    swordTip.position.set(0, 0.025, 1.96);
+    swordGroup.add(swordTip);
+
+    // 6 Dentes Serrilhados de Plasma Ciano ao longo do fio da espada
+    for (let t = 0; t < 6; t++) {
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 4), t % 2 === 0 ? whiteHotMat : cyanGlow);
+      tooth.position.set(0, 0.16, 0.42 + t * 0.23);
+      tooth.rotation.x = -0.38;
+      swordGroup.add(tooth);
+    }
+
+    swordGroup.position.set(0, -0.34, 0.1);
+    swordGroup.rotation.x = Math.PI / 2 - 0.14;
+    rightHandGroup.add(swordGroup);
+    this.turboSwordGroup = swordGroup;
   }
 
   /**
@@ -3972,26 +4042,40 @@ export class Minifigure {
         this.headGroup.rotation.y = THREE.MathUtils.lerp(this.headGroup.rotation.y, 0, lerpSpeed);
       } else if (this.state === 'FALL') {
         const airFlutter = Math.sin(this.animTime * 18) * 0.08;
-        this.visualRoot.position.y = THREE.MathUtils.lerp(this.visualRoot.position.y, 0, lerpSpeed);
-        this.upperBodyGroup.rotation.x = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.x, 0.12, lerpSpeed);
+        if (this.currentHeroKey === 'voltaico') {
+          // Pose de Planagem Eletromagnética / Levitação do Deus do Trovão (Voltaico no ar!)
+          const hoverPulse = Math.sin(this.animTime * 8.5) * 0.08;
+          this.visualRoot.position.y = THREE.MathUtils.lerp(this.visualRoot.position.y, 0.14 + hoverPulse, lerpSpeed);
+          this.upperBodyGroup.rotation.x = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.x, 0.18, lerpSpeed);
+          this.leftLegPivot.rotation.x = THREE.MathUtils.lerp(this.leftLegPivot.rotation.x, -0.35, lerpSpeed);
+          this.rightLegPivot.rotation.x = THREE.MathUtils.lerp(this.rightLegPivot.rotation.x, 0.22, lerpSpeed);
+          this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(this.leftArmPivot.rotation.x, -1.65, lerpSpeed);
+          this.rightArmPivot.rotation.x = THREE.MathUtils.lerp(this.rightArmPivot.rotation.x, -1.45, lerpSpeed);
+          this.leftArmPivot.rotation.z = THREE.MathUtils.lerp(this.leftArmPivot.rotation.z, 0.52, lerpSpeed);
+          this.rightArmPivot.rotation.z = THREE.MathUtils.lerp(this.rightArmPivot.rotation.z, -0.42, lerpSpeed);
+          this.headGroup.rotation.x = THREE.MathUtils.lerp(this.headGroup.rotation.x, -0.12, lerpSpeed);
+        } else {
+          this.visualRoot.position.y = THREE.MathUtils.lerp(this.visualRoot.position.y, 0, lerpSpeed);
+          this.upperBodyGroup.rotation.x = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.x, 0.12, lerpSpeed);
 
-        this.leftLegPivot.rotation.x = THREE.MathUtils.lerp(
-          this.leftLegPivot.rotation.x,
-          0.25 + airFlutter,
-          lerpSpeed
-        );
-        this.rightLegPivot.rotation.x = THREE.MathUtils.lerp(
-          this.rightLegPivot.rotation.x,
-          -0.25 - airFlutter,
-          lerpSpeed
-        );
+          this.leftLegPivot.rotation.x = THREE.MathUtils.lerp(
+            this.leftLegPivot.rotation.x,
+            0.25 + airFlutter,
+            lerpSpeed
+          );
+          this.rightLegPivot.rotation.x = THREE.MathUtils.lerp(
+            this.rightLegPivot.rotation.x,
+            -0.25 - airFlutter,
+            lerpSpeed
+          );
 
-        this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(this.leftArmPivot.rotation.x, -1.25, lerpSpeed);
-        this.rightArmPivot.rotation.x = THREE.MathUtils.lerp(this.rightArmPivot.rotation.x, -1.25, lerpSpeed);
-        this.leftArmPivot.rotation.z = THREE.MathUtils.lerp(this.leftArmPivot.rotation.z, 0.45, lerpSpeed);
-        this.rightArmPivot.rotation.z = THREE.MathUtils.lerp(this.rightArmPivot.rotation.z, -0.45, lerpSpeed);
+          this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(this.leftArmPivot.rotation.x, -1.25, lerpSpeed);
+          this.rightArmPivot.rotation.x = THREE.MathUtils.lerp(this.rightArmPivot.rotation.x, -1.25, lerpSpeed);
+          this.leftArmPivot.rotation.z = THREE.MathUtils.lerp(this.leftArmPivot.rotation.z, 0.45, lerpSpeed);
+          this.rightArmPivot.rotation.z = THREE.MathUtils.lerp(this.rightArmPivot.rotation.z, -0.45, lerpSpeed);
 
-        this.headGroup.rotation.x = THREE.MathUtils.lerp(this.headGroup.rotation.x, 0.15, lerpSpeed);
+          this.headGroup.rotation.x = THREE.MathUtils.lerp(this.headGroup.rotation.x, 0.15, lerpSpeed);
+        }
       }
     }
 
@@ -4140,7 +4224,7 @@ export class Minifigure {
 
     if (this.punchTimer > 0) {
       this.punchTimer = Math.max(0, this.punchTimer - dt);
-      // Curva explosiva de soco / corte de Katana: avança muito rápido (primeiros 30%) e retrai para a guarda
+      // Curva explosiva de soco / corte de Katana / Espada de Plasma: avança muito rápido e retrai para a guarda
       const t = 1.0 - this.punchTimer / this.punchDuration;
       const thrust = t < 0.32 ? (t / 0.32) : Math.max(0, 1.0 - (t - 0.32) / 0.68);
       const snap = Math.sin(thrust * Math.PI * 0.5);
@@ -4176,6 +4260,65 @@ export class Minifigure {
           this.leftArmPivot.rotation.z = 0.52;
           this.rightArmPivot.rotation.z = -0.52;
           this.upperBodyGroup.rotation.x = 0.34 * snap;
+        }
+      } else if (this.currentHeroKey === 'turbo') {
+        // Coreografia de 3 Golpes da Espada Colossal de Plasma Ciano + Corrente do Turbo Fantasma:
+        const slashProgress = Math.min(1, t * 1.42);
+        if (this.punchComboStep === 1) {
+          // 1º Golpe: Talho Horizontal Amplo da Espada de Plasma (Direita -> Esquerda)
+          this.rightArmPivot.rotation.x = -1.62;
+          this.rightArmPivot.rotation.y = -1.15 + slashProgress * 2.25;
+          this.rightArmPivot.rotation.z = -0.85;
+          if (this.rightHandGroup) this.rightHandGroup.rotation.x = 0.35;
+          this.leftArmPivot.rotation.x = -1.1;
+          this.leftArmPivot.rotation.z = 0.45;
+          this.upperBodyGroup.rotation.y = -0.75 + slashProgress * 1.45;
+          this.upperBodyGroup.rotation.x = 0.28 * snap;
+        } else if (this.punchComboStep === 2) {
+          // 2º Golpe: Corte Ascendente Rasgando o Ar + Chicotada de Corrente na Mão Esquerda!
+          this.rightArmPivot.rotation.x = -0.55 - slashProgress * 2.15;
+          this.rightArmPivot.rotation.y = 0.45 - slashProgress * 0.9;
+          this.rightArmPivot.rotation.z = -0.35;
+          this.leftArmPivot.rotation.x = -2.1 + slashProgress * 1.25;
+          this.leftArmPivot.rotation.y = 0.85 - slashProgress * 1.55;
+          this.leftArmPivot.rotation.z = 0.65;
+          this.upperBodyGroup.rotation.y = 0.65 - slashProgress * 1.3;
+          this.upperBodyGroup.rotation.x = -0.22 * snap;
+        } else {
+          // 3º Golpe: TORNADO DE PLASMA 360° (Giro completo do corpo com Espada + Corrente abertas!)
+          this.visualRoot.rotation.y = slashProgress * Math.PI * 2;
+          this.rightArmPivot.rotation.x = -1.58;
+          this.rightArmPivot.rotation.z = -1.15;
+          this.leftArmPivot.rotation.x = -1.58;
+          this.leftArmPivot.rotation.z = 1.15;
+          this.upperBodyGroup.rotation.x = 0.32 * snap;
+        }
+      } else if (this.currentHeroKey === 'vortex') {
+        // Coreografia Brutal de 3 Golpes Simbiontes do Vórtex (Garras + Tentáculos Dorsais):
+        const slashProgress = Math.min(1, t * 1.4);
+        if (this.punchComboStep === 1) {
+          // 1º Golpe: Chicotada Dupla de Garras e Tentáculos
+          this.leftArmPivot.rotation.x = -2.1 + slashProgress * 1.2;
+          this.rightArmPivot.rotation.x = -2.1 + slashProgress * 1.2;
+          this.leftArmPivot.rotation.y = 0.9 - slashProgress * 1.7;
+          this.rightArmPivot.rotation.y = 0.9 - slashProgress * 1.7;
+          this.upperBodyGroup.rotation.y = 0.72 - slashProgress * 1.44;
+        } else if (this.punchComboStep === 2) {
+          // 2º Golpe: Pinça Predatória Simbionte (Esmaga com os dois braços e tentáculos no centro!)
+          this.leftArmPivot.rotation.x = -1.62;
+          this.rightArmPivot.rotation.x = -1.62;
+          this.leftArmPivot.rotation.y = -0.95 + slashProgress * 1.45;
+          this.rightArmPivot.rotation.y = 0.95 - slashProgress * 1.45;
+          this.leftArmPivot.rotation.z = 0.65 * (1 - slashProgress);
+          this.rightArmPivot.rotation.z = -0.65 * (1 - slashProgress);
+          this.upperBodyGroup.rotation.x = 0.42 * snap;
+        } else {
+          // 3º Golpe: Rugido & Impale Abissal (Abre o peito pro rugido e crava os tentáculos à frente!)
+          this.leftArmPivot.rotation.x = -2.65 + slashProgress * 1.85;
+          this.rightArmPivot.rotation.x = -2.65 + slashProgress * 1.85;
+          this.leftArmPivot.rotation.z = 0.48;
+          this.rightArmPivot.rotation.z = -0.48;
+          this.upperBodyGroup.rotation.x = -0.35 * (1 - slashProgress) + 0.48 * slashProgress;
         }
       } else if (this.punchComboStep === 1) {
         // Golpe 1: JAB ESQUERDO RETO (na linha do ombro/queixo, esticando o cotovelo para frente)
@@ -4215,6 +4358,11 @@ export class Minifigure {
         this.rightArmPivot.rotation.x = -1.35;
         this.rightArmPivot.rotation.y = 0.35;
         this.upperBodyGroup.rotation.y = -0.62 * snap;
+      }
+    } else if (this.visualRoot.rotation.y !== 0) {
+      this.visualRoot.rotation.y = THREE.MathUtils.lerp(this.visualRoot.rotation.y, 0, lerpSpeed);
+      if (Math.abs(this.visualRoot.rotation.y) < 0.01) {
+        this.visualRoot.rotation.y = 0;
       }
     }
 
