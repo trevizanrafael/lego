@@ -72,7 +72,7 @@ test('Ímã de Studs deve puxar moedinhas próximas até o jogador, somar na HUD
   const sportCar = destructibles.objects.find((o) => o.type === 'car' && o.studDrops.purple > 0);
   assert.ok(sportCar, 'Deve existir carro esportivo que solta Stud Roxo');
 
-  destructibles.damageObject(sportCar, 200);
+  destructibles.damageObject(sportCar, sportCar.hp);
   assert.ok(destructibles.studsList.length >= 10, 'Carro destruído deve soltar chuva de Studs');
 
   // Posiciona o jogador exatamente onde o carro quebrou e avança o tempo para o ímã puxar todas as moedas

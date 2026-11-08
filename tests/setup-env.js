@@ -52,10 +52,14 @@ export function setupTestEnvironment() {
         return {
           fillStyle: '',
           strokeStyle: '',
+          font: '',
+          textAlign: 'left',
           lineWidth: 1,
           lineCap: 'butt',
           fillRect() {},
+          strokeRect() {},
           clearRect() {},
+          fillText() {},
           beginPath() {},
           closePath() {},
           moveTo() {},
@@ -65,6 +69,15 @@ export function setupTestEnvironment() {
           roundRect() {},
           fill() {},
           stroke() {},
+          save() {},
+          restore() {},
+          translate() {},
+          rotate() {},
+          setLineDash() {},
+          strokeText() {},
+          createLinearGradient() {
+            return { addColorStop() {} };
+          },
           createRadialGradient() {
             return { addColorStop() {} };
           }

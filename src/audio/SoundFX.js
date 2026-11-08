@@ -320,6 +320,69 @@ class SoundFX {
       osc.stop(t + 0.29);
     });
   }
+
+  /**
+   * Som de partida de motor / ignição ao entrar no veículo com [E]
+   */
+  playCarEngineStart() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(65, now);
+    osc.frequency.exponentialRampToValueAtTime(145, now + 0.14);
+    osc.frequency.exponentialRampToValueAtTime(92, now + 0.28);
+
+    gain.gain.setValueAtTime(0.14, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.31);
+  }
+
+  /**
+   * Som de pulso de câmera de satélite estilo GTA V (Zoom Out / Zoom In em etapas)
+   */
+  playSatelliteZoomStep(isDown = false, step = 1) {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+
+    // Grave de impacto de lente + bip de telemetria orbital
+    const bassOsc = ctx.createOscillator();
+    const pingOsc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    bassOsc.type = 'triangle';
+    pingOsc.type = 'sine';
+
+    const basePitch = isDown ? 520 + step * 140 : 880 - step * 140;
+    bassOsc.frequency.setValueAtTime(110, now);
+    bassOsc.frequency.exponentialRampToValueAtTime(38, now + 0.14);
+
+    pingOsc.frequency.setValueAtTime(basePitch, now);
+    pingOsc.frequency.exponentialRampToValueAtTime(basePitch * (isDown ? 1.18 : 0.82), now + 0.12);
+
+    gain.gain.setValueAtTime(0.16, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+    bassOsc.connect(gain);
+    pingOsc.connect(gain);
+    gain.connect(ctx.destination);
+
+    bassOsc.start(now);
+    pingOsc.start(now);
+    bassOsc.stop(now + 0.16);
+    pingOsc.stop(now + 0.16);
+  }
 }
 
 export const soundFX = new SoundFX();
