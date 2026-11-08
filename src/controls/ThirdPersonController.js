@@ -3409,7 +3409,7 @@ export class ThirdPersonController {
                 this.position,
                 this.facingAngle,
                 this.minifigure.isVortexMonster,
-                2
+                null
               );
             }
           }
@@ -3427,16 +3427,7 @@ export class ThirdPersonController {
           }
 
           if (this.destructibles && Math.random() < 0.85) {
-            if (isSymbiote) {
-              this.destructibles._spawnExplosion(
-                new THREE.Vector3(this.position.x, this.position.y + 0.8, this.position.z),
-                0xa855f7,
-                4,
-                0.75
-              );
-            } else {
-              this.destructibles.spawnSombraShadowStepTrail(this.position, 1.25);
-            }
+            this.destructibles.spawnSombraShadowStepTrail(this.position, isSymbiote ? 1.35 : 1.25);
           }
 
           if (this.grappleCableMesh && this.grappleAnchorMesh) {

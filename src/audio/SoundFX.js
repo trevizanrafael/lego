@@ -459,6 +459,39 @@ class SoundFX {
   }
 
   /**
+   * Som de Disparo de Plasma Ciano / Descarga Elétrica / Chicote Energético (Turbo, Voltaico e Vórtex)
+   */
+  playLaserShot() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(920 + Math.random() * 180, now);
+    osc1.frequency.exponentialRampToValueAtTime(115, now + 0.14);
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(480 + Math.random() * 90, now);
+    osc2.frequency.exponentialRampToValueAtTime(65, now + 0.14);
+
+    gain.gain.setValueAtTime(0.14, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.155);
+    osc2.stop(now + 0.155);
+  }
+
+  /**
    * Som de pulso de câmera de satélite estilo GTA V (Zoom Out / Zoom In em etapas)
    */
   playSatelliteZoomStep(isDown = false, step = 1) {
