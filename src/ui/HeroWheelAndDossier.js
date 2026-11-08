@@ -589,29 +589,97 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'voltaico') {
-    // Capacete Azul/Dourado de Bobina Tesla + Olhos Brancos/Ciano Elétricos
-    ctx.fillStyle = '#1d4ed8';
-    ctx.fillRect(76 * 0.21, 15, 76 * 0.58, 9);
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(76 * 0.21, 22, 76 * 0.58, 3);
-
+    // Coroa de Relâmpagos Ciano/Brancos no topo + Asas de Raio Douradas + Olhos de Trovão + Queixeira Angular em V (Zero bico amarelo!)
     ctx.fillStyle = '#38bdf8';
-    ctx.fillRect(76 * 0.26, 28, 13, 7);
-    ctx.fillRect(76 * 0.56, 28, 13, 7);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(76 * 0.29, 29.5, 8, 4);
-    ctx.fillRect(76 * 0.59, 29.5, 8, 4);
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.22, 18);
+    ctx.lineTo(76 * 0.28, 5);
+    ctx.lineTo(76 * 0.38, 14);
+    ctx.lineTo(76 * 0.5, 2);
+    ctx.lineTo(76 * 0.62, 14);
+    ctx.lineTo(76 * 0.72, 5);
+    ctx.lineTo(76 * 0.78, 18);
+    ctx.closePath();
+    ctx.fill();
 
-    // Máscara condutora dourada/preta no queixo + Bobina Tesla no peito
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.3, 40, 76 * 0.4, 11);
-    ctx.strokeStyle = '#facc15';
+    // Diadema Prateado/Dourado Angular + Asas de Raio nas Têmporas
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.18, 17);
+    ctx.lineTo(76 * 0.5, 23);
+    ctx.lineTo(76 * 0.82, 17);
+    ctx.lineTo(76 * 0.82, 22);
+    ctx.lineTo(76 * 0.5, 27);
+    ctx.lineTo(76 * 0.18, 22);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.18, 22);
+    ctx.lineTo(76 * 0.04, 11);
+    ctx.lineTo(76 * 0.12, 28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.82, 22);
+    ctx.lineTo(76 * 0.96, 11);
+    ctx.lineTo(76 * 0.88, 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Olhos Fulminantes Branco-Ciano Puro
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.24, 27);
+    ctx.lineTo(76 * 0.45, 30);
+    ctx.lineTo(76 * 0.43, 36);
+    ctx.lineTo(76 * 0.26, 34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.76, 27);
+    ctx.lineTo(76 * 0.55, 30);
+    ctx.lineTo(76 * 0.57, 36);
+    ctx.lineTo(76 * 0.74, 34);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(76 * 0.28, 29, 10, 4);
+    ctx.fillRect(76 * 0.59, 29, 10, 4);
+
+    // Queixeira Angular de Titânio Prateado e Azul-Cobalto em V (Estilo Raiden / Cyber-Thor) + Reator de Trovão no Peito
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.23, 39);
+    ctx.lineTo(76 * 0.5, 44);
+    ctx.lineTo(76 * 0.77, 39);
+    ctx.lineTo(76 * 0.71, 52);
+    ctx.lineTo(76 * 0.5, 56);
+    ctx.lineTo(76 * 0.29, 52);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 1.6;
-    ctx.strokeRect(76 * 0.3, 40, 76 * 0.4, 11);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.31, 44);
+    ctx.lineTo(76 * 0.45, 48);
+    ctx.moveTo(76 * 0.69, 44);
+    ctx.lineTo(76 * 0.55, 48);
+    ctx.stroke();
+
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
     ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
   } else if (presetKey === 'vortex') {
     // Olhos Brancos Rasgados/Serrilhados do Venom + Bocarra de Presas + Língua Longa Serpenteante + Aranha Branca no Peito!
     ctx.fillStyle = '#ffffff';

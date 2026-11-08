@@ -798,66 +798,129 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     }
   } else if (preset === 'voltaico') {
     // =========================================================================
-    // ROSTO SENHOR DA TEMPESTADE DO VOLTAICO (512x256, centro cx=256)
+    // ROSTO DEUS DO TROVÃO CYBER-ELÉTRICO DO VOLTAICO (512x256, cx=256)
+    // Estilo Thor / Raiden: Olhos Fulminantes de Relâmpago + Raios Ramificados + Queixeira Angular Titânio/Cobalto em V (ZERO bico amarelo!)
     // =========================================================================
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, 512, 256);
 
-    // Capacete Condutor Azul-Cobalto / Ouro com Viseira Aberta no Rosto
-    ctx.fillStyle = '#1d4ed8';
-    ctx.fillRect(0, 0, 512, 64);
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(0, 54, 512, 12);
-
-    // Rosto energizado em Azul-Elétrico Escuro com Arcos Voltaicos nas bochechas
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(cx - 96, 66, 192, 170);
-
-    // Raios Ciano/Brancos serpenteando a partir dos olhos
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 5;
+    // Diadema Superior de Titânio Prateado e Azul-Cobalto com Friso Condutor
+    ctx.fillStyle = '#1e3a8a';
+    ctx.fillRect(0, 0, 512, 56);
+    ctx.fillStyle = '#cbd5e1';
     ctx.beginPath();
-    ctx.moveTo(cx - 78, 96);
-    ctx.lineTo(cx - 108, 78);
-    ctx.lineTo(cx - 96, 134);
-    ctx.moveTo(cx + 78, 96);
-    ctx.lineTo(cx + 108, 78);
-    ctx.lineTo(cx + 96, 134);
+    ctx.moveTo(cx - 120, 44);
+    ctx.lineTo(cx, 66);
+    ctx.lineTo(cx + 120, 44);
+    ctx.lineTo(cx + 120, 54);
+    ctx.lineTo(cx, 76);
+    ctx.lineTo(cx - 120, 54);
+    ctx.closePath();
+    ctx.fill();
+
+    // Raios Ramificados Ciano/Brancos serpenteando a partir dos olhos pelas têmporas e bochechas
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(cx - 68, 92);
+    ctx.lineTo(cx - 102, 74);
+    ctx.lineTo(cx - 126, 90);
+    ctx.moveTo(cx - 72, 106);
+    ctx.lineTo(cx - 106, 126);
+    ctx.lineTo(cx - 92, 152);
+    ctx.moveTo(cx + 68, 92);
+    ctx.lineTo(cx + 102, 74);
+    ctx.lineTo(cx + 126, 90);
+    ctx.moveTo(cx + 72, 106);
+    ctx.lineTo(cx + 106, 126);
+    ctx.lineTo(cx + 92, 152);
     ctx.stroke();
 
-    // Olhos 100% Brancos/Ciano Faiscando Eletricidade Pura (Estilo Deus do Trovão)
-    ctx.fillStyle = '#38bdf8';
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Sobrancelhas Elétricas Franzidas em formato de Raio
+    ctx.fillStyle = '#e0f2fe';
     ctx.beginPath();
-    ctx.moveTo(cx - 78, 82);
-    ctx.lineTo(cx - 18, 94);
-    ctx.lineTo(cx - 24, 118);
-    ctx.lineTo(cx - 74, 110);
+    ctx.moveTo(cx - 84, 74);
+    ctx.lineTo(cx - 48, 80);
+    ctx.lineTo(cx - 14, 94);
+    ctx.lineTo(cx - 18, 101);
+    ctx.lineTo(cx - 82, 84);
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(cx + 78, 82);
-    ctx.lineTo(cx + 18, 94);
-    ctx.lineTo(cx + 24, 118);
-    ctx.lineTo(cx + 74, 110);
+    ctx.moveTo(cx + 84, 74);
+    ctx.lineTo(cx + 48, 80);
+    ctx.lineTo(cx + 14, 94);
+    ctx.lineTo(cx + 18, 101);
+    ctx.lineTo(cx + 82, 84);
+    ctx.closePath();
+    ctx.fill();
+
+    // Olhos Fulminantes de Relâmpago Branco-Ciano Puro (Halo #38bdf8 + Núcleo #ffffff)
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(cx - 80, 86);
+    ctx.lineTo(cx - 16, 98);
+    ctx.lineTo(cx - 24, 122);
+    ctx.lineTo(cx - 74, 114);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 80, 86);
+    ctx.lineTo(cx + 16, 98);
+    ctx.lineTo(cx + 24, 122);
+    ctx.lineTo(cx + 74, 114);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(cx - 66, 90, 38, 16);
-    ctx.fillRect(cx + 28, 90, 38, 16);
+    ctx.beginPath();
+    ctx.moveTo(cx - 72, 91);
+    ctx.lineTo(cx - 22, 100);
+    ctx.lineTo(cx - 28, 116);
+    ctx.lineTo(cx - 68, 110);
+    ctx.closePath();
+    ctx.fill();
 
-    // Respirador / Máscara Condutora Dourada e Azul-Elétrico no queixo
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(cx - 64, 148, 128, 54);
-    ctx.strokeStyle = '#facc15';
+    ctx.beginPath();
+    ctx.moveTo(cx + 72, 91);
+    ctx.lineTo(cx + 22, 100);
+    ctx.lineTo(cx + 28, 116);
+    ctx.lineTo(cx + 68, 110);
+    ctx.closePath();
+    ctx.fill();
+
+    // Máscara / Queixeira Angular de Titânio Prateado e Azul-Cobalto em formato de V (Estilo Raiden / Cyber-Thor)
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.moveTo(cx - 88, 138);
+    ctx.lineTo(cx, 158);
+    ctx.lineTo(cx + 88, 138);
+    ctx.lineTo(cx + 72, 212);
+    ctx.lineTo(cx, 234);
+    ctx.lineTo(cx - 72, 212);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 5;
-    ctx.strokeRect(cx - 64, 148, 128, 54);
+    ctx.stroke();
 
-    // Grade de Alta Tensão Ciano no bocal
-    ctx.fillStyle = '#38bdf8';
-    for (let gx = cx - 44; gx <= cx + 44; gx += 22) {
-      ctx.fillRect(gx - 4, 158, 8, 34);
+    // Fendas Diagonais em V brilhando em Ciano Elétrico na máscara
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 5;
+    for (const dy of [162, 180, 198]) {
+      ctx.beginPath();
+      ctx.moveTo(cx - 58, dy - 12);
+      ctx.lineTo(cx - 14, dy + 4);
+      ctx.moveTo(cx + 58, dy - 12);
+      ctx.lineTo(cx + 14, dy + 4);
+      ctx.stroke();
     }
   } else if (preset === 'vortex') {
     // =========================================================================

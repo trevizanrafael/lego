@@ -137,7 +137,7 @@ export const MINIFIG_PRESETS = {
     torsoColor: 0x1d4ed8,
     armColor: 0x1e3a8a,
     handColor: 0x38bdf8,
-    hipColor: 0xfacc15,
+    hipColor: 0x1e3a8a,
     legColor: 0x0f172a,
     facePreset: 'voltaico',
     torsoPreset: 'voltaico',
@@ -269,6 +269,9 @@ export class Minifigure {
     this.turboFlameMeshes = [];
     this.turboChainGroups = [];
     this.voltaicoArcs = [];
+    this.voltaicoCrownSpikes = [];
+    this.voltaicoBackArcSegments = [];
+    this.voltaicoLeftClawGroup = null;
     this.voltaicoStaffOrb = null;
     this.vortexTentacles = [];
     this.vortexTongueSegments = [];
@@ -949,35 +952,162 @@ export class Minifigure {
       }
     } else if (preset.headgear === 'tesla_crown') {
       // =========================================================================
-      // CAPACETE CONDUTOR DE TEMPESTADE & COROA DE BOBINA TESLA DO VOLTAICO
+      // ELMO DO DEUS DA TEMPESTADE + COROA DE 14 RELÂMPAGOS VIVOS + ASAS EM ZIGUEZAGUE + QUEIXEIRA EM V 3D!
       // =========================================================================
-      const cobaltMat = getLegoMaterial(0x1d4ed8, { roughness: 0.2, metalness: 0.45 });
-      const goldMat = getLegoMaterial(0xfacc15, { roughness: 0.18, metalness: 0.72 });
-      const arcGlowMat = getLegoMaterial(0x38bdf8, {
-        emissive: 0x38bdf8,
-        emissiveIntensity: 2.3,
+      const cobaltMat = getLegoMaterial(0x1d4ed8, { roughness: 0.18, metalness: 0.55 });
+      const silverTitanium = getLegoMaterial(0xe2e8f0, { roughness: 0.15, metalness: 0.82 });
+      const goldMat = getLegoMaterial(0xfacc15, { roughness: 0.16, metalness: 0.78 });
+      const electricBlueMat = getLegoMaterial(0x0284c7, {
+        emissive: 0x0284c7,
+        emissiveIntensity: 1.9,
         roughness: 0.1
       });
+      const arcGlowMat = getLegoMaterial(0x38bdf8, {
+        emissive: 0x38bdf8,
+        emissiveIntensity: 2.5,
+        roughness: 0.08
+      });
+      const whiteBoltMat = getLegoMaterial(0xffffff, {
+        emissive: 0xe0f2fe,
+        emissiveIntensity: 2.8,
+        roughness: 0.06
+      });
 
-      const helmDomed = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.39, 0.16, 28), cobaltMat);
+      // 1. Base Superior do Elmo Condutor + Diadema Frontal Angular em Aço Prateado e Ouro Condutor
+      const helmDomed = new THREE.Mesh(new THREE.CylinderGeometry(0.365, 0.388, 0.14, 28), cobaltMat);
       helmDomed.position.set(0, 0.61, 0);
       this.headGroup.add(helmDomed);
 
-      // Cristas de Raio Douradas nas laterais do capacete (Estilo Thor / Flash / Raiden)
       for (const side of [-1, 1]) {
-        const wingBolt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.28, 0.38), goldMat);
-        wingBolt.position.set(side * 0.38, 0.52, -0.06);
-        wingBolt.rotation.x = 0.38;
-        wingBolt.rotation.z = -side * 0.22;
-        this.headGroup.add(wingBolt);
+        const browSilver = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.065, 0.075), silverTitanium);
+        browSilver.position.set(side * 0.11, 0.54, 0.355);
+        browSilver.rotation.z = -side * 0.24;
+        browSilver.rotation.y = side * 0.26;
+        const browGold = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.032, 0.082), goldMat);
+        browGold.position.set(side * 0.11, 0.57, 0.358);
+        browGold.rotation.z = -side * 0.24;
+        browGold.rotation.y = side * 0.26;
+        this.headGroup.add(browSilver, browGold);
       }
 
-      // Antena Bobina Tesla no topo da cabeça
-      const topCoil = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.18, 18), goldMat);
-      topCoil.position.set(0, 0.74, 0);
-      const topSpark = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), arcGlowMat);
-      topSpark.position.set(0, 0.86, 0);
-      this.headGroup.add(topCoil, topSpark);
+      // Crista Central em Formato de Raio Ciano Neon apontando para cima/trás na testa
+      const crestGroup = new THREE.Group();
+      crestGroup.position.set(0, 0.52, 0.378);
+      const crestSeg1 = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.16, 0.055), arcGlowMat);
+      crestSeg1.position.set(0, 0.06, 0);
+      crestSeg1.rotation.z = 0.22;
+      const crestSeg2 = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.16, 0.052), whiteBoltMat);
+      crestSeg2.position.set(0.02, 0.17, -0.03);
+      crestSeg2.rotation.z = -0.26;
+      crestSeg2.rotation.x = -0.28;
+      const crestTip = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.22, 4), arcGlowMat);
+      crestTip.position.set(-0.01, 0.31, -0.09);
+      crestTip.rotation.x = -0.45;
+      crestGroup.add(crestSeg1, crestSeg2, crestTip);
+      this.headGroup.add(crestGroup);
+
+      // 2. Asas Laterais em Formato de Relâmpago (Ziguezague 3D em 3 segmentos — Ouro Metálico + Borda Ciano Emissiva)
+      for (const side of [-1, 1]) {
+        const wingGroup = new THREE.Group();
+        wingGroup.position.set(side * 0.375, 0.48, 0.06);
+        wingGroup.rotation.y = -side * 0.22;
+        wingGroup.rotation.z = -side * 0.16;
+
+        // Segmento 1 do Ziguezague
+        const seg1Gold = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.12, 0.22), goldMat);
+        seg1Gold.position.set(0, 0.03, -0.06);
+        seg1Gold.rotation.x = 0.42;
+        const seg1Cyan = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.038, 0.23), arcGlowMat);
+        seg1Cyan.position.set(side * 0.008, 0.075, -0.06);
+        seg1Cyan.rotation.x = 0.42;
+
+        // Segmento 2 do Ziguezague (Dobra angular do raio)
+        const seg2Gold = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.11, 0.2), silverTitanium);
+        seg2Gold.position.set(side * 0.015, 0.08, -0.2);
+        seg2Gold.rotation.x = -0.18;
+        const seg2Cyan = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.035, 0.21), whiteBoltMat);
+        seg2Cyan.position.set(side * 0.02, 0.12, -0.2);
+        seg2Cyan.rotation.x = -0.18;
+
+        // Segmento 3 do Ziguezague (Ponta afiada de relâmpago para trás/cima)
+        const seg3Blade = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.3, 4), goldMat);
+        seg3Blade.scale.set(0.45, 1.0, 1.0);
+        seg3Blade.position.set(side * 0.025, 0.19, -0.36);
+        seg3Blade.rotation.x = -1.12;
+        const seg3Edge = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.32, 4), arcGlowMat);
+        seg3Edge.scale.set(0.45, 1.0, 1.0);
+        seg3Edge.position.set(side * 0.032, 0.22, -0.37);
+        seg3Edge.rotation.x = -1.12;
+
+        wingGroup.add(seg1Gold, seg1Cyan, seg2Gold, seg2Cyan, seg3Blade, seg3Edge);
+        this.headGroup.add(wingGroup);
+      }
+
+      // 3. Cabeleira / Coroa de 14 Arcos de Relâmpago Cristalizado 3D no Topo (Pulsando em updateAnimation!)
+      for (let i = 0; i < 14; i++) {
+        const ang = (i / 14) * Math.PI * 2;
+        const radius = 0.22 + (i % 2) * 0.08;
+        const h = 0.34 + (i % 3) * 0.11;
+        const mat = i % 3 === 0 ? whiteBoltMat : i % 2 === 0 ? arcGlowMat : electricBlueMat;
+
+        const boltGroup = new THREE.Group();
+        boltGroup.position.set(Math.sin(ang) * radius, 0.66, Math.cos(ang) * radius - 0.03);
+        const baseRotX = -0.34 - Math.cos(ang) * 0.24;
+        const baseRotZ = -Math.sin(ang) * 0.28;
+        boltGroup.rotation.set(baseRotX, 0, baseRotZ);
+
+        // Raio em 2 facetas em ziguezague (não é cone liso nem lâmpada!)
+        const lowerShard = new THREE.Mesh(new THREE.BoxGeometry(0.055, h * 0.55, 0.055), mat);
+        lowerShard.position.set(0, h * 0.24, 0);
+        lowerShard.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.22;
+
+        const upperTip = new THREE.Mesh(new THREE.ConeGeometry(0.058, h * 0.68, 4), i % 2 === 0 ? whiteBoltMat : arcGlowMat);
+        upperTip.position.set((i % 2 === 0 ? 1 : -1) * 0.02, h * 0.68, -0.02);
+        upperTip.rotation.z = (i % 2 === 0 ? -1 : 1) * 0.18;
+        upperTip.rotation.x = -0.18;
+
+        boltGroup.add(lowerShard, upperTip);
+        this.headGroup.add(boltGroup);
+        this.voltaicoCrownSpikes.push({
+          mesh: boltGroup,
+          phase: i * 0.65,
+          speed: 18.0 + (i % 4) * 3.5,
+          baseRotX,
+          baseRotZ
+        });
+      }
+
+      // 4. Máscara / Queixeira Angular 3D de Titânio Prateado e Azul-Cobalto em formato de V (Estilo Raiden / Cyber-Thor)
+      const maskGroup = new THREE.Group();
+      for (const side of [-1, 1]) {
+        const jawPlate = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.17, 0.12), cobaltMat);
+        jawPlate.position.set(side * 0.13, 0.19, 0.31);
+        jawPlate.rotation.y = side * 0.36;
+        jawPlate.rotation.z = -side * 0.18;
+
+        const jawTrim = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.036, 0.13), silverTitanium);
+        jawTrim.position.set(side * 0.13, 0.26, 0.315);
+        jawTrim.rotation.y = side * 0.36;
+        jawTrim.rotation.z = -side * 0.22;
+
+        const cyanSlit1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.022, 0.132), arcGlowMat);
+        cyanSlit1.position.set(side * 0.13, 0.2, 0.318);
+        cyanSlit1.rotation.y = side * 0.36;
+        cyanSlit1.rotation.z = -side * 0.22;
+
+        const cyanSlit2 = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.02, 0.132), whiteBoltMat);
+        cyanSlit2.position.set(side * 0.12, 0.15, 0.318);
+        cyanSlit2.rotation.y = side * 0.36;
+        cyanSlit2.rotation.z = -side * 0.22;
+
+        maskGroup.add(jawPlate, jawTrim, cyanSlit1, cyanSlit2);
+      }
+      const chinPoint = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.18, 4), silverTitanium);
+      chinPoint.rotation.x = Math.PI;
+      chinPoint.rotation.y = Math.PI / 4;
+      chinPoint.position.set(0, 0.14, 0.365);
+      maskGroup.add(chinPoint);
+      this.headGroup.add(maskGroup);
     } else if (preset.headgear === 'symbiote_crest') {
       // =========================================================================
       // CABEÇA DO VENOM: TENDÕES DE BIOMASSA NEGRA + MANDÍBULA 3D DE PRESAS + LÍNGUA LONGA 3D!
@@ -1243,87 +1373,426 @@ export class Minifigure {
   }
 
   /**
-   * HERÓI #7: VOLTAICO (OP-07) — 2 Bobinas Tesla Gigantes nas Costas com Arcos Elétricos
-   * e Cetro / Lança-Raios de Bobina Tesla na Mão Direita!
+   * HERÓI #7: VOLTAICO (OP-07 — DEUS DO TROVÃO CYBER-ELÉTRICO / SENHOR DA TEMPESTADE):
+   * 1) Peitoral Blindado de Alta Tensão 3D + Reator de Tempestade com 4 Arcos em X + Gola Blindada
+   * 2) Ombreiras Duplas de Bobina de Trovão 3D com 2 Pinos Condutores + Aletas de Relâmpago Ciano
+   * 3) Manoplas Eletromagnéticas 3D + Cinturão do Trovão com Tassets + Joelheiras de Raio e Grevas/Botas com Propulsores
+   * 4) Costas: Gerador Dorsal recuado (z = -0.34) + 5 Segmentos em Ziguezague Real entre os Terminais (Zero tracinho na nuca!)
+   * 5) Mãos: Alabarda / Tridente de Guerra "Tempestade Imperial" (1.65m) na Direita + Garra de Arco Voltaico Giratório na Esquerda!
    */
   _attachVoltaicoTeslaRig(leftHandGroup, rightHandGroup) {
-    const cobaltArmor = getLegoMaterial(0x1d4ed8, { roughness: 0.22, metalness: 0.45 });
-    const goldConductor = getLegoMaterial(0xfacc15, { roughness: 0.18, metalness: 0.75 });
+    const cobaltArmor = getLegoMaterial(0x1d4ed8, { roughness: 0.18, metalness: 0.55 });
+    const darkTitanium = getLegoMaterial(0x0f172a, { roughness: 0.22, metalness: 0.65 });
+    const silverTitanium = getLegoMaterial(0xe2e8f0, { roughness: 0.14, metalness: 0.85 });
+    const goldConductor = getLegoMaterial(0xfacc15, { roughness: 0.16, metalness: 0.78 });
     const electricCyan = getLegoMaterial(0x38bdf8, {
       emissive: 0x38bdf8,
-      emissiveIntensity: 2.4,
+      emissiveIntensity: 2.5,
       roughness: 0.08
     });
     const whiteSpark = getLegoMaterial(0xffffff, {
       emissive: 0xe0f2fe,
-      emissiveIntensity: 2.6,
-      roughness: 0.06
+      emissiveIntensity: 2.8,
+      roughness: 0.05
     });
 
-    // 1. Costas: 2 Bobinas Tesla Dorsais Gigantes com Anéis Condutores e Arco Voltaico Entre Elas
+    // =========================================================================
+    // 1. PEITORAL BLINDADO DE ALTA TENSÃO 3D (3D STORMLORD CUIRASS) + GOLA BLINDADA
+    // =========================================================================
+    const cuirassGroup = new THREE.Group();
+
+    // Placas Peitorais Angulares Esquerda/Direita em Azul-Cobalto, Titânio Prateado e Frisos Dourados
+    for (const side of [-1, 1]) {
+      const pecPlate = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.28, 0.095), cobaltArmor);
+      pecPlate.position.set(side * 0.19, 0.56, 0.2);
+      pecPlate.rotation.y = side * 0.14;
+      pecPlate.rotation.z = -side * 0.08;
+
+      const pecSilverTrim = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.045, 0.105), silverTitanium);
+      pecSilverTrim.position.set(side * 0.19, 0.68, 0.205);
+      pecSilverTrim.rotation.y = side * 0.14;
+      pecSilverTrim.rotation.z = -side * 0.14;
+
+      const absPlate = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.08), darkTitanium);
+      absPlate.position.set(side * 0.16, 0.27, 0.195);
+      absPlate.rotation.y = side * 0.1;
+
+      const goldRib = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.032, 0.092), goldConductor);
+      goldRib.position.set(side * 0.17, 0.34, 0.205);
+      goldRib.rotation.z = side * 0.18;
+
+      cuirassGroup.add(pecPlate, pecSilverTrim, absPlate, goldRib);
+    }
+
+    // Reator de Tempestade / Bobina de Plasma 3D em Alto-Relevo no Centro do Peito
+    const chestRingGold = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.028, 10, 24), goldConductor);
+    chestRingGold.position.set(0, 0.49, 0.245);
+    const chestRingSilver = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 20), silverTitanium);
+    chestRingSilver.rotation.x = Math.PI / 2;
+    chestRingSilver.position.set(0, 0.49, 0.23);
+    const chestPlasmaCore = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.038, 18), whiteSpark);
+    chestPlasmaCore.rotation.x = Math.PI / 2;
+    chestPlasmaCore.position.set(0, 0.49, 0.25);
+    this.voltaicoArcs.push(chestPlasmaCore);
+    cuirassGroup.add(chestRingGold, chestRingSilver, chestPlasmaCore);
+
+    // 4 Arcos de Raio 3D irradiando em X pelo Peito a partir do Reator Central
+    for (const sx of [-1, 1]) {
+      for (const sy of [-1, 1]) {
+        const xArc1 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.028, 0.032), electricCyan);
+        xArc1.position.set(sx * 0.14, 0.49 + sy * 0.1, 0.248);
+        xArc1.rotation.z = sx * sy * 0.62;
+        const xArc2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.024, 0.032), goldConductor);
+        xArc2.position.set(sx * 0.24, 0.49 + sy * 0.16, 0.242);
+        xArc2.rotation.z = sx * sy * 0.32;
+        cuirassGroup.add(xArc1, xArc2);
+      }
+    }
+
+    // Gola Blindada de Alta Tensão (Storm Collar) ao redor do pescoço com condutores dourados
+    const backCollar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.08), cobaltArmor);
+    backCollar.position.set(0, 0.81, -0.17);
+    cuirassGroup.add(backCollar);
+    for (const side of [-1, 1]) {
+      const sideCollar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.34), silverTitanium);
+      sideCollar.position.set(side * 0.25, 0.8, -0.01);
+      sideCollar.rotation.z = -side * 0.22;
+      const collarNode = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.08, 10), goldConductor);
+      collarNode.position.set(side * 0.27, 0.86, 0.06);
+      cuirassGroup.add(sideCollar, collarNode);
+    }
+
+    this.upperBodyGroup.add(cuirassGroup);
+
+    // =========================================================================
+    // 2. OMBREIRAS DE BOBINA DE TROVÃO 3D (3D THUNDER-COIL PAULDRONS)
+    // =========================================================================
+    const armPivots = [
+      { pivot: this.leftArmPivot, side: -1 },
+      { pivot: this.rightArmPivot, side: 1 }
+    ];
+    for (const { pivot, side } of armPivots) {
+      if (!pivot) continue;
+      const pauldronGroup = new THREE.Group();
+      pauldronGroup.position.set(side * 0.06, 0.04, 0);
+
+      // Duas placas sobrepostas esculpidas em Azul-Cobalto, Prata e Ouro
+      const upperShield = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.15, 0.36), cobaltArmor);
+      upperShield.position.set(side * 0.05, 0.04, 0);
+      upperShield.rotation.z = -side * 0.28;
+
+      const lowerShield = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.33), silverTitanium);
+      lowerShield.position.set(side * 0.08, -0.06, 0);
+      lowerShield.rotation.z = -side * 0.42;
+
+      const goldRim = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.038, 0.38), goldConductor);
+      goldRim.position.set(side * 0.055, 0.09, 0);
+      goldRim.rotation.z = -side * 0.28;
+      pauldronGroup.add(upperShield, lowerShield, goldRim);
+
+      // 2 Pinos Condutores de Bobina + Aletas de Relâmpago Ciano Neon apontando para fora/cima
+      for (const zOff of [-0.08, 0.08]) {
+        const coilPin = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.045, 0.16, 12), goldConductor);
+        coilPin.position.set(side * 0.12, 0.16, zOff);
+        coilPin.rotation.z = -side * 0.48;
+
+        const pinTip = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 10), whiteSpark);
+        pinTip.position.set(side * 0.16, 0.22, zOff);
+
+        const cyanFin = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.22, 4), electricCyan);
+        cyanFin.scale.set(1.0, 1.0, 0.45);
+        cyanFin.position.set(side * 0.18, 0.14, zOff * 1.15);
+        cyanFin.rotation.z = -side * 0.85;
+
+        pauldronGroup.add(coilPin, pinTip, cyanFin);
+      }
+
+      pivot.add(pauldronGroup);
+    }
+
+    // =========================================================================
+    // 3. MANOPLAS ELETROMAGNÉTICAS 3D (STORM GAUNTLETS) NOS DOIS ANTEBRAÇOS
+    // =========================================================================
+    const handGroups = [
+      { group: leftHandGroup, side: -1 },
+      { group: rightHandGroup, side: 1 }
+    ];
+    for (const { group, side } of handGroups) {
+      if (!group) continue;
+      const gauntletCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.12, 0.24, 14), cobaltArmor);
+      gauntletCuff.position.set(0, -0.06, 0);
+
+      const gauntletGoldBand = new THREE.Mesh(new THREE.TorusGeometry(0.132, 0.02, 8, 16), goldConductor);
+      gauntletGoldBand.rotation.x = Math.PI / 2;
+      gauntletGoldBand.position.set(0, 0.02, 0);
+
+      // Lâmina lateral em formato de raio ciano no antebraço
+      const wristBolt1 = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.16, 0.075), electricCyan);
+      wristBolt1.position.set(side * 0.135, -0.02, 0.02);
+      wristBolt1.rotation.x = -0.35;
+      const wristBolt2 = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.18, 4), whiteSpark);
+      wristBolt2.position.set(side * 0.145, 0.09, -0.03);
+      wristBolt2.rotation.x = -0.45;
+
+      group.add(gauntletCuff, gauntletGoldBand, wristBolt1, wristBolt2);
+    }
+
+    // =========================================================================
+    // 4. CINTURÃO DO TROVÃO + TASSETS + JOELHEIRAS DE RAIO E GREVAS/BOTAS BLINDADAS 3D
+    // =========================================================================
+    if (this.hipGroup) {
+      const beltBand = new THREE.Mesh(new THREE.BoxGeometry(0.83, 0.13, 0.46), goldConductor);
+      beltBand.position.set(0, 0.08, 0);
+      this.hipGroup.add(beltBand);
+
+      // Fivela Central em formato de Relâmpago Ciano/Branco
+      const buckleBack = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.05, 6), silverTitanium);
+      buckleBack.rotation.x = Math.PI / 2;
+      buckleBack.position.set(0, 0.08, 0.235);
+      const buckleBolt = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.18, 0.04), whiteSpark);
+      buckleBolt.position.set(0, 0.08, 0.255);
+      buckleBolt.rotation.z = -0.32;
+      this.hipGroup.add(buckleBack, buckleBolt);
+
+      // 2 Placas Laterais de Armadura (Tassets) nas coxas
+      for (const side of [-1, 1]) {
+        const tassetPlate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.38), cobaltArmor);
+        tassetPlate.position.set(side * 0.42, -0.06, 0);
+        tassetPlate.rotation.z = -side * 0.18;
+        const tassetTrim = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.045, 0.4), goldConductor);
+        tassetTrim.position.set(side * 0.43, -0.17, 0);
+        tassetTrim.rotation.z = -side * 0.18;
+        this.hipGroup.add(tassetPlate, tassetTrim);
+      }
+    }
+
+    const legPivots = [
+      { pivot: this.leftLegPivot, side: -1 },
+      { pivot: this.rightLegPivot, side: 1 }
+    ];
+    for (const { pivot, side } of legPivots) {
+      if (!pivot) continue;
+      // Placa de coxa prateada/azul
+      const thighGuard = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.2, 0.45), cobaltArmor);
+      thighGuard.position.set(0, -0.18, 0.01);
+
+      // Joelheira Angular Dourada/Ciano em formato de Raio
+      const kneeDiamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), goldConductor);
+      kneeDiamond.scale.set(1.0, 1.35, 0.65);
+      kneeDiamond.position.set(0, -0.36, 0.22);
+      const kneeCyanSpike = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.16, 4), electricCyan);
+      kneeCyanSpike.position.set(0, -0.31, 0.25);
+      kneeCyanSpike.rotation.x = 0.25;
+
+      // Greva / Caneleira Blindada em Azul-Cobalto e Prata + Propulsores Elétricos Brilhantes
+      const shinGreave = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.26, 0.46), silverTitanium);
+      shinGreave.position.set(0, -0.52, 0.01);
+      const shinCobalt = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.24, 0.48), cobaltArmor);
+      shinCobalt.position.set(0, -0.52, 0.02);
+
+      const shinThruster = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.5), electricCyan);
+      shinThruster.position.set(side * 0.16, -0.52, 0.01);
+
+      // Bota Blindada Pesada com Biqueira Prateada/Dourada
+      const bootPlate = new THREE.Mesh(new THREE.BoxGeometry(0.39, 0.12, 0.54), cobaltArmor);
+      bootPlate.position.set(0, -0.66, 0.05);
+      const bootGoldToe = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.14), goldConductor);
+      bootGoldToe.position.set(0, -0.67, 0.28);
+
+      pivot.add(thighGuard, kneeDiamond, kneeCyanSpike, shinGreave, shinCobalt, shinThruster, bootPlate, bootGoldToe);
+    }
+
+    // =========================================================================
+    // 5. COSTAS: GERADOR DORSAL (z = -0.34) + ARCO VOLTAICO EM ZIGUEZAGUE REAL (5 SEGMENTOS)
+    // =========================================================================
     const teslaPack = new THREE.Group();
-    teslaPack.position.set(0, 0.46, -0.28);
+    teslaPack.position.set(0, 0.46, -0.34);
 
-    const baseBox = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.46, 0.22), cobaltArmor);
-    teslaPack.add(baseBox);
+    const baseBox = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, 0.2), darkTitanium);
+    const packArmor = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.4, 0.23), cobaltArmor);
+    const packReactorRing = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.024, 8, 18), goldConductor);
+    packReactorRing.position.set(0, 0.02, -0.12);
+    const packReactorCore = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), electricCyan);
+    packReactorCore.position.set(0, 0.02, -0.12);
+    this.voltaicoArcs.push(packReactorCore);
+    teslaPack.add(baseBox, packArmor, packReactorRing, packReactorCore);
 
+    // 2 Bobinas Tesla Dorsais Inclinadas para Fora
+    const coilTilt = 0.44;
     for (const sx of [-0.26, 0.26]) {
       const coilGroup = new THREE.Group();
-      coilGroup.position.set(sx, 0.28, -0.04);
-      coilGroup.rotation.z = -sx * 0.55;
+      coilGroup.position.set(sx, 0.26, -0.04);
+      coilGroup.rotation.z = -Math.sign(sx) * coilTilt;
 
-      const coreRod = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.56, 14), cobaltArmor);
+      const coreRod = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.082, 0.58, 14), silverTitanium);
       coilGroup.add(coreRod);
 
       for (let r = 0; r < 4; r++) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11 - r * 0.01, 0.022, 8, 18), r % 2 === 0 ? goldConductor : electricCyan);
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.115 - r * 0.01, 0.022, 8, 18),
+          r % 2 === 0 ? goldConductor : electricCyan
+        );
         ring.rotation.x = Math.PI / 2;
         ring.position.set(0, -0.14 + r * 0.11, 0);
         coilGroup.add(ring);
       }
 
-      const terminalSphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 14), whiteSpark);
-      terminalSphere.position.set(0, 0.3, 0);
+      const terminalSphere = new THREE.Mesh(new THREE.SphereGeometry(0.095, 14, 14), whiteSpark);
+      terminalSphere.position.set(0, 0.32, 0);
       coilGroup.add(terminalSphere);
       this.voltaicoArcs.push(terminalSphere);
 
       teslaPack.add(coilGroup);
     }
 
-    // Ponte de Raio Ciano conectando as duas Bobinas Tesla
-    const bridgeArc = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.045, 0.045), electricCyan);
-    bridgeArc.position.set(0, 0.52, -0.04);
-    teslaPack.add(bridgeArc);
-    this.voltaicoArcs.push(bridgeArc);
+    // Cálculo exato dos 2 Terminais Superiores no espaço do teslaPack:
+    // Left: (-0.396, 0.550, -0.04), Right: (+0.396, 0.550, -0.04)
+    const termX = 0.26 + 0.32 * Math.sin(coilTilt);
+    const termY = 0.26 + 0.32 * Math.cos(coilTilt);
+    const termZ = -0.04;
+
+    // 5 Segmentos 3D em Ziguezague de Relâmpago conectando os dois terminais por trás das costas (ZERO barra na nuca!)
+    const numSegs = 5;
+    for (let s = 0; s < numSegs; s++) {
+      const segMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.022, 0.022, 1.0, 6),
+        s % 2 === 0 ? whiteSpark : electricCyan
+      );
+      teslaPack.add(segMesh);
+      this.voltaicoBackArcSegments.push({
+        mesh: segMesh,
+        index: s,
+        total: numSegs,
+        termX,
+        termY,
+        termZ
+      });
+    }
 
     this.upperBodyGroup.add(teslaPack);
 
-    // 2. Mão Esquerda: Orbe de Relâmpago Vivo
-    const leftSparkOrb = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 1), electricCyan);
-    leftSparkOrb.position.set(0, -0.32, 0.14);
-    leftHandGroup.add(leftSparkOrb);
-    this.voltaicoArcs.push(leftSparkOrb);
+    // =========================================================================
+    // 6. MÃO ESQUERDA: MANOPLA DE ARCO VOLTAICO GIRATÓRIO + 3 GARRAS DE RELÂMPAGO
+    // =========================================================================
+    const leftClawGroup = new THREE.Group();
+    leftClawGroup.position.set(0, -0.32, 0.14);
 
-    // 3. Mão Direita: Cetro / Lança-Raios de Bobina Tesla
+    const conductorRing = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.024, 8, 20), goldConductor);
+    leftClawGroup.add(conductorRing);
+
+    const centerSpark = new THREE.Mesh(new THREE.OctahedronGeometry(0.085, 0), whiteSpark);
+    leftClawGroup.add(centerSpark);
+
+    for (let c = 0; c < 3; c++) {
+      const ang = (c / 3) * Math.PI * 2;
+      const arcClaw = new THREE.Group();
+      arcClaw.rotation.z = ang;
+
+      const emitterNode = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.06), silverTitanium);
+      emitterNode.position.set(0, 0.16, 0);
+
+      const boltSeg1 = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.18), electricCyan);
+      boltSeg1.position.set(0, 0.17, 0.09);
+      boltSeg1.rotation.x = 0.28;
+
+      const boltTip = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.22, 4), whiteSpark);
+      boltTip.rotation.x = Math.PI / 2 + 0.35;
+      boltTip.position.set(0, 0.12, 0.24);
+
+      arcClaw.add(emitterNode, boltSeg1, boltTip);
+      leftClawGroup.add(arcClaw);
+    }
+
+    leftHandGroup.add(leftClawGroup);
+    this.voltaicoLeftClawGroup = leftClawGroup;
+
+    // =========================================================================
+    // 7. MÃO DIREITA: ALABARDA / TRIDENTE DE GUERRA "TEMPESTADE IMPERIAL" (1.65m)
+    // =========================================================================
     const staffGroup = new THREE.Group();
-    staffGroup.position.set(0, -0.26, 0.16);
+    staffGroup.position.set(0, -0.26, 0.14);
 
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 1.38, 12), cobaltArmor);
-    shaft.rotation.x = Math.PI / 2;
-    shaft.position.set(0, 0, 0.36);
-    staffGroup.add(shaft);
+    // Haste Longa Blindada em Titânio Escuro e Azul-Cobalto + Pomo de Cristal Ciano na base
+    const mainShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.046, 1.34, 12), darkTitanium);
+    mainShaft.rotation.x = Math.PI / 2;
+    mainShaft.position.set(0, 0, 0.38);
+    staffGroup.add(mainShaft);
 
-    for (const zRing of [0.68, 0.82, 0.96]) {
-      const coilRing = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.022, 8, 16), goldConductor);
+    const shaftArmorSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.52, 12), cobaltArmor);
+    shaftArmorSleeve.rotation.x = Math.PI / 2;
+    shaftArmorSleeve.position.set(0, 0, 0.62);
+    staffGroup.add(shaftArmorSleeve);
+
+    const pommelRing = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.018, 8, 14), goldConductor);
+    pommelRing.position.set(0, 0, -0.28);
+    const pommelSpike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 4), electricCyan);
+    pommelSpike.rotation.x = -Math.PI / 2;
+    pommelSpike.position.set(0, 0, -0.37);
+    staffGroup.add(pommelRing, pommelSpike);
+
+    for (const zRing of [0.18, 0.48, 0.78, 0.94]) {
+      const coilRing = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.018, 8, 16), goldConductor);
       coilRing.position.set(0, 0, zRing);
       staffGroup.add(coilRing);
     }
 
-    const staffOrb = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 1), whiteSpark);
-    staffOrb.position.set(0, 0, 1.12);
-    staffGroup.add(staffOrb);
-    this.voltaicoStaffOrb = staffOrb;
+    // Guarda Eletromagnética (Crossguard) em Ouro e Prata com Núcleo de Plasma e 2 Asas de Raio
+    const crossguardBlock = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.13, 0.14), goldConductor);
+    crossguardBlock.position.set(0, 0, 1.06);
+    const crossguardSilver = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.1), silverTitanium);
+    crossguardSilver.position.set(0, 0, 1.06);
+    staffGroup.add(crossguardBlock, crossguardSilver);
 
+    const halberdCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.095, 1), whiteSpark);
+    halberdCore.position.set(0, 0, 1.08);
+    staffGroup.add(halberdCore);
+    this.voltaicoStaffOrb = halberdCore;
+
+    // 2 Asas Laterais de Raio + 2 Garras Condutoras do Tridente soltando faíscas para a Lâmina Central
+    for (const side of [-1, 1]) {
+      // Asa de Raio na Guarda
+      const guardWing = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.28, 4), electricCyan);
+      guardWing.scale.set(0.45, 1.0, 1.0);
+      guardWing.position.set(side * 0.22, 0, 1.02);
+      guardWing.rotation.z = -side * 1.15;
+      guardWing.rotation.x = -0.35;
+
+      // Garra Condutora Lateral do Tridente (Dourada/Azul)
+      const prongBase = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.065, 0.24), cobaltArmor);
+      prongBase.position.set(side * 0.15, 0, 1.18);
+      prongBase.rotation.y = -side * 0.18;
+
+      const prongBlade = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.34, 4), goldConductor);
+      prongBlade.scale.set(0.55, 1.0, 1.0);
+      prongBlade.rotation.x = Math.PI / 2;
+      prongBlade.rotation.z = Math.PI / 4;
+      prongBlade.position.set(side * 0.16, 0, 1.42);
+
+      // Faísca saltando da Garra Lateral para a Lâmina Central
+      const prongSpark = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.025, 0.025), whiteSpark);
+      prongSpark.position.set(side * 0.08, 0, 1.38);
+      prongSpark.rotation.y = side * 0.42;
+
+      staffGroup.add(guardWing, prongBase, prongBlade, prongSpark);
+    }
+
+    // Lâmina Central Longa, Larga e Afiada de Cristal de Trovão Branco-Ciano (Adeus cotonete!)
+    const spearSpine = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.11, 0.38), silverTitanium);
+    spearSpine.position.set(0, 0, 1.28);
+
+    const spearPlasmaEdge = new THREE.Mesh(new THREE.ConeGeometry(0.145, 0.62, 4), electricCyan);
+    spearPlasmaEdge.rotation.x = Math.PI / 2;
+    spearPlasmaEdge.rotation.z = Math.PI / 4;
+    spearPlasmaEdge.scale.set(1.0, 0.28, 1.0);
+    spearPlasmaEdge.position.set(0, 0, 1.42);
+
+    const spearWhiteCore = new THREE.Mesh(new THREE.ConeGeometry(0.095, 0.58, 4), whiteSpark);
+    spearWhiteCore.rotation.x = Math.PI / 2;
+    spearWhiteCore.rotation.z = Math.PI / 4;
+    spearWhiteCore.scale.set(1.0, 0.34, 1.0);
+    spearWhiteCore.position.set(0, 0, 1.44);
+
+    staffGroup.add(spearSpine, spearPlasmaEdge, spearWhiteCore);
     rightHandGroup.add(staffGroup);
   }
 
@@ -4122,13 +4591,56 @@ export class Minifigure {
       }
     }
 
-    // Pulso de Bobinas Tesla e Orbe Elétrico do Voltaico (OP-07)
+    // Pulso de Bobinas Tesla, Coroa de 14 Relâmpagos, Arco Dorsal em Ziguezague e Garra Voltaica do Voltaico (OP-07)
     if (this.voltaicoArcs && this.voltaicoArcs.length > 0) {
-      const sparkScale = 0.88 + Math.sin(this.animTime * 28.0) * 0.24;
+      const sparkScale = 0.9 + Math.sin(this.animTime * 28.0) * 0.18;
       for (const arc of this.voltaicoArcs) {
         arc.scale.setScalar(sparkScale);
-        arc.rotation.y += dt * 6.0;
       }
+    }
+    if (this.voltaicoCrownSpikes && this.voltaicoCrownSpikes.length > 0) {
+      for (const cs of this.voltaicoCrownSpikes) {
+        const w = Math.sin(this.animTime * cs.speed + cs.phase);
+        cs.mesh.scale.set(0.94, 0.86 + (w * 0.5 + 0.5) * 0.45, 0.94);
+        cs.mesh.rotation.x = cs.baseRotX + w * 0.14;
+        cs.mesh.rotation.z = cs.baseRotZ + Math.cos(this.animTime * cs.speed + cs.phase) * 0.12;
+      }
+    }
+    if (this.voltaicoBackArcSegments && this.voltaicoBackArcSegments.length > 0) {
+      const first = this.voltaicoBackArcSegments[0];
+      const n = first.total;
+      const tx = first.termX;
+      const ty = first.termY;
+      const tz = first.termZ;
+      const pts = [];
+      for (let i = 0; i <= n; i++) {
+        const u = i / n;
+        const x = -tx + u * (tx * 2);
+        if (i === 0 || i === n) {
+          pts.push(new THREE.Vector3(x, ty, tz));
+        } else {
+          const zigSign = i % 2 === 0 ? 1 : -1;
+          const jitterY = Math.sin(this.animTime * 34.0 + i * 2.1) * 0.055 + zigSign * 0.065;
+          const jitterZ = -0.04 + Math.cos(this.animTime * 29.0 + i * 1.7) * 0.035;
+          pts.push(new THREE.Vector3(x, ty + 0.05 + jitterY, tz + jitterZ));
+        }
+      }
+      const upAxis = new THREE.Vector3(0, 1, 0);
+      for (let s = 0; s < this.voltaicoBackArcSegments.length; s++) {
+        const seg = this.voltaicoBackArcSegments[s].mesh;
+        const pA = pts[s];
+        const pB = pts[s + 1];
+        const dir = new THREE.Vector3().subVectors(pB, pA);
+        const len = Math.max(0.001, dir.length());
+        seg.position.copy(pA).addScaledVector(dir, 0.5);
+        seg.scale.set(1, len, 1);
+        seg.quaternion.setFromUnitVectors(upAxis, dir.normalize());
+      }
+    }
+    if (this.voltaicoLeftClawGroup) {
+      this.voltaicoLeftClawGroup.rotation.z += dt * (this.punchTimer > 0 ? 18.0 : 6.5);
+      const clawPulse = 0.94 + Math.sin(this.animTime * 24.0) * 0.14;
+      this.voltaicoLeftClawGroup.scale.setScalar(clawPulse);
     }
     if (this.voltaicoStaffOrb) {
       this.voltaicoStaffOrb.rotation.x += dt * 7.5;
