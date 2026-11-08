@@ -48,6 +48,16 @@ export class LegoHud {
     this.speedoBarsEl = document.getElementById('speedo-rpm-bars');
     this._speedoBarNodes = [];
 
+    // Visor de Arsenal Estilo CS:GO no Canto Superior Direito (Exclusivo do Vingador de Chumbo a pé)
+    this.vingadorWeaponHudEl = document.getElementById('vingador-weapon-hud');
+    this.vingadorKeyhintEl = document.getElementById('vingador-hud-keyhint');
+    this.vingadorSlotEls = this.vingadorWeaponHudEl
+      ? Array.from(this.vingadorWeaponHudEl.querySelectorAll('.csgo-weapon-slot'))
+      : [];
+    this.currentVingadorWeapon = 'dual_smg';
+    this.isVingadorFuror = false;
+    this._isDrivingVehicle = false;
+
     // Ficha Tática Individual [H]
     this.dossierModalEl = document.getElementById('hero-dossier-modal');
     this.dossierCloseBtn = document.getElementById('dossier-close-btn');
@@ -148,9 +158,40 @@ export class LegoHud {
   }
 
   /**
+   * Atualiza o Visor de Arsenal Estilo CS:GO no canto superior direito para o Vingador de Chumbo (OP-04)
+   */
+  updateVingadorWeaponHud(activeWeapon = this.currentVingadorWeapon, isFurorActive = this.isVingadorFuror) {
+    this.currentVingadorWeapon = activeWeapon || 'dual_smg';
+    this.isVingadorFuror = Boolean(isFurorActive);
+    if (!this.vingadorWeaponHudEl) return;
+
+    const shouldShow = this.currentHeroKey === 'vingador' && !this._isDrivingVehicle;
+    this.vingadorWeaponHudEl.classList.toggle('hidden', !shouldShow);
+    if (!shouldShow) return;
+
+    this.vingadorWeaponHudEl.classList.toggle('furor-active', this.isVingadorFuror);
+    if (this.vingadorKeyhintEl) {
+      this.vingadorKeyhintEl.textContent = this.isVingadorFuror
+        ? 'FUROR // +60% CADÊNCIA!'
+        : '[R / M2] TROCAR';
+    }
+
+    for (const slotEl of this.vingadorSlotEls) {
+      const isSelected = slotEl.dataset.weapon === this.currentVingadorWeapon;
+      slotEl.classList.toggle('active', isSelected);
+    }
+  }
+
+  /**
    * Atualiza o Velocímetro Estilizado IDV no canto superior direito (visível apenas quando em um veículo)
    */
   updateVehicleSpeedometer(vehicleObj, rawSpeed = 0, verticalSpeed = 0, isTurbo = false, isDrifting = false) {
+    const wasDriving = this._isDrivingVehicle;
+    this._isDrivingVehicle = Boolean(vehicleObj);
+    if (wasDriving !== this._isDrivingVehicle) {
+      this.updateVingadorWeaponHud();
+    }
+
     if (!this.speedoContainerEl) return;
 
     if (!vehicleObj) {
@@ -255,6 +296,7 @@ export class LegoHud {
       const ctx = this.portraitCanvas.getContext('2d');
       drawHeroLegoPortrait(ctx, this.portraitCanvas.width, this.portraitCanvas.height, presetKey);
     }
+    this.updateVingadorWeaponHud();
     if (this.isDossierOpen) {
       renderHeroDossierModal(this, presetKey);
     }

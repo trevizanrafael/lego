@@ -378,6 +378,9 @@ export class ThirdPersonController {
 
     if (this.hud) {
       this.hud.setCharacterPortrait(preset.key, preset.name, preset.subtitle);
+      if (this.hud.updateVingadorWeaponHud) {
+        this.hud.updateVingadorWeaponHud(this.minifigure.vingadorWeapon || 'dual_smg', false);
+      }
     }
   }
 
@@ -893,6 +896,9 @@ export class ThirdPersonController {
     soundFX.playHeroSwap();
     if (this.hud) {
       this.hud.setCharacterPortrait('vingador', 'VINGADOR DE CHUMBO', labels[next]);
+      if (this.hud.updateVingadorWeaponHud) {
+        this.hud.updateVingadorWeaponHud(next, this.vingadorFurorTimer > 0);
+      }
     }
   }
 
@@ -971,6 +977,9 @@ export class ThirdPersonController {
         'VINGADOR DE CHUMBO [FUROR!]',
         'FUROR DO JUSTICEIRO ATIVO (VELOCIDADE 32M/S + 60% CADÊNCIA DE TIRO!)'
       );
+      if (this.hud.updateVingadorWeaponHud) {
+        this.hud.updateVingadorWeaponHud(this.minifigure.vingadorWeapon || 'dual_smg', true);
+      }
     }
   }
 
@@ -3109,6 +3118,9 @@ export class ThirdPersonController {
             'VINGADOR DE CHUMBO',
             '[R] TROCAR ARMA: CASTIGADORAS .50 • DOZE 18 BAGOS • BAZUCA ROCKET JUMP • [Q] FUROR'
           );
+          if (this.hud.updateVingadorWeaponHud) {
+            this.hud.updateVingadorWeaponHud(this.minifigure.vingadorWeapon || 'dual_smg', false);
+          }
         }
       }
     }
