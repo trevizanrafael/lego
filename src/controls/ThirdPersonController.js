@@ -473,12 +473,22 @@ export class ThirdPersonController {
   }
 
   /**
-   * Arremesso de Granada Explosiva / Impulso estilo Raze (Clique Direito / E):
-   * Explode no impacto com qualquer superfície e impulsiona o Caveira se estourar perto!
+   * Arremesso de Carga Explosiva / Impulso estilo Satchel da Raze (Clique Direito):
+   * - Se já houver uma carga ativa no ar/chão, apertar Clique Direito detona manualmente na hora!
+   * - Cooldown curtíssimo (0.22s) permitindo jogar uma 2ª bomba no ar (Double Satchel)!
    */
   _throwCaveiraGrenade() {
+    if (this.destructibles && this.destructibles.grenades && this.destructibles.grenades.length > 0) {
+      const latest = this.destructibles.grenades[this.destructibles.grenades.length - 1];
+      if ((latest.age || 0) >= 0.04) {
+        this.destructibles.detonateActiveCaveiraGrenade();
+        this.secondaryCooldown = 0.08;
+        return;
+      }
+    }
+
     if (this.secondaryCooldown > 0) return;
-    this.secondaryCooldown = 0.36; // Cooldown ágil para permitir Double Satchel no ar!
+    this.secondaryCooldown = 0.22; // Cooldown ultrarrápido para Double Satchel no ar!
 
     this._alignCharacterToCrosshair();
     this.minifigure.triggerPunch();
@@ -486,21 +496,22 @@ export class ThirdPersonController {
     if (this.destructibles) {
       const aimData = this.destructibles.getAimTargetPoint(this.camera, 80);
       const origin = new THREE.Vector3(
-        this.position.x + Math.sin(this.facingAngle) * 0.55,
+        this.position.x + Math.sin(this.facingAngle) * 0.65,
         this.position.y + 1.15,
-        this.position.z + Math.cos(this.facingAngle) * 0.55
+        this.position.z + Math.cos(this.facingAngle) * 0.65
       );
       this.destructibles.throwGrenade(
         origin,
         aimData.point,
         this.world ? this.world.colliders : [],
-        (blastPos) => this.applyBlastImpulse(blastPos)
+        (blastPos) => this.applyBlastImpulse(blastPos),
+        (gx, gz) => (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(gx, gz) : 0)
       );
     }
   }
 
   /**
-   * Impulso de Mobilidade estilo Raze do Valorant quando a granada explode perto do jogador!
+   * Super-Impulso 4x Maior estilo Satchel da Raze do Valorant quando a carga explode perto do Comandante Caveira!
    */
   applyBlastImpulse(blastPos) {
     const playerCenter = new THREE.Vector3(
@@ -509,17 +520,22 @@ export class ThirdPersonController {
       this.position.z
     );
     const dist = playerCenter.distanceTo(blastPos);
-    const maxBlastJumpRadius = 7.8;
+    const maxBlastJumpRadius = 16.5;
 
     if (dist > maxBlastJumpRadius) return;
 
-    const power = THREE.MathUtils.clamp(1.2 - dist / 9.0, 0.52, 1.08);
+    const power = THREE.MathUtils.clamp(1.25 - dist / 18.0, 0.58, 1.15);
+    const isDoubleSatchel = !this.isGrounded && this.blastJumpTimer > 0;
 
-    // Forte impulso vertical para subir em prédios ou cruzar a rua voando!
-    this.velocity.y = 19.5 * power;
+    // Impulso Vertical 4x maior (e soma +28.0 no Double Satchel aéreo para voar por cima de prédios altos!)
+    if (isDoubleSatchel) {
+      this.velocity.y = Math.min(62.0, Math.max(this.velocity.y, 24.0) + 28.0 * power);
+    } else {
+      this.velocity.y = 44.0 * power;
+    }
     this.isGrounded = false;
 
-    // Impulso horizontal combinando repulsão da bomba + direção para onde o jogador está indo/olhando
+    // Impulso Horizontal 4x maior (64.0 * power) combinando repulsão da bomba + direção da mira
     const awayHoriz = new THREE.Vector3(
       this.position.x - blastPos.x,
       0,
@@ -535,11 +551,22 @@ export class ThirdPersonController {
       Math.cos(this.facingAngle)
     ).normalize();
 
-    const pushDir = awayHoriz.multiplyScalar(0.55).add(lookHoriz.multiplyScalar(0.85)).normalize();
-    const horizBoostSpeed = 18.5 * power;
+    const pushDir = awayHoriz.multiplyScalar(0.35).add(lookHoriz.multiplyScalar(0.95)).normalize();
+    const horizBoostSpeed = 64.0 * power;
 
-    this.blastVelocity.set(pushDir.x * horizBoostSpeed, 0, pushDir.z * horizBoostSpeed);
-    this.blastJumpTimer = 0.72;
+    if (isDoubleSatchel) {
+      this.blastVelocity.x += pushDir.x * horizBoostSpeed * 0.65;
+      this.blastVelocity.z += pushDir.z * horizBoostSpeed * 0.65;
+      const curMag = Math.hypot(this.blastVelocity.x, this.blastVelocity.z);
+      if (curMag > 78.0) {
+        this.blastVelocity.multiplyScalar(78.0 / curMag);
+      }
+    } else {
+      this.blastVelocity.set(pushDir.x * horizBoostSpeed, 0, pushDir.z * horizBoostSpeed);
+    }
+
+    this.blastJumpTimer = 1.55;
+    this.cameraShakeTimer = 0.24;
   }
 
   /**
@@ -2440,9 +2467,10 @@ export class ThirdPersonController {
 
       if (this.rollImpulseTimer > 0) {
         this.rollImpulseTimer = Math.max(0, this.rollImpulseTimer - dt);
-        const rollSpeed = 16.5;
+        const rollSpeed = 33.0;
         this.velocity.x = this.rollDir.x * rollSpeed;
         this.velocity.z = this.rollDir.z * rollSpeed;
+        this.currentSpeed = 27.5;
       } else if (this.rocketPunchTimer > 0) {
         this.rocketPunchTimer = Math.max(0, this.rocketPunchTimer - dt);
         const punchBoost = 24.5;
@@ -2478,22 +2506,32 @@ export class ThirdPersonController {
         }
       } else if (this.blastJumpTimer > 0 && !this.isGrounded) {
         this.blastJumpTimer = Math.max(0, this.blastJumpTimer - dt);
-        // Preserva o impulso aéreo da granada (estilo Satchel da Raze) permitindo controle aéreo com WASD
-        const airSteer = 6.5;
+        // Preserva o super-impulso aéreo da bomba (estilo Satchel da Raze) com alto controle direcional!
+        const airSteer = 18.5;
         this.velocity.x = this.blastVelocity.x + moveInput.x * airSteer;
         this.velocity.z = this.blastVelocity.z + moveInput.z * airSteer;
-        this.blastVelocity.multiplyScalar(Math.max(0.85, 1 - dt * 1.4));
+        this.blastVelocity.multiplyScalar(Math.max(0.92, 1 - dt * 0.55));
+        if (this.destructibles && Math.random() < 0.78) {
+          this.destructibles.spawnCaveiraBlastJumpTrail(this.position);
+        }
       } else {
+        const isCaveira = this.minifigure.currentHeroKey === 'caveira';
+        const heroWalkSpeed = isCaveira ? 13.0 : this.walkSpeed;
+        const heroRunSpeed = isCaveira ? 27.5 : this.runSpeed;
         const stealthMult = this.stealthTimer > 0 ? 1.25 : 1.0;
-        const targetMaxSpeed = (this.keys.sprint ? this.runSpeed : this.walkSpeed) * stealthMult;
+        const targetMaxSpeed = (this.keys.sprint ? heroRunSpeed : heroWalkSpeed) * stealthMult;
         const targetSpeed = hasInput ? targetMaxSpeed : 0;
 
-        const accelRate = hasInput ? 18.0 : 22.0;
+        const accelRate = hasInput ? 20.0 : 22.0;
         this.currentSpeed = THREE.MathUtils.lerp(
           this.currentSpeed,
           targetSpeed,
           Math.min(1, dt * accelRate)
         );
+
+        if (isCaveira && hasInput && this.keys.sprint && this.isGrounded && this.destructibles && Math.random() < 0.35) {
+          this.destructibles.spawnCaveiraBlastJumpTrail(this.position);
+        }
 
         if (hasInput) {
           this.velocity.x = moveInput.x * this.currentSpeed;
@@ -2715,8 +2753,18 @@ export class ThirdPersonController {
    * à esquerda da tela e o centro da mira (#crosshair) fique 100% livre!
    */
   _updateCamera(dt, camRight, isAimingBeam = false) {
-    // FOV dinâmico (aumenta no Voo Supersônico de Cometa do Solaris e no Turbo Nitro [Q] dos Carros!)
-    const desiredFov = (this.isSupersonic || this.isTurboActive) ? 74 : isAimingBeam ? 53 : this.baseFov;
+    // FOV dinâmico (aumenta no Voo Supersônico do Solaris, no Blast Jump / Corrida do Caveira e no Turbo Nitro dos Carros!)
+    const isCaveiraBlast = this.minifigure.currentHeroKey === 'caveira' && this.blastJumpTimer > 0 && !this.isGrounded;
+    const isCaveiraSprint = this.minifigure.currentHeroKey === 'caveira' && this.keys.sprint && this.currentSpeed > 18;
+    const desiredFov = (this.isSupersonic || this.isTurboActive)
+      ? 74
+      : isCaveiraBlast
+        ? 72
+        : isCaveiraSprint
+          ? 65
+          : isAimingBeam
+            ? 53
+            : this.baseFov;
     if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, desiredFov, Math.min(1, dt * 10));
       this.camera.updateProjectionMatrix();

@@ -29,11 +29,11 @@ export const MINIFIG_PRESETS = {
   caveira: {
     key: 'caveira',
     name: 'Comandante Caveira (BOPE)',
-    subtitle: 'Fuzil Tático • Granada • Rolamento',
+    subtitle: 'Fuzil Tático • Carga Explosiva • Rolamento',
     headColor: LEGO_COLORS.yellow,
     torsoColor: LEGO_COLORS.black,
     armColor: LEGO_COLORS.charcoal,
-    handColor: LEGO_COLORS.yellow,
+    handColor: 0x111827,
     hipColor: LEGO_COLORS.black,
     legColor: LEGO_COLORS.charcoal,
     facePreset: 'caveira',
@@ -274,6 +274,7 @@ export class Minifigure {
 
     if (preset.weapon === 'rifle') {
       this._attachTacticalRifle(this.rightHandGroup);
+      this._attachCaveiraBopeRig();
     } else if (preset.weapon === 'solar_orbs') {
       this._attachSolarOrbs(this.leftHandGroup, this.rightHandGroup);
     } else if (preset.weapon === 'tita_rig') {
@@ -355,36 +356,94 @@ export class Minifigure {
 
     if (preset.headgear === 'beret') {
       const beretGroup = new THREE.Group();
-      const beretMat = getLegoMaterial(LEGO_COLORS.black, { roughness: 0.32, clearcoat: 0.3 });
-      const goldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.4, roughness: 0.2 });
+      const beretMat = getLegoMaterial(0x090a0d, { roughness: 0.34, clearcoat: 0.25 });
+      const graphiteMat = getLegoMaterial(0x1e293b, { roughness: 0.28, metalness: 0.4 });
+      const goldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.55, roughness: 0.18 });
+      const skullWhiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.22 });
+      const orangeGlow = getLegoMaterial(0xf97316, { emissive: 0xf97316, emissiveIntensity: 1.8 });
 
-      const beretBase = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.39, 0.37, 0.12, 24),
+      // Aba inferior tática da Boina Preta Oficial do BOPE
+      const beretRim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.395, 0.375, 0.11, 28),
         beretMat
       );
-      beretBase.position.set(0, 0.62, 0);
-      beretGroup.add(beretBase);
+      beretRim.position.set(0, 0.61, 0);
+      beretGroup.add(beretRim);
 
+      // Fita dourada/preta de comando na base da boina
+      const beretTrim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.398, 0.398, 0.026, 28),
+        goldMat
+      );
+      beretTrim.position.set(0, 0.57, 0);
+      beretGroup.add(beretTrim);
+
+      // Topo volumoso inclinado lateralmente da Boina Militar BOPE
       const beretTop = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.36, 0.40, 0.12, 24),
+        new THREE.CylinderGeometry(0.39, 0.42, 0.14, 28),
         beretMat
       );
-      beretTop.position.set(-0.04, 0.69, 0.02);
-      beretTop.rotation.z = 0.14;
+      beretTop.position.set(-0.055, 0.69, 0.02);
+      beretTop.rotation.z = 0.19;
       beretTop.castShadow = true;
       beretGroup.add(beretTop);
 
-      const beretStud = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.15, 0.15, 0.09, 20),
+      const beretFlap = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.09, 0.48),
         beretMat
       );
-      beretStud.position.set(-0.04, 0.77, 0.02);
+      beretFlap.position.set(-0.24, 0.65, 0.02);
+      beretFlap.rotation.z = 0.42;
+      beretGroup.add(beretFlap);
+
+      const beretStud = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.15, 0.08, 20),
+        beretMat
+      );
+      beretStud.position.set(-0.05, 0.77, 0.02);
       beretGroup.add(beretStud);
 
-      const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 16), goldMat);
-      badge.rotation.x = Math.PI / 2;
-      badge.position.set(0.1, 0.66, 0.38);
-      beretGroup.add(badge);
+      // Insígnia 3D da Faca na Caveira na frente da Boina (Escudo Dourado + Mini Crânio + Facas Cruzadas)
+      const badgeGroup = new THREE.Group();
+      badgeGroup.position.set(0.11, 0.66, 0.385);
+      const badgeShield = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.03, 18), goldMat);
+      badgeShield.rotation.x = Math.PI / 2;
+      const miniSkull = new THREE.Mesh(new THREE.SphereGeometry(0.042, 12, 12), skullWhiteMat);
+      miniSkull.position.set(0, 0.01, 0.018);
+      const miniJaw = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.028, 0.026), skullWhiteMat);
+      miniJaw.position.set(0, -0.022, 0.018);
+      for (const s of [-1, 1]) {
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.14, 0.016), goldMat);
+        blade.rotation.z = s * 0.65;
+        blade.position.set(0, 0, 0.01);
+        badgeGroup.add(blade);
+      }
+      badgeGroup.add(badgeShield, miniSkull, miniJaw);
+      beretGroup.add(badgeGroup);
+
+      // Headset Tático Militar 3D (ComTac Ear Defenders) nas laterais da cabeça + Microfone Boom 3D
+      for (const side of [-1, 1]) {
+        const earCup = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.24, 0.22), graphiteMat);
+        earCup.position.set(side * 0.37, 0.34, 0);
+        earCup.castShadow = true;
+        const earCushion = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.26, 0.24), beretMat);
+        earCushion.position.set(side * 0.33, 0.34, 0);
+        const earBracket = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.05), goldMat);
+        earBracket.position.set(side * 0.39, 0.48, 0);
+        beretGroup.add(earCup, earCushion, earBracket);
+      }
+
+      // Antena curta no abafador esquerdo + Haste de Microfone curvando até a boca
+      const comAntenna = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.26, 8), beretMat);
+      comAntenna.position.set(0.4, 0.56, -0.06);
+      beretGroup.add(comAntenna);
+
+      const micBoom = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.34), beretMat);
+      micBoom.position.set(0.28, 0.21, 0.22);
+      micBoom.rotation.y = -0.52;
+      const micTip = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 10), orangeGlow);
+      micTip.position.set(0.16, 0.21, 0.37);
+      beretGroup.add(micBoom, micTip);
 
       this.headGroup.add(beretGroup);
     } else if (preset.headgear === 'visor_crown') {
@@ -465,6 +524,247 @@ export class Minifigure {
       const ninjaCrest = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.12), redMat);
       ninjaCrest.position.set(0, 0.55, 0.36);
       this.headGroup.add(ninjaCrest);
+    }
+  }
+
+  /**
+   * Equipa a Armadura e Equipamento Tático 3D Completo do Comandante Caveira (BOPE — OP-01):
+   * - FRENTE: Colete Balístico 3D (Plate Carrier), Emblema 3D Faca na Caveira, 3 Porta-Carregadores, 2 Granadas/Cargas e Rádio Militar com Antena;
+   * - COSTAS: Mochila Tática Militar 3D (BOPE Assault Pack), Tubo C4 de Demolição e Faca de Combate Tática embainhada na diagonal;
+   * - OMBROS & BRAÇOS: Ombreiras Blindadas Chanfradas 3D com friso dourado, Cotoveleiras e Relógio/Detonador Tático GPS no pulso;
+   * - CINTO & PERNAS: Cinto de Utilidades 3D, Coldre de Coxa com Pistola 3D, Bolsa de Explosivos, Joelheiras Blindadas e Coturnos Pesados.
+   */
+  _attachCaveiraBopeRig() {
+    const matteBlack = getLegoMaterial(0x090a0d, { roughness: 0.35, clearcoat: 0.2 });
+    const tacticalGraphite = getLegoMaterial(0x1e293b, { roughness: 0.28, metalness: 0.4 });
+    const darkSteel = getLegoMaterial(0x334155, { roughness: 0.25, metalness: 0.55 });
+    const goldMat = getLegoMaterial(LEGO_COLORS.gold, { roughness: 0.18, metalness: 0.65 });
+    const skullWhite = getLegoMaterial(0xf8fafc, { roughness: 0.22 });
+    const oliveDrab = getLegoMaterial(0x365314, { roughness: 0.35 });
+    const orangeLed = getLegoMaterial(0xf97316, { emissive: 0xf97316, emissiveIntensity: 2.0 });
+    const redLed = getLegoMaterial(0xef4444, { emissive: 0xef4444, emissiveIntensity: 1.8 });
+
+    // =========================================================================
+    // 1. FRENTE — COLETE BALÍSTICO PESADO 3D (PLATE CARRIER) + EMBLEMA BOPE 3D
+    // =========================================================================
+    const frontVest = new THREE.Group();
+
+    const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.56, 0.08), matteBlack);
+    chestPlate.position.set(0, 0.39, 0.23);
+    chestPlate.castShadow = true;
+    frontVest.add(chestPlate);
+
+    const upperTrim = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.045, 0.09), goldMat);
+    upperTrim.position.set(0, 0.62, 0.235);
+    frontVest.add(upperTrim);
+
+    // Tiras de ombro 3D conectando frente e costas do colete
+    for (const sx of [-0.25, 0.25]) {
+      const strapTop = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.52), matteBlack);
+      strapTop.position.set(sx, 0.76, 0);
+      const strapBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.08), goldMat);
+      strapBuckle.position.set(sx, 0.69, 0.24);
+      frontVest.add(strapTop, strapBuckle);
+    }
+
+    // Emblema 3D da Caveira com Facas Cruzadas em alto-relevo no centro do peito
+    const chestEmblem = new THREE.Group();
+    chestEmblem.position.set(0, 0.47, 0.278);
+    for (const s of [-1, 1]) {
+      const crossedKnife = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.26, 0.015), goldMat);
+      crossedKnife.rotation.z = s * 0.68;
+      chestEmblem.add(crossedKnife);
+    }
+    const skullCranium = new THREE.Mesh(new THREE.SphereGeometry(0.072, 14, 14), skullWhite);
+    skullCranium.scale.set(1.0, 1.05, 0.6);
+    skullCranium.position.set(0, 0.02, 0.01);
+    const skullJaw = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.06, 0.05), skullWhite);
+    skullJaw.position.set(0, -0.045, 0.01);
+    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.022, 0.03), matteBlack);
+    eyeL.position.set(-0.024, 0.022, 0.045);
+    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.022, 0.03), matteBlack);
+    eyeR.position.set(0.024, 0.022, 0.045);
+    chestEmblem.add(skullCranium, skullJaw, eyeL, eyeR);
+    frontVest.add(chestEmblem);
+
+    // 3 Porta-Carregadores 3D de Fuzil (Mag Pouches) na parte inferior do colete
+    for (const mx of [-0.21, 0, 0.21]) {
+      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.21, 0.09), tacticalGraphite);
+      pouch.position.set(mx, 0.22, 0.265);
+      pouch.castShadow = true;
+      const pouchFlap = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.06, 0.1), matteBlack);
+      pouchFlap.position.set(mx, 0.29, 0.268);
+      const magTip = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.04, 0.06), goldMat);
+      magTip.position.set(mx, 0.33, 0.265);
+      frontVest.add(pouch, pouchFlap, magTip);
+    }
+
+    // 2 Cargas Explosivas / Granadas Táticas 3D (com LED laranja) no peito direito
+    for (const [gx, gy] of [[-0.24, 0.52], [-0.13, 0.52]]) {
+      const nadeBody = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.12, 12), oliveDrab);
+      nadeBody.position.set(gx, gy, 0.275);
+      const nadeRing = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.025, 12), goldMat);
+      nadeRing.position.set(gx, gy, 0.275);
+      const nadeLed = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.03, 10), orangeLed);
+      nadeLed.position.set(gx, gy + 0.07, 0.275);
+      frontVest.add(nadeBody, nadeRing, nadeLed);
+    }
+
+    // Rádio Militar Tático 3D no ombro esquerdo com Antena Longa subindo atrás da cabeça
+    const radioBox = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.08), tacticalGraphite);
+    radioBox.position.set(0.24, 0.54, 0.265);
+    const radioLed = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), redLed);
+    radioLed.position.set(0.21, 0.6, 0.31);
+    const radioAntenna = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.56, 8), matteBlack);
+    radioAntenna.position.set(0.27, 0.88, -0.12);
+    frontVest.add(radioBox, radioLed, radioAntenna);
+
+    this.upperBodyGroup.add(frontVest);
+
+    // =========================================================================
+    // 2. COSTAS — MOCHILA DE ASSALTO TÁTICA 3D + C4 + FACA DE COMBATE DORSAL
+    // =========================================================================
+    const backPackGroup = new THREE.Group();
+    backPackGroup.position.set(0, 0.41, -0.29);
+
+    // Corpo principal da Mochila Militar 3D (BOPE Assault Pack)
+    const packMain = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.56, 0.22), matteBlack);
+    packMain.castShadow = true;
+    backPackGroup.add(packMain);
+
+    // Bolsos modulares superiores e inferiores em grafite blindado
+    const upperPocket = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.2, 0.08), tacticalGraphite);
+    upperPocket.position.set(0, 0.14, -0.13);
+    const lowerPocket = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.22, 0.09), tacticalGraphite);
+    lowerPocket.position.set(0, -0.12, -0.135);
+    const goldPatch = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.06, 0.02), goldMat);
+    goldPatch.position.set(0, 0.18, -0.175);
+    backPackGroup.add(upperPocket, lowerPocket, goldPatch);
+
+    // Pinos LEGO (Studs) táticos na mochila
+    for (const sx of [-0.16, 0.16]) {
+      const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 12), darkSteel);
+      stud.rotation.x = Math.PI / 2;
+      stud.position.set(sx, -0.12, -0.19);
+      backPackGroup.add(stud);
+    }
+
+    // Rolo / Tubo de Demolição C4 preso embaixo da mochila com luz laranja de carga
+    const breachTube = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.64, 16), tacticalGraphite);
+    breachTube.rotation.z = Math.PI / 2;
+    breachTube.position.set(0, -0.32, -0.04);
+    for (const sx of [-0.22, 0.22]) {
+      const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.092, 0.045, 16), goldMat);
+      strap.rotation.z = Math.PI / 2;
+      strap.position.set(sx, -0.32, -0.04);
+      backPackGroup.add(strap);
+    }
+    const c4ChargeLight = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), orangeLed);
+    c4ChargeLight.position.set(0, -0.32, -0.13);
+    backPackGroup.add(breachTube, c4ChargeLight);
+
+    // Faca de Combate Tática 3D (Faca na Caveira) embainhada na diagonal nas costas
+    const knifeGroup = new THREE.Group();
+    knifeGroup.position.set(-0.18, 0.18, -0.16);
+    knifeGroup.rotation.z = -0.58;
+    const scabbard = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.045), matteBlack);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.03, 0.055), goldMat);
+    guard.position.set(0, 0.22, 0);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.18, 10), matteBlack);
+    grip.position.set(0, 0.31, 0);
+    const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), goldMat);
+    pommel.position.set(0, 0.41, 0);
+    knifeGroup.add(scabbard, guard, grip, pommel);
+    backPackGroup.add(knifeGroup);
+
+    this.upperBodyGroup.add(backPackGroup);
+
+    // =========================================================================
+    // 3. OMBROS & BRAÇOS — OMBREIRAS BLINDADAS 3D, COTOVELEIRAS & DETONADOR GPS
+    // =========================================================================
+    for (const [armPivot, sign] of [[this.leftArmPivot, 1], [this.rightArmPivot, -1]]) {
+      const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.26, 0.36), matteBlack);
+      pauldron.position.set(sign * 0.06, -0.04, 0);
+      pauldron.rotation.z = -sign * 0.12;
+      pauldron.castShadow = true;
+
+      const goldStripe = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.045, 0.37), goldMat);
+      goldStripe.position.set(sign * 0.06, 0.04, 0);
+      goldStripe.rotation.z = -sign * 0.12;
+
+      const patchPlate = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.18), darkSteel);
+      patchPlate.position.set(sign * 0.19, -0.05, 0);
+      armPivot.add(pauldron, goldStripe, patchPlate);
+    }
+
+    for (const [handGrp, isLeft] of [[this.leftHandGroup, true], [this.rightHandGroup, false]]) {
+      // Braçadeira / Cotoveleira Tática 3D no antebraço
+      const vambrace = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.16, 0.26), matteBlack);
+      vambrace.position.set(0, -0.11, 0);
+      handGrp.add(vambrace);
+
+      if (isLeft) {
+        // Detonador Tático / Relógio GPS Militar com tela luminosa laranja no pulso esquerdo!
+        const wristPad = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.1, 0.27), tacticalGraphite);
+        wristPad.position.set(0, -0.2, 0);
+        const wristScreen = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.14), orangeLed);
+        wristScreen.position.set(0.11, -0.2, 0.02);
+        handGrp.add(wristPad, wristScreen);
+      }
+    }
+
+    // =========================================================================
+    // 4. CINTO TÁTICO 3D, COLDRE DE COXA COM PISTOLA, JOELHEIRAS E COTURNOS
+    // =========================================================================
+    const beltGroup = new THREE.Group();
+    const beltBand = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.12, 0.48), matteBlack);
+    beltBand.position.set(0, 0.08, 0);
+    const beltBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.11, 0.06), goldMat);
+    beltBuckle.position.set(0, 0.08, 0.245);
+    beltGroup.add(beltBand, beltBuckle);
+
+    for (const bx of [-0.36, 0.36]) {
+      const sidePouch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.18), tacticalGraphite);
+      sidePouch.position.set(bx, 0.07, 0.08);
+      beltGroup.add(sidePouch);
+    }
+    this.hipGroup.add(beltGroup);
+
+    // Perna Direita: Coldre Tático de Coxa 3D (Drop-Leg Holster) + Pistola 3D + Joelheira + Coturno
+    const holsterStrap = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.06, 0.4), matteBlack);
+    holsterStrap.position.set(0, -0.22, 0);
+    const holsterBox = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.16), tacticalGraphite);
+    holsterBox.position.set(-0.2, -0.22, 0.04);
+    const pistolGrip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.12), matteBlack);
+    pistolGrip.position.set(-0.2, -0.1, 0.02);
+    pistolGrip.rotation.x = -0.25;
+    const pistolSlide = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.08, 0.18), darkSteel);
+    pistolSlide.position.set(-0.2, -0.14, 0.06);
+    this.rightLegPivot.add(holsterStrap, holsterBox, pistolGrip, pistolSlide);
+
+    // Perna Esquerda: Bolsa Tática de Explosivos / Sub-Carga na Coxa
+    const leftThighStrap = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.06, 0.4), matteBlack);
+    leftThighStrap.position.set(0, -0.22, 0);
+    const leftThighPouch = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.2), tacticalGraphite);
+    leftThighPouch.position.set(0.2, -0.22, 0.02);
+    const pouchBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.04, 0.08), goldMat);
+    pouchBuckle.position.set(0.2, -0.18, 0.02);
+    this.leftLegPivot.add(leftThighStrap, leftThighPouch, pouchBuckle);
+
+    // Joelheiras Táticas Blindadas 3D + Coturnos Pesados do BOPE nas duas pernas
+    for (const legPivot of [this.leftLegPivot, this.rightLegPivot]) {
+      const kneePad = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.18, 0.12), matteBlack);
+      kneePad.position.set(0, -0.39, 0.18);
+      const kneeCap = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, 0.06), darkSteel);
+      kneeCap.position.set(0, -0.39, 0.23);
+
+      const bootCuff = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.16, 0.41), matteBlack);
+      bootCuff.position.set(0, -0.54, 0.01);
+      const bootSole = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.18, 0.55), matteBlack);
+      bootSole.position.set(0, -0.64, 0.07);
+      const bootBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.035, 0.42), goldMat);
+      bootBuckle.position.set(0, -0.49, 0.01);
+      legPivot.add(kneePad, kneeCap, bootCuff, bootSole, bootBuckle);
     }
   }
 
@@ -736,57 +1036,98 @@ export class Minifigure {
   }
 
   /**
-   * Constrói o Fuzil Tático 3D do Comandante Caveira (BOPE) na mão direita
+   * Constrói o Fuzil de Assalto Pesado do BOPE (IA2 / PARA-FAL / M4 Tático Preto Fosco e Grafite)
+   * com Mira Holográfica Vermelha, Módulo Laser PEQ, Lança-Granadas Sub-Cano (M203) e Supressor Tático
    */
   _attachTacticalRifle(handGroup) {
     const rifle = new THREE.Group();
-    const gunMetal = getLegoMaterial(0x1e293b, { roughness: 0.28, metalness: 0.35 });
-    const darkBlack = getLegoMaterial(LEGO_COLORS.black, { roughness: 0.35 });
-    const goldAccent = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.5, roughness: 0.2 });
+    const matteBlack = getLegoMaterial(0x090a0d, { roughness: 0.34, clearcoat: 0.2 });
+    const gunMetal = getLegoMaterial(0x1f2937, { roughness: 0.25, metalness: 0.55 });
+    const steelMat = getLegoMaterial(0x475569, { roughness: 0.22, metalness: 0.65 });
+    const goldAccent = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.6, roughness: 0.18 });
+    const redLaserMat = getLegoMaterial(0xef4444, { emissive: 0xef4444, emissiveIntensity: 2.2 });
 
-    // Corpo receptor do fuzil
-    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.58), gunMetal);
-    receiver.position.set(0, 0, 0.22);
+    // 1. Corpo receptor pesado (Upper & Lower Receiver) em preto fosco e aço grafite
+    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.2, 0.62), matteBlack);
+    receiver.position.set(0, 0.01, 0.22);
     receiver.castShadow = true;
     rifle.add(receiver);
 
-    // Cano longo com quebra-chamas
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.52, 12), darkBlack);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.03, 0.62);
-    rifle.add(barrel);
+    const upperRail = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.88), gunMetal);
+    upperRail.position.set(0, 0.12, 0.36);
+    rifle.add(upperRail);
 
-    // Guarda-mão tático com trilho
-    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.34), darkBlack);
-    handguard.position.set(0, 0.02, 0.58);
+    const bopeTrim = new THREE.Mesh(new THREE.BoxGeometry(0.136, 0.03, 0.36), goldAccent);
+    bopeTrim.position.set(0, 0.05, 0.18);
+    rifle.add(bopeTrim);
+
+    // 2. Guarda-mão longo ventilado com trilhos Picatinny
+    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.14, 0.44), gunMetal);
+    handguard.position.set(0, 0.03, 0.64);
+    handguard.castShadow = true;
     rifle.add(handguard);
 
-    // Carregador curvo (Magazine)
-    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.12), darkBlack);
-    mag.position.set(0, -0.17, 0.32);
-    mag.rotation.x = 0.22;
-    rifle.add(mag);
+    // 3. Cano pesado de aço + Supressor/Quebra-Chamas Tático na ponta
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.62, 12), steelMat);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.04, 0.78);
+    const suppressor = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.26, 14), matteBlack);
+    suppressor.rotation.x = Math.PI / 2;
+    suppressor.position.set(0, 0.04, 1.04);
+    const muzzleRing = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 14), goldAccent);
+    muzzleRing.rotation.x = Math.PI / 2;
+    muzzleRing.position.set(0, 0.04, 0.94);
+    rifle.add(barrel, suppressor, muzzleRing);
 
-    // Coronha traseira
-    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.26), darkBlack);
-    stock.position.set(0, -0.02, -0.14);
-    rifle.add(stock);
+    // 4. Lança-Granadas Tático acoplado sob o cano (Underbarrel M203 — dispara as bombas de impulso!)
+    const glTube = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.38, 12), matteBlack);
+    glTube.rotation.x = Math.PI / 2;
+    glTube.position.set(0, -0.075, 0.66);
+    const glGrip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.26), gunMetal);
+    glGrip.position.set(0, -0.075, 0.64);
+    const glMuzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.04, 12), goldAccent);
+    glMuzzle.rotation.x = Math.PI / 2;
+    glMuzzle.position.set(0, -0.075, 0.85);
+    rifle.add(glTube, glGrip, glMuzzle);
 
-    // Mira Holográfica superior + detalhe dourado BOPE
-    const scope = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.18), goldAccent);
-    scope.position.set(0, 0.13, 0.24);
-    rifle.add(scope);
+    // 5. Carregador curvo estendido de 40 tiros com base dourada
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.32, 0.13), matteBlack);
+    mag.position.set(0, -0.2, 0.33);
+    mag.rotation.x = 0.24;
+    const magBase = new THREE.Mesh(new THREE.BoxGeometry(0.092, 0.045, 0.14), goldAccent);
+    magBase.position.set(0, -0.35, 0.37);
+    magBase.rotation.x = 0.24;
+    rifle.add(mag, magBase);
 
-    // Clarão de disparo (Muzzle Flash) na ponta do cano
+    // 6. Coronha Tática Retrátil (SOPMOD Stock)
+    const stockTube = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.28, 10), gunMetal);
+    stockTube.rotation.x = Math.PI / 2;
+    stockTube.position.set(0, 0.02, -0.14);
+    const stockPad = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.22, 0.14), matteBlack);
+    stockPad.position.set(0, -0.02, -0.24);
+    rifle.add(stockTube, stockPad);
+
+    // 7. Mira Holográfica EOTech Vazada com Lente Vermelha Emissiva + Laser Lateral PEQ-15
+    const holoFrame = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.11, 0.18), matteBlack);
+    holoFrame.position.set(0, 0.18, 0.24);
+    const holoLens = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.03), redLaserMat);
+    holoLens.position.set(0, 0.19, 0.28);
+    const peqBox = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 0.16), matteBlack);
+    peqBox.position.set(-0.07, 0.06, 0.72);
+    const peqLaser = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), redLaserMat);
+    peqLaser.position.set(-0.07, 0.06, 0.81);
+    rifle.add(holoFrame, holoLens, peqBox, peqLaser);
+
+    // 8. Clarão de disparo (Muzzle Flash) na ponta do supressor
     const flashMat = getLegoMaterial(0xfef08a, {
       emissive: 0xfacc15,
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 2.4,
       transparent: true,
-      opacity: 0.9
+      opacity: 0.92
     });
-    this.muzzleFlashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), flashMat);
-    this.muzzleFlashMesh.scale.set(0.8, 0.8, 2.2);
-    this.muzzleFlashMesh.position.set(0, 0.03, 0.96);
+    this.muzzleFlashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 10), flashMat);
+    this.muzzleFlashMesh.scale.set(0.85, 0.85, 2.4);
+    this.muzzleFlashMesh.position.set(0, 0.04, 1.24);
     this.muzzleFlashMesh.visible = false;
     rifle.add(this.muzzleFlashMesh);
 

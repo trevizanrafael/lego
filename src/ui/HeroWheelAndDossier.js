@@ -161,22 +161,83 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   ctx.stroke();
 
   if (presetKey === 'caveira') {
-    ctx.fillStyle = '#171717';
+    // Boina Preta Oficial do BOPE inclinada + Insígnia Faca na Caveira Dourada
+    ctx.fillStyle = '#090a0d';
     ctx.beginPath();
-    ctx.ellipse(76 * 0.48, 17, 22, 7, -0.1, 0, Math.PI * 2);
+    ctx.ellipse(76 * 0.46, 16, 24, 7.5, -0.14, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.26, 27, 15, 9);
-    ctx.fillRect(76 * 0.53, 27, 15, 9);
-    ctx.fillRect(76 * 0.41, 29, 12, 3);
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.arc(76 * 0.58, 15.5, 3.2, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.strokeStyle = '#090a0d';
+    // Abafadores Laterais 2D (Headset ComTac BOPE)
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(76 * 0.16, 26, 5, 16);
+    ctx.fillRect(76 * 0.78, 26, 5, 16);
+
+    // Cicatriz de combate no olho esquerdo + Pintura de Guerra nas bochechas
+    ctx.strokeStyle = '#991b1b';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 43, 8, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.moveTo(76 * 0.34, 21);
+    ctx.lineTo(76 * 0.36, 44);
     ctx.stroke();
+
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(76 * 0.25, 36, 9, 3);
+    ctx.fillRect(76 * 0.63, 36, 9, 3);
+
+    // Óculos Táticos Balísticos Angulares com reflexo Fogo/Ouro
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.24, 26);
+    ctx.lineTo(76 * 0.47, 28);
+    ctx.lineTo(76 * 0.45, 35);
+    ctx.lineTo(76 * 0.26, 34);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.76, 26);
+    ctx.lineTo(76 * 0.53, 28);
+    ctx.lineTo(76 * 0.55, 35);
+    ctx.lineTo(76 * 0.74, 34);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(76 * 0.28, 28, 8, 3);
+    ctx.fillRect(76 * 0.58, 28, 8, 3);
+
+    // Sobrancelhas grossas franzidas em V (Cara de Mau)
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.24, 23);
+    ctx.lineTo(76 * 0.47, 27);
+    ctx.moveTo(76 * 0.76, 23);
+    ctx.lineTo(76 * 0.53, 27);
+    ctx.stroke();
+
+    // Barba Cerrada / Cavanhaque + Dentes Trincados (Sem sorriso feliz!)
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(76 * 0.31, 39, 76 * 0.38, 12);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(76 * 0.36, 42, 76 * 0.28, 4.5);
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(76 * 0.36, 42, 76 * 0.28, 4.5);
+
+    // Emblema da Caveira do BOPE + Placa do Colete no peito
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(76 * 0.25, 56, 76 * 0.5, 2.5);
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 65, 4.5, 0, Math.PI * 2);
+    ctx.fill();
   } else if (presetKey === 'solaris') {
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(76 * 0.21, 16, 76 * 0.58, 7);

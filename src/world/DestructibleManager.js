@@ -806,33 +806,34 @@ export class DestructibleManager {
   }
 
   /**
-   * Arremessa Granada Explosiva / Impulso Tático (Estilo Raze) do Comandante Caveira:
-   * Vai na direção exata da mira e explode IMEDIATAMENTE ao tocar qualquer colisão (chão, parede, calçada ou objeto)!
+   * Arremessa Granada Explosiva / Carga de Impulso Tático (Estilo Satchel da Raze) do Comandante Caveira:
+   * Vai na direção exata da mira, suporta detonação manual imediata no ar [Mouse 2] e explode ao tocar qualquer superfície!
    */
-  throwGrenade(origin, targetPoint, worldColliders = [], onExplode = null) {
+  throwGrenade(origin, targetPoint, worldColliders = [], onExplode = null, getTerrainHeightAt = null) {
     soundFX.playPunchSwing();
 
     const nadeGroup = new THREE.Group();
-    const bodyMat = getLegoMaterial(LEGO_COLORS.darkGreen, { roughness: 0.3 });
+    const bodyMat = getLegoMaterial(0x1e293b, { roughness: 0.28, metalness: 0.45 });
+    const strapMat = getLegoMaterial(LEGO_COLORS.gold, { roughness: 0.2, metalness: 0.6 });
     const topLedMat = getLegoMaterial(LEGO_COLORS.orange, {
       emissive: 0xf97316,
-      emissiveIntensity: 2.0
+      emissiveIntensity: 2.4
     });
 
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.36, 14), bodyMat);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.22, 0.44), bodyMat);
     body.castShadow = true;
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.24, 0.12), strapMat);
     const topStud = new THREE.Mesh(SHARED_STUD_GEO, topLedMat);
-    topStud.position.y = 0.18;
-    nadeGroup.add(body, topStud);
+    topStud.position.y = 0.14;
+    nadeGroup.add(body, strap, topStud);
 
     nadeGroup.position.copy(origin);
     this.scene.add(nadeGroup);
 
     const dir = targetPoint.clone().sub(origin).normalize();
     const dist = origin.distanceTo(targetPoint);
-    const speed = 34.0;
+    const speed = 36.0;
     const vel = dir.multiplyScalar(speed);
-    // Leve compensação parabólica apenas para arremessos longos
     if (dist > 6.0 && dir.y > -0.25) {
       vel.y += Math.min(4.5, dist * 0.14);
     }
@@ -842,8 +843,59 @@ export class DestructibleManager {
       vel,
       worldColliders,
       onExplode,
+      getTerrainHeightAt,
+      age: 0,
       timer: 1.5
     });
+  }
+
+  /**
+   * Detona manualmente no ar a Carga Explosiva (Satchel) mais recente do Comandante Caveira ao apertar Mouse 2 novamente!
+   */
+  detonateActiveCaveiraGrenade() {
+    if (!this.grenades || this.grenades.length === 0) return false;
+    const g = this.grenades.pop();
+    const blastPos = g.mesh.position.clone();
+    this._triggerExplosion(blastPos, 8.2, 85, true, false);
+    if (typeof g.onExplode === 'function') {
+      g.onExplode(blastPos);
+    }
+    this.scene.remove(g.mesh);
+    return true;
+  }
+
+  /**
+   * Gera rastro de fumaça cinza-escura + faíscas laranjas/douradas nas botas do Caveira durante o Blast Jump!
+   */
+  spawnCaveiraBlastJumpTrail(pos) {
+    const colors = [0x1e293b, 0x334155, 0xf97316, 0xfacc15];
+    for (let i = 0; i < 2; i++) {
+      const c = colors[Math.floor(Math.random() * colors.length)];
+      const mat = new THREE.MeshBasicMaterial({
+        color: c,
+        transparent: true,
+        opacity: 0.9
+      });
+      const mesh = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
+      mesh.position.set(
+        pos.x + (Math.random() - 0.5) * 0.55,
+        pos.y + 0.18 + Math.random() * 0.35,
+        pos.z + (Math.random() - 0.5) * 0.55
+      );
+      mesh.scale.setScalar(1.15);
+      this.scene.add(mesh);
+
+      this.fxParticles.push({
+        mesh,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 2.6,
+          0.8 + Math.random() * 2.2,
+          (Math.random() - 0.5) * 2.6
+        ),
+        life: 0.34,
+        maxLife: 0.34
+      });
+    }
   }
 
   /**
@@ -1402,6 +1454,7 @@ export class DestructibleManager {
     // 3. Granadas Explosivas / Impulso do Comandante Caveira (Detonação imediata em qualquer colisão!)
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i];
+      g.age = (g.age || 0) + dt;
       g.timer -= dt;
       g.vel.y -= 18.0 * dt;
       g.mesh.position.addScaledVector(g.vel, dt);
@@ -1411,13 +1464,14 @@ export class DestructibleManager {
       const gx = g.mesh.position.x;
       const gy = g.mesh.position.y;
       const gz = g.mesh.position.z;
-      const r = 0.2;
+      const r = 0.22;
 
       let hitCollision = false;
 
-      // A) Tocou no asfalto
-      if (gy <= 0.18) {
-        g.mesh.position.y = 0.18;
+      // A) Tocou no terreno real (funciona em ruas planas, morros da CDD e pontes!)
+      const groundY = typeof g.getTerrainHeightAt === 'function' ? g.getTerrainHeightAt(gx, gz) : 0;
+      if (gy <= groundY + 0.22) {
+        g.mesh.position.y = groundY + 0.22;
         hitCollision = true;
       }
 
