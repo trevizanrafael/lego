@@ -556,35 +556,75 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     ctx.arc(76 * 0.5, 65, 4.5, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'turbo') {
-    // Coroa de Chamas Ciano + Caveira Incandescente + Jaqueta com Correntes
-    ctx.fillStyle = '#22d3ee';
+    // Crânio 3D Osso Fantasma (#e2e8f0) + Chamas de Motoqueiro Fantasma em 3 Camadas (Azul-Elétrico / Ciano / Branco) + Costelas e Reator!
+    ctx.fillStyle = '#0284c7';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.2, 19);
-    ctx.lineTo(76 * 0.26, 4);
-    ctx.lineTo(76 * 0.38, 14);
-    ctx.lineTo(76 * 0.5, 2);
-    ctx.lineTo(76 * 0.62, 14);
-    ctx.lineTo(76 * 0.74, 4);
-    ctx.lineTo(76 * 0.8, 19);
+    ctx.moveTo(76 * 0.14, 22);
+    ctx.lineTo(76 * 0.2, 4);
+    ctx.lineTo(76 * 0.34, 13);
+    ctx.lineTo(76 * 0.5, 1);
+    ctx.lineTo(76 * 0.66, 13);
+    ctx.lineTo(76 * 0.8, 4);
+    ctx.lineTo(76 * 0.86, 22);
     ctx.closePath();
     ctx.fill();
 
-    // Órbitas da caveira e chamas ciano nos olhos
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.27, 26, 13, 9);
-    ctx.fillRect(76 * 0.55, 26, 13, 9);
-    ctx.fillStyle = '#22d3ee';
-    ctx.fillRect(76 * 0.3, 28, 7, 5);
-    ctx.fillRect(76 * 0.58, 28, 7, 5);
+    ctx.fillStyle = '#00f5d4';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.2, 21);
+    ctx.lineTo(76 * 0.28, 7);
+    ctx.lineTo(76 * 0.4, 15);
+    ctx.lineTo(76 * 0.5, 4);
+    ctx.lineTo(76 * 0.6, 15);
+    ctx.lineTo(76 * 0.72, 7);
+    ctx.lineTo(76 * 0.8, 21);
+    ctx.closePath();
+    ctx.fill();
 
-    // Dentes da caveira e reator ciano no peito
+    // Crânio Osso Fantasma esculpido sobre a cabeça
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(76 * 0.23, 18, 76 * 0.54, 33);
+
+    // Órbitas negras angulares + Chamas Ciano/Brancas nos olhos + Cavidade Nasal
     ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.32, 41, 76 * 0.36, 9);
-    ctx.fillStyle = '#e0f2fe';
-    for (let tx = 76 * 0.35; tx <= 76 * 0.62; tx += 6) {
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.25, 24);
+    ctx.lineTo(76 * 0.45, 28);
+    ctx.lineTo(76 * 0.43, 35);
+    ctx.lineTo(76 * 0.26, 33);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.75, 24);
+    ctx.lineTo(76 * 0.55, 28);
+    ctx.lineTo(76 * 0.57, 35);
+    ctx.lineTo(76 * 0.74, 33);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#00f5d4';
+    ctx.fillRect(76 * 0.29, 28, 8, 4.5);
+    ctx.fillRect(76 * 0.59, 28, 8, 4.5);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(76 * 0.31, 29, 4, 2.5);
+    ctx.fillRect(76 * 0.61, 29, 4, 2.5);
+
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.5, 33);
+    ctx.lineTo(76 * 0.45, 39);
+    ctx.lineTo(76 * 0.55, 39);
+    ctx.closePath();
+    ctx.fill();
+
+    // Maxilar de Caveira com Dentes e Plasma Ciano + Jaqueta de Couro com Reator e Costelas Cromadas
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.29, 41, 76 * 0.42, 9);
+    ctx.fillStyle = '#f8fafc';
+    for (let tx = 76 * 0.31; tx <= 76 * 0.65; tx += 5.5) {
       ctx.fillRect(tx, 42, 3.5, 7);
     }
-    ctx.fillStyle = '#22d3ee';
+    ctx.fillStyle = '#00f5d4';
     ctx.beginPath();
     ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
     ctx.fill();

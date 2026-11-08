@@ -728,73 +728,155 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     }
   } else if (preset === 'turbo') {
     // =========================================================================
-    // ROSTO CYBER-GHOST RIDER DO TURBO FANTASMA (512x256, centro cx=256)
+    // CRÂNIO 360° DO MOTOQUEIRO FANTASMA CYBER-PLASMA (512x256, centro cx=256)
+    // Caveira sinistra em Osso Fantasma (#e2e8f0), rachaduras de plasma ciano, órbitas profundas ardendo e dentes metálicos agressivos!
     // =========================================================================
-    ctx.fillStyle = '#090a0d';
+    ctx.fillStyle = '#e2e8f0';
     ctx.fillRect(0, 0, 512, 256);
 
-    // Halo de chamas de plasma ciano no topo e têmporas
-    const plasmaGrad = ctx.createRadialGradient(cx, 110, 18, cx, 110, 138);
-    plasmaGrad.addColorStop(0, 'rgba(34, 211, 238, 0.42)');
-    plasmaGrad.addColorStop(0.6, 'rgba(6, 182, 212, 0.18)');
-    plasmaGrad.addColorStop(1, 'rgba(9, 10, 13, 0)');
-    ctx.fillStyle = plasmaGrad;
-    ctx.fillRect(cx - 140, 0, 280, 256);
+    // Sombreamento anatômico 360° nas têmporas, nuca e cavidades laterais do crânio
+    const templeLeft = ctx.createLinearGradient(0, 0, cx - 70, 0);
+    templeLeft.addColorStop(0, '#334155');
+    templeLeft.addColorStop(0.65, '#94a3b8');
+    templeLeft.addColorStop(1, 'rgba(226, 232, 240, 0)');
+    ctx.fillStyle = templeLeft;
+    ctx.fillRect(0, 0, cx - 60, 256);
 
-    // Crânio Metálico Cromado/Branco-Gelo incandescente centrado em cx = 256
-    ctx.fillStyle = '#e0f2fe';
+    const templeRight = ctx.createLinearGradient(512, 0, cx + 70, 0);
+    templeRight.addColorStop(0, '#334155');
+    templeRight.addColorStop(0.65, '#94a3b8');
+    templeRight.addColorStop(1, 'rgba(226, 232, 240, 0)');
+    ctx.fillStyle = templeRight;
+    ctx.fillRect(cx + 60, 0, 512 - (cx + 60), 256);
+
+    // Rachaduras Cranianas Incandescentes em Plasma Ciano/Azul-Elétrico
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.moveTo(cx, 28);
-    ctx.bezierCurveTo(cx + 84, 28, cx + 104, 76, cx + 88, 128);
-    ctx.lineTo(cx + 68, 152);
-    ctx.lineTo(cx + 62, 216);
-    ctx.lineTo(cx - 62, 216);
+    ctx.moveTo(cx, 12);
+    ctx.lineTo(cx - 18, 48);
+    ctx.lineTo(cx + 8, 76);
+    ctx.moveTo(cx - 88, 34);
+    ctx.lineTo(cx - 64, 72);
+    ctx.lineTo(cx - 112, 118);
+    ctx.moveTo(cx + 88, 34);
+    ctx.lineTo(cx + 64, 72);
+    ctx.lineTo(cx + 112, 118);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#00f5d4';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Cavidades laterais abaixo das maçãs do rosto (efeito caveira funda)
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(cx - 118, 134);
     ctx.lineTo(cx - 68, 152);
-    ctx.lineTo(cx - 88, 128);
-    ctx.bezierCurveTo(cx - 104, 76, cx - 84, 28, cx, 28);
+    ctx.lineTo(cx - 64, 236);
+    ctx.lineTo(cx - 126, 236);
     ctx.closePath();
     ctx.fill();
 
-    // Órbitas Oculares Profundas com Chamas Ciano Neon
+    ctx.beginPath();
+    ctx.moveTo(cx + 118, 134);
+    ctx.lineTo(cx + 68, 152);
+    ctx.lineTo(cx + 64, 236);
+    ctx.lineTo(cx + 126, 236);
+    ctx.closePath();
+    ctx.fill();
+
+    // Órbitas Oculares Negras Profundas e Angulares + Rastro de Fogo Ciano saindo dos olhos
     ctx.fillStyle = '#090a0d';
     ctx.beginPath();
-    ctx.moveTo(cx - 72, 78);
-    ctx.lineTo(cx - 16, 92);
-    ctx.lineTo(cx - 24, 124);
-    ctx.lineTo(cx - 76, 110);
+    ctx.moveTo(cx - 86, 68);
+    ctx.lineTo(cx - 14, 88);
+    ctx.lineTo(cx - 22, 128);
+    ctx.lineTo(cx - 82, 118);
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(cx + 72, 78);
-    ctx.lineTo(cx + 16, 92);
-    ctx.lineTo(cx + 24, 124);
-    ctx.lineTo(cx + 76, 110);
+    ctx.moveTo(cx + 86, 68);
+    ctx.lineTo(cx + 14, 88);
+    ctx.lineTo(cx + 22, 128);
+    ctx.lineTo(cx + 82, 118);
     ctx.closePath();
     ctx.fill();
 
-    // Fogo Ciano Brilhante saindo dos olhos da caveira
-    ctx.fillStyle = '#22d3ee';
-    ctx.fillRect(cx - 62, 92, 34, 16);
-    ctx.fillRect(cx + 28, 92, 34, 16);
+    // Chamas de Fogo Ciano/Azul-Elétrico ardendo dentro das órbitas oculares
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath();
+    ctx.moveTo(cx - 78, 76);
+    ctx.lineTo(cx - 98, 52);
+    ctx.lineTo(cx - 46, 82);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx + 78, 76);
+    ctx.lineTo(cx + 98, 52);
+    ctx.lineTo(cx + 46, 82);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#00f5d4';
+    ctx.beginPath();
+    ctx.moveTo(cx - 72, 84);
+    ctx.lineTo(cx - 22, 94);
+    ctx.lineTo(cx - 28, 118);
+    ctx.lineTo(cx - 68, 112);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 72, 84);
+    ctx.lineTo(cx + 22, 94);
+    ctx.lineTo(cx + 28, 118);
+    ctx.lineTo(cx + 68, 112);
+    ctx.closePath();
+    ctx.fill();
+
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(cx - 52, 96, 16, 8);
-    ctx.fillRect(cx + 36, 96, 16, 8);
+    ctx.fillRect(cx - 56, 94, 24, 12);
+    ctx.fillRect(cx + 32, 94, 24, 12);
 
-    // Cavidade nasal e Dentes da Caveira com Brilho de Plasma Ciano
+    // Cavidade Nasal Triangular Dupla Profunda de Caveira
     ctx.fillStyle = '#090a0d';
     ctx.beginPath();
-    ctx.moveTo(cx, 112);
-    ctx.lineTo(cx - 14, 142);
-    ctx.lineTo(cx + 14, 142);
+    ctx.moveTo(cx, 104);
+    ctx.lineTo(cx - 20, 146);
+    ctx.lineTo(cx - 3, 142);
+    ctx.lineTo(cx, 128);
+    ctx.lineTo(cx + 3, 142);
+    ctx.lineTo(cx + 20, 146);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#0891b2';
-    ctx.fillRect(cx - 52, 158, 104, 42);
-    ctx.fillStyle = '#e0f2fe';
-    for (let tx = cx - 44; tx <= cx + 36; tx += 20) {
-      ctx.fillRect(tx, 162, 14, 34);
+    // Maxilar Rasgado com Plasma Ciano Incandescente e Dentes de Caveira Afiados
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(cx - 62, 154, 124, 58);
+    ctx.strokeStyle = '#00f5d4';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(cx - 62, 154, 124, 58);
+
+    for (let tx = cx - 54; tx <= cx + 42; tx += 19) {
+      // Dente superior e inferior de osso/cromo com fenda de fogo ciano no meio
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(tx, 156);
+      ctx.lineTo(tx + 14, 156);
+      ctx.lineTo(tx + 11, 181);
+      ctx.lineTo(tx + 3, 181);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(tx + 3, 185);
+      ctx.lineTo(tx + 11, 185);
+      ctx.lineTo(tx + 14, 210);
+      ctx.lineTo(tx, 210);
+      ctx.closePath();
+      ctx.fill();
     }
   } else if (preset === 'voltaico') {
     // =========================================================================

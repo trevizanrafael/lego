@@ -116,18 +116,18 @@ export const MINIFIG_PRESETS = {
     key: 'turbo',
     name: 'Turbo Fantasma',
     subtitle: 'Moto Fantasma Ciano [Mouse 2] • Correntes de Plasma [Mouse 1] • Arrancada Muralha [Q]',
-    headColor: 0x090a0d,
+    headColor: 0xe2e8f0,
     torsoColor: 0x090a0d,
-    armColor: 0x18181b,
+    armColor: 0x090a0d,
     handColor: 0x22d3ee,
-    hipColor: 0x1e293b,
+    hipColor: 0x090a0d,
     legColor: 0x090a0d,
     facePreset: 'turbo',
     torsoPreset: 'turbo',
     headgear: 'ghost_flame_skull',
     capeColor: null,
     weapon: 'turbo_chains',
-    fireAura: false
+    fireAura: true
   },
   voltaico: {
     key: 'voltaico',
@@ -401,7 +401,7 @@ export class Minifigure {
     }
 
     if (preset.fireAura) {
-      this._buildSolarAuraParticles();
+      this._buildSolarAuraParticles(preset.key);
     }
 
     // ==========================================
@@ -910,44 +910,98 @@ export class Minifigure {
       }
     } else if (preset.headgear === 'ghost_flame_skull') {
       // =========================================================================
-      // COROA DE CHAMAS DE PLASMA CIANO 3D DO TURBO FANTASMA (GHOST RIDER CIANO)
+      // CABEÇA DE CRÂNIO 3D REAL + CABELEIRA DE FOGO FANTASMA EM 3 CAMADAS FLUINDO PARA TRÁS!
+      // (Zero aro cinza de panela e zero cones retos de gelo!)
       // =========================================================================
-      const cyanFlameMat = getLegoMaterial(0x22d3ee, {
-        emissive: 0x06b6d4,
-        emissiveIntensity: 2.2,
+      const skullBoneMat = getLegoMaterial(0xe2e8f0, { roughness: 0.22, metalness: 0.25 });
+      const darkVoidMat = getLegoMaterial(0x090a0d, { roughness: 0.35 });
+      const deepBlueFlameMat = getLegoMaterial(0x0284c7, {
+        emissive: 0x0369a1,
+        emissiveIntensity: 2.0,
         roughness: 0.1
       });
-      const whiteCyanMat = getLegoMaterial(0xe0f2fe, {
-        emissive: 0x38bdf8,
-        emissiveIntensity: 2.5,
+      const cyanFlameMat = getLegoMaterial(0x06b6d4, {
+        emissive: 0x00f5d4,
+        emissiveIntensity: 2.4,
         roughness: 0.08
       });
-      const chromeMat = getLegoMaterial(0xe2e8f0, { metalness: 0.78, roughness: 0.16 });
+      const whitePlasmaMat = getLegoMaterial(0xffffff, {
+        emissive: 0x67e8f9,
+        emissiveIntensity: 3.0,
+        roughness: 0.05
+      });
 
-      // Aro de Corrente Cromada na testa
-      const browChain = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.036, 8, 20), chromeMat);
-      browChain.rotation.x = Math.PI / 2;
-      browChain.position.set(0, 0.56, 0);
-      this.headGroup.add(browChain);
+      // 1. Relevo 3D do Crânio (Sobrancelhas Ósseas Franzidas, Maçãs do Rosto Angulares e Mandíbula de Caveira 3D)
+      for (const side of [-1, 1]) {
+        const browBone = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.055, 0.09), skullBoneMat);
+        browBone.position.set(side * 0.12, 0.45, 0.33);
+        browBone.rotation.z = -side * 0.28;
+        browBone.rotation.y = side * 0.24;
 
-      // 12 Línguas de Fogo Ciano 3D subindo da cabeça de Caveira
-      for (let i = 0; i < 12; i++) {
-        const ang = (i / 12) * Math.PI * 2;
-        const r = 0.25 + (i % 2) * 0.06;
-        const h = 0.34 + (i % 3) * 0.12;
-        const mat = i % 3 === 0 ? whiteCyanMat : cyanFlameMat;
-        const flameCone = new THREE.Mesh(new THREE.ConeGeometry(0.085, h, 6), mat);
-        flameCone.position.set(Math.cos(ang) * r, 0.68 + h * 0.32, Math.sin(ang) * r - 0.04);
-        const baseRotX = -0.26 - Math.sin(ang) * 0.18;
-        const baseRotZ = -Math.cos(ang) * 0.22;
-        flameCone.rotation.set(baseRotX, 0, baseRotZ);
-        this.headGroup.add(flameCone);
+        const cheekBone = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.075, 0.12), skullBoneMat);
+        cheekBone.position.set(side * 0.21, 0.27, 0.28);
+        cheekBone.rotation.y = side * 0.42;
+        cheekBone.rotation.z = side * 0.18;
+
+        const eyeFlame = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.18, 5), whitePlasmaMat);
+        eyeFlame.position.set(side * 0.14, 0.39, 0.34);
+        eyeFlame.rotation.x = -0.55;
+        eyeFlame.rotation.z = -side * 0.45;
+
+        this.headGroup.add(browBone, cheekBone, eyeFlame);
+      }
+
+      // Mandíbula Inferior 3D de Caveira com Dentes Esculpidos e Fenda de Plasma Ciano
+      const skullJawGroup = new THREE.Group();
+      const jawBone = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.11, 0.22), skullBoneMat);
+      jawBone.position.set(0, 0.11, 0.26);
+      const jawPlasmaCore = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.045, 0.23), cyanFlameMat);
+      jawPlasmaCore.position.set(0, 0.15, 0.265);
+      skullJawGroup.add(jawBone, jawPlasmaCore);
+
+      for (let t = -2; t <= 2; t++) {
+        const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.068, 0.04), skullBoneMat);
+        tooth.position.set(t * 0.055, 0.15, 0.368);
+        skullJawGroup.add(tooth);
+      }
+      const nasalCavity = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.09, 3), darkVoidMat);
+      nasalCavity.position.set(0, 0.27, 0.355);
+      skullJawGroup.add(nasalCavity);
+      this.headGroup.add(skullJawGroup);
+
+      // 2. Cabeleira de Fogo Fantasma Vivo em 3 Camadas de Cores (20 labaredas orgânicas fluindo para trás e para cima!)
+      const flameLayers = [deepBlueFlameMat, cyanFlameMat, whitePlasmaMat];
+      for (let i = 0; i < 20; i++) {
+        const u = i / 20;
+        const ang = u * Math.PI * 2;
+        const ringLayer = i % 3; // 0 = externa azul-elétrico, 1 = média ciano neon, 2 = interna branco-plasma
+        const r = ringLayer === 0 ? 0.31 : ringLayer === 1 ? 0.23 : 0.14;
+        const h = 0.42 + (i % 4) * 0.11 + (ringLayer === 2 ? 0.08 : 0);
+        const mat = flameLayers[ringLayer];
+
+        const flameTongue = new THREE.Mesh(new THREE.ConeGeometry(0.105, h, 5), mat);
+        // Achata o cone para parecer uma língua/labareda de fogo real e não um cone redondo de gelo!
+        flameTongue.scale.set(1.28, 1.0, 0.54);
+
+        const posX = Math.sin(ang) * r;
+        const posZ = Math.cos(ang) * r - 0.08;
+        const posY = 0.56 + h * 0.34 - (posZ < 0 ? Math.abs(posZ) * 0.22 : 0);
+        flameTongue.position.set(posX, posY, posZ);
+
+        // Todas as chamas fluem agressivamente para trás (-X rotation) como fogo soprado pelo vento!
+        const baseRotX = -0.52 - (1 - Math.cos(ang)) * 0.22;
+        const baseRotZ = -Math.sin(ang) * 0.32;
+        flameTongue.rotation.set(baseRotX, Math.sin(ang) * 0.25, baseRotZ);
+
+        this.headGroup.add(flameTongue);
         this.turboFlameMeshes.push({
-          mesh: flameCone,
-          phase: i * 0.7,
-          speed: 12.0 + (i % 4) * 2.5,
+          mesh: flameTongue,
+          phase: i * 0.55,
+          speed: 14.0 + (i % 5) * 2.8,
           baseRotX,
-          baseRotZ
+          baseRotZ,
+          baseScaleX: 1.28,
+          baseScaleZ: 0.54
         });
       }
     } else if (preset.headgear === 'tesla_crown') {
@@ -1215,155 +1269,475 @@ export class Minifigure {
   }
 
   /**
-   * HERÓI #6: TURBO FANTASMA (OP-06) — Jaqueta de Motoqueiro com Espinhos Cromados,
-   * Pneu/Turbina Dorsal com Escapamentos Flamejantes Ciano e Correntes Giratórias de Plasma!
+   * HERÓI #6: TURBO FANTASMA (OP-06 — CYBER-GHOST RIDER DE PLASMA CIANO):
+   * 1) Jaqueta de Couro 3D Aberta com Rebites Cromados + Reator Ciano e 3 Pares de Costelas Metálicas 3D
+   * 2) Corrente 3D Real Elo por Elo (14 elos TorusGeometry entrelaçados, ZERO tábuas cinzas no peito!)
+   * 3) Ombreiras Duplas com 3 Espinhos Curvos + Chamas Ciano, Joelheiras de Caveira 3D e Botas Biker com Fivelas
+   * 4) Costas: Motor V-Twin Fantasma + 4 Escapamentos Cromados com Chamas 100% Alinhadas Dentro da Boca de Cada Cano!
+   * 5) Mãos: Espada "Hellfire V8" com Guarda de Motor V-Twin e Chicote de Corrente de 10 Elos com Adaga-Gancho!
    */
   _attachTurboGhostRiderRig(leftHandGroup, rightHandGroup) {
-    const leatherBlack = getLegoMaterial(0x090a0d, { roughness: 0.3, clearcoat: 0.35 });
-    const chromeSteel = getLegoMaterial(0xe2e8f0, { metalness: 0.82, roughness: 0.15 });
-    const cyanGlow = getLegoMaterial(0x22d3ee, {
-      emissive: 0x06b6d4,
-      emissiveIntensity: 2.3,
+    const leatherBlack = getLegoMaterial(0x090a0d, { roughness: 0.28, clearcoat: 0.45 });
+    const darkSteel = getLegoMaterial(0x1e293b, { metalness: 0.72, roughness: 0.24 });
+    const chromeSteel = getLegoMaterial(0xe2e8f0, { metalness: 0.86, roughness: 0.14 });
+    const skullBoneMat = getLegoMaterial(0xf8fafc, { roughness: 0.2, metalness: 0.25 });
+    const deepBlueFlame = getLegoMaterial(0x0284c7, {
+      emissive: 0x0369a1,
+      emissiveIntensity: 2.0,
       roughness: 0.1
     });
+    const cyanGlow = getLegoMaterial(0x06b6d4, {
+      emissive: 0x00f5d4,
+      emissiveIntensity: 2.4,
+      roughness: 0.08
+    });
+    const whiteHotMat = getLegoMaterial(0xffffff, {
+      emissive: 0x67e8f9,
+      emissiveIntensity: 3.0,
+      roughness: 0.05
+    });
 
-    // 1. Gola Alta de Couro + Correntes Cruzadas 3D no Peito
+    // =========================================================================
+    // 1. JAQUETA DE COURO 3D ABERTA + COSTELAS DE PLASMA E REATOR CENTRAL
+    // =========================================================================
+    const jacketGroup = new THREE.Group();
+
+    // Gola Alta de Couro Levantada (High Biker Collar) com borda cromada e labaredas na nuca
     const collar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.32, 0.35, 0.18, 20, 1, true, Math.PI * 0.2, Math.PI * 1.6),
+      new THREE.CylinderGeometry(0.33, 0.36, 0.18, 20, 1, true, Math.PI * 0.22, Math.PI * 1.56),
       leatherBlack
     );
-    collar.position.set(0, 0.78, -0.02);
-    this.upperBodyGroup.add(collar);
+    collar.position.set(0, 0.79, -0.02);
+    jacketGroup.add(collar);
 
+    for (let nf = -1; nf <= 1; nf++) {
+      const neckFlame = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.22, 5), nf === 0 ? whiteHotMat : cyanGlow);
+      neckFlame.scale.set(1.2, 1.0, 0.55);
+      neckFlame.position.set(nf * 0.12, 0.88, -0.18);
+      neckFlame.rotation.set(-0.42, 0, -nf * 0.22);
+      jacketGroup.add(neckFlame);
+      this.turboFlameMeshes.push({
+        mesh: neckFlame,
+        phase: nf * 1.1,
+        speed: 15.0,
+        baseRotX: -0.42,
+        baseRotZ: -nf * 0.22,
+        baseScaleX: 1.2,
+        baseScaleZ: 0.55
+      });
+    }
+
+    // Lapelas Frontais 3D em V de Couro Preto com Rebites Cônicos Cromados (Chrome Studs) e Zíperes
     for (const side of [-1, 1]) {
-      const chestChain = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.84, 0.5), chromeSteel);
-      chestChain.position.set(0, 0.4, 0);
-      chestChain.rotation.z = side * 0.56;
-      this.upperBodyGroup.add(chestChain);
+      const lapel = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.64, 0.075), leatherBlack);
+      lapel.position.set(side * 0.25, 0.44, 0.195);
+      lapel.rotation.y = side * 0.18;
+      lapel.rotation.z = -side * 0.08;
 
-      // Ombreiras de Couro com 3 Espinhos Cromados (Biker Spikes)
-      const armPivot = side > 0 ? this.leftArmPivot : this.rightArmPivot;
-      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.36), leatherBlack);
-      pad.position.set(side * 0.06, 0.08, 0);
-      armPivot.add(pad);
-      for (const sz of [-0.1, 0, 0.1]) {
-        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.16, 6), chromeSteel);
-        spike.position.set(side * 0.1, 0.21, sz);
-        spike.rotation.z = -side * 0.25;
-        armPivot.add(spike);
+      const zipperLine = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.62, 0.085), chromeSteel);
+      zipperLine.position.set(side * 0.145, 0.44, 0.21);
+      zipperLine.rotation.z = -side * 0.12;
+      jacketGroup.add(lapel, zipperLine);
+
+      for (const sy of [0.66, 0.52, 0.38]) {
+        const stud = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.05, 6), chromeSteel);
+        stud.rotation.x = Math.PI / 2;
+        stud.position.set(side * 0.24, sy, 0.245);
+        jacketGroup.add(stud);
       }
     }
 
-    // 2. Costas: Turbina/Roda Energética Ciano + 2 Escapamentos Cromados Soltando Chamas Ciano
-    const backRig = new THREE.Group();
-    backRig.position.set(0, 0.42, -0.28);
-    const wheelRim = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 10, 20), leatherBlack);
-    const wheelGlow = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.032, 8, 20), cyanGlow);
-    backRig.add(wheelRim, wheelGlow);
+    // Centro do Peito Aberto: Reator Turbo de Fogo Ciano 3D Pulsante + 3 Pares de Costelas Metálicas Cromadas
+    const chestRing = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.022, 8, 20), chromeSteel);
+    chestRing.position.set(0, 0.48, 0.225);
+    const chestCore = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.036, 16), whiteHotMat);
+    chestCore.rotation.x = Math.PI / 2;
+    chestCore.position.set(0, 0.48, 0.225);
+    jacketGroup.add(chestRing, chestCore);
 
-    for (const sx of [-0.22, 0.22]) {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.52, 12), chromeSteel);
-      pipe.position.set(sx, 0.14, -0.06);
-      pipe.rotation.z = -sx * 0.85;
-      pipe.rotation.x = -0.25;
-      const pipeFlame = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.26, 8), cyanGlow);
-      pipeFlame.position.set(sx * 1.48, 0.38, -0.12);
-      pipeFlame.rotation.z = -sx * 0.85;
-      backRig.add(pipe, pipeFlame);
+    for (let r = 0; r < 3; r++) {
+      const ribY = 0.61 - r * 0.13;
+      const ribW = 0.16 - r * 0.015;
+      for (const side of [-1, 1]) {
+        const rib = new THREE.Mesh(new THREE.BoxGeometry(ribW, 0.032, 0.045), chromeSteel);
+        rib.position.set(side * (0.09 + r * 0.01), ribY, 0.222);
+        rib.rotation.z = -side * 0.18;
+        rib.rotation.y = side * 0.22;
+        jacketGroup.add(rib);
+      }
     }
+
+    // =========================================================================
+    // 2. CORRENTE DE MOTOQUEIRO 3D REAL ELO POR ELO (14 Elos TorusGeometry Entrelaçados!)
+    // =========================================================================
+    for (let i = 0; i < 14; i++) {
+      const isFront = i < 7;
+      const idx = isFront ? i : i - 7;
+      const t = idx / 6;
+      const lx = THREE.MathUtils.lerp(0.24, -0.25, t);
+      const ly = THREE.MathUtils.lerp(0.73, 0.16, t);
+      const lz = isFront ? 0.238 + Math.sin(t * Math.PI) * 0.022 : -0.215 - Math.sin(t * Math.PI) * 0.015;
+
+      const linkMat = i % 3 === 0 ? cyanGlow : i % 2 === 0 ? chromeSteel : darkSteel;
+      const chainLink = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.015, 7, 14), linkMat);
+      chainLink.position.set(lx, ly, lz);
+      chainLink.rotation.z = -0.68;
+      if (i % 2 === 1) {
+        chainLink.rotation.x = Math.PI * 0.42;
+        chainLink.rotation.y = 0.45;
+      } else {
+        chainLink.rotation.x = 0.12;
+      }
+      jacketGroup.add(chainLink);
+    }
+
+    this.upperBodyGroup.add(jacketGroup);
+
+    // =========================================================================
+    // 3. OMBREIRAS DE MOTOQUEIRO FANTASMA COM ESPINHOS CURVOS E CHAMAS CIANO
+    // =========================================================================
+    const armPivots = [
+      { pivot: this.leftArmPivot, side: -1 },
+      { pivot: this.rightArmPivot, side: 1 }
+    ];
+    for (const { pivot, side } of armPivots) {
+      if (!pivot) continue;
+      const pauldronGroup = new THREE.Group();
+
+      const upperPad = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.13, 0.36), leatherBlack);
+      upperPad.position.set(side * 0.06, 0.06, 0);
+      upperPad.rotation.z = -side * 0.24;
+
+      const lowerPad = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.1, 0.33), darkSteel);
+      lowerPad.position.set(side * 0.09, -0.03, 0);
+      lowerPad.rotation.z = -side * 0.38;
+
+      const chromeRim = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.032, 0.38), chromeSteel);
+      chromeRim.position.set(side * 0.065, 0.11, 0);
+      chromeRim.rotation.z = -side * 0.24;
+      pauldronGroup.add(upperPad, lowerPad, chromeRim);
+
+      // 3 Espinhos Metálicos Longos e Afiados + 2 Labaredas de Fogo Ciano em cada ombro
+      for (const sz of [-0.11, 0, 0.11]) {
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.22, 6), chromeSteel);
+        spike.position.set(side * 0.13, 0.21, sz);
+        spike.rotation.z = -side * 0.48;
+        pauldronGroup.add(spike);
+      }
+
+      for (const fz of [-0.06, 0.06]) {
+        const shFlame = new THREE.Mesh(
+          new THREE.ConeGeometry(0.065, 0.26, 5),
+          fz < 0 ? cyanGlow : whiteHotMat
+        );
+        shFlame.scale.set(1.2, 1.0, 0.55);
+        shFlame.position.set(side * 0.08, 0.24, fz - 0.04);
+        const bRotX = -0.38;
+        const bRotZ = -side * 0.35;
+        shFlame.rotation.set(bRotX, 0, bRotZ);
+        pauldronGroup.add(shFlame);
+        this.turboFlameMeshes.push({
+          mesh: shFlame,
+          phase: side + fz * 5.0,
+          speed: 15.5,
+          baseRotX: bRotX,
+          baseRotZ: bRotZ,
+          baseScaleX: 1.2,
+          baseScaleZ: 0.55
+        });
+      }
+
+      pivot.add(pauldronGroup);
+    }
+
+    // =========================================================================
+    // 4. BRAÇADEIRAS COM CORRENTES + CINTURÃO DE CORRENTE + JOELHEIRAS DE CAVEIRA E BOTAS BIKER
+    // =========================================================================
+    for (const group of [leftHandGroup, rightHandGroup]) {
+      if (!group) continue;
+      const bracer = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.118, 0.22, 14), leatherBlack);
+      bracer.position.set(0, -0.06, 0);
+      group.add(bracer);
+
+      for (const cy of [-0.12, -0.05, 0.02]) {
+        const wristChain = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.018, 6, 14), chromeSteel);
+        wristChain.rotation.x = Math.PI / 2 + 0.15;
+        wristChain.position.set(0, cy, 0);
+        group.add(wristChain);
+      }
+    }
+
+    if (this.hipGroup) {
+      const beltLeather = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.13, 0.45), leatherBlack);
+      beltLeather.position.set(0, 0.08, 0);
+      this.hipGroup.add(beltLeather);
+
+      // Elos de Corrente Cromados ao redor da cintura
+      for (let bx = -0.32; bx <= 0.32; bx += 0.16) {
+        if (Math.abs(bx) < 0.08) continue;
+        const beltLink = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.015, 6, 12), chromeSteel);
+        beltLink.position.set(bx, 0.08, 0.235);
+        this.hipGroup.add(beltLink);
+      }
+
+      // Fivela Central de Caveira Cromada com Olhos Ciano
+      const skullBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.13, 0.05), skullBoneMat);
+      skullBuckle.position.set(0, 0.08, 0.238);
+      const buckleEyeL = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.028, 0.055), cyanGlow);
+      buckleEyeL.position.set(-0.032, 0.095, 0.242);
+      const buckleEyeR = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.028, 0.055), cyanGlow);
+      buckleEyeR.position.set(0.032, 0.095, 0.242);
+      this.hipGroup.add(skullBuckle, buckleEyeL, buckleEyeR);
+    }
+
+    const legPivots = [
+      { pivot: this.leftLegPivot, side: -1 },
+      { pivot: this.rightLegPivot, side: 1 }
+    ];
+    for (const { pivot, side } of legPivots) {
+      if (!pivot) continue;
+      // Joelheira 3D em formato de Crânio Metálico (Skull Knee Guard) com olhos ciano brilhantes
+      const kneeSkull = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.17, 0.08), chromeSteel);
+      kneeSkull.position.set(0, -0.34, 0.21);
+      const kneeJaw = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.07, 0.08), skullBoneMat);
+      kneeJaw.position.set(0, -0.41, 0.215);
+      const kneeEyeL = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.035, 0.09), cyanGlow);
+      kneeEyeL.position.set(-0.045, -0.33, 0.215);
+      const kneeEyeR = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.035, 0.09), cyanGlow);
+      kneeEyeR.position.set(0.045, -0.33, 0.215);
+
+      // Bota Pesada de Motoqueiro (Biker Combat Boot) com 3 fivelas prateadas laterais e espora de plasma
+      const bootShin = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.26, 0.45), leatherBlack);
+      bootShin.position.set(0, -0.53, 0.01);
+      const bootChromeFront = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.22, 0.47), darkSteel);
+      bootChromeFront.position.set(0, -0.53, 0.02);
+
+      for (const by of [-0.45, -0.53, -0.61]) {
+        const buckleStrap = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.028, 0.26), chromeSteel);
+        buckleStrap.position.set(side * 0.01, by, 0.04);
+        pivot.add(buckleStrap);
+      }
+
+      const bootToeCap = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.1, 0.16), chromeSteel);
+      bootToeCap.position.set(0, -0.66, 0.27);
+      const heelSpur = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.16, 4), cyanGlow);
+      heelSpur.rotation.x = -Math.PI / 2;
+      heelSpur.position.set(0, -0.62, -0.25);
+
+      pivot.add(kneeSkull, kneeJaw, kneeEyeL, kneeEyeR, bootShin, bootChromeFront, bootToeCap, heelSpur);
+    }
+
+    // =========================================================================
+    // 5. COSTAS: MOTOR V8 FANTASMA 3D + 4 ESCAPAMENTOS COM FOGO 100% ALINHADO NA BOCA DO CANO!
+    // =========================================================================
+    const backRig = new THREE.Group();
+    backRig.position.set(0, 0.44, -0.28);
+
+    // Bloco Central do Motor V-Twin / Turbina Fantasma com Aletas de Refrigeração e Núcleo de Plasma
+    const engineBlock = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.42, 0.18), leatherBlack);
+    const engineChromeFrame = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.34, 0.14), darkSteel);
+    backRig.add(engineBlock, engineChromeFrame);
+
+    for (let fin = -2; fin <= 2; fin++) {
+      const coolingFin = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.024, 0.16), chromeSteel);
+      coolingFin.position.set(0, fin * 0.07, -0.01);
+      backRig.add(coolingFin);
+    }
+
+    const turbineRim = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.032, 10, 20), chromeSteel);
+    turbineRim.position.set(0, 0.02, -0.1);
+    const turbinePlasma = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 16), whiteHotMat);
+    turbinePlasma.rotation.x = Math.PI / 2;
+    turbinePlasma.position.set(0, 0.02, -0.1);
+    backRig.add(turbineRim, turbinePlasma);
+
+    // 4 Canos de Escapamento Cromados (2 de cada lado) — Chamas como FILHAS diretas de cada pipeGroup!
+    const pipeSpecs = [
+      { sx: -0.2, sy: 0.12, sz: -0.04, rotZ: 0.62, rotX: -0.32, pipeLen: 0.52 },
+      { sx: 0.2, sy: 0.12, sz: -0.04, rotZ: -0.62, rotX: -0.32, pipeLen: 0.52 },
+      { sx: -0.22, sy: -0.04, sz: -0.06, rotZ: 0.88, rotX: -0.26, pipeLen: 0.46 },
+      { sx: 0.22, sy: -0.04, sz: -0.06, rotZ: -0.88, rotX: -0.26, pipeLen: 0.46 }
+    ];
+
+    for (let p = 0; p < pipeSpecs.length; p++) {
+      const ps = pipeSpecs[p];
+      const pipeGroup = new THREE.Group();
+      pipeGroup.position.set(ps.sx, ps.sy, ps.sz);
+      pipeGroup.rotation.z = ps.rotZ;
+      pipeGroup.rotation.x = ps.rotX;
+
+      const pipeMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.046, ps.pipeLen, 14), chromeSteel);
+      const heatShield = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.054, ps.pipeLen * 0.6, 12), darkSteel);
+      const muzzleRim = new THREE.Mesh(new THREE.TorusGeometry(0.054, 0.012, 8, 14), leatherBlack);
+      muzzleRim.rotation.x = Math.PI / 2;
+      muzzleRim.position.set(0, ps.pipeLen * 0.5, 0);
+
+      // Chama Externa Ciano + Chama Interna Branco-Plasma posicionadas EXATAMENTE na boca do cano (0, pipeLen/2 + h*0.35, 0)
+      const flameHeight = 0.34;
+      const exhaustFlameGroup = new THREE.Group();
+      exhaustFlameGroup.position.set(0, ps.pipeLen * 0.5 + flameHeight * 0.35, 0);
+
+      const outerFlame = new THREE.Mesh(new THREE.ConeGeometry(0.068, flameHeight, 7), cyanGlow);
+      const innerFlame = new THREE.Mesh(new THREE.ConeGeometry(0.042, flameHeight * 0.78, 6), whiteHotMat);
+      innerFlame.position.set(0, -0.02, 0);
+      exhaustFlameGroup.add(outerFlame, innerFlame);
+
+      pipeGroup.add(pipeMesh, heatShield, muzzleRim, exhaustFlameGroup);
+      backRig.add(pipeGroup);
+
+      this.turboFlameMeshes.push({
+        mesh: exhaustFlameGroup,
+        phase: p * 0.9,
+        speed: 22.0,
+        baseRotX: 0,
+        baseRotZ: 0,
+        isExhaust: true
+      });
+    }
+
     this.upperBodyGroup.add(backRig);
 
-    // 3. Mão Esquerda: Corrente Giratória de Plasma Ciano (Elos Metálicos + Gancho Ciano)
+    // =========================================================================
+    // 6. MÃO ESQUERDA: CHICOTE DE CORRENTE DE FOGO FANTASMA (10 ELOS + ADAGA-GANCHO SERRILHADA)
+    // =========================================================================
     const chainGroup = new THREE.Group();
     chainGroup.position.set(0.04, -0.28, 0.12);
 
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.26, 10), chromeSteel);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.046, 0.26, 12), leatherBlack);
     handle.rotation.x = Math.PI / 2;
-    chainGroup.add(handle);
+    const handlePommel = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.014, 6, 12), chromeSteel);
+    handlePommel.position.set(0, 0, -0.13);
+    chainGroup.add(handle, handlePommel);
 
-    for (let l = 0; l < 6; l++) {
-      const link = new THREE.Mesh(
-        new THREE.TorusGeometry(0.065, 0.022, 6, 12),
-        l % 2 === 0 ? cyanGlow : chromeSteel
-      );
-      link.position.set(0, -l * 0.04, 0.18 + l * 0.15);
-      link.rotation.y = (l % 2) * (Math.PI / 2);
+    // 10 Elos Metálicos finos e detalhados em curva natural com brilho Ciano Neon
+    for (let l = 0; l < 10; l++) {
+      const u = l / 9;
+      const linkMat = l % 3 === 0 ? whiteHotMat : l % 2 === 0 ? cyanGlow : chromeSteel;
+      const link = new THREE.Mesh(new THREE.TorusGeometry(0.044, 0.013, 7, 14), linkMat);
+      const curveY = -Math.sin(u * Math.PI * 0.75) * 0.22;
+      const curveX = Math.sin(u * Math.PI) * 0.05;
+      link.position.set(curveX, curveY, 0.15 + l * 0.088);
+      if (l % 2 === 0) {
+        link.rotation.y = Math.PI / 2;
+      } else {
+        link.rotation.x = 0.35;
+      }
       chainGroup.add(link);
     }
 
-    const hookBlade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.32, 4), cyanGlow);
-    hookBlade.position.set(0, -0.24, 1.12);
-    hookBlade.rotation.x = Math.PI * 0.65;
-    chainGroup.add(hookBlade);
+    // Adaga-Gancho Serrilhada de Aço Negro e Plasma Ciano na ponta da corrente
+    const daggerGroup = new THREE.Group();
+    daggerGroup.position.set(0, -0.16, 1.04);
+    daggerGroup.rotation.x = 0.38;
+
+    const daggerCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.035, 0.1, 10), chromeSteel);
+    daggerCollar.rotation.x = Math.PI / 2;
+    const daggerSpine = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.08, 0.28), leatherBlack);
+    daggerSpine.position.set(0, 0.01, 0.14);
+    const daggerBlade = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.36, 4), cyanGlow);
+    daggerBlade.scale.set(0.38, 1.0, 1.0);
+    daggerBlade.rotation.x = Math.PI / 2;
+    daggerBlade.rotation.z = Math.PI / 4;
+    daggerBlade.position.set(0, 0, 0.22);
+
+    const hookBarb = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.18, 4), whiteHotMat);
+    hookBarb.position.set(0, -0.09, 0.18);
+    hookBarb.rotation.x = -2.35;
+
+    daggerGroup.add(daggerCollar, daggerSpine, daggerBlade, hookBarb);
+    chainGroup.add(daggerGroup);
 
     leftHandGroup.add(chainGroup);
     this.turboChainGroups.push(chainGroup);
 
-    // 4. Mão Direita: ESPADA COLOSSAL DE PLASMA CIANO & MOTOSSERRA DE CORRENTE ("LÂMINA FANTASMA 700KM/H")
-    const whiteHotMat = getLegoMaterial(0xe0f2fe, {
-      emissive: 0x38bdf8,
-      emissiveIntensity: 2.8,
-      roughness: 0.06
-    });
+    // =========================================================================
+    // 7. MÃO DIREITA: ESPADA "HELLFIRE V8" DE PLASMA CIANO (BLOCO V-TWIN NA GUARDA + LABAREDAS)
+    // =========================================================================
     const swordGroup = new THREE.Group();
 
-    // Empunhadura longa cromada com anéis de couro e pomo de caveira ciano
-    const swordGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.05, 0.44, 12), leatherBlack);
+    // Punho envolto em couro preto com elos cromados e pomo de crânio ciano
+    const swordGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.44, 12), leatherBlack);
     swordGrip.rotation.x = Math.PI / 2;
     swordGrip.position.set(0, 0, -0.06);
     swordGroup.add(swordGrip);
 
-    for (const gz of [-0.22, -0.1, 0.02]) {
-      const gripRing = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 6, 14), chromeSteel);
+    for (const gz of [-0.22, -0.12, -0.02, 0.08]) {
+      const gripRing = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.011, 6, 14), chromeSteel);
       gripRing.position.set(0, 0, gz);
       swordGroup.add(gripRing);
     }
 
-    const pommelSkull = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 1), cyanGlow);
+    const pommelSkull = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.11, 0.1), skullBoneMat);
     pommelSkull.position.set(0, 0, -0.31);
-    swordGroup.add(pommelSkull);
+    const pommelEyes = new THREE.Mesh(new THREE.BoxGeometry(0.102, 0.032, 0.045), cyanGlow);
+    pommelEyes.position.set(0, 0.015, -0.32);
+    swordGroup.add(pommelSkull, pommelEyes);
 
-    // Guarda-mão (Crossguard) em formato de Motor V-Twin / Chifres de Escape Cromados + Núcleo de Plasma
-    const guardCore = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, 0.12), chromeSteel);
-    guardCore.position.set(0, 0, 0.18);
-    const guardReactor = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), whiteHotMat);
+    // Guarda da Espada (Crossguard): Bloco de Motor V-Twin Cromado e Preto Fosco (Zero tijolo cinza liso!)
+    const vTwinCenter = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.18, 0.16), leatherBlack);
+    vTwinCenter.position.set(0, 0, 0.18);
+    const guardReactorRing = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.016, 8, 16), chromeSteel);
+    guardReactorRing.rotation.y = Math.PI / 2;
+    guardReactorRing.position.set(0, 0, 0.18);
+    const guardReactor = new THREE.Mesh(new THREE.SphereGeometry(0.062, 12, 12), whiteHotMat);
     guardReactor.position.set(0, 0, 0.18);
-    swordGroup.add(guardCore, guardReactor);
+    swordGroup.add(vTwinCenter, guardReactorRing, guardReactor);
 
+    // 2 Cilindros V-Twin + 2 Ponteiras de Escapamento Laterais com Chamas Alinhadas na Boca
     for (const side of [-1, 1]) {
-      const exhaustHorn = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.28, 6), cyanGlow);
-      exhaustHorn.position.set(0, side * 0.21, 0.22);
-      exhaustHorn.rotation.x = side * 0.35;
-      exhaustHorn.rotation.z = side > 0 ? 0 : Math.PI;
-      swordGroup.add(exhaustHorn);
+      const cylinderHead = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.05, 0.16, 10), darkSteel);
+      cylinderHead.position.set(0, side * 0.11, 0.16);
+      cylinderHead.rotation.x = side * 0.45;
+      const finCap = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.035, 10), chromeSteel);
+      finCap.position.set(0, side * 0.16, 0.19);
+      finCap.rotation.x = side * 0.45;
+
+      const sidePipeGroup = new THREE.Group();
+      sidePipeGroup.position.set(0, side * 0.14, 0.22);
+      sidePipeGroup.rotation.z = side > 0 ? -0.35 : Math.PI + 0.35;
+      sidePipeGroup.rotation.x = -0.38;
+
+      const sidePipe = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.03, 0.18, 10), chromeSteel);
+      const sideFlame = new THREE.Mesh(new THREE.ConeGeometry(0.044, 0.22, 6), cyanGlow);
+      sideFlame.position.set(0, 0.09 + 0.08, 0);
+      const sideInner = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.16, 5), whiteHotMat);
+      sideInner.position.set(0, 0.09 + 0.06, 0);
+      sidePipeGroup.add(sidePipe, sideFlame, sideInner);
+
+      swordGroup.add(cylinderHead, finCap, sidePipeGroup);
     }
 
-    // Lâmina Gigante de Plasma Ciano (1.65m de comprimento) com dorso negro/cromo, fio duplo de plasma e dentes serrilhados!
-    const bladeSpine = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.11, 1.52), leatherBlack);
-    bladeSpine.position.set(0, -0.02, 0.96);
-    swordGroup.add(bladeSpine);
+    // Lâmina Larga de Aço Obsidiana Negro (#090a0d) + Fio Duplo Chanfrado de Fogo Ciano e Núcleo Branco-Elétrico
+    const bladeObsidianCore = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.13, 1.48), leatherBlack);
+    bladeObsidianCore.position.set(0, 0, 0.98);
+    const bladeChromeFuller = new THREE.Mesh(new THREE.BoxGeometry(0.054, 0.038, 1.36), chromeSteel);
+    bladeChromeFuller.position.set(0, 0, 0.94);
 
-    const bladeCore = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 1.58), whiteHotMat);
-    bladeCore.position.set(0, 0.02, 1.0);
-    swordGroup.add(bladeCore);
+    // Fio superior e inferior de Plasma Ciano + Branco-Quente
+    const edgeTopCyan = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.065, 1.54), cyanGlow);
+    edgeTopCyan.position.set(0, 0.085, 1.01);
+    const edgeTopWhite = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.028, 1.52), whiteHotMat);
+    edgeTopWhite.position.set(0, 0.065, 1.0);
 
-    const bladePlasmaEdge = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.25, 1.62), cyanGlow);
-    bladePlasmaEdge.position.set(0, 0.04, 1.02);
-    swordGroup.add(bladePlasmaEdge);
+    const edgeBotCyan = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.05, 1.48), deepBlueFlame);
+    edgeBotCyan.position.set(0, -0.075, 0.98);
 
-    const swordTip = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.36, 4), whiteHotMat);
+    const swordTip = new THREE.Mesh(new THREE.ConeGeometry(0.145, 0.38, 4), whiteHotMat);
     swordTip.rotation.x = Math.PI / 2;
     swordTip.rotation.z = Math.PI / 4;
-    swordTip.scale.set(0.35, 1.0, 1.0);
-    swordTip.position.set(0, 0.025, 1.96);
-    swordGroup.add(swordTip);
+    swordTip.scale.set(0.32, 1.0, 1.0);
+    swordTip.position.set(0, 0.01, 1.92);
 
-    // 6 Dentes Serrilhados de Plasma Ciano ao longo do fio da espada
-    for (let t = 0; t < 6; t++) {
-      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 4), t % 2 === 0 ? whiteHotMat : cyanGlow);
-      tooth.position.set(0, 0.16, 0.42 + t * 0.23);
-      tooth.rotation.x = -0.38;
-      swordGroup.add(tooth);
+    swordGroup.add(bladeObsidianCore, bladeChromeFuller, edgeTopCyan, edgeTopWhite, edgeBotCyan, swordTip);
+
+    // 8 Labaredas Orgânicas de Fogo Fantasma lambendo o fio da lâmina para trás
+    for (let t = 0; t < 8; t++) {
+      const mat = t % 3 === 0 ? whiteHotMat : t % 2 === 0 ? cyanGlow : deepBlueFlame;
+      const bladeFlame = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.22, 5), mat);
+      bladeFlame.scale.set(0.55, 1.0, 1.25);
+      bladeFlame.position.set(0, 0.135, 0.38 + t * 0.18);
+      bladeFlame.rotation.x = -0.68;
+      swordGroup.add(bladeFlame);
     }
 
     swordGroup.position.set(0, -0.34, 0.1);
@@ -4250,10 +4624,13 @@ export class Minifigure {
   }
 
   /**
-   * Cria 28 partículas 3D de fogo solar ascendente orbitando o Solaris
+   * Cria 28 partículas 3D de fogo ascendente orbitando o Solaris (Solar) ou Turbo Fantasma (Plasma Ciano)
    */
-  _buildSolarAuraParticles() {
-    const fireColors = [0xffffff, 0xfef08a, 0xfacc15, 0xf97316, 0xef4444];
+  _buildSolarAuraParticles(presetKey = 'solaris') {
+    const fireColors =
+      presetKey === 'turbo'
+        ? [0xffffff, 0x67e8f9, 0x00f5d4, 0x06b6d4, 0x0284c7]
+        : [0xffffff, 0xfef08a, 0xfacc15, 0xf97316, 0xef4444];
     const boxGeo = new THREE.BoxGeometry(0.13, 0.16, 0.13);
     const coneGeo = new THREE.ConeGeometry(0.085, 0.22, 4);
 
@@ -4575,13 +4952,19 @@ export class Minifigure {
       }
     }
 
-    // Chamas Ciano da Caveira + Giro de Correntes do Turbo Fantasma (OP-06)
+    // Chamas Ciano da Caveira, Escapamentos V8 + Giro de Correntes do Turbo Fantasma (OP-06)
     if (this.turboFlameMeshes && this.turboFlameMeshes.length > 0) {
       for (const tf of this.turboFlameMeshes) {
         const w = Math.sin(this.animTime * tf.speed + tf.phase);
-        tf.mesh.scale.set(0.95, 0.85 + (w * 0.5 + 0.5) * 0.55, 0.95);
-        tf.mesh.rotation.x = tf.baseRotX + w * 0.16;
-        tf.mesh.rotation.z = tf.baseRotZ + Math.cos(this.animTime * tf.speed + tf.phase) * 0.14;
+        if (tf.isExhaust) {
+          tf.mesh.scale.set(0.92 + w * 0.12, 0.8 + (w * 0.5 + 0.5) * 0.65, 0.92 + w * 0.12);
+        } else {
+          const sx = tf.baseScaleX || 0.95;
+          const sz = tf.baseScaleZ || 0.95;
+          tf.mesh.scale.set(sx, 0.85 + (w * 0.5 + 0.5) * 0.55, sz);
+          tf.mesh.rotation.x = tf.baseRotX + w * 0.18;
+          tf.mesh.rotation.z = tf.baseRotZ + Math.cos(this.animTime * tf.speed + tf.phase) * 0.15;
+        }
       }
     }
     if (this.turboChainGroups && this.turboChainGroups.length > 0) {
