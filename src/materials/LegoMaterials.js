@@ -726,6 +726,206 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     for (let gx = cx - 24; gx <= cx + 24; gx += 16) {
       ctx.fillRect(gx - 3, 154, 6, 46);
     }
+  } else if (preset === 'turbo') {
+    // =========================================================================
+    // ROSTO CYBER-GHOST RIDER DO TURBO FANTASMA (512x256, centro cx=256)
+    // =========================================================================
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 0, 512, 256);
+
+    // Halo de chamas de plasma ciano no topo e têmporas
+    const plasmaGrad = ctx.createRadialGradient(cx, 110, 18, cx, 110, 138);
+    plasmaGrad.addColorStop(0, 'rgba(34, 211, 238, 0.42)');
+    plasmaGrad.addColorStop(0.6, 'rgba(6, 182, 212, 0.18)');
+    plasmaGrad.addColorStop(1, 'rgba(9, 10, 13, 0)');
+    ctx.fillStyle = plasmaGrad;
+    ctx.fillRect(cx - 140, 0, 280, 256);
+
+    // Crânio Metálico Cromado/Branco-Gelo incandescente centrado em cx = 256
+    ctx.fillStyle = '#e0f2fe';
+    ctx.beginPath();
+    ctx.moveTo(cx, 28);
+    ctx.bezierCurveTo(cx + 84, 28, cx + 104, 76, cx + 88, 128);
+    ctx.lineTo(cx + 68, 152);
+    ctx.lineTo(cx + 62, 216);
+    ctx.lineTo(cx - 62, 216);
+    ctx.lineTo(cx - 68, 152);
+    ctx.lineTo(cx - 88, 128);
+    ctx.bezierCurveTo(cx - 104, 76, cx - 84, 28, cx, 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Órbitas Oculares Profundas com Chamas Ciano Neon
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(cx - 72, 78);
+    ctx.lineTo(cx - 16, 92);
+    ctx.lineTo(cx - 24, 124);
+    ctx.lineTo(cx - 76, 110);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 72, 78);
+    ctx.lineTo(cx + 16, 92);
+    ctx.lineTo(cx + 24, 124);
+    ctx.lineTo(cx + 76, 110);
+    ctx.closePath();
+    ctx.fill();
+
+    // Fogo Ciano Brilhante saindo dos olhos da caveira
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillRect(cx - 62, 92, 34, 16);
+    ctx.fillRect(cx + 28, 92, 34, 16);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - 52, 96, 16, 8);
+    ctx.fillRect(cx + 36, 96, 16, 8);
+
+    // Cavidade nasal e Dentes da Caveira com Brilho de Plasma Ciano
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(cx, 112);
+    ctx.lineTo(cx - 14, 142);
+    ctx.lineTo(cx + 14, 142);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#0891b2';
+    ctx.fillRect(cx - 52, 158, 104, 42);
+    ctx.fillStyle = '#e0f2fe';
+    for (let tx = cx - 44; tx <= cx + 36; tx += 20) {
+      ctx.fillRect(tx, 162, 14, 34);
+    }
+  } else if (preset === 'voltaico') {
+    // =========================================================================
+    // ROSTO SENHOR DA TEMPESTADE DO VOLTAICO (512x256, centro cx=256)
+    // =========================================================================
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 512, 256);
+
+    // Capacete Condutor Azul-Cobalto / Ouro com Viseira Aberta no Rosto
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fillRect(0, 0, 512, 64);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(0, 54, 512, 12);
+
+    // Rosto energizado em Azul-Elétrico Escuro com Arcos Voltaicos nas bochechas
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(cx - 96, 66, 192, 170);
+
+    // Raios Ciano/Brancos serpenteando a partir dos olhos
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 78, 96);
+    ctx.lineTo(cx - 108, 78);
+    ctx.lineTo(cx - 96, 134);
+    ctx.moveTo(cx + 78, 96);
+    ctx.lineTo(cx + 108, 78);
+    ctx.lineTo(cx + 96, 134);
+    ctx.stroke();
+
+    // Olhos 100% Brancos/Ciano Faiscando Eletricidade Pura (Estilo Deus do Trovão)
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(cx - 78, 82);
+    ctx.lineTo(cx - 18, 94);
+    ctx.lineTo(cx - 24, 118);
+    ctx.lineTo(cx - 74, 110);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 78, 82);
+    ctx.lineTo(cx + 18, 94);
+    ctx.lineTo(cx + 24, 118);
+    ctx.lineTo(cx + 74, 110);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - 66, 90, 38, 16);
+    ctx.fillRect(cx + 28, 90, 38, 16);
+
+    // Respirador / Máscara Condutora Dourada e Azul-Elétrico no queixo
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(cx - 64, 148, 128, 54);
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(cx - 64, 148, 128, 54);
+
+    // Grade de Alta Tensão Ciano no bocal
+    ctx.fillStyle = '#38bdf8';
+    for (let gx = cx - 44; gx <= cx + 44; gx += 22) {
+      ctx.fillRect(gx - 4, 158, 8, 34);
+    }
+  } else if (preset === 'vortex') {
+    // =========================================================================
+    // ROSTO COLOSSO SIMBIONTE DO VÓRTEX — ESTILO VENOM ABISSAL (512x256, cx=256)
+    // =========================================================================
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 0, 512, 256);
+
+    // Veias de Biomassa Roxo-Abissal espalhadas pela cabeça simbionte
+    ctx.strokeStyle = '#9333ea';
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 120, 34);
+    ctx.lineTo(cx - 68, 72);
+    ctx.lineTo(cx - 98, 140);
+    ctx.moveTo(cx + 120, 34);
+    ctx.lineTo(cx + 68, 72);
+    ctx.lineTo(cx + 98, 140);
+    ctx.stroke();
+
+    // Olhos Brancos Gigantes Rasgados e Curvos (Estilo Venom Clássico)
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 16, 98);
+    ctx.bezierCurveTo(cx - 42, 74, cx - 82, 46, cx - 98, 32);
+    ctx.bezierCurveTo(cx - 96, 82, cx - 72, 118, cx - 16, 116);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 16, 98);
+    ctx.bezierCurveTo(cx + 42, 74, cx + 82, 46, cx + 98, 32);
+    ctx.bezierCurveTo(cx + 96, 82, cx + 72, 118, cx + 16, 116);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Bocarra Monstruosa Simbionte Rasgada com Fileiras de Presas Afiadas
+    ctx.fillStyle = '#4c1d95';
+    ctx.beginPath();
+    ctx.moveTo(cx - 92, 140);
+    ctx.quadraticCurveTo(cx, 122, cx + 92, 140);
+    ctx.quadraticCurveTo(cx + 76, 224, cx, 232);
+    ctx.quadraticCurveTo(cx - 76, 224, cx - 92, 140);
+    ctx.closePath();
+    ctx.fill();
+
+    // Presas Superiores e Inferiores Pontiagudas Brancas
+    ctx.fillStyle = '#f8fafc';
+    for (let fx = cx - 72; fx <= cx + 72; fx += 18) {
+      // Presa superior
+      ctx.beginPath();
+      ctx.moveTo(fx - 7, 136);
+      ctx.lineTo(fx + 7, 136);
+      ctx.lineTo(fx, 174);
+      ctx.closePath();
+      ctx.fill();
+      // Presa inferior
+      ctx.beginPath();
+      ctx.moveTo(fx - 6, 218);
+      ctx.lineTo(fx + 6, 218);
+      ctx.lineTo(fx, 184);
+      ctx.closePath();
+      ctx.fill();
+    }
   } else {
     // Rosto clássico LEGO feliz/aventureiro
     ctx.fillStyle = '#171717';
@@ -1039,6 +1239,136 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
     ctx.fillRect(52, 210, 24, 20);
     ctx.fillRect(116, 208, 24, 24);
     ctx.fillRect(180, 210, 24, 20);
+  } else if (preset === 'turbo') {
+    // Jaqueta de Couro Preta de Motoqueiro Fantasma com Correntes e Reator Ciano Neon
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Lapelas de couro com rebites cromados e zíperes diagonais
+    ctx.fillStyle = '#18181b';
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(22, 14);
+    ctx.lineTo(112, 118);
+    ctx.lineTo(38, 198);
+    ctx.lineTo(16, 198);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(234, 14);
+    ctx.lineTo(144, 118);
+    ctx.lineTo(218, 198);
+    ctx.lineTo(240, 198);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Emblema Central de Caveira / Turbina de Plasma Ciano Neon
+    const turboGrad = ctx.createRadialGradient(128, 102, 6, 128, 102, 52);
+    turboGrad.addColorStop(0, '#ffffff');
+    turboGrad.addColorStop(0.45, '#22d3ee');
+    turboGrad.addColorStop(1, '#0891b2');
+    ctx.fillStyle = turboGrad;
+    ctx.beginPath();
+    ctx.arc(128, 102, 46, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#e0f2fe';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    // Cinto de elos de corrente cromados e fivela ciano
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(12, 202, 232, 42);
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillRect(102, 208, 52, 30);
+  } else if (preset === 'voltaico') {
+    // Armadura Condutora de Tempestade (Azul-Cobalto + Bobina Tesla Central + Circuitos Dourados)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 256, 256);
+
+    ctx.fillStyle = '#1d4ed8';
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.roundRect(18, 14, 220, 184, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    // Linhas de Raio Douradas convergindo para a Bobina Tesla Central
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(28, 28);
+    ctx.lineTo(92, 96);
+    ctx.moveTo(228, 28);
+    ctx.lineTo(164, 96);
+    ctx.moveTo(36, 184);
+    ctx.lineTo(92, 122);
+    ctx.moveTo(220, 184);
+    ctx.lineTo(164, 122);
+    ctx.stroke();
+
+    // Bobina Tesla / Núcleo de Trovão Ciano-Branco no Peito
+    const teslaGrad = ctx.createRadialGradient(128, 106, 6, 128, 106, 48);
+    teslaGrad.addColorStop(0, '#ffffff');
+    teslaGrad.addColorStop(0.5, '#38bdf8');
+    teslaGrad.addColorStop(1, '#0284c7');
+    ctx.fillStyle = teslaGrad;
+    ctx.beginPath();
+    ctx.arc(128, 106, 44, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Cinto Condutor Dourado e Azul
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(14, 206, 228, 38);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(100, 212, 56, 26);
+  } else if (preset === 'vortex') {
+    // Peitoral Simbionte Abissal (Preto Líquido + Emblema de Aranha/Vórtex Branco e Roxo-Neon)
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Músculos Simbiontes com brilho roxo escuro
+    ctx.strokeStyle = '#6b21a8';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(18, 16, 220, 186);
+
+    // Emblema Simbionte Gigante (Branco Puro com Contorno Roxo-Neon e Pernas Rasgadas)
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(128, 28);
+    ctx.lineTo(164, 96);
+    ctx.lineTo(128, 178);
+    ctx.lineTo(92, 96);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Tentáculos / Pernas brancas do símbolo simbionte se espalhando pelo peito
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    for (const [sy, ey] of [[58, 22], [88, 68], [118, 128], [146, 186]]) {
+      ctx.moveTo(104, sy);
+      ctx.lineTo(24, ey);
+      ctx.moveTo(152, sy);
+      ctx.lineTo(232, ey);
+    }
+    ctx.stroke();
+
+    // Cinturão de Biomassa Roxo-Abissal
+    ctx.fillStyle = '#581c87';
+    ctx.fillRect(14, 206, 228, 38);
+    ctx.fillStyle = '#a855f7';
+    ctx.fillRect(98, 212, 60, 26);
   } else {
     // Jaqueta azul urbana clássica LEGO
     ctx.fillStyle = '#1d4ed8';

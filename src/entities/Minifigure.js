@@ -111,6 +111,57 @@ export const MINIFIG_PRESETS = {
     capeColor: null,
     weapon: 'dual_katanas',
     fireAura: false
+  },
+  turbo: {
+    key: 'turbo',
+    name: 'Turbo Fantasma',
+    subtitle: 'Moto Fantasma Ciano [Mouse 2] • Correntes de Plasma [Mouse 1] • Arrancada Muralha [Q]',
+    headColor: 0x090a0d,
+    torsoColor: 0x090a0d,
+    armColor: 0x18181b,
+    handColor: 0x22d3ee,
+    hipColor: 0x1e293b,
+    legColor: 0x090a0d,
+    facePreset: 'turbo',
+    torsoPreset: 'turbo',
+    headgear: 'ghost_flame_skull',
+    capeColor: null,
+    weapon: 'turbo_chains',
+    fireAura: false
+  },
+  voltaico: {
+    key: 'voltaico',
+    name: 'Voltaico (Tempestade)',
+    subtitle: 'Chain Lightning [Mouse 1] • Teleporte Elétrico [Mouse 2] • Super Pulso EMP [Q]',
+    headColor: 0x0f172a,
+    torsoColor: 0x1d4ed8,
+    armColor: 0x1e3a8a,
+    handColor: 0x38bdf8,
+    hipColor: 0xfacc15,
+    legColor: 0x0f172a,
+    facePreset: 'voltaico',
+    torsoPreset: 'voltaico',
+    headgear: 'tesla_crown',
+    capeColor: null,
+    weapon: 'voltaico_staff',
+    fireAura: false
+  },
+  vortex: {
+    key: 'vortex',
+    name: 'Vórtex (Simbionte)',
+    subtitle: 'Metamorfose Big-Fig [F] • Tentáculos [Mouse 1] • Laço Abissal [Mouse 2] • Erupção [Q]',
+    headColor: 0x090a0d,
+    torsoColor: 0x090a0d,
+    armColor: 0x090a0d,
+    handColor: 0xa855f7,
+    hipColor: 0x581c87,
+    legColor: 0x090a0d,
+    facePreset: 'vortex',
+    torsoPreset: 'vortex',
+    headgear: 'symbiote_crest',
+    capeColor: null,
+    weapon: 'vortex_tentacles',
+    fireAura: false
   }
 };
 
@@ -215,11 +266,20 @@ export class Minifigure {
     this.rightKatanaGroup = null;
     this.titaShieldGroup = null;
     this.titaCannonGroup = null;
+    this.turboFlameMeshes = [];
+    this.turboChainGroups = [];
+    this.voltaicoArcs = [];
+    this.voltaicoStaffOrb = null;
+    this.vortexTentacles = [];
+    this.vortexMonsterSpikes = [];
+    this.isVortexMonster = false;
 
     if (preset.isBigFig) {
       this.visualRoot.scale.set(1.78, 1.62, 1.78);
     } else if (preset.key === 'sombra') {
       this.visualRoot.scale.set(0.92, 1.07, 0.92);
+    } else if (preset.key === 'vortex') {
+      this.visualRoot.scale.set(1.06, 1.08, 1.06);
     } else {
       this.visualRoot.scale.set(1, 1, 1);
     }
@@ -328,6 +388,12 @@ export class Minifigure {
     } else if (preset.weapon === 'dual_katanas') {
       this._attachDualKatanas(this.leftHandGroup, this.rightHandGroup);
       this._attachSombraShinobiRig();
+    } else if (preset.weapon === 'turbo_chains') {
+      this._attachTurboGhostRiderRig(this.leftHandGroup, this.rightHandGroup);
+    } else if (preset.weapon === 'voltaico_staff') {
+      this._attachVoltaicoTeslaRig(this.leftHandGroup, this.rightHandGroup);
+    } else if (preset.weapon === 'vortex_tentacles') {
+      this._attachVortexSymbioteRig(this.leftHandGroup, this.rightHandGroup);
     }
 
     if (preset.fireAura) {
@@ -837,6 +903,389 @@ export class Minifigure {
         tail.rotation.x = 0.42;
         tail.rotation.z = side * 0.22;
         this.headGroup.add(tail);
+      }
+    } else if (preset.headgear === 'ghost_flame_skull') {
+      // =========================================================================
+      // COROA DE CHAMAS DE PLASMA CIANO 3D DO TURBO FANTASMA (GHOST RIDER CIANO)
+      // =========================================================================
+      const cyanFlameMat = getLegoMaterial(0x22d3ee, {
+        emissive: 0x06b6d4,
+        emissiveIntensity: 2.2,
+        roughness: 0.1
+      });
+      const whiteCyanMat = getLegoMaterial(0xe0f2fe, {
+        emissive: 0x38bdf8,
+        emissiveIntensity: 2.5,
+        roughness: 0.08
+      });
+      const chromeMat = getLegoMaterial(0xe2e8f0, { metalness: 0.78, roughness: 0.16 });
+
+      // Aro de Corrente Cromada na testa
+      const browChain = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.036, 8, 20), chromeMat);
+      browChain.rotation.x = Math.PI / 2;
+      browChain.position.set(0, 0.56, 0);
+      this.headGroup.add(browChain);
+
+      // 12 Línguas de Fogo Ciano 3D subindo da cabeça de Caveira
+      for (let i = 0; i < 12; i++) {
+        const ang = (i / 12) * Math.PI * 2;
+        const r = 0.25 + (i % 2) * 0.06;
+        const h = 0.34 + (i % 3) * 0.12;
+        const mat = i % 3 === 0 ? whiteCyanMat : cyanFlameMat;
+        const flameCone = new THREE.Mesh(new THREE.ConeGeometry(0.085, h, 6), mat);
+        flameCone.position.set(Math.cos(ang) * r, 0.68 + h * 0.32, Math.sin(ang) * r - 0.04);
+        const baseRotX = -0.26 - Math.sin(ang) * 0.18;
+        const baseRotZ = -Math.cos(ang) * 0.22;
+        flameCone.rotation.set(baseRotX, 0, baseRotZ);
+        this.headGroup.add(flameCone);
+        this.turboFlameMeshes.push({
+          mesh: flameCone,
+          phase: i * 0.7,
+          speed: 12.0 + (i % 4) * 2.5,
+          baseRotX,
+          baseRotZ
+        });
+      }
+    } else if (preset.headgear === 'tesla_crown') {
+      // =========================================================================
+      // CAPACETE CONDUTOR DE TEMPESTADE & COROA DE BOBINA TESLA DO VOLTAICO
+      // =========================================================================
+      const cobaltMat = getLegoMaterial(0x1d4ed8, { roughness: 0.2, metalness: 0.45 });
+      const goldMat = getLegoMaterial(0xfacc15, { roughness: 0.18, metalness: 0.72 });
+      const arcGlowMat = getLegoMaterial(0x38bdf8, {
+        emissive: 0x38bdf8,
+        emissiveIntensity: 2.3,
+        roughness: 0.1
+      });
+
+      const helmDomed = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.39, 0.16, 28), cobaltMat);
+      helmDomed.position.set(0, 0.61, 0);
+      this.headGroup.add(helmDomed);
+
+      // Cristas de Raio Douradas nas laterais do capacete (Estilo Thor / Flash / Raiden)
+      for (const side of [-1, 1]) {
+        const wingBolt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.28, 0.38), goldMat);
+        wingBolt.position.set(side * 0.38, 0.52, -0.06);
+        wingBolt.rotation.x = 0.38;
+        wingBolt.rotation.z = -side * 0.22;
+        this.headGroup.add(wingBolt);
+      }
+
+      // Antena Bobina Tesla no topo da cabeça
+      const topCoil = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.18, 18), goldMat);
+      topCoil.position.set(0, 0.74, 0);
+      const topSpark = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), arcGlowMat);
+      topSpark.position.set(0, 0.86, 0);
+      this.headGroup.add(topCoil, topSpark);
+    } else if (preset.headgear === 'symbiote_crest') {
+      // =========================================================================
+      // CRISTA ORGÂNICA SIMBIONTE & ESPINHOS ABISSAIS DO VÓRTEX (ESTILO VENOM)
+      // =========================================================================
+      const symbioteBlack = getLegoMaterial(0x090a0d, { roughness: 0.1, clearcoat: 0.92 });
+      const abyssPurple = getLegoMaterial(0xa855f7, {
+        emissive: 0x9333ea,
+        emissiveIntensity: 1.9,
+        roughness: 0.14
+      });
+
+      for (let i = 0; i < 5; i++) {
+        const tendril = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.28 + (i % 2) * 0.08, 6), i % 2 === 0 ? symbioteBlack : abyssPurple);
+        tendril.position.set((i - 2) * 0.11, 0.66, -0.14 - Math.abs(i - 2) * 0.04);
+        tendril.rotation.x = -0.58;
+        tendril.rotation.z = -(i - 2) * 0.18;
+        this.headGroup.add(tendril);
+      }
+    }
+  }
+
+  /**
+   * HERÓI #6: TURBO FANTASMA (OP-06) — Jaqueta de Motoqueiro com Espinhos Cromados,
+   * Pneu/Turbina Dorsal com Escapamentos Flamejantes Ciano e Correntes Giratórias de Plasma!
+   */
+  _attachTurboGhostRiderRig(leftHandGroup, rightHandGroup) {
+    const leatherBlack = getLegoMaterial(0x090a0d, { roughness: 0.3, clearcoat: 0.35 });
+    const chromeSteel = getLegoMaterial(0xe2e8f0, { metalness: 0.82, roughness: 0.15 });
+    const cyanGlow = getLegoMaterial(0x22d3ee, {
+      emissive: 0x06b6d4,
+      emissiveIntensity: 2.3,
+      roughness: 0.1
+    });
+
+    // 1. Gola Alta de Couro + Correntes Cruzadas 3D no Peito
+    const collar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.35, 0.18, 20, 1, true, Math.PI * 0.2, Math.PI * 1.6),
+      leatherBlack
+    );
+    collar.position.set(0, 0.78, -0.02);
+    this.upperBodyGroup.add(collar);
+
+    for (const side of [-1, 1]) {
+      const chestChain = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.84, 0.5), chromeSteel);
+      chestChain.position.set(0, 0.4, 0);
+      chestChain.rotation.z = side * 0.56;
+      this.upperBodyGroup.add(chestChain);
+
+      // Ombreiras de Couro com 3 Espinhos Cromados (Biker Spikes)
+      const armPivot = side > 0 ? this.leftArmPivot : this.rightArmPivot;
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.36), leatherBlack);
+      pad.position.set(side * 0.06, 0.08, 0);
+      armPivot.add(pad);
+      for (const sz of [-0.1, 0, 0.1]) {
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.16, 6), chromeSteel);
+        spike.position.set(side * 0.1, 0.21, sz);
+        spike.rotation.z = -side * 0.25;
+        armPivot.add(spike);
+      }
+    }
+
+    // 2. Costas: Turbina/Roda Energética Ciano + 2 Escapamentos Cromados Soltando Chamas Ciano
+    const backRig = new THREE.Group();
+    backRig.position.set(0, 0.42, -0.28);
+    const wheelRim = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 10, 20), leatherBlack);
+    const wheelGlow = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.032, 8, 20), cyanGlow);
+    backRig.add(wheelRim, wheelGlow);
+
+    for (const sx of [-0.22, 0.22]) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.52, 12), chromeSteel);
+      pipe.position.set(sx, 0.14, -0.06);
+      pipe.rotation.z = -sx * 0.85;
+      pipe.rotation.x = -0.25;
+      const pipeFlame = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.26, 8), cyanGlow);
+      pipeFlame.position.set(sx * 1.48, 0.38, -0.12);
+      pipeFlame.rotation.z = -sx * 0.85;
+      backRig.add(pipe, pipeFlame);
+    }
+    this.upperBodyGroup.add(backRig);
+
+    // 3. Mãos: Correntes Giratórias de Plasma Ciano (Elos Metálicos + Lâmina-Gancho Ciano)
+    for (const [hand, sign] of [[leftHandGroup, 1], [rightHandGroup, -1]]) {
+      const chainGroup = new THREE.Group();
+      chainGroup.position.set(sign * 0.04, -0.28, 0.12);
+
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.26, 10), chromeSteel);
+      handle.rotation.x = Math.PI / 2;
+      chainGroup.add(handle);
+
+      for (let l = 0; l < 6; l++) {
+        const link = new THREE.Mesh(
+          new THREE.TorusGeometry(0.065, 0.022, 6, 12),
+          l % 2 === 0 ? cyanGlow : chromeSteel
+        );
+        link.position.set(0, -l * 0.04, 0.18 + l * 0.15);
+        link.rotation.y = (l % 2) * (Math.PI / 2);
+        chainGroup.add(link);
+      }
+
+      const hookBlade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.32, 4), cyanGlow);
+      hookBlade.position.set(0, -0.24, 1.12);
+      hookBlade.rotation.x = Math.PI * 0.65;
+      chainGroup.add(hookBlade);
+
+      hand.add(chainGroup);
+      this.turboChainGroups.push(chainGroup);
+    }
+  }
+
+  /**
+   * HERÓI #7: VOLTAICO (OP-07) — 2 Bobinas Tesla Gigantes nas Costas com Arcos Elétricos
+   * e Cetro / Lança-Raios de Bobina Tesla na Mão Direita!
+   */
+  _attachVoltaicoTeslaRig(leftHandGroup, rightHandGroup) {
+    const cobaltArmor = getLegoMaterial(0x1d4ed8, { roughness: 0.22, metalness: 0.45 });
+    const goldConductor = getLegoMaterial(0xfacc15, { roughness: 0.18, metalness: 0.75 });
+    const electricCyan = getLegoMaterial(0x38bdf8, {
+      emissive: 0x38bdf8,
+      emissiveIntensity: 2.4,
+      roughness: 0.08
+    });
+    const whiteSpark = getLegoMaterial(0xffffff, {
+      emissive: 0xe0f2fe,
+      emissiveIntensity: 2.6,
+      roughness: 0.06
+    });
+
+    // 1. Costas: 2 Bobinas Tesla Dorsais Gigantes com Anéis Condutores e Arco Voltaico Entre Elas
+    const teslaPack = new THREE.Group();
+    teslaPack.position.set(0, 0.46, -0.28);
+
+    const baseBox = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.46, 0.22), cobaltArmor);
+    teslaPack.add(baseBox);
+
+    for (const sx of [-0.26, 0.26]) {
+      const coilGroup = new THREE.Group();
+      coilGroup.position.set(sx, 0.28, -0.04);
+      coilGroup.rotation.z = -sx * 0.55;
+
+      const coreRod = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.56, 14), cobaltArmor);
+      coilGroup.add(coreRod);
+
+      for (let r = 0; r < 4; r++) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11 - r * 0.01, 0.022, 8, 18), r % 2 === 0 ? goldConductor : electricCyan);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(0, -0.14 + r * 0.11, 0);
+        coilGroup.add(ring);
+      }
+
+      const terminalSphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 14), whiteSpark);
+      terminalSphere.position.set(0, 0.3, 0);
+      coilGroup.add(terminalSphere);
+      this.voltaicoArcs.push(terminalSphere);
+
+      teslaPack.add(coilGroup);
+    }
+
+    // Ponte de Raio Ciano conectando as duas Bobinas Tesla
+    const bridgeArc = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.045, 0.045), electricCyan);
+    bridgeArc.position.set(0, 0.52, -0.04);
+    teslaPack.add(bridgeArc);
+    this.voltaicoArcs.push(bridgeArc);
+
+    this.upperBodyGroup.add(teslaPack);
+
+    // 2. Mão Esquerda: Orbe de Relâmpago Vivo
+    const leftSparkOrb = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 1), electricCyan);
+    leftSparkOrb.position.set(0, -0.32, 0.14);
+    leftHandGroup.add(leftSparkOrb);
+    this.voltaicoArcs.push(leftSparkOrb);
+
+    // 3. Mão Direita: Cetro / Lança-Raios de Bobina Tesla
+    const staffGroup = new THREE.Group();
+    staffGroup.position.set(0, -0.26, 0.16);
+
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 1.38, 12), cobaltArmor);
+    shaft.rotation.x = Math.PI / 2;
+    shaft.position.set(0, 0, 0.36);
+    staffGroup.add(shaft);
+
+    for (const zRing of [0.68, 0.82, 0.96]) {
+      const coilRing = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.022, 8, 16), goldConductor);
+      coilRing.position.set(0, 0, zRing);
+      staffGroup.add(coilRing);
+    }
+
+    const staffOrb = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 1), whiteSpark);
+    staffOrb.position.set(0, 0, 1.12);
+    staffGroup.add(staffOrb);
+    this.voltaicoStaffOrb = staffOrb;
+
+    rightHandGroup.add(staffGroup);
+  }
+
+  /**
+   * HERÓI #8: VÓRTEX (OP-08 — COLOSSO SIMBIONTE / VENOM ABISSAL):
+   * - 4 Tentáculos Simbiontes 3D Vivos nas Costas (que ondulam e atacam!)
+   * - Garras Simbiontes Afiadas nas Mãos e Ombreiras Orgânicas com Espinhos Roxos
+   * - Suporta Metamorfose em Tempo Real [F] entre Forma Ágil e Forma Big-Fig Monstruosa!
+   */
+  _attachVortexSymbioteRig(leftHandGroup, rightHandGroup) {
+    const symbioteBlack = getLegoMaterial(0x090a0d, { roughness: 0.1, clearcoat: 0.92 });
+    const abyssPurple = getLegoMaterial(0xa855f7, {
+      emissive: 0x9333ea,
+      emissiveIntensity: 2.0,
+      roughness: 0.14
+    });
+    const boneWhite = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
+
+    // 1. Ombreiras Simbiontes Musculosas com Espinhos Bioluminescentes Roxos
+    for (const [armPivot, sign] of [[this.leftArmPivot, 1], [this.rightArmPivot, -1]]) {
+      const bioPauldron = new THREE.Group();
+      const mass = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 12), symbioteBlack);
+      mass.scale.set(1.25, 0.85, 1.15);
+      mass.position.set(sign * 0.08, 0.08, 0);
+      bioPauldron.add(mass);
+
+      for (let s = 0; s < 2; s++) {
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 6), s === 0 ? abyssPurple : symbioteBlack);
+        spike.position.set(sign * (0.14 + s * 0.08), 0.24, (s - 0.5) * 0.12);
+        spike.rotation.z = -sign * (0.35 + s * 0.2);
+        bioPauldron.add(spike);
+        this.vortexMonsterSpikes.push(spike);
+      }
+      armPivot.add(bioPauldron);
+    }
+
+    // 2. Garras Simbiontes Monstruosas nas Duas Mãos
+    for (const [hand, sign] of [[leftHandGroup, 1], [rightHandGroup, -1]]) {
+      const clawGroup = new THREE.Group();
+      clawGroup.position.set(0, -0.32, 0.08);
+      const gauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.28), symbioteBlack);
+      clawGroup.add(gauntlet);
+
+      for (let c = -1; c <= 1; c++) {
+        const claw = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.28, 5), c === 0 ? abyssPurple : boneWhite);
+        claw.position.set(c * 0.075, -0.14, 0.18);
+        claw.rotation.x = Math.PI * 0.68;
+        claw.rotation.z = -sign * 0.08;
+        clawGroup.add(claw);
+      }
+      hand.add(clawGroup);
+    }
+
+    // 3. Costas: 4 Tentáculos Simbiontes 3D Articulados Vivos!
+    const tentacleAngles = [
+      { x: 0.22, y: 0.56, rotZ: -0.65, rotY: 0.35, phase: 0.0 },
+      { x: -0.22, y: 0.56, rotZ: 0.65, rotY: -0.35, phase: 1.6 },
+      { x: 0.26, y: 0.28, rotZ: -1.05, rotY: 0.45, phase: 3.1 },
+      { x: -0.26, y: 0.28, rotZ: 1.05, rotY: -0.45, phase: 4.7 }
+    ];
+
+    for (const cfg of tentacleAngles) {
+      const pivot = new THREE.Group();
+      pivot.position.set(cfg.x, cfg.y, -0.22);
+      pivot.rotation.z = cfg.rotZ;
+      pivot.rotation.y = cfg.rotY;
+
+      // Segmentos cônicos curvados do tentáculo + Ponta de Ferrão Roxo-Abissal
+      const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.085, 0.62, 10), symbioteBlack);
+      seg1.position.set(0, 0.28, -0.12);
+      seg1.rotation.x = -0.35;
+      pivot.add(seg1);
+
+      const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.055, 0.58, 10), symbioteBlack);
+      seg2.position.set(0, 0.72, -0.34);
+      seg2.rotation.x = -0.68;
+      pivot.add(seg2);
+
+      const barbTip = new THREE.Mesh(new THREE.ConeGeometry(0.068, 0.32, 6), abyssPurple);
+      barbTip.position.set(0, 1.04, -0.58);
+      barbTip.rotation.x = -0.95;
+      pivot.add(barbTip);
+
+      this.upperBodyGroup.add(pivot);
+      this.vortexTentacles.push({
+        pivot,
+        baseRotZ: cfg.rotZ,
+        baseRotY: cfg.rotY,
+        phase: cfg.phase
+      });
+    }
+  }
+
+  /**
+   * HERÓI #8 (Vórtex): Alterna em tempo real entre Forma Normal Ágil e Forma Big-Fig Monstruosa Colossal [F]!
+   */
+  setVortexMonsterForm(isMonster) {
+    if (this.currentHeroKey !== 'vortex') return;
+    this.isVortexMonster = Boolean(isMonster);
+    this.isBigFig = this.isVortexMonster;
+
+    if (this.isVortexMonster) {
+      // Forma Big-Fig Monstruosa Colossal (Quase o dobro do tamanho + ombros largos + espinhos gigantes!)
+      this.visualRoot.scale.set(1.88, 1.74, 1.88);
+      for (const sp of this.vortexMonsterSpikes) {
+        sp.scale.set(1.45, 1.65, 1.45);
+      }
+      for (const t of this.vortexTentacles) {
+        t.pivot.scale.setScalar(1.32);
+      }
+    } else {
+      // Forma Simbionte Ágil
+      this.visualRoot.scale.set(1.06, 1.08, 1.06);
+      for (const sp of this.vortexMonsterSpikes) {
+        sp.scale.set(1, 1, 1);
+      }
+      for (const t of this.vortexTentacles) {
+        t.pivot.scale.setScalar(1.0);
       }
     }
   }
@@ -3224,6 +3673,49 @@ export class Minifigure {
       }
     }
 
+    // Chamas Ciano da Caveira + Giro de Correntes do Turbo Fantasma (OP-06)
+    if (this.turboFlameMeshes && this.turboFlameMeshes.length > 0) {
+      for (const tf of this.turboFlameMeshes) {
+        const w = Math.sin(this.animTime * tf.speed + tf.phase);
+        tf.mesh.scale.set(0.95, 0.85 + (w * 0.5 + 0.5) * 0.55, 0.95);
+        tf.mesh.rotation.x = tf.baseRotX + w * 0.16;
+        tf.mesh.rotation.z = tf.baseRotZ + Math.cos(this.animTime * tf.speed + tf.phase) * 0.14;
+      }
+    }
+    if (this.turboChainGroups && this.turboChainGroups.length > 0) {
+      const spinAmp = this.punchTimer > 0 ? 18.0 : 4.5;
+      for (let i = 0; i < this.turboChainGroups.length; i++) {
+        this.turboChainGroups[i].rotation.z = Math.sin(this.animTime * spinAmp + i * Math.PI) * 0.35;
+      }
+    }
+
+    // Pulso de Bobinas Tesla e Orbe Elétrico do Voltaico (OP-07)
+    if (this.voltaicoArcs && this.voltaicoArcs.length > 0) {
+      const sparkScale = 0.88 + Math.sin(this.animTime * 28.0) * 0.24;
+      for (const arc of this.voltaicoArcs) {
+        arc.scale.setScalar(sparkScale);
+        arc.rotation.y += dt * 6.0;
+      }
+    }
+    if (this.voltaicoStaffOrb) {
+      this.voltaicoStaffOrb.rotation.x += dt * 7.5;
+      this.voltaicoStaffOrb.rotation.y += dt * 9.5;
+      const orbPulse = 0.92 + Math.sin(this.animTime * 22.0) * 0.22;
+      this.voltaicoStaffOrb.scale.setScalar(orbPulse);
+    }
+
+    // Ondulação Viva dos 4 Tentáculos Simbiontes nas Costas do Vórtex (OP-08)
+    if (this.vortexTentacles && this.vortexTentacles.length > 0) {
+      const attackBoost = this.punchTimer > 0 ? 2.6 : 1.0;
+      for (const t of this.vortexTentacles) {
+        const w1 = Math.sin(this.animTime * 5.2 * attackBoost + t.phase);
+        const w2 = Math.cos(this.animTime * 3.8 * attackBoost + t.phase);
+        t.pivot.rotation.z = t.baseRotZ + w1 * 0.24 * attackBoost;
+        t.pivot.rotation.y = t.baseRotY + w2 * 0.28 * attackBoost;
+        t.pivot.rotation.x = this.punchTimer > 0 ? 0.85 : w1 * 0.16;
+      }
+    }
+
     const lerpSpeed = Math.min(1, dt * 14);
 
     // 1. Animação de Rolamento Tático 360° (Comandante Caveira) girando no centro de massa (sem entrar no chão!)
@@ -3507,10 +3999,10 @@ export class Minifigure {
     if (this.capeMesh) {
       const targetCapeAngle =
         isSupersonic ? 0.18 :
-        isFlying ? 0.42 :
-        this.state === 'RUN' ? 0.55 :
-        this.state === 'WALK' ? 0.3 :
-        !isGrounded ? 0.65 : 0.12;
+          isFlying ? 0.42 :
+            this.state === 'RUN' ? 0.55 :
+              this.state === 'WALK' ? 0.3 :
+                !isGrounded ? 0.65 : 0.12;
       this.capeMesh.rotation.x = THREE.MathUtils.lerp(
         this.capeMesh.rotation.x,
         targetCapeAngle + Math.sin(this.animTime * 7) * 0.05,

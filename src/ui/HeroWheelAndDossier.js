@@ -99,6 +99,63 @@ export const HERO_CATALOG = [
       { key: 'G', title: 'PUXÃO MAGNÉTICO ESPIRITUAL', desc: 'Atrai todos os Studs em 28m e atinge o alvo na mira.' },
       { key: 'SHIFT', title: 'CORRIDA SHINOBI (PASSO FANTASMA)', desc: 'Corrida inclinada para frente em velocidade extrema com as duas Katanas voltadas para trás.' }
     ]
+  },
+  {
+    key: 'turbo',
+    opCode: 'OP-06',
+    shortName: 'TURBO FANTASMA',
+    name: 'TURBO FANTASMA',
+    role: 'MOTOCICLISTA FANTASMA // PLASMA CIANO & MURALHA DE LUZ',
+    accent: '#22d3ee',
+    icon: 'bolt',
+    specialty: 'Invocação Instantânea de Moto Energética Ciano, Muralha de Luz & Correntes de Plasma',
+    passive: 'Deixa Muralha de Luz Ciano sólida atrás da moto ou na Arrancada [Q] que capota e explode veículos!',
+    controls: [
+      { key: 'MOUSE 2 / G', title: 'INVOCAR MOTO FANTASMA CIANO', desc: 'Materializa e monta instantaneamente na Moto Energética em movimento!' },
+      { key: 'MOUSE 1 / V', title: 'AÇOITE DE CORRENTES DE PLASMA', desc: 'Chicoteia correntes giratórias incandescentes que destroem tudo em arco.' },
+      { key: 'Q', title: 'ARRANCADA + MURALHA DE LUZ', desc: 'Dispara a 44m/s (ou Nitro na Moto) deixando rastro sólido de luz que explode carros!' },
+      { key: 'E', title: 'DESMONTAR / MONTAR VEÍCULO', desc: 'Sai ou entra em qualquer veículo da cidade.' },
+      { key: 'ESPAÇO', title: 'SALTO ACROBÁTICO DE PILOTO', desc: 'Salto ágil com impulso de chamas ciano.' },
+      { key: 'SHIFT', title: 'CORRIDA DE ALTA OCTANAGEM', desc: 'Deslocamento veloz a 28m/s (ou Drift na Moto).' }
+    ]
+  },
+  {
+    key: 'voltaico',
+    opCode: 'OP-07',
+    shortName: 'VOLTAICO',
+    name: 'VOLTAICO (TEMPESTADE)',
+    role: 'SENHOR DA TEMPESTADE // ALTA TENSÃO & BOBINAS TESLA',
+    accent: '#38bdf8',
+    icon: 'bolt',
+    specialty: 'Corrente de Raios (Chain Lightning), Teleporte em Postes/Antenas & Super Pulso EMP',
+    passive: 'Sobrecarga automática de Geradores Elétricos e levitação eletromagnética no ar.',
+    controls: [
+      { key: 'MOUSE 1', title: 'CORRENTE DE RAIOS (CHAIN)', desc: 'Dispara raio elétrico que salta automaticamente entre até 6 alvos e carrega geradores!' },
+      { key: 'MOUSE 2 / F', title: 'TELEPORTE DE RELÂMPAGO', desc: 'Teleporta instantaneamente na velocidade da luz para o poste, prédio ou ponto mirado!' },
+      { key: 'Q', title: 'SUPER PULSO EMP & TROVÕES', desc: 'Domo eletromagnético de 28m + chuva de raios do céu que explode veículos ao redor!' },
+      { key: 'ESPAÇO (AR)', title: 'PLANAGEM ELETROMAGNÉTICA', desc: 'Segure ESPAÇO no ar para planar envolto em arcos voltaicos.' },
+      { key: 'V / G', title: 'DESCARGA DE BOBINA TESLA', desc: 'Choque elétrico concentrado de curta distância.' },
+      { key: 'SHIFT', title: 'CORRIDA RELÂMPAGO', desc: 'Avanço elétrico de alta velocidade (27m/s) soltando faíscas.' }
+    ]
+  },
+  {
+    key: 'vortex',
+    opCode: 'OP-08',
+    shortName: 'VÓRTEX',
+    name: 'VÓRTEX (SIMBIONTE)',
+    role: 'COLOSSO SIMBIONTE ABISSAL // METAMORFO BIG-FIG',
+    accent: '#a855f7',
+    icon: 'shield',
+    specialty: 'Metamorfose Real-Time (Ágil <-> Big-Fig Monstruoso), Tentáculos & Laço Abissal',
+    passive: 'Alterna com [F] entre forma Ágil veloz e Colosso Big-Fig Monstruoso que racha o chão e quebra Paredes Rachadas.',
+    controls: [
+      { key: 'F / R', title: 'METAMORFOSE BIG-FIG EM TEMPO REAL', desc: 'Alterna instantaneamente entre Forma Simbionte Ágil e Colosso Big-Fig Monstruoso!' },
+      { key: 'MOUSE 1 / V', title: 'DEVASTAÇÃO DE TENTÁCULOS', desc: 'Chicoteia os 4 tentáculos simbiontes em área estraçalhando carros e Paredes Rachadas.' },
+      { key: 'MOUSE 2 / G', title: 'LAÇO ABISSAL (DERRUBA HELICÓPTEROS)', desc: 'Lança tentáculo gigante que puxa helicópteros/carros pro chão ou lança o Vórtex até o alvo!' },
+      { key: 'Q', title: 'ERUPÇÃO ABISSAL DE ESPINHOS (24M)', desc: 'Faz brotar dezenas de tentáculos e espinhos negros/roxos do chão em 360°!' },
+      { key: 'ESPAÇO', title: 'SALTO PREDATÓRIO SIMBIONTE', desc: 'Super-salto elástico que treme e racha o asfalto ao pousar na forma Monstruosa.' },
+      { key: 'SHIFT', title: 'INVESTIDA SIMBIONTE', desc: 'Corrida predatória feroz com tentáculos ondulando nas costas.' }
+    ]
   }
 ];
 
@@ -120,6 +177,9 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     presetKey === 'tita' ? 'rgba(239, 68, 68, 0.28)' :
     presetKey === 'sombra' ? 'rgba(239, 68, 68, 0.25)' :
     presetKey === 'vingador' ? 'rgba(203, 213, 225, 0.22)' :
+    presetKey === 'turbo' ? 'rgba(34, 211, 238, 0.28)' :
+    presetKey === 'voltaico' ? 'rgba(56, 189, 248, 0.28)' :
+    presetKey === 'vortex' ? 'rgba(168, 85, 247, 0.28)' :
     'rgba(250, 204, 21, 0.18)';
   ctx.strokeStyle = bgStroke;
   ctx.lineWidth = Math.max(3, w * 0.075);
@@ -135,7 +195,12 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   ctx.scale(scale, scale);
 
   // Pino superior LEGO (Stud)
-  ctx.fillStyle = presetKey === 'tita' ? '#dc2626' : presetKey === 'sombra' ? '#090a0d' : '#eab308';
+  ctx.fillStyle =
+    presetKey === 'tita' ? '#dc2626' :
+    presetKey === 'sombra' || presetKey === 'vortex' ? '#090a0d' :
+    presetKey === 'turbo' ? '#22d3ee' :
+    presetKey === 'voltaico' ? '#38bdf8' :
+    '#eab308';
   ctx.strokeStyle = '#090a0d';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
@@ -144,7 +209,12 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   ctx.stroke();
 
   // Cabeça cilíndrica LEGO
-  ctx.fillStyle = presetKey === 'tita' ? '#334155' : presetKey === 'sombra' ? '#18181b' : '#facc15';
+  ctx.fillStyle =
+    presetKey === 'tita' ? '#334155' :
+    presetKey === 'sombra' || presetKey === 'vortex' ? '#090a0d' :
+    presetKey === 'turbo' ? '#e0f2fe' :
+    presetKey === 'voltaico' ? '#1e293b' :
+    '#facc15';
   ctx.beginPath();
   ctx.roundRect(76 * 0.22, 17, 76 * 0.56, 38, 6);
   ctx.fill();
@@ -154,7 +224,9 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   ctx.fillStyle =
     presetKey === 'solaris' ? '#7f1d1d' :
     presetKey === 'tita' ? '#f8fafc' :
-    presetKey === 'sombra' ? '#991b1b' : '#171717';
+    presetKey === 'sombra' ? '#991b1b' :
+    presetKey === 'voltaico' ? '#1d4ed8' :
+    '#171717';
   ctx.beginPath();
   ctx.roundRect(76 * 0.14, 54, 76 * 0.72, 24, 4);
   ctx.fill();
@@ -482,6 +554,95 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
     ctx.arc(76 * 0.5, 65, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (presetKey === 'turbo') {
+    // Coroa de Chamas Ciano + Caveira Incandescente + Jaqueta com Correntes
+    ctx.fillStyle = '#22d3ee';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.2, 19);
+    ctx.lineTo(76 * 0.26, 4);
+    ctx.lineTo(76 * 0.38, 14);
+    ctx.lineTo(76 * 0.5, 2);
+    ctx.lineTo(76 * 0.62, 14);
+    ctx.lineTo(76 * 0.74, 4);
+    ctx.lineTo(76 * 0.8, 19);
+    ctx.closePath();
+    ctx.fill();
+
+    // Órbitas da caveira e chamas ciano nos olhos
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.27, 26, 13, 9);
+    ctx.fillRect(76 * 0.55, 26, 13, 9);
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillRect(76 * 0.3, 28, 7, 5);
+    ctx.fillRect(76 * 0.58, 28, 7, 5);
+
+    // Dentes da caveira e reator ciano no peito
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.32, 41, 76 * 0.36, 9);
+    ctx.fillStyle = '#e0f2fe';
+    for (let tx = 76 * 0.35; tx <= 76 * 0.62; tx += 6) {
+      ctx.fillRect(tx, 42, 3.5, 7);
+    }
+    ctx.fillStyle = '#22d3ee';
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (presetKey === 'voltaico') {
+    // Capacete Azul/Dourado de Bobina Tesla + Olhos Brancos/Ciano Elétricos
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fillRect(76 * 0.21, 15, 76 * 0.58, 9);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(76 * 0.21, 22, 76 * 0.58, 3);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(76 * 0.26, 28, 13, 7);
+    ctx.fillRect(76 * 0.56, 28, 13, 7);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(76 * 0.29, 29.5, 8, 4);
+    ctx.fillRect(76 * 0.59, 29.5, 8, 4);
+
+    // Máscara condutora dourada/preta no queixo + Bobina Tesla no peito
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.3, 40, 76 * 0.4, 11);
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(76 * 0.3, 40, 76 * 0.4, 11);
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (presetKey === 'vortex') {
+    // Olhos Brancos Rasgados Gigantes (Estilo Venom) + Bocarra de Presas + Símbolo Roxo/Branco
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.24, 21);
+    ctx.lineTo(76 * 0.46, 29);
+    ctx.lineTo(76 * 0.44, 35);
+    ctx.lineTo(76 * 0.24, 30);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.76, 21);
+    ctx.lineTo(76 * 0.54, 29);
+    ctx.lineTo(76 * 0.56, 35);
+    ctx.lineTo(76 * 0.76, 30);
+    ctx.closePath();
+    ctx.fill();
+
+    // Bocarra roxa com presas brancas afiadas
+    ctx.fillStyle = '#581c87';
+    ctx.fillRect(76 * 0.28, 39, 76 * 0.44, 12);
+    ctx.fillStyle = '#f8fafc';
+    for (let fx = 76 * 0.31; fx <= 76 * 0.66; fx += 6.5) {
+      ctx.fillRect(fx, 39, 3, 5);
+      ctx.fillRect(fx, 46, 3, 5);
+    }
+
+    ctx.fillStyle = '#a855f7';
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
