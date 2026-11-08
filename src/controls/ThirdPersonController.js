@@ -222,7 +222,7 @@ export class ThirdPersonController {
           if (hero === 'caveira') {
             this._throwCaveiraGrenade();
           } else if (hero === 'tita') {
-            this._triggerTitaRocketPunch();
+            this._toggleTitaCarGrabOrThrow();
           } else if (hero === 'vingador') {
             this._cycleVingadorWeapon();
           } else if (hero === 'sombra') {
@@ -818,7 +818,8 @@ export class ThirdPersonController {
   }
 
   /**
-   * HERÓI #3 (Titã Blindado): Agarrar um carro da rua acima da cabeça ou Arremessar [Clique Direito / G]
+   * HERÓI #3 (Titã Blindado): Agarrar QUALQUER Veículo acima da cabeça ou Arremessar [Clique Direito / F / G]
+   * Suporta todos os veículos do jogo: Carros, Motos, Caminhões-Carreta, Tanques, Helicópteros, Aviões, Barcos, Lanchas e Navios!
    */
   _toggleTitaCarGrabOrThrow() {
     if (!this.destructibles) return;
@@ -831,9 +832,9 @@ export class ThirdPersonController {
       this.minifigure.triggerPunch();
       const aimData = this.destructibles.getAimTargetPoint(this.camera, 95);
       const throwOrigin = new THREE.Vector3(
-        this.position.x + Math.sin(this.facingAngle) * 1.4,
-        this.position.y + 3.4,
-        this.position.z + Math.cos(this.facingAngle) * 1.4
+        this.position.x + Math.sin(this.facingAngle) * 1.6,
+        this.position.y + 4.35,
+        this.position.z + Math.cos(this.facingAngle) * 1.6
       );
       this.destructibles.throwGrabbedCar(
         carToThrow,
@@ -844,16 +845,20 @@ export class ThirdPersonController {
       return;
     }
 
-    // Busca carro terrestre próximo para levantar com as duas mãos colossais
+    // Busca qualquer veículo próximo (carros, caminhões, tanques, helicópteros, aviões, barcos, navios)
     let bestCar = null;
-    let bestDist = 7.2;
+    let bestEdgeDist = 9.5;
     for (const obj of this.destructibles.objects) {
       if (obj.destroyed || obj.type !== 'car' || obj.isDriven) continue;
-      const spec = obj.mesh.userData?.vehicleSpec;
-      if (spec?.isColossalShip || spec?.isHeavyTruck || (spec?.category && spec.category !== 'car')) continue;
-      const d = Math.hypot(obj.mesh.position.x - this.position.x, obj.mesh.position.z - this.position.z);
-      if (d < bestDist && Math.abs(obj.mesh.position.y - this.position.y) < 4.0) {
-        bestDist = d;
+      const centerDist = Math.hypot(
+        obj.mesh.position.x - this.position.x,
+        obj.mesh.position.z - this.position.z
+      );
+      const objRadius = obj.radius || 2.5;
+      const edgeDist = Math.max(0, centerDist - objRadius * 0.65);
+      const vertDiff = Math.abs(obj.mesh.position.y - this.position.y);
+      if (edgeDist < bestEdgeDist && vertDiff < 9.5) {
+        bestEdgeDist = edgeDist;
         bestCar = obj;
       }
     }
@@ -867,7 +872,7 @@ export class ThirdPersonController {
       this.minifigure.isCarryingCar = true;
       soundFX.playPunchSwing();
     } else {
-      // Se não houver carro colado, executa o Soco Foguete!
+      // Se não houver veículo próximo, executa o Soco Foguete!
       this._triggerTitaRocketPunch();
     }
   }
@@ -1358,10 +1363,13 @@ export class ThirdPersonController {
         break;
       case 'KeyF':
         if (isDown && !e.repeat) {
-          if (this.currentVehicle || this.findNearbyVehicle()) {
+          const hero = this.minifigure.currentHeroKey;
+          if (!this.currentVehicle && hero === 'tita') {
+            // No Titã Blindado, [F] agarra/arremessa qualquer veículo (para dirigir, usa [E])!
+            this._toggleTitaCarGrabOrThrow();
+          } else if (this.currentVehicle || this.findNearbyVehicle()) {
             this.toggleVehicleInteraction();
           } else {
-            const hero = this.minifigure.currentHeroKey;
             if (hero === 'caveira') {
               this._triggerTacticalRoll();
             } else if (hero === 'solaris') {
@@ -1371,8 +1379,6 @@ export class ThirdPersonController {
               } else {
                 this._activateSolarisFlight();
               }
-            } else if (hero === 'tita') {
-              this._toggleTitaCarGrabOrThrow();
             } else if (hero === 'vingador') {
               this._cycleVingadorWeapon();
             } else if (hero === 'sombra') {
@@ -3182,11 +3188,11 @@ export class ThirdPersonController {
       }
     }
 
-    // Se o Titã Blindado estiver segurando um carro da rua, mantém o carro erguido acima da cabeça dele!
+    // Se o Titã Blindado estiver segurando qualquer veículo, mantém o veículo erguido acima da cabeça dele!
     if (this.grabbedCar && !this.grabbedCar.destroyed) {
       this.grabbedCar.mesh.position.set(
         this.position.x,
-        this.position.y + 3.45,
+        this.position.y + 4.35,
         this.position.z
       );
       this.grabbedCar.mesh.rotation.set(0, this.facingAngle + Math.PI * 0.5, 0);
