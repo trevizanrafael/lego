@@ -108,6 +108,10 @@ export class ThirdPersonController {
     // Estados exclusivos dos Heróis #3 (Titã Blindado), #4 (Vingador de Chumbo) e #5 (Sombra Escarlate)
     this.grabbedCar = null;
     this.titaSuperJumpActive = false;
+    this.titaJumpCharging = false;
+    this.titaJumpChargeTime = 0;
+    this.titaJumpMaxChargeTime = 1.1;
+    this.titaJumpChargeSoundTimer = 0;
     this.rocketPunchTimer = 0;
     this.rocketPunchDir = new THREE.Vector3(0, 0, -1);
     this.cameraShakeTimer = 0;
@@ -179,7 +183,7 @@ export class ThirdPersonController {
           if (hero === 'caveira') {
             this._throwCaveiraGrenade();
           } else if (hero === 'tita') {
-            this._toggleTitaCarGrabOrThrow();
+            this._triggerTitaRocketPunch();
           } else if (hero === 'vingador') {
             this._cycleVingadorWeapon();
           } else if (hero === 'sombra') {
@@ -287,6 +291,12 @@ export class ThirdPersonController {
     this._stopGrapple();
     this.stealthTimer = 0;
     this.titaSuperJumpActive = false;
+    this.titaJumpCharging = false;
+    this.titaJumpChargeTime = 0;
+    if (this.minifigure) {
+      this.minifigure.titaJumpChargeRatio = 0;
+      this.minifigure.isDashing = false;
+    }
 
     const preset = this.minifigure.setHero(heroKey);
 
@@ -303,15 +313,15 @@ export class ThirdPersonController {
     if (this.supernovaCharging) {
       this.supernovaCharging = false;
       this.supernovaChargeTime = 0;
-      if (this.destructibles?.updateSupernovaChargeVisual) {
-        this.destructibles.updateSupernovaChargeVisual(false, this.position);
-      }
+    }
+    if (this.destructibles?.updateSupernovaChargeVisual) {
+      this.destructibles.updateSupernovaChargeVisual(false, this.position);
     }
 
     const swapColors = {
       caveira: 0xfacc15,
       solaris: 0xf97316,
-      tita: 0x00f0ff,
+      tita: 0xef4444,
       vingador: 0x94a3b8,
       sombra: 0xff1e42
     };
@@ -392,11 +402,11 @@ export class ThirdPersonController {
       this.destructibles.spawnFireball(handPos, aimData.point);
     } else if (hero === 'tita') {
       this.minifigure.triggerShoot();
-      this.primaryCooldown = 0.095; // Metralhadora Rotativa Pesada do Titã Blindado!
+      this.primaryCooldown = 0.036; // Minigun Vulcan 6 Canos de Cadência Insana (~28 tiros/seg)!
       const muzzlePos = new THREE.Vector3(
-        this.position.x + Math.sin(this.facingAngle) * 1.45 + rightVec.x * 0.78,
-        this.position.y + 1.95,
-        this.position.z + Math.cos(this.facingAngle) * 1.45 + rightVec.z * 0.78
+        this.position.x + Math.sin(this.facingAngle) * 1.55 + rightVec.x * 0.86,
+        this.position.y + 1.98,
+        this.position.z + Math.cos(this.facingAngle) * 1.55 + rightVec.z * 0.86
       );
       this.destructibles.spawnTitaRotaryBullet(muzzlePos, aimData.point);
     } else if (hero === 'vingador') {
@@ -649,31 +659,80 @@ export class ThirdPersonController {
   }
 
   /**
-   * HERÓI #3 (Titã Blindado): Soco Foguete [V] que estoura Paredes Rachadas!
+   * HERÓI #3 (Titã Blindado): Investida / Dash Demolidor [Mouse 2 / V] SEM COOLDOWN!
+   * - Pode emendar um Dash atrás do outro no chão ou no ar!
+   * - Aciona as megaturbinas traseiras (punchBoost = 44.0) e destrói carros e Paredes Rachadas pelo caminho!
    */
   _triggerTitaRocketPunch() {
-    if (this.secondaryCooldown > 0) return;
-    this.secondaryCooldown = 0.55;
-    this._alignCharacterToCrosshair();
+    this.secondaryCooldown = 0; // ZERO Cooldown no Dash do Titã!
+    const aimDir = this._alignCharacterToCrosshair();
     this.minifigure.triggerPunch();
-    this.rocketPunchTimer = 0.26;
+    this.minifigure.isDashing = true;
+    this.rocketPunchTimer = 0.30;
     this.rocketPunchDir.set(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle)).normalize();
-    this.cameraShakeTimer = 0.28;
+    if (!this.isGrounded || aimDir.y > 0.14) {
+      this.velocity.y = Math.max(this.velocity.y, aimDir.y * 28.0 + 4.5);
+      this.isGrounded = false;
+    }
+    this.cameraShakeTimer = 0.24;
     if (this.destructibles) {
       this.destructibles.triggerTitaRocketPunch(this.position, this.facingAngle);
     }
   }
 
   /**
-   * HERÓI #3 (Titã Blindado): Terremoto de Escudo [Q]
+   * HERÓI #3 (Titã Blindado): Dispara o Super-Pulo Hidráulico ao soltar [Espaço]!
+   * - Tap rápido (< 0.16s): Pulo normal rápido (velocity.y = 14.5)
+   * - Segurar [Espaço] (até limite máximo de 1.1s = 100%): Super-Pulo Hidráulico de até velocity.y = 54.0!
+   */
+  _releaseTitaSuperJumpCharge() {
+    if (!this.titaJumpCharging) return;
+    const heldTime = this.titaJumpChargeTime;
+    this.titaJumpCharging = false;
+    this.titaJumpChargeTime = 0;
+    if (this.minifigure) {
+      this.minifigure.titaJumpChargeRatio = 0;
+    }
+    if (this.destructibles?.updateSupernovaChargeVisual) {
+      this.destructibles.updateSupernovaChargeVisual(false, this.position);
+    }
+
+    if (!this.isGrounded) return;
+
+    if (heldTime < 0.16) {
+      // Tap rápido no Espaço: Pulo normal ágil
+      this.velocity.y = 14.5;
+      this.titaSuperJumpActive = false;
+      this.isGrounded = false;
+      return;
+    }
+
+    const chargeRatio = THREE.MathUtils.clamp(heldTime / this.titaJumpMaxChargeTime, 0, 1);
+    this.velocity.y = THREE.MathUtils.lerp(18.0, 54.0, chargeRatio);
+    const boostSpeed = 18.0 * chargeRatio;
+    this.velocity.x += Math.sin(this.facingAngle) * boostSpeed;
+    this.velocity.z += Math.cos(this.facingAngle) * boostSpeed;
+    this.titaSuperJumpActive = true;
+    this.isGrounded = false;
+    this.cameraShakeTimer = 0.22 + chargeRatio * 0.25;
+    soundFX.playExplosion(0.9 + chargeRatio * 0.6);
+  }
+
+  /**
+   * HERÓI #3 (Titã Blindado): Pisada Sísmica no Chão [Q] (Raio 22m, Dano 150 + Placas de Asfalto 3D!)
    */
   _triggerTitaEarthquake() {
     if (this.supernovaCooldown > 0) return;
-    this.supernovaCooldown = 1.1;
-    this.minifigure.triggerPunch();
-    this.cameraShakeTimer = 0.42;
+    this.supernovaCooldown = 0.85;
+    if (this.minifigure.triggerStomp) {
+      this.minifigure.triggerStomp();
+    } else {
+      this.minifigure.triggerPunch();
+    }
+    this.cameraShakeTimer = 0.48;
     if (this.destructibles) {
-      this.destructibles.triggerTitaGroundSlam(this.position, 12.5, 115);
+      const groundY = this._findGroundSupportAt(this.position.x, this.position.z, this.position.y);
+      this.destructibles.triggerTitaGroundSlam(this.position, 22.0, 150, groundY);
     }
   }
 
@@ -967,14 +1026,17 @@ export class ThirdPersonController {
             }
           } else if (this.isGrounded && !this.isFlying) {
             if (this.minifigure.currentHeroKey === 'tita') {
-              // Superpulo Pesado do Titã Blindado (explode o chão ao pousar!)
-              this.velocity.y = 16.5;
-              this.titaSuperJumpActive = true;
+              // Inicia o carregamento do Super-Pulo Hidráulico do Titã Blindado!
+              this.titaJumpCharging = true;
+              this.titaJumpChargeTime = 0;
+              this.titaJumpChargeSoundTimer = 0;
             } else {
               this.velocity.y = this.jumpForce;
+              this.isGrounded = false;
             }
-            this.isGrounded = false;
           }
+        } else if (!isDown && this.minifigure.currentHeroKey === 'tita' && this.titaJumpCharging) {
+          this._releaseTitaSuperJumpCharge();
         }
         this.keys.jump = isDown;
         break;
@@ -2423,7 +2485,7 @@ export class ThirdPersonController {
       this.destructibles.updateSolarBeam(false);
     }
 
-    // Carregamento em tempo real do Poder [Q] (SUPERNOVA CARREGÁVEL DO SOLARIS) com Medidor 3D no chão
+    // Carregamento em tempo real do Poder [Q] (SUPERNOVA DO SOLARIS) ou do [Espaço] (SUPER-PULO HIDRÁULICO DO TITÃ)
     if (this.supernovaCharging && this.minifigure.currentHeroKey === 'solaris') {
       this.supernovaChargeTime = Math.min(
         this.supernovaMaxChargeTime,
@@ -2448,8 +2510,43 @@ export class ThirdPersonController {
           groundY
         );
       }
-    } else if (this.destructibles?.updateSupernovaChargeVisual) {
-      this.destructibles.updateSupernovaChargeVisual(false, this.position);
+    } else if (this.titaJumpCharging && this.minifigure.currentHeroKey === 'tita') {
+      this.titaJumpChargeTime = Math.min(
+        this.titaJumpMaxChargeTime,
+        this.titaJumpChargeTime + dt
+      );
+      const chargeRatio = this.titaJumpChargeTime / this.titaJumpMaxChargeTime;
+      this.minifigure.titaJumpChargeRatio = chargeRatio;
+      const currentRadius = THREE.MathUtils.lerp(2.4, 8.2, chargeRatio);
+      this.cameraShakeTimer = Math.max(this.cameraShakeTimer, 0.05 + chargeRatio * 0.12);
+      this.titaJumpChargeSoundTimer -= dt;
+      if (this.titaJumpChargeSoundTimer <= 0) {
+        this.titaJumpChargeSoundTimer = 0.12;
+        soundFX.playSolarChargeTick(chargeRatio);
+      }
+      if (this.destructibles?.updateSupernovaChargeVisual) {
+        const groundY = this._findGroundSupportAt(this.position.x, this.position.z, this.position.y);
+        this.destructibles.updateSupernovaChargeVisual(
+          true,
+          this.position,
+          chargeRatio,
+          currentRadius,
+          dt,
+          groundY
+        );
+      }
+    } else {
+      if (this.minifigure) {
+        this.minifigure.titaJumpChargeRatio = 0;
+      }
+      if (this.destructibles?.updateSupernovaChargeVisual) {
+        this.destructibles.updateSupernovaChargeVisual(false, this.position);
+      }
+    }
+
+    // Se o jogador segurar Clique Direito com o Titã Blindado, emenda um Dash atrás do outro sem cooldown!
+    if (this.minifigure.currentHeroKey === 'tita' && this.mouseButtons.right && this.rocketPunchTimer <= 0) {
+      this._triggerTitaRocketPunch();
     }
 
     const moveInput = new THREE.Vector3();
@@ -2557,9 +2654,37 @@ export class ThirdPersonController {
         this.currentSpeed = 27.5;
       } else if (this.rocketPunchTimer > 0) {
         this.rocketPunchTimer = Math.max(0, this.rocketPunchTimer - dt);
-        const punchBoost = 24.5;
+        this.minifigure.isDashing = this.rocketPunchTimer > 0;
+        const punchBoost = 44.0;
         this.velocity.x = this.rocketPunchDir.x * punchBoost;
         this.velocity.z = this.rocketPunchDir.z * punchBoost;
+        this.currentSpeed = punchBoost;
+        if (this.destructibles) {
+          if (Math.random() < 0.75) {
+            this.destructibles.spawnFlameTrailParticle(
+              new THREE.Vector3(this.position.x, this.position.y + 1.4, this.position.z),
+              1.35
+            );
+          }
+          // Estoura carros, objetos e Paredes Rachadas durante todo o percurso da Investida / Dash!
+          const dashImpactPos = new THREE.Vector3(
+            this.position.x + this.rocketPunchDir.x * 2.2,
+            this.position.y + 1.4,
+            this.position.z + this.rocketPunchDir.z * 2.2
+          );
+          for (const obj of this.destructibles.objects) {
+            if (obj.destroyed || obj.isDriven) continue;
+            const dx = obj.basePos.x - dashImpactPos.x;
+            const dz = obj.basePos.z - dashImpactPos.z;
+            const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - dashImpactPos.y);
+            if (Math.hypot(dx, dz) <= obj.radius + 3.2 && dy <= obj.height + 2.5) {
+              this.destructibles.damageObject(obj, 140, dashImpactPos, false, {
+                canBreakCrackedWall: true,
+                canBreakSilver: false
+              });
+            }
+          }
+        }
       } else if (this.grappleState) {
         // Balanço e tração acrobática do Gancho Magnético do Sombra Escarlate!
         this.grappleState.timer -= dt;
@@ -2668,17 +2793,21 @@ export class ThirdPersonController {
       this._triggerTacticalRoll(moveInput);
     }
 
-    // Se o Titã Blindado pousou do Superpulo Pesado, treme a câmera e cria onda de choque sísmica!
+    // Se o Titã Blindado pousou do Super-Pulo Hidráulico, treme a câmera e cria onda de choque sísmica!
     if (
       wasInAir &&
       this.isGrounded &&
       this.minifigure.currentHeroKey === 'tita' &&
-      (this.titaSuperJumpActive || preLandVy < -11.5)
+      (this.titaSuperJumpActive || preLandVy < -14.0)
     ) {
       this.titaSuperJumpActive = false;
-      this.cameraShakeTimer = 0.36;
+      this.cameraShakeTimer = 0.42;
+      if (this.minifigure.triggerStomp) {
+        this.minifigure.triggerStomp();
+      }
       if (this.destructibles) {
-        this.destructibles.triggerTitaGroundSlam(this.position, 9.5, 90);
+        const groundY = this._findGroundSupportAt(this.position.x, this.position.z, this.position.y);
+        this.destructibles.triggerTitaGroundSlam(this.position, 18.0, 130, groundY);
       }
     }
 

@@ -381,41 +381,90 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     ctx.lineTo(cx + 14, cy + 44);
     ctx.stroke();
   } else if (preset === 'tita') {
-    // Base metálica azul-escura/titânio do capacete Mecha-Policial (Big-Fig)
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, 256, 256);
-
+    // =========================================================================
+    // ROSTO DE CIBORGUE MUTANTE GIGANTE DA PM DE SÃO PAULO (PMESP — 512x256, cx=256)
+    // =========================================================================
+    // 1. Preenchimento 100% da cabeça cilíndrica (0..512) em Aço Cinza-Bandeirante PMESP
     ctx.fillStyle = '#1e293b';
-    ctx.fillRect(24, 30, 208, 196);
-    ctx.strokeStyle = '#facc15';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(28, 34, 200, 188);
+    ctx.fillRect(0, 0, 512, 256);
 
-    // Visor Tático Ciano-Neon em V (Mecha HUD)
-    ctx.fillStyle = '#00f0ff';
+    // Faixa superior Branca Policial e faixa lateral Vermelha PMESP
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, 512, 46);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(0, 42, 512, 12);
+
+    // Placa Facial Blindada Central (centrada em cx = 256, cy = 128!)
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(cx - 118, 48, 236, 188);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(cx - 114, 52, 228, 180);
+
+    // Veias/Cabos de Bio-Energia Mutante Vermelha nas têmporas do ciborgue
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(42, 74);
-    ctx.lineTo(128, 94);
-    ctx.lineTo(214, 74);
-    ctx.lineTo(204, 118);
-    ctx.lineTo(128, 134);
-    ctx.lineTo(52, 118);
+    ctx.moveTo(cx - 112, cy - 18);
+    ctx.lineTo(cx - 78, cy - 6);
+    ctx.lineTo(cx - 92, cy + 22);
+    ctx.moveTo(cx + 112, cy - 18);
+    ctx.lineTo(cx + 78, cy - 6);
+    ctx.lineTo(cx + 92, cy + 22);
+    ctx.stroke();
+
+    // 2. Visor Tático Vermelho-Laser Emissivo em V Franzido (Olhar de Juggernaut Implacável)
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(cx - 92, cy - 42);
+    ctx.lineTo(cx, cy - 18);
+    ctx.lineTo(cx + 92, cy - 42);
+    ctx.lineTo(cx + 80, cy + 8);
+    ctx.lineTo(cx, cy + 22);
+    ctx.lineTo(cx - 80, cy + 8);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#e0f2fe';
-    ctx.fillRect(64, 86, 48, 12);
-    ctx.fillRect(144, 86, 48, 12);
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(cx - 84, cy - 35);
+    ctx.lineTo(cx, cy - 12);
+    ctx.lineTo(cx + 84, cy - 35);
+    ctx.lineTo(cx + 72, cy + 2);
+    ctx.lineTo(cx, cy + 15);
+    ctx.lineTo(cx - 72, cy + 2);
+    ctx.closePath();
+    ctx.fill();
 
-    // Respirador blindado com grelha dourada/prateada no queixo
+    // Núcleos óticos branco-rubros incandescentes dentro do visor
+    ctx.fillStyle = '#fecaca';
+    ctx.fillRect(cx - 64, cy - 24, 42, 11);
+    ctx.fillRect(cx + 22, cy - 24, 42, 11);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - 52, cy - 22, 22, 7);
+    ctx.fillRect(cx + 30, cy - 22, 22, 7);
+
+    // 3. Queixeira / Mandíbula Mecânica Pesada com Grade de Respirador Industrial Vermelho-Fogo
     ctx.fillStyle = '#090a0d';
-    ctx.fillRect(68, 152, 120, 48);
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(68, 152, 120, 48);
-    ctx.fillStyle = '#facc15';
-    for (let gx = 84; gx <= 168; gx += 20) {
-      ctx.fillRect(gx, 160, 8, 32);
+    ctx.fillRect(cx - 76, cy + 28, 152, 66);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(cx - 76, cy + 28, 152, 66);
+
+    // Dentes/Grades metálicas + Brilho de Fornalha Mutante Vermelha por trás da grade
+    for (let gx = cx - 58; gx <= cx + 46; gx += 20) {
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(gx, cy + 36, 12, 48);
+      ctx.fillStyle = '#fca5a5';
+      ctx.fillRect(gx + 3, cy + 42, 6, 36);
+    }
+
+    // Rebites de aço nas laterais da mandíbula
+    ctx.fillStyle = '#e2e8f0';
+    for (const [rx, ry] of [[cx - 96, cy + 38], [cx + 96, cy + 38], [cx - 96, cy + 78], [cx + 96, cy + 78]]) {
+      ctx.beginPath();
+      ctx.arc(rx, ry, 5, 0, Math.PI * 2);
+      ctx.fill();
     }
   } else if (preset === 'vingador') {
     // Rosto Justiceiro Urbano: pintura de guerra tática nos olhos + bandana de caveira prateada na boca
@@ -622,45 +671,58 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(10, 212, 236, 32);
   } else if (preset === 'tita') {
-    // Peitoral Blindado Mecha-Policial (Titã Blindado Big-Fig)
-    ctx.fillStyle = '#0f172a';
+    // Peitoral Blindado PMESP (Polícia Militar de SP — Cinza-Bandeirante, Branco e Vermelho)
+    ctx.fillStyle = '#334155';
     ctx.fillRect(0, 0, 256, 256);
 
-    // Placa peitoral hidráulica pesada
-    ctx.fillStyle = '#1e3a8a';
-    ctx.strokeStyle = '#facc15';
+    // Placa peitoral superior Branca Policial + Faixas Diagonais Vermelhas PMESP
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#090a0d';
     ctx.lineWidth = 7;
     ctx.beginPath();
-    ctx.roundRect(18, 16, 220, 182, 14);
+    ctx.roundRect(16, 14, 224, 184, 14);
     ctx.fill();
     ctx.stroke();
 
-    // Listras de alerta diagonal no peito (estilo mecha tático)
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(28, 30, 52, 16);
-    ctx.fillRect(176, 30, 52, 16);
+    // Chevrons / Faixas Vermelhas Institucionais da PMESP
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.moveTo(20, 24);
+    ctx.lineTo(108, 72);
+    ctx.lineTo(108, 102);
+    ctx.lineTo(20, 54);
+    ctx.closePath();
+    ctx.fill();
 
-    // Reator de Energia Ciano no centro do peito
-    const coreGrad = ctx.createRadialGradient(128, 102, 6, 128, 102, 46);
+    ctx.beginPath();
+    ctx.moveTo(236, 24);
+    ctx.lineTo(148, 72);
+    ctx.lineTo(148, 102);
+    ctx.lineTo(236, 54);
+    ctx.closePath();
+    ctx.fill();
+
+    // Reator de Bio-Energia Mutante Vermelho-Rubro no centro do peito
+    const coreGrad = ctx.createRadialGradient(128, 104, 6, 128, 104, 46);
     coreGrad.addColorStop(0, '#ffffff');
-    coreGrad.addColorStop(0.5, '#00f0ff');
-    coreGrad.addColorStop(1, '#0284c7');
+    coreGrad.addColorStop(0.45, '#fca5a5');
+    coreGrad.addColorStop(1, '#dc2626');
     ctx.fillStyle = coreGrad;
     ctx.beginPath();
-    ctx.arc(128, 102, 42, 0, Math.PI * 2);
+    ctx.arc(128, 104, 42, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#e0f2fe';
+    ctx.strokeStyle = '#090a0d';
     ctx.lineWidth = 6;
     ctx.stroke();
 
-    // Pistões abdominais prateados e cinto blindado
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillRect(46, 152, 36, 40);
-    ctx.fillRect(174, 152, 36, 40);
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(10, 206, 236, 40);
+    // Pistões abdominais cinza-chumbo e cinto tático preto/vermelho
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(36, 152, 46, 40);
+    ctx.fillRect(174, 152, 46, 40);
     ctx.fillStyle = '#090a0d';
-    ctx.fillRect(98, 214, 60, 24);
+    ctx.fillRect(10, 204, 236, 42);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(96, 212, 64, 26);
   } else if (preset === 'vingador') {
     // Colete Pesado do Vingador de Chumbo (Preto/Grafite + Caveira Prateada + Bandoleira de Cartuchos)
     ctx.fillStyle = '#111827';

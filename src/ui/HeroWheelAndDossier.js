@@ -47,19 +47,19 @@ export const HERO_CATALOG = [
     key: 'tita',
     opCode: 'OP-03',
     shortName: 'TITÃ BLINDADO',
-    name: 'TITÃ BLINDADO',
-    role: 'UNIDADE MECHA PESADA // BIG-FIG COLOSSAL',
-    accent: '#00f0ff',
+    name: 'TITÃ BLINDADO (PMESP)',
+    role: 'PM ROBÔ MUTANTE GIGANTE // CHOQUE PESADO PMESP',
+    accent: '#ef4444',
     icon: 'shield',
-    specialty: 'Demolição de Paredes Rachadas, Arremesso de Veículos & Impacto Sísmico',
-    passive: 'Chassi Big-Fig blindado com Super-Pulo a jato que racha o asfalto ao pousar.',
+    specialty: 'Minigun Vulcan 6 Canos, Dash Sem Cooldown, Super-Pulo Carregável & Pisada Sísmica',
+    passive: 'Colosso Ciborgue da PMESP (Vermelho, Cinza-Bandeirante e Branco) que destrói Paredes Rachadas.',
     controls: [
-      { key: 'MOUSE 1', title: 'METRALHADORA ROTATIVA', desc: 'Rajada pesada contínua de 4 canos com munição ciano.' },
-      { key: 'MOUSE 2 / F', title: 'AGARRAR & ARREMESSAR CARRO', desc: 'Levanta carros acima da cabeça e os arremessa como bombas.' },
-      { key: 'V', title: 'SOCO FOGUETE DEMOLIDOR', desc: 'Avança a jato destruindo PAREDES RACHADAS LEGO.' },
-      { key: 'Q', title: 'TERREMOTO DE ESCUDO', desc: 'Impacto sísmico no solo que destrói estruturas e paredes.' },
-      { key: 'ESPAÇO', title: 'SUPER-PULO PESADO', desc: 'Salto propulsado de grande altitude com impacto no pouso.' },
-      { key: 'SHIFT', title: 'MARCHA BLINDADA', desc: 'Avanço pesado de alta tração do chassi Mecha Big-Fig.' }
+      { key: 'MOUSE 1', title: 'MINIGUN VULCAN 6 CANOS', desc: 'Rajada insana (28 tiros/s) de canos rotativos que tritura carros.' },
+      { key: 'MOUSE 2 / V', title: 'DASH DEMOLIDOR (SEM COOLDOWN)', desc: 'Investida a jato contínua que atropela carros e Paredes Rachadas.' },
+      { key: 'ESPAÇO (SEGURAR)', title: 'SUPER-PULO CARREGÁVEL', desc: 'Toque rápido (pulo normal) ou segure até 100% para saltar prédios!' },
+      { key: 'Q', title: 'PISADA SÍSMICA NO ASFALTO', desc: 'Esmaga o chão levantando placas de rocha e jogando carros pro alto!' },
+      { key: 'G / F', title: 'AGARRAR & ARREMESSAR CARRO', desc: 'Levanta veículos acima da cabeça e os arremessa como bombas.' },
+      { key: 'SHIFT', title: 'MARCHA HIDRÁULICA PESADA', desc: 'Avanço blindado de alta tração do chassi Robô-Mutante.' }
     ]
   },
   {
@@ -117,7 +117,7 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
 
   const bgStroke =
     presetKey === 'solaris' ? 'rgba(245, 158, 11, 0.25)' :
-    presetKey === 'tita' ? 'rgba(0, 240, 255, 0.25)' :
+    presetKey === 'tita' ? 'rgba(239, 68, 68, 0.28)' :
     presetKey === 'sombra' ? 'rgba(239, 68, 68, 0.25)' :
     presetKey === 'vingador' ? 'rgba(203, 213, 225, 0.22)' :
     'rgba(250, 204, 21, 0.18)';
@@ -135,7 +135,7 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   ctx.scale(scale, scale);
 
   // Pino superior LEGO (Stud)
-  ctx.fillStyle = presetKey === 'tita' ? '#1e3a8a' : presetKey === 'sombra' ? '#090a0d' : '#eab308';
+  ctx.fillStyle = presetKey === 'tita' ? '#dc2626' : presetKey === 'sombra' ? '#090a0d' : '#eab308';
   ctx.strokeStyle = '#090a0d';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
@@ -144,7 +144,7 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   ctx.stroke();
 
   // Cabeça cilíndrica LEGO
-  ctx.fillStyle = presetKey === 'tita' ? '#0f172a' : presetKey === 'sombra' ? '#18181b' : '#facc15';
+  ctx.fillStyle = presetKey === 'tita' ? '#334155' : presetKey === 'sombra' ? '#18181b' : '#facc15';
   ctx.beginPath();
   ctx.roundRect(76 * 0.22, 17, 76 * 0.56, 38, 6);
   ctx.fill();
@@ -153,7 +153,7 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   // Ombros / Torso superior
   ctx.fillStyle =
     presetKey === 'solaris' ? '#7f1d1d' :
-    presetKey === 'tita' ? '#1e3a8a' :
+    presetKey === 'tita' ? '#f8fafc' :
     presetKey === 'sombra' ? '#991b1b' : '#171717';
   ctx.beginPath();
   ctx.roundRect(76 * 0.14, 54, 76 * 0.72, 24, 4);
@@ -300,12 +300,45 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     ctx.arc(76 * 0.5, 65, 5, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'tita') {
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(76 * 0.42, 11, 76 * 0.16, 9);
-    ctx.fillStyle = '#00f0ff';
-    ctx.fillRect(76 * 0.27, 26, 76 * 0.46, 10);
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(76 * 0.32, 41, 76 * 0.36, 7);
+    // Domo Branco/Cinza PMESP + Giroflex Vermelho + Visor Vermelho-Laser em V + Queixeira Industrial
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(76 * 0.22, 16, 76 * 0.56, 9);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(76 * 0.22, 23, 76 * 0.56, 3.5);
+    ctx.fillRect(76 * 0.26, 10, 8, 5);
+    ctx.fillRect(76 * 0.62, 10, 8, 5);
+
+    // Visor Tático Vermelho-Laser em V
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.25, 28);
+    ctx.lineTo(76 * 0.5, 31);
+    ctx.lineTo(76 * 0.75, 28);
+    ctx.lineTo(76 * 0.72, 36);
+    ctx.lineTo(76 * 0.5, 39);
+    ctx.lineTo(76 * 0.28, 36);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(76 * 0.3, 30, 10, 3);
+    ctx.fillRect(76 * 0.56, 30, 10, 3);
+
+    // Respirador / Mandíbula de Aço com grelha vermelha
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.29, 41, 76 * 0.42, 11);
+    ctx.fillStyle = '#dc2626';
+    for (let gx = 76 * 0.33; gx <= 76 * 0.65; gx += 6.5) {
+      ctx.fillRect(gx, 43, 3.5, 7);
+    }
+
+    // Faixas Vermelhas da PMESP e Reator Rubro no Peitoral Branco
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(76 * 0.16, 56, 14, 5);
+    ctx.fillRect(76 * 0.66, 56, 14, 5);
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 65, 5.5, 0, Math.PI * 2);
+    ctx.fill();
   } else if (presetKey === 'vingador') {
     ctx.fillStyle = '#94a3b8';
     ctx.fillRect(76 * 0.21, 16, 76 * 0.58, 6);

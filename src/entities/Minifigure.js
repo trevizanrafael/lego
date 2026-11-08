@@ -62,14 +62,14 @@ export const MINIFIG_PRESETS = {
   },
   tita: {
     key: 'tita',
-    name: 'Titã Blindado (Big-Fig)',
-    subtitle: 'Soco Foguete [V] • Arremessar Carro [Mouse 2] • Terremoto [Q]',
-    headColor: 0x0f172a,
-    torsoColor: 0x0f172a,
-    armColor: 0x1e3a8a,
-    handColor: LEGO_COLORS.gold,
-    hipColor: LEGO_COLORS.gold,
-    legColor: 0x0f172a,
+    name: 'Titã Blindado (PMESP)',
+    subtitle: 'Minigun 6 Canos [Mouse 1] • Dash [Mouse 2] • Pisada Sísmica [Q]',
+    headColor: 0x334155,
+    torsoColor: 0x475569,
+    armColor: 0x475569,
+    handColor: 0xdc2626,
+    hipColor: 0x090a0d,
+    legColor: 0x334155,
     facePreset: 'tita',
     torsoPreset: 'tita',
     headgear: 'mecha_helmet',
@@ -141,6 +141,13 @@ export class Minifigure {
     this.crownFlameMeshes = [];
     this.solarMantleStrips = [];
     this.solarMantleGroup = null;
+    this.titaMinigunBarrelGroup = null;
+    this.titaDashFlameMeshes = [];
+    this.titaSirenLights = [];
+    this.stompTimer = 0;
+    this.stompDuration = 0.42;
+    this.titaJumpChargeRatio = 0;
+    this.isDashing = false;
     this.muzzleFlashMesh = null;
     this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
@@ -170,6 +177,12 @@ export class Minifigure {
     this.crownFlameMeshes = [];
     this.solarMantleStrips = [];
     this.solarMantleGroup = null;
+    this.titaMinigunBarrelGroup = null;
+    this.titaDashFlameMeshes = [];
+    this.titaSirenLights = [];
+    this.stompTimer = 0;
+    this.titaJumpChargeRatio = 0;
+    this.isDashing = false;
     this.muzzleFlashMesh = null;
     this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
@@ -183,7 +196,7 @@ export class Minifigure {
     this.titaCannonGroup = null;
 
     if (preset.isBigFig) {
-      this.visualRoot.scale.set(1.68, 1.56, 1.68);
+      this.visualRoot.scale.set(1.78, 1.62, 1.78);
     } else {
       this.visualRoot.scale.set(1, 1, 1);
     }
@@ -607,29 +620,66 @@ export class Minifigure {
 
       this.headGroup.add(crownGroup);
     } else if (preset.headgear === 'mecha_helmet') {
-      // Capacete Mecha-Policial do Titã Blindado (Big-Fig) com antenas laterais e visor ciano
-      const helmMat = getLegoMaterial(0x1e3a8a, { roughness: 0.2, metalness: 0.45 });
-      const goldMat = getLegoMaterial(LEGO_COLORS.gold, { roughness: 0.18, metalness: 0.55 });
-      const cyanMat = getLegoMaterial(0x00f0ff, { emissive: 0x00f0ff, emissiveIntensity: 1.4 });
+      // =========================================================================
+      // CAPACETE BLINDADO DE CIBORGUE MUTANTE DA PMESP (BRANCO, CINZA E VERMELHO)
+      // =========================================================================
+      const pmWhiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.18, clearcoat: 0.6 });
+      const pmGreyMat = getLegoMaterial(0x334155, { roughness: 0.24, metalness: 0.45 });
+      const pmBlackMat = getLegoMaterial(0x090a0d, { roughness: 0.3, metalness: 0.4 });
+      const pmRedMat = getLegoMaterial(0xdc2626, { roughness: 0.2, clearcoat: 0.55 });
+      const redLaserMat = getLegoMaterial(0xef4444, { emissive: 0xef4444, emissiveIntensity: 2.2 });
+      const blueSirenMat = getLegoMaterial(0x3b82f6, { emissive: 0x2563eb, emissiveIntensity: 2.0 });
 
-      const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.39, 0.16, 24), helmMat);
+      // Domo Policial Superior em Branco PMESP + Faixa Vermelha Institucional
+      const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.4, 0.16, 28), pmWhiteMat);
       dome.position.set(0, 0.62, 0);
+      dome.castShadow = true;
       this.headGroup.add(dome);
 
-      const crest = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.48), goldMat);
-      crest.position.set(0, 0.72, 0.04);
+      const redBand = new THREE.Mesh(new THREE.CylinderGeometry(0.402, 0.402, 0.05, 28), pmRedMat);
+      redBand.position.set(0, 0.56, 0);
+      this.headGroup.add(redBand);
+
+      // Crista Blindada Central Vermelha/Cinza + 2 Giroflex Policiais 3D no Topo do Capacete
+      const crest = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.54), pmRedMat);
+      crest.position.set(0, 0.72, 0.02);
       this.headGroup.add(crest);
 
-      const visorBar = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.11, 0.14), cyanMat);
-      visorBar.position.set(0, 0.42, 0.33);
-      this.headGroup.add(visorBar);
-
       for (const side of [-1, 1]) {
-        const earPod = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, 0.24), helmMat);
-        earPod.position.set(side * 0.37, 0.36, 0);
-        const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.32, 8), goldMat);
-        antenna.position.set(side * 0.39, 0.58, -0.06);
-        this.headGroup.add(earPod, antenna);
+        const sirenPod = new THREE.Mesh(
+          new THREE.BoxGeometry(0.12, 0.08, 0.18),
+          side < 0 ? redLaserMat : blueSirenMat
+        );
+        sirenPod.position.set(side * 0.19, 0.71, 0.06);
+        this.headGroup.add(sirenPod);
+        this.titaSirenLights.push({ mesh: sirenPod, isRed: side < 0 });
+      }
+
+      // Visor Tático Vermelho-Laser 3D em V agressivo na testa/olhos
+      const visorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.14, 0.16), pmBlackMat);
+      visorFrame.position.set(0, 0.42, 0.32);
+      const visorLaser = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.09, 0.18), redLaserMat);
+      visorLaser.position.set(0, 0.42, 0.33);
+      this.headGroup.add(visorFrame, visorLaser);
+
+      // Queixeira / Mandíbula Mecânica Pesada 3D (Juggernaut Jaw Guard) na parte inferior do rosto
+      const jawGuard = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.2, 0.26), pmGreyMat);
+      jawGuard.position.set(0, 0.16, 0.24);
+      const jawGrill = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.28), pmBlackMat);
+      jawGrill.position.set(0, 0.16, 0.25);
+      const jawGlow = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.29), redLaserMat);
+      jawGlow.position.set(0, 0.16, 0.255);
+      this.headGroup.add(jawGuard, jawGrill, jawGlow);
+
+      // Blindagem auricular lateral + Antenas Táticas da PMESP
+      for (const side of [-1, 1]) {
+        const earPod = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.32, 0.28), pmGreyMat);
+        earPod.position.set(side * 0.38, 0.36, 0);
+        const earStripe = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.29), pmRedMat);
+        earStripe.position.set(side * 0.38, 0.36, 0);
+        const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.34, 8), pmBlackMat);
+        antenna.position.set(side * 0.4, 0.6, -0.06);
+        this.headGroup.add(earPod, earStripe, antenna);
       }
     } else if (preset.headgear === 'tactical_bandana') {
       // Cabelo Militar + Bandana Tática Preta/Prateada do Vingador de Chumbo
@@ -909,93 +959,352 @@ export class Minifigure {
   }
 
   /**
-   * Equipa o Chassi Colossal Big-Fig do Titã Blindado (#3):
-   * - Ombreiras blindadas largas com pinos LEGO e giroflex ciano/dourado
-   * - Reator de Peito 3D + Mochila Propulsora a Jato nas costas
-   * - Escudo Policial de Terremoto no braço esquerdo + Metralhadora Rotativa Pesada e Punho Foguete no direito!
+   * Equipa o Chassi Colossal de "PM Robô Mutante Gigante da PMESP" (Titã Blindado #3):
+   * - Paleta Institucional da PM de São Paulo: Vermelho (#dc2626 / #ef4444), Cinza-Bandeirante (#475569 / #334155), Branco Policial (#f8fafc) e Preto Tático (#090a0d)
+   * - Peitoral Blindado 3D Estufado + Gola/Trapézio Mecânico Gigante + Barra de Giroflex Policial nas Costas
+   * - Ombreiras Colossais de Viatura + Tubos de Bio-Energia Vermelha Pulsante (Mutant Bio-Cables)
+   * - Mochila Propulsora Dupla a Jato + Pernas Blindadas com Pistões Hidráulicos e Botas Esmagadoras
+   * - Escudo de Choque PMESP no braço esquerdo + Minigun Vulcan Rotativa de 6 Canos no braço direito!
    */
   _attachTitaBigFigRig(leftHandGroup, rightHandGroup) {
-    const navyMat = getLegoMaterial(0x1e3a8a, { roughness: 0.2, metalness: 0.35 });
-    const darkSteel = getLegoMaterial(0x0f172a, { roughness: 0.25, metalness: 0.5 });
-    const goldMat = getLegoMaterial(LEGO_COLORS.gold, { roughness: 0.18, metalness: 0.6 });
-    const cyanGlow = getLegoMaterial(0x00f0ff, { emissive: 0x00f0ff, emissiveIntensity: 1.8 });
+    const pmWhite = getLegoMaterial(0xf8fafc, { roughness: 0.18, clearcoat: 0.6 });
+    const pmGrey = getLegoMaterial(0x475569, { roughness: 0.24, metalness: 0.45 });
+    const pmDarkGrey = getLegoMaterial(0x1e293b, { roughness: 0.26, metalness: 0.55 });
+    const pmBlack = getLegoMaterial(0x090a0d, { roughness: 0.32, metalness: 0.35 });
+    const pmRed = getLegoMaterial(0xdc2626, { roughness: 0.2, clearcoat: 0.55 });
+    const silverSteel = getLegoMaterial(LEGO_COLORS.silver, { roughness: 0.16, metalness: 0.75 });
+    const redGlow = getLegoMaterial(0xef4444, { emissive: 0xef4444, emissiveIntensity: 2.2 });
+    const whiteRedCore = getLegoMaterial(0xffffff, { emissive: 0xfca5a5, emissiveIntensity: 2.5 });
+    const blueSiren = getLegoMaterial(0x3b82f6, { emissive: 0x2563eb, emissiveIntensity: 2.0 });
 
-    // 1. Ombreiras Colossais (Big-Fig Broad Shoulders) + Pinos LEGO
-    for (const [armPivot, sign] of [[this.leftArmPivot, 1], [this.rightArmPivot, -1]]) {
-      armPivot.position.x = sign * 0.58;
-      const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.56), navyMat);
-      pauldron.position.set(sign * 0.08, 0.08, 0);
-      pauldron.castShadow = true;
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.08, 0.58), goldMat);
-      stripe.position.set(sign * 0.08, 0.18, 0);
-      const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 14), goldMat);
-      stud.position.set(sign * 0.08, 0.28, 0);
-      armPivot.add(pauldron, stripe, stud);
+    // =========================================================================
+    // 1. PEITORAL BLINDADO 3D ESTUFADO + GOLA MECÂNICA GIGANTE + REATOR PMESP
+    // =========================================================================
+    const chestRig = new THREE.Group();
+
+    // Placa Peitoral Superior Estufada em Branco Policial (estilo Hulkbuster/Juggernaut)
+    const upperChestPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(1.02, 0.44, 0.16),
+      pmWhite
+    );
+    upperChestPlate.position.set(0, 0.52, 0.22);
+    upperChestPlate.castShadow = true;
+    chestRig.add(upperChestPlate);
+
+    // Placa Abdominal Hidráulica em Cinza-Bandeirante + Pistões Laterais Prateados
+    const lowerAbPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.84, 0.3, 0.12),
+      pmGrey
+    );
+    lowerAbPlate.position.set(0, 0.21, 0.21);
+    chestRig.add(lowerAbPlate);
+
+    for (const side of [-1, 1]) {
+      // Faixas Diagonais Vermelhas Institucionais da PMESP no peito
+      const chevronStripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.34, 0.11, 0.045),
+        pmRed
+      );
+      chevronStripe.position.set(side * 0.28, 0.56, 0.295);
+      chevronStripe.rotation.z = -side * 0.34;
+      chestRig.add(chevronStripe);
+
+      // Pistões Hidráulicos Abdominais 3D
+      const abPiston = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.045, 0.28, 12),
+        silverSteel
+      );
+      abPiston.position.set(side * 0.34, 0.24, 0.25);
+      chestRig.add(abPiston);
     }
 
-    // 2. Reator de Energia Ciano 3D no peito + Propulsores Dorsais (Jetpack Pesado)
-    const reactorRing = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.08, 20), goldMat);
-    reactorRing.rotation.x = Math.PI / 2;
-    reactorRing.position.set(0, 0.42, 0.24);
-    const reactorCore = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 16), cyanGlow);
-    reactorCore.rotation.x = Math.PI / 2;
-    reactorCore.position.set(0, 0.42, 0.25);
-    this.upperBodyGroup.add(reactorRing, reactorCore);
+    // Gola Blindada / Trapézio Mecânico Gigante (Hunched Mech Collar) envolvendo o pescoço
+    const mechCollarBack = new THREE.Mesh(
+      new THREE.BoxGeometry(0.96, 0.24, 0.28),
+      pmDarkGrey
+    );
+    mechCollarBack.position.set(0, 0.78, -0.1);
+    chestRig.add(mechCollarBack);
 
+    for (const side of [-1, 1]) {
+      const trapArmor = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.22, 0.44),
+        pmWhite
+      );
+      trapArmor.position.set(side * 0.36, 0.76, 0.02);
+      trapArmor.rotation.z = -side * 0.22;
+      const trapStripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.29, 0.06, 0.45),
+        pmRed
+      );
+      trapStripe.position.set(side * 0.36, 0.82, 0.02);
+      trapStripe.rotation.z = -side * 0.22;
+      chestRig.add(trapArmor, trapStripe);
+    }
+
+    // Barra de Giroflex Policial 3D (Sirene Luminosa Vermelha/Branca/Azul) no topo do Trapézio
+    const lightbarBase = new THREE.Mesh(
+      new THREE.BoxGeometry(0.76, 0.06, 0.16),
+      pmBlack
+    );
+    lightbarBase.position.set(0, 0.92, -0.14);
+    const lightLeft = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.09, 0.14), redGlow);
+    lightLeft.position.set(-0.21, 0.96, -0.14);
+    const lightCenter = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.14), pmWhite);
+    lightCenter.position.set(0, 0.96, -0.14);
+    const lightRight = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.09, 0.14), blueSiren);
+    lightRight.position.set(0.21, 0.96, -0.14);
+    chestRig.add(lightbarBase, lightLeft, lightCenter, lightRight);
+    this.titaSirenLights.push(
+      { mesh: lightLeft, isRed: true },
+      { mesh: lightRight, isRed: false }
+    );
+
+    // Reator Policial Vermelho-Rubro 3D no centro do peito
+    const reactorRing = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 22), pmBlack);
+    reactorRing.rotation.x = Math.PI / 2;
+    reactorRing.position.set(0, 0.44, 0.29);
+    const reactorOuter = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.09, 20), redGlow);
+    reactorOuter.rotation.x = Math.PI / 2;
+    reactorOuter.position.set(0, 0.44, 0.3);
+    const reactorInner = new THREE.Mesh(new THREE.SphereGeometry(0.095, 14, 14), whiteRedCore);
+    reactorInner.position.set(0, 0.44, 0.33);
+    chestRig.add(reactorRing, reactorOuter, reactorInner);
+
+    // Cabos de Bio-Energia Mutante Vermelha (Mutant Bio-Cables) conectando as costas aos ombros
+    for (const side of [-1, 1]) {
+      const bioCable = new THREE.Mesh(
+        new THREE.TorusGeometry(0.26, 0.042, 10, 20, Math.PI * 0.95),
+        redGlow
+      );
+      bioCable.position.set(side * 0.42, 0.62, -0.16);
+      bioCable.rotation.y = side * 0.65;
+      bioCable.rotation.x = 0.35;
+      chestRig.add(bioCable);
+    }
+
+    this.upperBodyGroup.add(chestRig);
+
+    // =========================================================================
+    // 2. OMBREIRAS DE VIATURA BLINDADA + BRAÇOS MUTANTES HIDRÁULICOS
+    // =========================================================================
+    for (const [armPivot, sign] of [[this.leftArmPivot, 1], [this.rightArmPivot, -1]]) {
+      armPivot.position.x = sign * 0.62;
+      const pauldronGroup = new THREE.Group();
+
+      // Bloco principal da Ombreira Colossal em Branco Policial + Base Cinza-Bandeirante
+      const pauldronUpper = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.28, 0.62), pmWhite);
+      pauldronUpper.position.set(sign * 0.1, 0.12, 0);
+      pauldronUpper.rotation.z = -sign * 0.12;
+      pauldronUpper.castShadow = true;
+
+      const pauldronLower = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.18, 0.64), pmGrey);
+      pauldronLower.position.set(sign * 0.09, -0.06, 0);
+      pauldronLower.rotation.z = -sign * 0.12;
+
+      // Faixa Vermelha Institucional PMESP + Pistão Hidráulico Prateado + Pinos LEGO Vermelhos
+      const pmStripe = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.09, 0.65), pmRed);
+      pmStripe.position.set(sign * 0.1, 0.04, 0);
+      pmStripe.rotation.z = -sign * 0.12;
+
+      const shoulderPiston = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.38, 12), silverSteel);
+      shoulderPiston.position.set(sign * 0.24, -0.06, -0.14);
+
+      for (const sz of [-0.14, 0.14]) {
+        const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.07, 14), pmRed);
+        stud.position.set(sign * 0.12, 0.28, sz);
+        pauldronGroup.add(stud);
+      }
+
+      pauldronGroup.add(pauldronUpper, pauldronLower, pmStripe, shoulderPiston);
+      armPivot.add(pauldronGroup);
+    }
+
+    // Manoplas Hidráulicas Musculosas & Punhos Colossais Vermelhos/Pretos nas duas mãos
+    for (const [hand, sign] of [[leftHandGroup, 1], [rightHandGroup, -1]]) {
+      const forearmArmor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.26, 0.34), pmGrey);
+      forearmArmor.position.set(0, -0.12, 0);
+      const forearmStripe = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.07, 0.35), pmRed);
+      forearmStripe.position.set(0, -0.12, 0);
+      const wristPiston = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.28, 10), silverSteel);
+      wristPiston.position.set(sign * 0.16, -0.14, -0.06);
+
+      const bigFist = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.36), pmRed);
+      bigFist.position.set(0, -0.35, 0.04);
+      bigFist.castShadow = true;
+      const knucklePlate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.12), silverSteel);
+      knucklePlate.position.set(0, -0.36, 0.19);
+      hand.add(forearmArmor, forearmStripe, wristPiston, bigFist, knucklePlate);
+    }
+
+    // =========================================================================
+    // 3. COSTAS — MOCHILA PROPULSORA DUPLA A JATO + REATOR DORSAL MUTANTE
+    // =========================================================================
     const jetpack = new THREE.Group();
-    jetpack.position.set(0, 0.44, -0.32);
-    const packBox = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.56, 0.28), darkSteel);
-    jetpack.add(packBox);
-    for (const sx of [-0.2, 0.2]) {
-      const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.36, 14), goldMat);
-      thruster.position.set(sx, -0.18, -0.06);
-      const nozzleGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 12), cyanGlow);
-      nozzleGlow.position.set(sx, -0.36, -0.06);
-      jetpack.add(thruster, nozzleGlow);
+    jetpack.position.set(0, 0.44, -0.34);
+
+    const packBox = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.6, 0.3), pmDarkGrey);
+    packBox.castShadow = true;
+    const packWhiteCap = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.18, 0.32), pmWhite);
+    packWhiteCap.position.set(0, 0.22, 0);
+    const packRedStripe = new THREE.Mesh(new THREE.BoxGeometry(0.79, 0.08, 0.33), pmRed);
+    packRedStripe.position.set(0, 0.1, 0);
+
+    // Cilindro Central de Bio-Gás Mutante Vermelho sob pressão
+    const bioTank = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.46, 16), redGlow);
+    bioTank.position.set(0, -0.04, -0.14);
+    jetpack.add(packBox, packWhiteCap, packRedStripe, bioTank);
+
+    // 2 Megaturbinas Traseiras Inclinadas + Chamas de Propulsão 3D (Dash / Super-Pulo)
+    for (const sx of [-0.26, 0.26]) {
+      const thrusterHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.42, 16), silverSteel);
+      thrusterHousing.position.set(sx, -0.18, -0.08);
+      thrusterHousing.rotation.x = 0.18;
+
+      const nozzleRim = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.16, 0.08, 16), pmBlack);
+      nozzleRim.position.set(sx, -0.38, -0.11);
+      nozzleRim.rotation.x = 0.18;
+
+      const nozzleGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.06, 14), redGlow);
+      nozzleGlow.position.set(sx, -0.41, -0.12);
+      nozzleGlow.rotation.x = 0.18;
+
+      const jetFlame = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.58, 10), redGlow);
+      jetFlame.position.set(sx, -0.68, -0.17);
+      jetFlame.rotation.x = Math.PI + 0.18;
+      jetFlame.visible = false;
+      this.titaDashFlameMeshes.push(jetFlame);
+
+      jetpack.add(thrusterHousing, nozzleRim, nozzleGlow, jetFlame);
     }
     this.upperBodyGroup.add(jetpack);
 
-    // 3. Punhos Colossais Big-Fig nas duas mãos
-    for (const hand of [leftHandGroup, rightHandGroup]) {
-      const bigFist = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.32), goldMat);
-      bigFist.position.set(0, -0.34, 0.04);
-      bigFist.castShadow = true;
-      hand.add(bigFist);
+    // =========================================================================
+    // 4. PERNAS BLINDADAS COM PISTÕES HIDRÁULICOS & BOTAS ESMAGADORAS
+    // =========================================================================
+    const beltBand = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.15, 0.48), pmBlack);
+    beltBand.position.set(0, 0.08, 0);
+    const beltBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.13, 0.08), pmRed);
+    beltBuckle.position.set(0, 0.08, 0.24);
+    this.hipGroup.add(beltBand, beltBuckle);
+
+    for (const [legPivot, sign] of [[this.leftLegPivot, 1], [this.rightLegPivot, -1]]) {
+      // Placa de Coxa Blindada Branca/Vermelha da PMESP
+      const thighArmor = new THREE.Mesh(new THREE.BoxGeometry(0.39, 0.24, 0.44), pmWhite);
+      thighArmor.position.set(0, -0.18, 0.02);
+      const thighStripe = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.45), pmRed);
+      thighStripe.position.set(0, -0.18, 0.02);
+
+      // Joelheira Mecha Vermelha/Cinza + Pistões Hidráulicos Laterais Prateados
+      const kneeArmor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.2, 0.16), pmRed);
+      kneeArmor.position.set(0, -0.38, 0.19);
+      const kneeCore = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.06), redGlow);
+      kneeCore.position.set(0, -0.38, 0.26);
+
+      const legPiston = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.44, 10), silverSteel);
+      legPiston.position.set(sign * 0.21, -0.38, 0.02);
+
+      // Bota Esmagadora Colossal de Aço (Pisada Sísmica [Q]!)
+      const heavyBoot = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.22, 0.48), pmDarkGrey);
+      heavyBoot.position.set(0, -0.54, 0.03);
+      const stomperSole = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.18, 0.6), pmBlack);
+      stomperSole.position.set(0, -0.64, 0.09);
+      const toeGuard = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.16), silverSteel);
+      toeGuard.position.set(0, -0.61, 0.34);
+
+      legPivot.add(thighArmor, thighStripe, kneeArmor, kneeCore, legPiston, heavyBoot, stomperSole, toeGuard);
     }
 
-    // 4. Braço Esquerdo: Escudo de Choque Sísmico (Terremoto de Escudo [Q])
+    // =========================================================================
+    // 5. BRAÇO ESQUERDO: ESCUDO DE CHOQUE DA TROPA DE CHOQUE PMESP
+    // =========================================================================
     const shield = new THREE.Group();
-    const shieldPlate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.92, 0.62), navyMat);
+    const shieldPlate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.96, 0.66), pmDarkGrey);
     shieldPlate.castShadow = true;
-    const shieldTrim = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.96, 0.14), goldMat);
-    const shieldVisor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.18, 0.44), cyanGlow);
-    shieldVisor.position.set(0, 0.22, 0);
-    shield.add(shieldPlate, shieldTrim, shieldVisor);
-    shield.position.set(0.18, -0.24, 0.12);
+    const shieldWhiteTop = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.34, 0.64), pmWhite);
+    shieldWhiteTop.position.set(0, 0.28, 0);
+    const shieldRedStripe = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.65), pmRed);
+    shieldRedStripe.position.set(0, 0.06, 0);
+    const shieldVisor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.46), redGlow);
+    shieldVisor.position.set(0, 0.26, 0);
+    const shieldBumper = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.18, 0.68), silverSteel);
+    shieldBumper.position.set(0, -0.36, 0);
+
+    shield.add(shieldPlate, shieldWhiteTop, shieldRedStripe, shieldVisor, shieldBumper);
+    shield.position.set(0.22, -0.24, 0.12);
     leftHandGroup.add(shield);
     this.titaShieldGroup = shield;
 
-    // 5. Braço Direito: Metralhadora Rotativa Pesada acoplada + Muzzle Flash
+    // =========================================================================
+    // 6. BRAÇO DIREITO: MINIGUN VULCAN PESADA DE 6 CANOS GIRATÓRIOS + TAMBOR PMESP
+    // =========================================================================
     const cannon = new THREE.Group();
-    const housing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, 0.56), darkSteel);
-    housing.position.set(-0.14, 0, 0.24);
-    cannon.add(housing);
-    for (const [bx, by] of [[-0.08, 0.05], [-0.2, 0.05], [-0.08, -0.05], [-0.2, -0.05]]) {
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.58, 10), goldMat);
+
+    // Carcaça Blindada Traseira da Minigun em Preto Fosco, Cinza e Vermelho PMESP
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.56), pmBlack);
+    housing.position.set(-0.16, 0, 0.2);
+    housing.castShadow = true;
+    const housingStripe = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.08, 0.52), pmRed);
+    housingStripe.position.set(-0.16, 0.06, 0.2);
+    cannon.add(housing, housingStripe);
+
+    // Tambor Lateral de Munição Pesada (Ammo Drum) + Cinta de Balas Metálica
+    const ammoDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.26, 16), pmRed);
+    ammoDrum.rotation.z = Math.PI / 2;
+    ammoDrum.position.set(-0.34, -0.1, 0.18);
+    const drumCap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.28, 16), pmWhite);
+    drumCap.rotation.z = Math.PI / 2;
+    drumCap.position.set(-0.34, -0.1, 0.18);
+    const ammoChute = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.18), silverSteel);
+    ammoChute.position.set(-0.26, -0.02, 0.22);
+    cannon.add(ammoDrum, drumCap, ammoChute);
+
+    // Conjunto Rotativo de 6 Canos Longos de Aço Prateado (gira em altíssima velocidade ao atirar!)
+    const barrelCluster = new THREE.Group();
+    barrelCluster.position.set(-0.16, 0, 0.48);
+
+    const barrelCount = 6;
+    const clusterRadius = 0.088;
+    const barrelLength = 0.78;
+    for (let b = 0; b < barrelCount; b++) {
+      const ang = (b / barrelCount) * Math.PI * 2;
+      const barrel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.026, 0.026, barrelLength, 10),
+        silverSteel
+      );
       barrel.rotation.x = Math.PI / 2;
-      barrel.position.set(bx, by, 0.62);
-      cannon.add(barrel);
+      barrel.position.set(
+        Math.cos(ang) * clusterRadius,
+        Math.sin(ang) * clusterRadius,
+        barrelLength * 0.5
+      );
+      barrelCluster.add(barrel);
     }
 
-    const flashMat = getLegoMaterial(0x00f0ff, {
-      emissive: 0xfacc15,
-      emissiveIntensity: 2.4,
+    // 2 Anéis Espaçadores Rotativos segurando os 6 canos da Minigun
+    for (const ringZ of [0.22, 0.64]) {
+      const clampRing = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.125, 0.125, 0.055, 16),
+        ringZ > 0.5 ? pmRed : pmDarkGrey
+      );
+      clampRing.rotation.x = Math.PI / 2;
+      clampRing.position.set(0, 0, ringZ);
+      barrelCluster.add(clampRing);
+    }
+
+    cannon.add(barrelCluster);
+    this.titaMinigunBarrelGroup = barrelCluster;
+
+    // Clarão de Fogo Vermelho/Amarelo na ponta dos 6 canos da Minigun
+    const flashMat = getLegoMaterial(0xfef08a, {
+      emissive: 0xef4444,
+      emissiveIntensity: 2.6,
       transparent: true,
-      opacity: 0.92
+      opacity: 0.94
     });
-    this.muzzleFlashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), flashMat);
-    this.muzzleFlashMesh.scale.set(0.9, 0.9, 2.4);
-    this.muzzleFlashMesh.position.set(-0.14, 0, 0.98);
+    this.muzzleFlashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), flashMat);
+    this.muzzleFlashMesh.scale.set(1.0, 1.0, 2.8);
+    this.muzzleFlashMesh.position.set(-0.16, 0, 1.38);
     this.muzzleFlashMesh.visible = false;
     cannon.add(this.muzzleFlashMesh);
 
@@ -1775,6 +2084,11 @@ export class Minifigure {
     this.muzzleFlashTimer = 0.055;
   }
 
+  triggerStomp() {
+    this.stompDuration = 0.42;
+    this.stompTimer = this.stompDuration;
+  }
+
   triggerTacticalRoll() {
     if (this.rollTimer > 0) return false;
     this.rollTimer = this.rollDuration;
@@ -1818,7 +2132,7 @@ export class Minifigure {
     } else {
       this.root.scale.setScalar(1.0);
       if (this.isBigFig) {
-        this.visualRoot.scale.set(1.68, 1.56, 1.68);
+        this.visualRoot.scale.set(1.78, 1.62, 1.78);
       } else {
         this.visualRoot.scale.setScalar(1.0);
       }
@@ -2203,7 +2517,7 @@ export class Minifigure {
     }
 
     // Reseta deslocamentos lineares dos ombros/cotovelos antes de aplicar o combo de soco
-    const shoulderX = this.isBigFig ? 0.58 : 0.49;
+    const shoulderX = this.isBigFig ? 0.62 : 0.49;
     this.leftArmPivot.position.set(shoulderX, 0.66, 0);
     this.rightArmPivot.position.set(-shoulderX, 0.66, 0);
     this.leftArmPivot.rotation.y = 0;
@@ -2212,6 +2526,70 @@ export class Minifigure {
     if (this.leftHandGroup && this.rightHandGroup) {
       this.leftHandGroup.rotation.x = -0.22;
       this.rightHandGroup.rotation.x = -0.22;
+    }
+
+    // Atualiza Giroflex Policial 3D e Chamas dos Propulsores Dorsais do Titã Blindado (PMESP)
+    if (this.titaSirenLights && this.titaSirenLights.length > 0) {
+      const sirenCycle = Math.sin(this.animTime * 14.0) > 0;
+      for (const s of this.titaSirenLights) {
+        const active = s.isRed ? sirenCycle : !sirenCycle;
+        s.mesh.scale.setScalar(active ? 1.16 : 0.88);
+      }
+    }
+    if (this.titaDashFlameMeshes && this.titaDashFlameMeshes.length > 0) {
+      const showJetFlames =
+        this.isDashing ||
+        this.titaJumpChargeRatio > 0.05 ||
+        (!isGrounded && verticalVelocity > 2.0);
+      const flamePulse = 0.85 + Math.sin(this.animTime * 42.0) * 0.35;
+      for (const jf of this.titaDashFlameMeshes) {
+        jf.visible = showJetFlames;
+        if (showJetFlames) {
+          const boost = this.isDashing ? 1.45 : 0.8 + this.titaJumpChargeRatio * 0.85;
+          jf.scale.set(1.0, flamePulse * boost, 1.0);
+        }
+      }
+    }
+
+    // Pose de Agachamento Hidráulico enquanto segura [Espaço] para carregar o Super-Pulo do Titã!
+    if (this.titaJumpChargeRatio > 0.01 && isGrounded) {
+      const c = this.titaJumpChargeRatio;
+      this.visualRoot.position.y = -c * 0.28;
+      this.upperBodyGroup.rotation.x = c * 0.38;
+      this.leftLegPivot.rotation.x = -c * 0.65;
+      this.rightLegPivot.rotation.x = -c * 0.65;
+      this.leftArmPivot.rotation.x = -0.75 - c * 0.45;
+      this.rightArmPivot.rotation.x = -0.75 - c * 0.45;
+      this.leftArmPivot.rotation.z = 0.28;
+      this.rightArmPivot.rotation.z = -0.28;
+    }
+
+    // Animação 3D de Pisada Sísmica Pesada [Q] do Titã Blindado (Ergue a perna direita bem alto e esmaga o asfalto!)
+    if (this.stompTimer > 0) {
+      this.stompTimer = Math.max(0, this.stompTimer - dt);
+      const progress = 1.0 - this.stompTimer / this.stompDuration;
+      if (progress < 0.44) {
+        // Fase 1: Ergue o joelho/bota direita bem alto e abre os braços carregando o impacto
+        const u = progress / 0.44;
+        const ease = Math.sin(u * Math.PI * 0.5);
+        this.upperBodyGroup.rotation.x = -0.24 * ease;
+        this.rightLegPivot.rotation.x = -1.48 * ease;
+        this.leftLegPivot.rotation.x = 0.18 * ease;
+        this.leftArmPivot.rotation.x = -2.15 * ease;
+        this.rightArmPivot.rotation.x = -2.15 * ease;
+        this.leftArmPivot.rotation.z = 0.36 * ease;
+        this.rightArmPivot.rotation.z = -0.36 * ease;
+      } else {
+        // Fase 2: Crava a Bota Esmagadora no chão com todo o peso do chassi!
+        const u = (progress - 0.44) / 0.56;
+        const impact = 1.0 - u;
+        this.visualRoot.position.y = -0.22 * impact;
+        this.upperBodyGroup.rotation.x = 0.34 * impact;
+        this.rightLegPivot.rotation.x = 0.15 * impact;
+        this.leftLegPivot.rotation.x = -0.22 * impact;
+        this.leftArmPivot.rotation.x = -0.85 * impact;
+        this.rightArmPivot.rotation.x = -0.85 * impact;
+      }
     }
 
     // Pose do Titã Blindado segurando um carro levantado acima da cabeça!
@@ -2297,12 +2675,15 @@ export class Minifigure {
       }
     }
 
-    // Sobreposição de Tiro / Disparo de Armas 3D
+    // Sobreposição de Tiro / Disparo de Armas 3D + Giro Insano dos 6 Canos da Minigun Vulcan!
     if (this.shootTimer > 0) {
       this.shootTimer = Math.max(0, this.shootTimer - dt);
+      if (this.titaMinigunBarrelGroup) {
+        this.titaMinigunBarrelGroup.rotation.z += 38.0 * dt;
+      }
       const recoil = Math.sin((this.shootTimer / 0.16) * Math.PI);
-      this.rightArmPivot.rotation.x = -1.52 + recoil * 0.16;
-      this.rightArmPivot.position.z = -recoil * 0.12;
+      this.rightArmPivot.rotation.x = -1.52 + recoil * 0.14;
+      this.rightArmPivot.position.z = -recoil * 0.1;
       this.rightArmPivot.rotation.z = -0.04;
       if (this.rightHandGroup) this.rightHandGroup.rotation.x = -0.15;
 

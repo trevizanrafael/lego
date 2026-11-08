@@ -587,47 +587,55 @@ export class DestructibleManager {
   }
 
   // ============================================================================
-  // HERÓI #3: TITÃ BLINDADO (MECHA BIG-FIG) — METRALHADORA, SOCO FOGUETE, TERREMOTO E ARREMESSO DE CARRO
+  // HERÓI #3: TITÃ BLINDADO (PM ROBÔ MUTANTE GIGANTE — PMESP)
   // ============================================================================
 
   spawnTitaRotaryBullet(origin, targetPoint) {
-    soundFX.playRifleShot();
-    const dir = targetPoint.clone().sub(origin).normalize();
-    const mat = getLegoMaterial(0x00f0ff, {
-      emissive: 0x38bdf8,
-      emissiveIntensity: 2.2,
+    soundFX.playMinigunShot();
+    const jitterTarget = targetPoint.clone().add(
+      new THREE.Vector3(
+        (Math.random() - 0.5) * 0.42,
+        (Math.random() - 0.5) * 0.32,
+        (Math.random() - 0.5) * 0.42
+      )
+    );
+    const dir = jitterTarget.clone().sub(origin).normalize();
+    const mat = getLegoMaterial(0xfef2f2, {
+      emissive: 0xef4444,
+      emissiveIntensity: 2.6,
       roughness: 0.1
     });
     const mesh = new THREE.Mesh(BULLET_GEO, mat);
-    mesh.scale.set(1.6, 1.6, 2.0);
+    mesh.scale.set(1.5, 1.5, 2.8);
     mesh.position.copy(origin);
-    mesh.lookAt(targetPoint);
+    mesh.lookAt(jitterTarget);
     this.scene.add(mesh);
 
     this.projectiles.push({
       mesh,
       type: 'bullet',
-      vel: dir.multiplyScalar(78),
-      life: 1.3,
-      damage: 24,
+      vel: dir.multiplyScalar(105),
+      life: 1.25,
+      damage: 22,
       isSolar: false
     });
   }
 
   /**
-   * Soco Foguete do Titã Blindado: estoura Paredes Rachadas (cracked_wall) e arremessa objetos!
+   * Investida / Dash Demolidor do Titã Blindado [Mouse 2 / V]:
+   * Avança a jato sem cooldown, estoura Paredes Rachadas (cracked_wall) e arremessa carros!
    */
   triggerTitaRocketPunch(playerPos, facingAngle) {
-    soundFX.playExplosion(1.15);
+    soundFX.playExplosion(1.05);
     const impactCenter = new THREE.Vector3(
-      playerPos.x + Math.sin(facingAngle) * 2.6,
-      playerPos.y + 1.35,
-      playerPos.z + Math.cos(facingAngle) * 2.6
+      playerPos.x + Math.sin(facingAngle) * 2.8,
+      playerPos.y + 1.45,
+      playerPos.z + Math.cos(facingAngle) * 2.8
     );
 
-    const ringGeo = new THREE.TorusGeometry(1, 0.15, 12, 28);
+    const ringGeo = new THREE.TorusGeometry(1, 0.16, 12, 28);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
+      color: 0xef4444,
       transparent: true,
       opacity: 0.95
     });
@@ -636,30 +644,57 @@ export class DestructibleManager {
     ringMesh.rotation.y = facingAngle;
     this.scene.add(ringMesh);
 
-    const sphereMat = new THREE.MeshBasicMaterial({
-      color: 0xfacc15,
+    const whiteRingGeo = new THREE.TorusGeometry(1, 0.1, 10, 28);
+    const whiteRingMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
       transparent: true,
-      opacity: 0.85
+      opacity: 0.92
     });
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(0.9, 14, 14), sphereMat);
-    sphereMesh.position.copy(impactCenter);
-    this.scene.add(sphereMesh);
+    const whiteRingMesh = new THREE.Mesh(whiteRingGeo, whiteRingMat);
+    whiteRingMesh.position.copy(impactCenter);
+    whiteRingMesh.rotation.y = facingAngle;
+    this.scene.add(whiteRingMesh);
 
     this.explosions.push({
-      sphereMesh,
+      sphereMesh: null,
       ringMesh,
-      maxRadius: 5.8,
+      extraMeshes: [whiteRingMesh],
+      extraRings: [{ mesh: whiteRingMesh, speedMult: 1.32 }],
+      maxRadius: 6.4,
       age: 0,
-      duration: 0.34
+      duration: 0.28
     });
+
+    for (let i = 0; i < 14; i++) {
+      const pMat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xef4444 : 0xf8fafc,
+        transparent: true,
+        opacity: 0.95
+      });
+      const pMesh = new THREE.Mesh(DEBRIS_STUD_GEO, pMat);
+      pMesh.position.copy(impactCenter);
+      this.scene.add(pMesh);
+      const ang = facingAngle + (Math.random() - 0.5) * 1.4;
+      const spd = 12 + Math.random() * 18;
+      this.fxParticles.push({
+        mesh: pMesh,
+        vel: new THREE.Vector3(
+          Math.sin(ang) * spd,
+          2 + Math.random() * 8,
+          Math.cos(ang) * spd
+        ),
+        life: 0.28 + Math.random() * 0.18,
+        maxLife: 0.45
+      });
+    }
 
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
       const dx = obj.basePos.x - impactCenter.x;
       const dz = obj.basePos.z - impactCenter.z;
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - impactCenter.y);
-      if (Math.hypot(dx, dz) <= obj.radius + 4.8 && dy <= obj.height + 2.5) {
-        this.damageObject(obj, 120, impactCenter, false, {
+      if (Math.hypot(dx, dz) <= obj.radius + 5.4 && dy <= obj.height + 3.0) {
+        this.damageObject(obj, 140, impactCenter, false, {
           canBreakCrackedWall: true,
           canBreakSilver: false
         });
@@ -668,46 +703,157 @@ export class DestructibleManager {
   }
 
   /**
-   * Terremoto de Escudo [Q] e Impacto Sísmico do Superpulo do Titã Blindado!
+   * Pisada Sísmica no Chão [Q] e Impacto do Super-Pulo do Titã Blindado:
+   * - SEM esfera central ("bola com rosquinha"): 100% onda de choque terrestre!
+   * - Rachaduras radiais no asfalto + 20 Placas de Asfalto/Rocha 3D levantando do chão + 3 Anéis Sísmicos!
    */
-  triggerTitaGroundSlam(centerPos, radius = 10.5, damage = 95) {
-    soundFX.playExplosion(1.35);
-    const slamCenter = centerPos.clone();
-    slamCenter.y += 0.35;
+  triggerTitaGroundSlam(centerPos, radius = 22.0, damage = 150, groundY = null) {
+    soundFX.playSeismicStomp();
+    const floorY = groundY !== null
+      ? groundY
+      : (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(centerPos.x, centerPos.z) : centerPos.y);
+    const slamCenter = new THREE.Vector3(centerPos.x, floorY + 0.12, centerPos.z);
 
-    const sphereMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
-      transparent: true,
-      opacity: 0.72
-    });
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), sphereMat);
-    sphereMesh.position.copy(slamCenter);
-    this.scene.add(sphereMesh);
-
-    const ringGeo = new THREE.TorusGeometry(1, 0.16, 12, 36);
+    // Anel Sísmico Principal (Vermelho PMESP) colado no chão
+    const ringGeo = new THREE.TorusGeometry(1, 0.18, 12, 48);
     ringGeo.rotateX(Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xfacc15,
+      color: 0xef4444,
       transparent: true,
-      opacity: 0.95
+      opacity: 0.96
     });
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
     ringMesh.position.copy(slamCenter);
     this.scene.add(ringMesh);
 
+    const extraMeshes = [];
+    const extraRings = [];
+
+    // 2 Anéis Sísmicos Secundários no Chão (Branco Policial e Cinza Aço)
+    const ringConfigs = [
+      { color: 0xf8fafc, tube: 0.13, speedMult: 1.22, yOff: 0.08 },
+      { color: 0x94a3b8, tube: 0.11, speedMult: 0.78, yOff: 0.05 }
+    ];
+    for (const rc of ringConfigs) {
+      const rGeo = new THREE.TorusGeometry(1, rc.tube, 10, 44);
+      rGeo.rotateX(Math.PI / 2);
+      const rMat = new THREE.MeshBasicMaterial({
+        color: rc.color,
+        transparent: true,
+        opacity: 0.92
+      });
+      const rMesh = new THREE.Mesh(rGeo, rMat);
+      rMesh.position.set(centerPos.x, floorY + rc.yOff, centerPos.z);
+      this.scene.add(rMesh);
+      extraMeshes.push(rMesh);
+      extraRings.push({ mesh: rMesh, speedMult: rc.speedMult });
+    }
+
+    // 20 Placas de Asfalto / Rocha 3D e Cristais Sísmicos Vermelhos erguendo-se em círculo ao redor do pé do Titã
+    const eruptionSpikes = [];
+    const slabCount = 20;
+    for (let i = 0; i < slabCount; i++) {
+      const isOuter = i >= 10;
+      const idxInRing = isOuter ? i - 10 : i;
+      const angle = (idxInRing / 10) * Math.PI * 2 + (isOuter ? 0.31 : 0);
+      const dist = isOuter ? radius * 0.68 : radius * 0.32;
+      const slabH = (isOuter ? 3.4 : 2.5) + Math.random() * 1.4;
+      const slabW = isOuter ? 1.55 : 1.15;
+
+      const slabGeo = new THREE.BoxGeometry(slabW, slabH, 0.52);
+      slabGeo.translate(0, slabH * 0.5, 0);
+      const slabColor = i % 3 === 0 ? 0xef4444 : i % 2 === 0 ? 0x334155 : 0x475569;
+      const slabMat = new THREE.MeshBasicMaterial({
+        color: slabColor,
+        transparent: true,
+        opacity: 0.96
+      });
+      const slabMesh = new THREE.Mesh(slabGeo, slabMat);
+      slabMesh.position.set(
+        centerPos.x + Math.cos(angle) * dist,
+        floorY,
+        centerPos.z + Math.sin(angle) * dist
+      );
+      slabMesh.rotation.y = -angle + Math.PI * 0.5;
+      slabMesh.rotation.x = -0.38; // Inclinado para fora como asfalto quebrado erguido pelo pisão!
+      slabMesh.scale.set(1, 0.01, 1);
+      this.scene.add(slabMesh);
+      extraMeshes.push(slabMesh);
+      eruptionSpikes.push({
+        mesh: slabMesh,
+        delay: isOuter ? 0.12 : 0.02
+      });
+    }
+
+    // 8 Fendas / Rachaduras Radiais Luminosas no Chão
+    for (let i = 0; i < 8; i++) {
+      const crackAng = (i / 8) * Math.PI * 2;
+      const crackLen = radius * 0.82;
+      const crackGeo = new THREE.BoxGeometry(0.28, 0.08, crackLen);
+      crackGeo.translate(0, 0.04, crackLen * 0.5);
+      const crackMat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xef4444 : 0xf8fafc,
+        transparent: true,
+        opacity: 0.92
+      });
+      const crackMesh = new THREE.Mesh(crackGeo, crackMat);
+      crackMesh.position.set(centerPos.x, floorY + 0.03, centerPos.z);
+      crackMesh.rotation.y = crackAng;
+      this.scene.add(crackMesh);
+      extraMeshes.push(crackMesh);
+      eruptionSpikes.push({
+        mesh: crackMesh,
+        delay: 0.0
+      });
+    }
+
+    // 32 Estilhaços de Asfalto e Faíscas Vermelhas voando para o alto
+    for (let i = 0; i < 32; i++) {
+      const pColor = i % 3 === 0 ? 0xef4444 : i % 2 === 0 ? 0x334155 : 0xf8fafc;
+      const pMat = new THREE.MeshBasicMaterial({
+        color: pColor,
+        transparent: true,
+        opacity: 0.95
+      });
+      const pMesh = new THREE.Mesh(i % 2 === 0 ? DEBRIS_BRICK_GEO : DEBRIS_STUD_GEO, pMat);
+      const ang = Math.random() * Math.PI * 2;
+      const rOff = 1.0 + Math.random() * (radius * 0.55);
+      pMesh.position.set(
+        centerPos.x + Math.cos(ang) * rOff,
+        floorY + 0.35,
+        centerPos.z + Math.sin(ang) * rOff
+      );
+      pMesh.scale.setScalar(1.35);
+      this.scene.add(pMesh);
+      const spd = 8 + Math.random() * 22;
+      this.fxParticles.push({
+        mesh: pMesh,
+        vel: new THREE.Vector3(
+          Math.cos(ang) * spd,
+          9 + Math.random() * 18,
+          Math.sin(ang) * spd
+        ),
+        life: 0.45 + Math.random() * 0.35,
+        maxLife: 0.8
+      });
+    }
+
     this.explosions.push({
-      sphereMesh,
+      sphereMesh: null,
       ringMesh,
+      extraMeshes,
+      extraRings,
+      eruptionSpikes,
       maxRadius: radius,
       age: 0,
-      duration: 0.45
+      duration: 0.62
     });
 
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
       const dHoriz = Math.hypot(obj.basePos.x - slamCenter.x, obj.basePos.z - slamCenter.z);
-      const dVert = Math.abs(obj.basePos.y - centerPos.y);
-      if (dHoriz <= radius + obj.radius && dVert <= 4.5) {
+      const dVert = Math.abs(obj.basePos.y - floorY);
+      if (dHoriz <= radius + obj.radius && dVert <= 7.5) {
         this.damageObject(obj, damage, slamCenter, false, {
           canBreakCrackedWall: true,
           canBreakSilver: false
@@ -1936,7 +2082,9 @@ export class DestructibleManager {
       ex.age += dt;
       const t = ex.age / ex.duration;
       if (t >= 1) {
-        this.scene.remove(ex.sphereMesh);
+        if (ex.sphereMesh) {
+          this.scene.remove(ex.sphereMesh);
+        }
         this.scene.remove(ex.ringMesh);
         if (ex.extraMeshes) {
           for (const m of ex.extraMeshes) {
@@ -1948,8 +2096,10 @@ export class DestructibleManager {
       }
 
       const r = THREE.MathUtils.lerp(0.5, ex.maxRadius, Math.pow(t, 0.52));
-      ex.sphereMesh.scale.setScalar(r * (ex.isSupernova ? 0.58 : 0.65));
-      ex.sphereMesh.material.opacity = (1 - t) * 0.78;
+      if (ex.sphereMesh) {
+        ex.sphereMesh.scale.setScalar(r * (ex.isSupernova ? 0.58 : 0.65));
+        ex.sphereMesh.material.opacity = (1 - t) * 0.78;
+      }
 
       ex.ringMesh.scale.setScalar(r);
       ex.ringMesh.material.opacity = (1 - t) * 0.92;

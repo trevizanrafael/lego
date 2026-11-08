@@ -153,6 +153,72 @@ class SoundFX {
   }
 
   /**
+   * Som de disparo em altíssima cadência da Minigun Vulcan de 6 Canos do Titã Blindado (PMESP)
+   */
+  playMinigunShot() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const subOsc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(290 + Math.random() * 75, now);
+    osc.frequency.exponentialRampToValueAtTime(62, now + 0.042);
+
+    subOsc.type = 'square';
+    subOsc.frequency.setValueAtTime(135 + Math.random() * 25, now);
+    subOsc.frequency.exponentialRampToValueAtTime(45, now + 0.042);
+
+    gain.gain.setValueAtTime(0.095, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+
+    osc.connect(gain);
+    subOsc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    subOsc.start(now);
+    osc.stop(now + 0.048);
+    subOsc.stop(now + 0.048);
+  }
+
+  /**
+   * Som de Pisada Sísmica Pesada [Q] do Titã Blindado esmagando o asfalto
+   */
+  playSeismicStomp() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const crunchOsc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(115, now);
+    osc.frequency.exponentialRampToValueAtTime(22, now + 0.48);
+
+    crunchOsc.type = 'square';
+    crunchOsc.frequency.setValueAtTime(185, now);
+    crunchOsc.frequency.exponentialRampToValueAtTime(34, now + 0.36);
+
+    gain.gain.setValueAtTime(0.26, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    osc.connect(gain);
+    crunchOsc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    crunchOsc.start(now);
+    osc.stop(now + 0.52);
+    crunchOsc.stop(now + 0.4);
+  }
+
+  /**
    * Som de disparo de Bola de Fogo do Solaris
    */
   playFireballCast() {
