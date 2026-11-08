@@ -21,6 +21,40 @@
 <body>
   <div id="game-container"></div>
 
+  <!-- Overlay de Câmera de Satélite Estilo GTA V durante a Viagem Rápida -->
+  <div id="satellite-fx-overlay" class="hidden">
+    <div id="satellite-flash" class="sat-flash"></div>
+    <div class="sat-scanlines"></div>
+    <div class="sat-reticle">
+      <div class="sat-corner sat-tl"></div>
+      <div class="sat-corner sat-tr"></div>
+      <div class="sat-corner sat-bl"></div>
+      <div class="sat-corner sat-br"></div>
+      <div id="satellite-telemetry" class="sat-telemetry">SATÉLITE TÁTICO // REPOSICIONANDO OPERADOR</div>
+    </div>
+  </div>
+
+  <!-- Overlay da Roda de Seleção de Personagem Estilo GTA V (Câmera Lenta + Filtro Tático + Giro em WASD) -->
+  <div id="hero-wheel-overlay" class="hidden">
+    <div class="wheel-scanlines"></div>
+    <div class="wheel-vignette"></div>
+    <div class="sat-reticle">
+      <div class="sat-corner sat-tl"></div>
+      <div class="sat-corner sat-tr"></div>
+      <div class="sat-corner sat-bl"></div>
+      <div class="sat-corner sat-br"></div>
+    </div>
+    <div class="hero-wheel-center-wrap">
+      <div class="wheel-top-tag">SELETOR TÁTICO DE OPERADOR // CÂMERA LENTA ATIVA</div>
+      <canvas id="hero-wheel-canvas" width="460" height="460"></canvas>
+      <div id="wheel-hero-info" class="wheel-hero-info">
+        <div id="wheel-hero-title" class="wheel-hero-title">COMANDANTE CAVEIRA</div>
+        <div id="wheel-hero-role" class="wheel-hero-role">OPERAÇÕES ESPECIAIS // BOPE</div>
+        <div id="wheel-hero-spec" class="wheel-hero-spec">Combate Tático Urbano, Explosivos de Impulso & Patrulha Blindada</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Mira Central Tática Estilo Valorant / Fortnite -->
   <div id="crosshair" data-hero="caveira">
     <span class="ch-line ch-top"></span>
@@ -33,7 +67,7 @@
   <!-- Interface Tática Urbana Angular (Tela Limpa de Jogo Real) -->
   <div id="ui-overlay">
     <div id="top-bar">
-      <!-- Canto Superior Esquerdo: Retrato Tático + 4 Corações LEGO + Contador de Studs Solto -->
+      <!-- Canto Superior Esquerdo Limpo: Retrato Tático + Nome + 4 Corações LEGO + Studs -->
       <div id="lego-classic-hud">
         <div class="tactical-portrait-frame" id="hud-portrait-ring">
           <div class="frame-corner-tl"></div>
@@ -46,12 +80,11 @@
           <div class="hud-name-row">
             <span id="hud-char-name">COMANDANTE CAVEIRA</span>
           </div>
-          <div id="hud-char-sub" class="hud-sub-row">BOPE // FUZIL • GRANADA ROCKET • ROLAMENTO</div>
 
           <!-- 4 Corações de LEGO Facetados -->
           <div id="hud-hearts" class="hearts-row"></div>
 
-          <!-- Contador de Studs Solto (Alto Contraste Tático, Sem Caixa Prendendo) -->
+          <!-- Contador de Studs Solto (Alto Contraste Tático) -->
           <div class="stud-counter-row">
             <div id="hud-stud-coin" class="hud-stud-3d" data-tier="gold"></div>
             <span id="hud-stud-count">0</span>
@@ -60,21 +93,28 @@
         </div>
       </div>
 
-      <!-- Topo Central: Régua Tática Compacta TRUE HERO -->
-      <div id="true-hero-bar">
-        <div class="th-header">
-          <span id="true-hero-badge" class="true-hero-title">VERDADEIRO HERÓI</span>
-          <span id="true-hero-percent" class="true-hero-pct">0%</span>
+      <!-- Canto Superior Direito: Velocímetro Estilizado IDV (Aparece APENAS ao Dirigir/Pilotar Veículo) -->
+      <div id="vehicle-speedometer" class="hidden">
+        <div class="speedo-header">
+          <span id="speedo-vehicle-name" class="speedo-veh-name">VIATURA BOPE</span>
+          <span id="speedo-gear-badge" class="speedo-gear">D</span>
         </div>
-        <div id="true-hero-segments" class="true-hero-segments"></div>
+        <div class="speedo-main-row">
+          <span id="speedo-kmh-val" class="speedo-kmh-val">000</span>
+          <div class="speedo-unit-col">
+            <span class="speedo-unit">KM/H</span>
+            <span id="speedo-mode-tag" class="speedo-mode-tag">CRUZEIRO</span>
+          </div>
+        </div>
+        <div id="speedo-rpm-bars" class="speedo-rpm-bars"></div>
       </div>
+    </div>
 
-      <!-- Canto Superior Direito: Telemetria Minimalista -->
-      <div id="stats-pill">
-        <span id="fps-counter">60 FPS</span>
-        <span class="sep">//</span>
-        <span id="anim-state">PARADO</span>
-      </div>
+    <!-- Banner/Toast de Transição de Região no Topo da Tela -->
+    <div id="region-toast" class="hidden">
+      <div class="toast-code" id="region-toast-code">SETOR R-01</div>
+      <div class="toast-title" id="region-toast-title">CENTRO FINANCEIRO & SUPER BANCO</div>
+      <div class="toast-sub" id="region-toast-sub">Coração Corporativo • Times Square & Super Banco Central</div>
     </div>
 
     <!-- Aviso de Clique para Travar Mira (Some assim que clica na tela!) -->
@@ -83,39 +123,117 @@
         <div class="prompt-tag">SISTEMA DE COMBATE // LEGO: CIDADE DE DEUS</div>
         <div class="prompt-title">CLIQUE NA TELA PARA TRAVAR A MIRA EM 3ª PESSOA</div>
         <div class="prompt-sub">
-          <b>[TAB]</b> Alterna entre <b>Comandante Caveira</b> e <b>Solaris</b> • <b>[H]</b> Exibe Comandos
+          <b>[TAB]</b> Roda de Heróis • <b>[E]</b> Veículo • <b>[M]</b> Mapa • <b>[H]</b> Ficha do Herói
         </div>
       </div>
     </div>
 
-    <!-- Rodapé Limpo: Micro-Indicadores Táticos + Gaveta de Comandos Ocultável [H] -->
+    <!-- Modal da Ficha Tática Individual do Personagem [H] -->
+    <div id="hero-dossier-modal" class="hidden">
+      <div class="dossier-card">
+        <div class="dossier-header">
+          <div>
+            <div id="dossier-op-code" class="dossier-tag">OP-01 // FICHA TÁTICA DO OPERADOR</div>
+            <div id="dossier-hero-name" class="dossier-title">COMANDANTE CAVEIRA</div>
+            <div id="dossier-hero-role" class="dossier-role">OPERAÇÕES ESPECIAIS // BOPE</div>
+          </div>
+          <div class="dossier-header-right">
+            <div class="tactical-portrait-frame dossier-portrait-frame">
+              <div class="frame-corner-tl"></div>
+              <div class="frame-corner-br"></div>
+              <canvas id="dossier-portrait-canvas" width="76" height="76"></canvas>
+            </div>
+            <button id="dossier-close-btn" class="tactical-btn">[H] FECHAR</button>
+          </div>
+        </div>
+
+        <!-- Abas rápidas para consultar qualquer um dos 5 Operadores -->
+        <div id="dossier-hero-tabs" class="dossier-tabs"></div>
+
+        <div class="dossier-meta-strip">
+          <div class="dossier-meta-box">
+            <span class="meta-label">ESPECIALIDADE TÁTICA</span>
+            <span id="dossier-hero-specialty" class="meta-val">Combate Tático Urbano & Explosivos</span>
+          </div>
+          <div class="dossier-meta-box">
+            <span class="meta-label">ATRIBUTO PASSIVO</span>
+            <span id="dossier-hero-passive" class="meta-val">Rolamento Tático e Rocket Jump</span>
+          </div>
+        </div>
+
+        <div class="dossier-section-title">ARSENAL, PODERES & CONTROLES EXCLUSIVOS DO OPERADOR</div>
+        <div id="dossier-controls-grid" class="dossier-controls-grid"></div>
+
+        <div class="dossier-footer-bar">
+          <span><b>[WASD]</b> MOVER / DIRIGIR</span>
+          <span><b>[ESPAÇO]</b> PULAR</span>
+          <span><b>[SHIFT]</b> CORRER / DRIFT</span>
+          <span><b>[E]</b> ENTRAR / SAIR VEÍCULO</span>
+          <span><b>[TAB]</b> RODA DE HERÓIS</span>
+          <span><b>[M]</b> MAPA TÁTICO</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal do Mapa Completo Interativo das 10 Regiões [M] -->
+    <div id="fullmap-modal" class="hidden">
+      <div class="fullmap-card">
+        <div class="fullmap-header">
+          <div>
+            <div class="fullmap-tag">SATÉLITE TÁTICO INTERATIVO // ESCALA METROPOLITANA 3000m x 3000m</div>
+            <div class="fullmap-title">MAPA TÁTICO DAS 10 REGIÕES — LEGO: CIDADE DE DEUS</div>
+          </div>
+          <div class="fullmap-actions">
+            <button id="fullmap-zoom-in" class="tactical-btn-sm" title="Aproximar Zoom">+</button>
+            <button id="fullmap-zoom-out" class="tactical-btn-sm" title="Afastar Zoom">-</button>
+            <button id="fullmap-reset-view" class="tactical-btn-sm">CENTRALIZAR</button>
+            <button id="fullmap-clear-wp" class="tactical-btn-sm">LIMPAR DESTINO</button>
+            <button id="fullmap-close-btn" class="tactical-btn">[M] FECHAR</button>
+          </div>
+        </div>
+
+        <div class="fullmap-body">
+          <div class="fullmap-canvas-wrap">
+            <canvas id="fullmap-canvas" width="680" height="560"></canvas>
+            <div class="fullmap-help-bar">
+              <span><b>[SCROLL]</b> ZOOM</span>
+              <span><b>[ARRASTAR]</b> MOVER MAPA</span>
+              <span><b>[CLIQUE NO MAPA]</b> MARCAR DESTINO (FEIXE 3D)</span>
+              <span><b>[CLIQUE EM MARCO / LISTA]</b> VIAGEM RÁPIDA</span>
+            </div>
+          </div>
+          <div class="fullmap-sidebar">
+            <div class="sidebar-title">LEGENDA & VIAGEM RÁPIDA (10 REGIÕES)</div>
+            <div id="fullmap-region-list" class="region-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Indicador Contextual Tático de Veículo [E] (Apenas a pé perto de veículo) -->
+    <div id="vehicle-prompt" class="hidden">
+      <span class="pill-key">E</span>
+      <span id="vehicle-prompt-text">ENTRAR NO VEÍCULO</span>
+    </div>
+
+    <!-- Rodapé Ultra-Limpo: Apenas o Minimapa no Canto Inferior Direito -->
     <div id="bottom-bar">
-      <div id="hero-switcher-pills">
-        <div id="pill-caveira" class="hero-pill active">
-          <span class="pill-key">1</span>
-          <span class="pill-label">CAVEIRA</span>
+      <div></div>
+      <div id="bottom-right-cluster">
+        <div id="minimap-container">
+          <div class="minimap-header">
+            <span id="minimap-region-num" class="minimap-num">R-01</span>
+            <span id="minimap-region-name" class="minimap-name">
+              <svg class="tactical-svg-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#facc15" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"><polygon points="12,2 19,9 12,22 5,9" fill="rgba(250,204,21,0.18)"/><circle cx="12" cy="9.5" r="2.5" fill="#facc15"/></svg>
+              <span>CENTRO FINANCEIRO</span>
+            </span>
+          </div>
+          <div class="minimap-frame">
+            <canvas id="minimap-canvas" width="196" height="196"></canvas>
+            <div id="minimap-compass-n" class="minimap-north">N</div>
+          </div>
+          <div id="minimap-sub" class="minimap-sub">X: 0000 Z: -0082 // ALT: 00m</div>
         </div>
-        <div id="pill-solaris" class="hero-pill">
-          <span class="pill-key">2</span>
-          <span class="pill-label">SOLARIS</span>
-        </div>
-        <div class="hero-swap-tag"><b>[TAB]</b> TROCAR</div>
-      </div>
-
-      <!-- Gaveta de Comandos (Oculta por padrão para deixar a tela limpa, abre com H) -->
-      <div id="controls-hud" class="hidden">
-        <div class="control-item"><kbd>WASD</kbd> <span>MOVER</span></div>
-        <div class="control-item"><kbd>SHIFT</kbd> <span>CORRER / COMETA</span></div>
-        <div class="control-item"><kbd>2x ESPAÇO</kbd> <span>VOAR (SOLARIS)</span></div>
-        <div class="control-item"><kbd>MOUSE 1</kbd> <span>ATIRAR</span></div>
-        <div class="control-item"><kbd>MOUSE 2</kbd>/<kbd>E</kbd> <span>GRANADA JUMP / RAIO SOLAR</span></div>
-        <div class="control-item"><kbd>Q</kbd>/<kbd>F</kbd> <span>ROLAMENTO / SUPERNOVA</span></div>
-        <div class="control-item"><kbd>V</kbd> <span>SOCO</span></div>
-        <div class="control-item"><kbd>R</kbd> <span>RECONSTRUIR RUA</span></div>
-      </div>
-
-      <div id="help-toggle-hint">
-        <span class="pill-key">H</span> <span id="help-toggle-label">COMANDOS</span>
       </div>
     </div>
   </div>

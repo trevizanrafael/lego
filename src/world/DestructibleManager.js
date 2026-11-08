@@ -4,6 +4,7 @@ import {
   SHARED_STUD_GEO,
   getLegoMaterial
 } from '../materials/LegoMaterials.js';
+import { optimizeStaticGroupMeshes, mergeBufferGeometries } from './BuildingGenerator.js';
 import { soundFX } from '../audio/SoundFX.js';
 
 export const STUD_TIERS = {
@@ -45,9 +46,10 @@ export const STUD_TIERS = {
   }
 };
 
-const STUD_BASE_GEO = new THREE.CylinderGeometry(0.28, 0.28, 0.11, 18);
-const STUD_TOP_GEO = new THREE.CylinderGeometry(0.18, 0.18, 0.08, 16);
+const STUD_BASE_GEO = new THREE.CylinderGeometry(0.28, 0.28, 0.11, 10);
+const STUD_TOP_GEO = new THREE.CylinderGeometry(0.18, 0.18, 0.08, 10);
 STUD_TOP_GEO.translate(0, 0.085, 0);
+const STUD_COIN_GEO = mergeBufferGeometries([STUD_BASE_GEO.clone(), STUD_TOP_GEO.clone()]);
 
 const DEBRIS_GEOS = [
   new THREE.BoxGeometry(0.55, 0.32, 0.55),
@@ -71,9 +73,11 @@ export class DestructibleManager {
     this.objects = [];
     this.debrisList = [];
     this.studsList = [];
+    this.ambientStuds = [];
     this.geysers = [];
     this.projectiles = [];
     this.grenades = [];
+    this.thrownCars = [];
     this.explosions = [];
     this.fxParticles = [];
 
@@ -127,10 +131,15 @@ export class DestructibleManager {
     debrisColors = [LEGO_COLORS.red, LEGO_COLORS.lightGrey],
     studDrops = { silver: 4, gold: 2, blue: 0, purple: 0 },
     groundY = 0.26,
-    goldOnly = false
+    goldOnly = false,
+    crackedWallOnly = false,
+    silverOnly = false
   }) {
     const basePos = mesh.position.clone();
     const baseRot = mesh.rotation.clone();
+    if (mesh && !mesh.userData?.isOptimizedGroup) {
+      optimizeStaticGroupMeshes(mesh, []);
+    }
 
     const item = {
       mesh,
@@ -144,6 +153,8 @@ export class DestructibleManager {
       studDrops,
       groundY,
       goldOnly,
+      crackedWallOnly,
+      silverOnly,
       heatLevel: 0,
       basePos,
       baseRot,
@@ -156,6 +167,23 @@ export class DestructibleManager {
     return item;
   }
 
+  spawnAmbientStud(x, y, z, tierKey = 'gold') {
+    const tierCfg = STUD_TIERS[tierKey] || STUD_TIERS.gold;
+    const mesh = this._createStudMesh(tierCfg);
+    mesh.position.set(x, y, z);
+    this.scene.add(mesh);
+    const stud = {
+      mesh,
+      basePos: new THREE.Vector3(x, y, z),
+      tier: tierCfg.tier,
+      value: tierCfg.value,
+      magnetized: false,
+      collected: false
+    };
+    this.ambientStuds.push(stud);
+    return stud;
+  }
+
   rebuildAll() {
     for (const obj of this.objects) {
       if (obj.destroyed) {
@@ -164,6 +192,12 @@ export class DestructibleManager {
         obj.hp = obj.maxHp;
         obj.heatLevel = 0;
       }
+    }
+    for (const s of this.ambientStuds) {
+      s.collected = false;
+      s.magnetized = false;
+      s.mesh.visible = true;
+      s.mesh.position.copy(s.basePos);
     }
     for (const g of this.geysers) {
       for (const drop of g.drops) {
@@ -198,9 +232,9 @@ export class DestructibleManager {
     let closestDist = maxDist;
     let hitObj = null;
 
-    // 1. Verifica interseção do raio da mira central com a esfera/cilindro dos objetos quebráveis
+    // 1. Verifica interseção do raio da mira central com a esfera/cilindro dos objetos quebráveis (ignorando o veículo atual do jogador!)
     for (const obj of this.objects) {
-      if (obj.destroyed) continue;
+      if (obj.destroyed || obj.isDriven) continue;
 
       const objCenter = new THREE.Vector3(
         obj.basePos.x,
@@ -319,6 +353,459 @@ export class DestructibleManager {
   }
 
   /**
+   * Dispara projéteis exclusivos das Armas Veiculares (Metralhadora .50 CV, Canhão Plasma A.R.E.S. e Canhão do Tanque Titan-M1)
+   */
+  spawnVehicleProjectile(origin, targetPoint, weaponType) {
+    const dir = targetPoint.clone().sub(origin).normalize();
+
+    if (weaponType === 'smg' || weaponType === 'machinegun') {
+      soundFX.playRifleShot();
+      const tracerMat = getLegoMaterial(0xf97316, {
+        emissive: 0xfef08a,
+        emissiveIntensity: 2.4,
+        roughness: 0.1
+      });
+      const mesh = new THREE.Mesh(BULLET_GEO, tracerMat);
+      mesh.scale.set(1.8, 1.8, 2.4);
+      mesh.position.copy(origin);
+      mesh.lookAt(targetPoint);
+      this.scene.add(mesh);
+
+      this.projectiles.push({
+        mesh,
+        type: 'bullet',
+        vel: dir.multiplyScalar(88),
+        life: 1.4,
+        damage: weaponType === 'machinegun' ? 28 : 20,
+        isSolar: false
+      });
+    } else if (weaponType === 'plasma_laser') {
+      soundFX.playFireballCast();
+      const plasmaGroup = new THREE.Group();
+      const plasmaMat = getLegoMaterial(0x00f0ff, {
+        emissive: 0xa855f7,
+        emissiveIntensity: 2.8,
+        roughness: 0.08
+      });
+      const bolt = new THREE.Mesh(BULLET_GEO, plasmaMat);
+      bolt.scale.set(2.4, 2.4, 3.8);
+      plasmaGroup.add(bolt);
+      plasmaGroup.position.copy(origin);
+      plasmaGroup.lookAt(targetPoint);
+      this.scene.add(plasmaGroup);
+
+      this.projectiles.push({
+        mesh: plasmaGroup,
+        type: 'fireball',
+        vel: dir.multiplyScalar(76),
+        life: 1.6,
+        damage: 65,
+        blastRadius: 4.8,
+        isSolar: true
+      });
+    } else if (weaponType === 'tank_cannon') {
+      soundFX.playExplosion(1.1);
+      const shellGroup = new THREE.Group();
+      const shellMat = getLegoMaterial(0xfacc15, {
+        emissive: 0xef4444,
+        emissiveIntensity: 2.5
+      });
+      const shell = new THREE.Mesh(FIREBALL_GEO, shellMat);
+      shell.scale.setScalar(1.45);
+      shellGroup.add(shell);
+      shellGroup.position.copy(origin);
+      this.scene.add(shellGroup);
+
+      this.projectiles.push({
+        mesh: shellGroup,
+        type: 'fireball',
+        vel: dir.multiplyScalar(68),
+        life: 2.0,
+        damage: 260,
+        blastRadius: 9.5,
+        isSupernovaBlast: true,
+        isSolar: true,
+        canBreakCrackedWall: true,
+        canBreakSilver: true
+      });
+    }
+  }
+
+  // ============================================================================
+  // HERÓI #3: TITÃ BLINDADO (MECHA BIG-FIG) — METRALHADORA, SOCO FOGUETE, TERREMOTO E ARREMESSO DE CARRO
+  // ============================================================================
+
+  spawnTitaRotaryBullet(origin, targetPoint) {
+    soundFX.playRifleShot();
+    const dir = targetPoint.clone().sub(origin).normalize();
+    const mat = getLegoMaterial(0x00f0ff, {
+      emissive: 0x38bdf8,
+      emissiveIntensity: 2.2,
+      roughness: 0.1
+    });
+    const mesh = new THREE.Mesh(BULLET_GEO, mat);
+    mesh.scale.set(1.6, 1.6, 2.0);
+    mesh.position.copy(origin);
+    mesh.lookAt(targetPoint);
+    this.scene.add(mesh);
+
+    this.projectiles.push({
+      mesh,
+      type: 'bullet',
+      vel: dir.multiplyScalar(78),
+      life: 1.3,
+      damage: 24,
+      isSolar: false
+    });
+  }
+
+  /**
+   * Soco Foguete do Titã Blindado: estoura Paredes Rachadas (cracked_wall) e arremessa objetos!
+   */
+  triggerTitaRocketPunch(playerPos, facingAngle) {
+    soundFX.playExplosion(1.15);
+    const impactCenter = new THREE.Vector3(
+      playerPos.x + Math.sin(facingAngle) * 2.6,
+      playerPos.y + 1.35,
+      playerPos.z + Math.cos(facingAngle) * 2.6
+    );
+
+    const ringGeo = new THREE.TorusGeometry(1, 0.15, 12, 28);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.copy(impactCenter);
+    ringMesh.rotation.y = facingAngle;
+    this.scene.add(ringMesh);
+
+    const sphereMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      transparent: true,
+      opacity: 0.85
+    });
+    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(0.9, 14, 14), sphereMat);
+    sphereMesh.position.copy(impactCenter);
+    this.scene.add(sphereMesh);
+
+    this.explosions.push({
+      sphereMesh,
+      ringMesh,
+      maxRadius: 5.8,
+      age: 0,
+      duration: 0.34
+    });
+
+    for (const obj of this.objects) {
+      if (obj.destroyed || obj.isDriven) continue;
+      const dx = obj.basePos.x - impactCenter.x;
+      const dz = obj.basePos.z - impactCenter.z;
+      const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - impactCenter.y);
+      if (Math.hypot(dx, dz) <= obj.radius + 4.8 && dy <= obj.height + 2.5) {
+        this.damageObject(obj, 120, impactCenter, false, {
+          canBreakCrackedWall: true,
+          canBreakSilver: false
+        });
+      }
+    }
+  }
+
+  /**
+   * Terremoto de Escudo [Q] e Impacto Sísmico do Superpulo do Titã Blindado!
+   */
+  triggerTitaGroundSlam(centerPos, radius = 10.5, damage = 95) {
+    soundFX.playExplosion(1.35);
+    const slamCenter = centerPos.clone();
+    slamCenter.y += 0.35;
+
+    const sphereMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.72
+    });
+    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), sphereMat);
+    sphereMesh.position.copy(slamCenter);
+    this.scene.add(sphereMesh);
+
+    const ringGeo = new THREE.TorusGeometry(1, 0.16, 12, 36);
+    ringGeo.rotateX(Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      transparent: true,
+      opacity: 0.95
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.copy(slamCenter);
+    this.scene.add(ringMesh);
+
+    this.explosions.push({
+      sphereMesh,
+      ringMesh,
+      maxRadius: radius,
+      age: 0,
+      duration: 0.45
+    });
+
+    for (const obj of this.objects) {
+      if (obj.destroyed || obj.isDriven) continue;
+      const dHoriz = Math.hypot(obj.basePos.x - slamCenter.x, obj.basePos.z - slamCenter.z);
+      const dVert = Math.abs(obj.basePos.y - centerPos.y);
+      if (dHoriz <= radius + obj.radius && dVert <= 4.5) {
+        this.damageObject(obj, damage, slamCenter, false, {
+          canBreakCrackedWall: true,
+          canBreakSilver: false
+        });
+      }
+    }
+  }
+
+  /**
+   * Arremessa um carro agarrado pelo Titã Blindado na direção da mira, explodindo no impacto!
+   */
+  throwGrabbedCar(carObj, origin, targetPoint, worldColliders = []) {
+    if (!carObj) return;
+    soundFX.playPunchSwing();
+
+    carObj.isGrabbed = false;
+    carObj.mesh.position.copy(origin);
+    const dir = targetPoint.clone().sub(origin).normalize();
+    const speed = 42.0;
+    const vel = dir.multiplyScalar(speed);
+    if (dir.y > -0.2) vel.y += 4.5;
+
+    this.thrownCars.push({
+      carObj,
+      vel,
+      worldColliders,
+      timer: 2.2
+    });
+  }
+
+  // ============================================================================
+  // HERÓI #4: VINGADOR DE CHUMBO — DUAS SMGs, ESCOPETA DE IMPACTO & BAZUCA RPG
+  // ============================================================================
+
+  spawnDualSmgBullets(leftOrigin, rightOrigin, targetPoint) {
+    soundFX.playRifleShot();
+    const tracerMat = getLegoMaterial(0xe2e8f0, {
+      emissive: 0xfacc15,
+      emissiveIntensity: 2.0,
+      roughness: 0.1
+    });
+
+    for (const orig of [leftOrigin, rightOrigin]) {
+      const spreadTarget = targetPoint.clone().add(
+        new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.8)
+      );
+      const dir = spreadTarget.sub(orig).normalize();
+      const mesh = new THREE.Mesh(BULLET_GEO, tracerMat);
+      mesh.position.copy(orig);
+      mesh.lookAt(targetPoint);
+      this.scene.add(mesh);
+
+      this.projectiles.push({
+        mesh,
+        type: 'bullet',
+        vel: dir.multiplyScalar(82),
+        life: 1.1,
+        damage: 13,
+        isSolar: false
+      });
+    }
+  }
+
+  spawnShotgunBlast(origin, targetPoint) {
+    soundFX.playExplosion(0.75);
+    const mainDir = targetPoint.clone().sub(origin).normalize();
+    const pelletMat = getLegoMaterial(0xf97316, {
+      emissive: 0xfef08a,
+      emissiveIntensity: 2.2
+    });
+
+    for (let i = 0; i < 7; i++) {
+      const spreadDir = mainDir.clone().add(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 0.18,
+          (Math.random() - 0.5) * 0.12,
+          (Math.random() - 0.5) * 0.18
+        )
+      ).normalize();
+
+      const mesh = new THREE.Mesh(BULLET_GEO, pelletMat);
+      mesh.scale.set(1.4, 1.4, 1.2);
+      mesh.position.copy(origin);
+      mesh.lookAt(origin.clone().add(spreadDir));
+      this.scene.add(mesh);
+
+      this.projectiles.push({
+        mesh,
+        type: 'bullet',
+        vel: spreadDir.multiplyScalar(64),
+        life: 0.48,
+        damage: 18,
+        isSolar: false
+      });
+    }
+  }
+
+  /**
+   * Dispara Foguete da Bazuca RPG do Vingador de Chumbo (destrói Objetos Prateados Brilhantes e Blindados!)
+   */
+  spawnRpgRocket(origin, targetPoint) {
+    soundFX.playExplosion(0.95);
+    const dir = targetPoint.clone().sub(origin).normalize();
+
+    const rocketGroup = new THREE.Group();
+    const bodyMat = getLegoMaterial(0x365314, { roughness: 0.3 });
+    const noseMat = getLegoMaterial(0xd97706, { emissive: 0xef4444, emissiveIntensity: 1.5 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.65, 10), bodyMat);
+    body.rotation.x = Math.PI / 2;
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.32, 10), noseMat);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.z = 0.45;
+    rocketGroup.add(body, nose);
+
+    rocketGroup.position.copy(origin);
+    rocketGroup.lookAt(targetPoint);
+    this.scene.add(rocketGroup);
+
+    this.projectiles.push({
+      mesh: rocketGroup,
+      type: 'fireball',
+      vel: dir.multiplyScalar(56),
+      life: 2.0,
+      damage: 165,
+      blastRadius: 7.5,
+      isSolar: false,
+      canBreakSilver: true,
+      canBreakCrackedWall: true
+    });
+  }
+
+  // ============================================================================
+  // HERÓI #5: SOMBRA ESCARLATE (SHINOBI CYBER) — KATANAS, FUMAÇA E PUXÃO MAGNÉTICO
+  // ============================================================================
+
+  performKatanaSlash(playerPos, facingAngle) {
+    soundFX.playPunchSwing();
+    const slashCenter = new THREE.Vector3(
+      playerPos.x + Math.sin(facingAngle) * 1.9,
+      playerPos.y + 1.15,
+      playerPos.z + Math.cos(facingAngle) * 1.9
+    );
+
+    // Onda de corte escarlate brilhante
+    const waveGeo = new THREE.TorusGeometry(1.45, 0.08, 8, 24, Math.PI * 1.15);
+    waveGeo.rotateX(Math.PI / 2);
+    const waveMat = new THREE.MeshBasicMaterial({
+      color: 0xff1e42,
+      transparent: true,
+      opacity: 0.92
+    });
+    const waveMesh = new THREE.Mesh(waveGeo, waveMat);
+    waveMesh.position.copy(slashCenter);
+    waveMesh.rotation.y = facingAngle - Math.PI * 0.55;
+    this.scene.add(waveMesh);
+
+    this.fxParticles.push({
+      mesh: waveMesh,
+      vel: new THREE.Vector3(Math.sin(facingAngle) * 12, 0, Math.cos(facingAngle) * 12),
+      life: 0.22,
+      maxLife: 0.22
+    });
+
+    for (const obj of this.objects) {
+      if (obj.destroyed || obj.isDriven) continue;
+      const dx = obj.basePos.x - slashCenter.x;
+      const dz = obj.basePos.z - slashCenter.z;
+      const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - slashCenter.y);
+      if (Math.hypot(dx, dz) <= obj.radius + 2.8 && dy <= obj.height + 1.6) {
+        this.damageObject(obj, 36, slashCenter, false);
+      }
+    }
+  }
+
+  spawnSmokeBombCloud(centerPos) {
+    soundFX.playTacticalRoll();
+    const colors = [0x18181b, 0x27272a, 0x991b1b, 0xdc2626];
+    for (let i = 0; i < 20; i++) {
+      const c = colors[i % colors.length];
+      const mat = new THREE.MeshBasicMaterial({
+        color: c,
+        transparent: true,
+        opacity: 0.88
+      });
+      const puff = new THREE.Mesh(FIREBALL_GEO, mat);
+      const angle = (i / 20) * Math.PI * 2;
+      const r = 0.4 + Math.random() * 0.9;
+      puff.position.set(
+        centerPos.x + Math.cos(angle) * r,
+        centerPos.y + 0.4 + Math.random() * 1.1,
+        centerPos.z + Math.sin(angle) * r
+      );
+      puff.scale.setScalar(1.4 + Math.random() * 1.2);
+      this.scene.add(puff);
+
+      this.fxParticles.push({
+        mesh: puff,
+        vel: new THREE.Vector3(
+          Math.cos(angle) * (2.5 + Math.random() * 3.0),
+          1.8 + Math.random() * 2.6,
+          Math.sin(angle) * (2.5 + Math.random() * 3.0)
+        ),
+        life: 0.75,
+        maxLife: 0.75
+      });
+    }
+  }
+
+  performMagneticPull(playerPos, aimData) {
+    soundFX.playHeroSwap();
+    const origin = playerPos.clone().add(new THREE.Vector3(0, 1.25, 0));
+    const targetPt = aimData.point.clone();
+
+    // Partículas magnéticas puxando da mira até o Sombra Escarlate
+    for (let i = 0; i < 10; i++) {
+      const u = i / 10;
+      const pt = new THREE.Vector3().lerpVectors(targetPt, origin, u);
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xff1e42 : 0xa855f7,
+        transparent: true,
+        opacity: 0.92
+      });
+      const mesh = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
+      mesh.position.copy(pt);
+      this.scene.add(mesh);
+
+      const pullVel = origin.clone().sub(pt).normalize().multiplyScalar(18.0);
+      this.fxParticles.push({
+        mesh,
+        vel: pullVel,
+        life: 0.32,
+        maxLife: 0.32
+      });
+    }
+
+    if (aimData.hitObj && !aimData.hitObj.destroyed) {
+      this.damageObject(aimData.hitObj, 48, origin, false);
+    }
+
+    // Magnetiza todos os studs próximos em um raio amplo de 28m!
+    for (const s of this.studsList) {
+      if (s.mesh.position.distanceTo(origin) <= 28.0) {
+        s.magnetized = true;
+      }
+    }
+    for (const s of this.ambientStuds) {
+      if (!s.collected && s.mesh.position.distanceTo(origin) <= 28.0) {
+        s.magnetized = true;
+      }
+    }
+  }
+
+  /**
    * Arremessa Granada Explosiva / Impulso Tático (Estilo Raze) do Comandante Caveira:
    * Vai na direção exata da mira e explode IMEDIATAMENTE ao tocar qualquer colisão (chão, parede, calçada ou objeto)!
    */
@@ -421,9 +908,9 @@ export class DestructibleManager {
   }
 
   /**
-   * Cria uma explosão 3D em área (Granada, Bola de Fogo ou Supernova)
+   * Cria uma explosão 3D em área (Granada, Bola de Fogo, Bazuca RPG ou Supernova)
    */
-  _triggerExplosion(center, radius, maxDamage, isFlashbang = false, isSupernova = false) {
+  _triggerExplosion(center, radius, maxDamage, isFlashbang = false, isSupernova = false, damageOpts = {}) {
     soundFX.playExplosion(isSupernova ? 1.6 : isFlashbang ? 1.25 : 0.9);
 
     const sphereColor = isFlashbang ? 0xfef9c3 : 0xf97316;
@@ -455,9 +942,9 @@ export class DestructibleManager {
       duration: isSupernova ? 0.55 : 0.36
     });
 
-    // Causa dano em todos os objetos quebráveis dentro do raio
+    // Causa dano em todos os objetos quebráveis dentro do raio (exceto o próprio veículo que o jogador está dirigindo!)
     for (const obj of this.objects) {
-      if (obj.destroyed) continue;
+      if (obj.destroyed || obj.isDriven || obj.isGrabbed) continue;
       const objPos = new THREE.Vector3(
         obj.basePos.x,
         obj.basePos.y + obj.height * 0.5,
@@ -465,7 +952,7 @@ export class DestructibleManager {
       );
       const dist = objPos.distanceTo(center);
       if (dist <= radius + obj.radius) {
-        this.damageObject(obj, maxDamage, center, isSupernova);
+        this.damageObject(obj, maxDamage, center, isSupernova, damageOpts);
       }
     }
   }
@@ -535,11 +1022,25 @@ export class DestructibleManager {
     }
   }
 
-  damageObject(obj, amount, hitOrigin = null, isSolar = false) {
+  damageObject(obj, amount, hitOrigin = null, isSolar = false, damageOpts = {}) {
     if (obj.destroyed) return;
 
     // Objetos de Ouro LEGO só derretem com o Raio Solar Contínuo ou Supernova do Solaris!
     if (obj.goldOnly && !isSolar) {
+      obj.shakeTimer = 0.12;
+      soundFX.playMetalRicochet();
+      return;
+    }
+
+    // Paredes Rachadas só quebram com Soco Foguete / Terremoto / Carro Arremessado do Titã Blindado ou RPG!
+    if (obj.crackedWallOnly && !damageOpts.canBreakCrackedWall && !isSolar) {
+      obj.shakeTimer = 0.12;
+      soundFX.playMetalRicochet();
+      return;
+    }
+
+    // Objetos Prateados Brilhantes só explodem com a Bazuca RPG do Vingador de Chumbo ou Carro Arremessado!
+    if (obj.silverOnly && !damageOpts.canBreakSilver && !isSolar) {
       obj.shakeTimer = 0.12;
       soundFX.playMetalRicochet();
       return;
@@ -560,6 +1061,7 @@ export class DestructibleManager {
 
   _shatterObject(obj) {
     obj.destroyed = true;
+    obj.isGrabbed = false;
     obj.respawnTimer = 28.0;
     obj.mesh.visible = false;
 
@@ -567,20 +1069,33 @@ export class DestructibleManager {
       col.disabled = true;
     }
 
-    const isBig = obj.type === 'car' || obj.type === 'newsstand' || obj.type === 'gold_vault';
+    const isBig =
+      obj.type === 'car' ||
+      obj.type === 'newsstand' ||
+      obj.type === 'gold_vault' ||
+      obj.type === 'cracked_wall' ||
+      obj.type === 'silver_lego' ||
+      obj.type === 'gas_pump' ||
+      obj.type === 'bank_vault_door';
     soundFX.playLegoBreak(isBig);
 
     const pieceCount =
-      obj.type === 'car' ? 24 :
-      obj.type === 'gold_vault' ? 20 :
+      obj.type === 'car' || obj.type === 'bank_vault_door' || obj.type === 'cracked_wall' ? 24 :
+      obj.type === 'gold_vault' || obj.type === 'silver_lego' || obj.type === 'gas_pump' ? 20 :
       obj.type === 'newsstand' ? 18 :
       obj.type === 'streetlamp' ? 14 : 11;
-    this._spawnDebris(obj, pieceCount, isBig ? 1.25 : 0.95);
+    const upwardBoost = obj.type === 'car' || obj.type === 'gas_pump' ? 1.65 : isBig ? 1.25 : 0.95;
+    this._spawnDebris(obj, pieceCount, upwardBoost);
 
     this._spawnStudShower(obj);
 
     if (obj.type === 'hydrant') {
       this._createWaterGeyser(obj.basePos.clone(), obj.groundY);
+    } else if (obj.type === 'gas_pump' || obj.type === 'fuel_truck' || obj.type === 'explosive_barrel') {
+      // Bombas do Posto e Caminhões-Tanque explodem em reação em cadeia e jogam carros pro alto!
+      const blastCenter = obj.basePos.clone();
+      blastCenter.y += 1.0;
+      this._triggerExplosion(blastCenter, 36.0, 110, false, true);
     }
   }
 
@@ -685,14 +1200,9 @@ export class DestructibleManager {
       emissiveIntensity: tierCfg.emissiveIntensity
     });
 
-    const group = new THREE.Group();
-    const base = new THREE.Mesh(STUD_BASE_GEO, mat);
-    base.castShadow = true;
-    const top = new THREE.Mesh(STUD_TOP_GEO, mat);
-    group.add(base, top);
-
-    group.rotation.z = 0.22;
-    return group;
+    const coinMesh = new THREE.Mesh(STUD_COIN_GEO, mat);
+    coinMesh.rotation.z = 0.22;
+    return coinMesh;
   }
 
   _createWaterGeyser(position, groundY) {
@@ -750,15 +1260,35 @@ export class DestructibleManager {
         continue;
       }
 
+      if (obj.isDriven || obj.isGrabbed) {
+        obj.mesh.visible = true;
+        continue;
+      }
+
+      if (playerPosition) {
+        const dx = obj.basePos.x - playerPosition.x;
+        const dz = obj.basePos.z - playerPosition.z;
+        const distSq = dx * dx + dz * dz;
+        const maxCullSq = obj.type === 'car' ? 680 * 680 : 420 * 420;
+        const shouldBeVisible = distSq <= maxCullSq;
+        if (obj.mesh.visible !== shouldBeVisible) {
+          obj.mesh.visible = shouldBeVisible;
+        }
+        if (!shouldBeVisible) continue;
+      }
+
       if (obj.shakeTimer > 0) {
         obj.shakeTimer -= dt;
-        const intensity = obj.shakeTimer * 0.45;
-        obj.mesh.position.x = obj.basePos.x + (Math.random() - 0.5) * intensity;
-        obj.mesh.position.z = obj.basePos.z + (Math.random() - 0.5) * intensity;
-        obj.mesh.rotation.z = (Math.random() - 0.5) * intensity * 0.5;
-      } else {
-        obj.mesh.position.copy(obj.basePos);
-        obj.mesh.rotation.copy(obj.baseRot);
+        if (obj.shakeTimer <= 0) {
+          obj.shakeTimer = 0;
+          obj.mesh.position.copy(obj.basePos);
+          obj.mesh.rotation.copy(obj.baseRot);
+        } else {
+          const intensity = obj.shakeTimer * 0.45;
+          obj.mesh.position.x = obj.basePos.x + (Math.random() - 0.5) * intensity;
+          obj.mesh.position.z = obj.basePos.z + (Math.random() - 0.5) * intensity;
+          obj.mesh.rotation.z = (Math.random() - 0.5) * intensity * 0.5;
+        }
       }
     }
 
@@ -774,16 +1304,29 @@ export class DestructibleManager {
 
       let hit = false;
       for (const obj of this.objects) {
-        if (obj.destroyed) continue;
+        if (obj.destroyed || obj.isDriven) continue;
         const dx = p.mesh.position.x - obj.basePos.x;
         const dz = p.mesh.position.z - obj.basePos.z;
         const dy = p.mesh.position.y - (obj.basePos.y + obj.height * 0.5);
 
         if (Math.hypot(dx, dz) <= obj.radius + 0.4 && Math.abs(dy) <= obj.height * 0.65 + 0.45) {
           if (p.type === 'fireball') {
-            this._triggerExplosion(p.mesh.position.clone(), 4.2, p.damage, false, false);
+            this._triggerExplosion(
+              p.mesh.position.clone(),
+              p.blastRadius ?? 4.2,
+              p.damage,
+              false,
+              Boolean(p.isSupernovaBlast),
+              {
+                canBreakSilver: Boolean(p.canBreakSilver),
+                canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
+              }
+            );
           } else {
-            this.damageObject(obj, p.damage, p.mesh.position, p.isSolar);
+            this.damageObject(obj, p.damage, p.mesh.position, p.isSolar, {
+              canBreakSilver: Boolean(p.canBreakSilver),
+              canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
+            });
           }
           hit = true;
           break;
@@ -792,7 +1335,17 @@ export class DestructibleManager {
 
       if (!hit && p.mesh.position.y <= 0.1) {
         if (p.type === 'fireball') {
-          this._triggerExplosion(p.mesh.position.clone(), 4.2, p.damage, false, false);
+          this._triggerExplosion(
+            p.mesh.position.clone(),
+            p.blastRadius ?? 4.2,
+            p.damage,
+            false,
+            Boolean(p.isSupernovaBlast),
+            {
+              canBreakSilver: Boolean(p.canBreakSilver),
+              canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
+            }
+          );
         }
         hit = true;
       }
@@ -800,6 +1353,49 @@ export class DestructibleManager {
       if (hit || p.life <= 0) {
         this.scene.remove(p.mesh);
         this.projectiles.splice(i, 1);
+      }
+    }
+
+    // 2B. Carros arremessados pelo Titã Blindado (giram no ar e explodem ao bater!)
+    for (let i = this.thrownCars.length - 1; i >= 0; i--) {
+      const tc = this.thrownCars[i];
+      tc.timer -= dt;
+      tc.vel.y -= 20.0 * dt;
+      const carObj = tc.carObj;
+      if (!carObj || carObj.destroyed) {
+        this.thrownCars.splice(i, 1);
+        continue;
+      }
+      carObj.mesh.position.addScaledVector(tc.vel, dt);
+      carObj.mesh.rotation.x += dt * 7.5;
+      carObj.mesh.rotation.z += dt * 5.2;
+
+      const cx = carObj.mesh.position.x;
+      const cy = carObj.mesh.position.y;
+      const cz = carObj.mesh.position.z;
+      let hitAny = cy <= (carObj.groundY ?? 0) + 0.25;
+
+      if (!hitAny) {
+        for (const obj of this.objects) {
+          if (obj.destroyed || obj === carObj || obj.isDriven) continue;
+          const dHoriz = Math.hypot(cx - obj.basePos.x, cz - obj.basePos.z);
+          const dVert = Math.abs(cy - (obj.basePos.y + obj.height * 0.5));
+          if (dHoriz <= obj.radius + 2.2 && dVert <= obj.height + 1.8) {
+            hitAny = true;
+            break;
+          }
+        }
+      }
+
+      if (hitAny || tc.timer <= 0) {
+        const blastPos = carObj.mesh.position.clone();
+        carObj.basePos.copy(blastPos);
+        this._shatterObject(carObj);
+        this._triggerExplosion(blastPos, 9.5, 180, false, true, {
+          canBreakCrackedWall: true,
+          canBreakSilver: true
+        });
+        this.thrownCars.splice(i, 1);
       }
     }
 
@@ -829,12 +1425,14 @@ export class DestructibleManager {
       if (!hitCollision && g.worldColliders) {
         for (const col of g.worldColliders) {
           if (col.disabled) continue;
+          const colMinY = col.minY ?? 0;
           if (
             gx + r >= col.minX &&
             gx - r <= col.maxX &&
             gz + r >= col.minZ &&
             gz - r <= col.maxZ &&
-            gy - r <= col.maxY
+            gy - r <= col.maxY &&
+            gy + r >= colMinY
           ) {
             hitCollision = true;
             break;
@@ -987,6 +1585,45 @@ export class DestructibleManager {
           s.vel.x *= 0.82;
           s.vel.z *= 0.82;
         }
+      }
+    }
+
+    // 7b. Studs estáticos de recompensa (como as dezenas de Studs na Sala do Cofre do Banco!)
+    for (let i = 0; i < this.ambientStuds.length; i++) {
+      const s = this.ambientStuds[i];
+      if (s.collected) continue;
+
+      const sdx = s.mesh.position.x - playerChest.x;
+      const sdz = s.mesh.position.z - playerChest.z;
+      const sDistSq = sdx * sdx + sdz * sdz;
+      if (sDistSq > 180 * 180) {
+        if (s.mesh.visible) s.mesh.visible = false;
+        continue;
+      }
+      if (!s.mesh.visible) s.mesh.visible = true;
+
+      s.mesh.rotation.y += dt * 4.5;
+
+      const distToPlayer = s.mesh.position.distanceTo(playerChest);
+      if (distToPlayer < this.magnetRadius) {
+        s.magnetized = true;
+      }
+
+      if (s.magnetized) {
+        const dir = playerChest.clone().sub(s.mesh.position);
+        const dist = dir.length();
+        if (dist <= this.collectRadius) {
+          s.collected = true;
+          s.mesh.visible = false;
+          soundFX.playStudCollect(s.value);
+          if (this.hud) {
+            this.hud.addStuds(s.value, s.tier);
+          }
+          continue;
+        }
+        dir.normalize();
+        const pullSpeed = 19.5 + (this.magnetRadius - Math.min(this.magnetRadius, dist)) * 3.8;
+        s.mesh.position.addScaledVector(dir, pullSpeed * dt);
       }
     }
 

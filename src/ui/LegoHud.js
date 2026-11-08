@@ -1,44 +1,121 @@
 import { soundFX } from '../audio/SoundFX.js';
+import { renderMinimapRadar } from './MinimapRenderer.js';
+import { getSvgIcon } from './TacticalIcons.js';
+import {
+  populateFullMapSidebar,
+  bindFullMapInteractions,
+  renderFullMapCanvas
+} from './TacticalMapModal.js';
+import {
+  HERO_CATALOG,
+  getHeroInfo,
+  drawHeroLegoPortrait,
+  renderHeroDossierModal,
+  renderHeroWheelCanvas
+} from './HeroWheelAndDossier.js';
 
 /**
- * Gerencia a HUD Tática Urbana Angular (IDV LEGO: Cidade de Deus):
- * - Retrato LEGO em moldura chanfrada 45° + tag operacional (OP-01 / OP-02)
- * - 4 Corações de LEGO facetados angulares
- * - Contador de Studs solto de alto contraste + popups técnicos
- * - Régua compacta de blocos paralelogramos "True Hero" no topo
+ * Gerencia a HUD Tática Urbana Angular Limpa (IDV LEGO: Cidade de Deus):
+ * - Canto Superior Esquerdo Limpo: Retrato LEGO em moldura chanfrada 45° + Nome + 4 Corações + Studs
+ * - Canto Superior Direito: Velocímetro Estilizado IDV (exibido apenas ao dirigir/pilotar veículos)
+ * - Roda Tática de Seleção de Personagem Estilo GTA V [TAB] com Câmera Lenta, Filtro e Giro em WASD
+ * - Ficha Tática Individual do Operador [H]
+ * - Radar Local Dinâmico no canto inferior direito e Mapa Completo [M]
  */
 export class LegoHud {
-  constructor(trueHeroGoal = 35000) {
+  constructor() {
     this.totalStuds = 0;
     this.displayedStuds = 0;
-    this.trueHeroGoal = trueHeroGoal;
-    this.isTrueHero = false;
     this.hearts = 4;
     this.maxHearts = 4;
+    this.currentHeroKey = 'caveira';
 
     this.studCountEl = document.getElementById('hud-stud-count');
     this.studGainEl = document.getElementById('hud-stud-gain');
     this.studCoinEl = document.getElementById('hud-stud-coin');
     this.charNameEl = document.getElementById('hud-char-name');
-    this.charSubEl = document.getElementById('hud-char-sub');
     this.opTagEl = document.getElementById('hud-op-tag');
     this.portraitCanvas = document.getElementById('hud-portrait-canvas');
     this.heartsContainer = document.getElementById('hud-hearts');
-    this.trueHeroSegmentsEl = document.getElementById('true-hero-segments');
-    this.trueHeroPercentEl = document.getElementById('true-hero-percent');
-    this.trueHeroBadgeEl = document.getElementById('true-hero-badge');
     this.crosshairEl = document.getElementById('crosshair');
-    this.pillCaveiraEl = document.getElementById('pill-caveira');
-    this.pillSolarisEl = document.getElementById('pill-solaris');
+
+    // Velocímetro Tático no Canto Superior Direito (Apenas em Veículos)
+    this.speedoContainerEl = document.getElementById('vehicle-speedometer');
+    this.speedoNameEl = document.getElementById('speedo-vehicle-name');
+    this.speedoGearEl = document.getElementById('speedo-gear-badge');
+    this.speedoKmhEl = document.getElementById('speedo-kmh-val');
+    this.speedoModeEl = document.getElementById('speedo-mode-tag');
+    this.speedoBarsEl = document.getElementById('speedo-rpm-bars');
+    this._speedoBarNodes = [];
+
+    // Ficha Tática Individual [H]
+    this.dossierModalEl = document.getElementById('hero-dossier-modal');
+    this.dossierCloseBtn = document.getElementById('dossier-close-btn');
+    this.isDossierOpen = false;
+
+    // Roda de Seleção de Personagens Estilo GTA V [TAB]
+    this.wheelOverlayEl = document.getElementById('hero-wheel-overlay');
+    this.wheelCanvasEl = document.getElementById('hero-wheel-canvas');
+    this.wheelTitleEl = document.getElementById('wheel-hero-title');
+    this.wheelRoleEl = document.getElementById('wheel-hero-role');
+    this.wheelSpecEl = document.getElementById('wheel-hero-spec');
+    this.isHeroWheelOpen = false;
+    this.wheelSelectedHeroKey = 'caveira';
+
+    // Toast de Transição de Região
+    this.regionToastEl = document.getElementById('region-toast');
+    this.regionToastCodeEl = document.getElementById('region-toast-code');
+    this.regionToastTitleEl = document.getElementById('region-toast-title');
+    this.regionToastSubEl = document.getElementById('region-toast-sub');
+    this._toastTimeout = null;
+    this._hasInitializedRegion = false;
+
+    // Elementos do Minimapa (Radar Local Dinâmico) e Mapa Completo [M]
+    this.minimapCanvas = document.getElementById('minimap-canvas');
+    this.minimapCompassNEl = document.getElementById('minimap-compass-n');
+    this.minimapNumEl = document.getElementById('minimap-region-num');
+    this.minimapNameEl = document.getElementById('minimap-region-name');
+    this.minimapSubEl = document.getElementById('minimap-sub');
+    this.minimapViewRadius = 175;
+
+    this.fullmapModalEl = document.getElementById('fullmap-modal');
+    this.fullmapCanvas = document.getElementById('fullmap-canvas');
+    this.fullmapCloseBtn = document.getElementById('fullmap-close-btn');
+    this.fullmapZoomInBtn = document.getElementById('fullmap-zoom-in');
+    this.fullmapZoomOutBtn = document.getElementById('fullmap-zoom-out');
+    this.fullmapResetBtn = document.getElementById('fullmap-reset-view');
+    this.fullmapClearWpBtn = document.getElementById('fullmap-clear-wp');
+    this.fullmapListEl = document.getElementById('fullmap-region-list');
+
+    this.isFullMapOpen = false;
+    this._lastRegionId = '';
+    this.hoveredRegionId = null;
+
+    // Estado de Zoom e Pan do Mapa Completo [M]
+    this.mapZoom = 1.0;
+    this.mapPanX = 0;
+    this.mapPanY = 0;
+    this._isDraggingMap = false;
+    this._dragMoved = false;
+    this._dragStartX = 0;
+    this._dragStartY = 0;
+
+    if (this.fullmapCloseBtn) {
+      this.fullmapCloseBtn.addEventListener('click', () => {
+        this.setFullMapOpen(false);
+      });
+    }
+
+    if (this.dossierCloseBtn) {
+      this.dossierCloseBtn.addEventListener('click', () => {
+        this.setHeroDossierOpen(false);
+      });
+    }
 
     this._gainTimeout = null;
     this._initHearts();
-    this._initTrueHeroBar();
-    this.setCharacterPortrait(
-      'caveira',
-      'COMANDANTE CAVEIRA',
-      'BOPE // FUZIL • GRANADA JUMP • ROLAMENTO'
-    );
+    this._initSpeedometerBars();
+    this.setCharacterPortrait('caveira', 'COMANDANTE CAVEIRA');
   }
 
   _initHearts() {
@@ -47,7 +124,6 @@ export class LegoHud {
     for (let i = 0; i < this.maxHearts; i++) {
       const heart = document.createElement('div');
       heart.className = 'lego-heart active';
-      // Coração LEGO Facetado Angular (Cortes geométricos 45° + pino superior)
       heart.innerHTML = `
         <svg viewBox="0 0 32 30" width="23" height="22">
           <polygon points="16,28 3,15 3,7 8,2 13,2 16,6 19,2 24,2 29,7 29,15"
@@ -59,15 +135,86 @@ export class LegoHud {
     }
   }
 
-  _initTrueHeroBar() {
-    if (!this.trueHeroSegmentsEl) return;
-    this.trueHeroSegmentsEl.innerHTML = '';
-    this.segmentEls = [];
-    for (let i = 0; i < 10; i++) {
-      const seg = document.createElement('div');
-      seg.className = 'true-hero-stud-seg';
-      this.trueHeroSegmentsEl.appendChild(seg);
-      this.segmentEls.push(seg);
+  _initSpeedometerBars() {
+    if (!this.speedoBarsEl) return;
+    this.speedoBarsEl.innerHTML = '';
+    this._speedoBarNodes = [];
+    for (let i = 0; i < 14; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'speedo-bar-seg';
+      this.speedoBarsEl.appendChild(bar);
+      this._speedoBarNodes.push(bar);
+    }
+  }
+
+  /**
+   * Atualiza o Velocímetro Estilizado IDV no canto superior direito (visível apenas quando em um veículo)
+   */
+  updateVehicleSpeedometer(vehicleObj, rawSpeed = 0, verticalSpeed = 0, isTurbo = false, isDrifting = false) {
+    if (!this.speedoContainerEl) return;
+
+    if (!vehicleObj) {
+      this.speedoContainerEl.classList.add('hidden');
+      return;
+    }
+
+    this.speedoContainerEl.classList.remove('hidden');
+    this.speedoContainerEl.classList.toggle('turbo-active', Boolean(isTurbo));
+    this.speedoContainerEl.classList.toggle('drift-active', Boolean(isDrifting));
+
+    const carName = vehicleObj.mesh?.userData?.carName || 'VEÍCULO TÁTICO';
+    const spec = vehicleObj.mesh?.userData?.vehicleSpec || {};
+    const category = spec.category || 'car';
+
+    const totalSpeed = Math.hypot(rawSpeed, verticalSpeed || 0);
+    const kmh = Math.round(totalSpeed * (45 / 14));
+    const maxKmh = spec.kmh || 140;
+
+    if (this.speedoNameEl) {
+      this.speedoNameEl.textContent = carName.toUpperCase();
+    }
+    if (this.speedoKmhEl) {
+      this.speedoKmhEl.textContent = String(kmh).padStart(3, '0');
+    }
+
+    if (this.speedoGearEl) {
+      let gear = 'N';
+      if (category === 'helicopter' || category === 'plane') {
+        gear = 'AIR';
+      } else if (category === 'boat') {
+        gear = rawSpeed < -0.5 ? 'R' : kmh > 2 ? 'NAV' : 'N';
+      } else if (rawSpeed < -0.5) {
+        gear = 'R';
+      } else if (kmh > 1) {
+        const gearNum = Math.min(6, Math.max(1, Math.ceil((kmh / maxKmh) * 6)));
+        gear = `D${gearNum}`;
+      }
+      this.speedoGearEl.textContent = gear;
+    }
+
+    if (this.speedoModeEl) {
+      if (isTurbo) {
+        this.speedoModeEl.textContent = 'NITRO // ATIVO';
+      } else if (isDrifting) {
+        this.speedoModeEl.textContent = 'DRIFT // TÁTICO';
+      } else if (category === 'helicopter' || category === 'plane') {
+        this.speedoModeEl.textContent = 'PROPULSÃO AÉREA';
+      } else if (category === 'boat') {
+        this.speedoModeEl.textContent = 'PROPULSÃO NAVAL';
+      } else {
+        this.speedoModeEl.textContent = 'TRAÇÃO URBANA';
+      }
+    }
+
+    if (this._speedoBarNodes.length > 0) {
+      const ratio = Math.min(1, kmh / Math.max(60, maxKmh));
+      const litCount = kmh > 1 ? Math.max(1, Math.round(ratio * this._speedoBarNodes.length)) : 0;
+      this._speedoBarNodes.forEach((bar, idx) => {
+        const active = idx < litCount;
+        bar.classList.toggle('lit', active);
+        bar.classList.toggle('high', active && idx >= 9 && idx < 12);
+        bar.classList.toggle('redline', active && idx >= 12);
+      });
     }
   }
 
@@ -90,138 +237,239 @@ export class LegoHud {
         this.studGainEl.classList.remove('show');
       }, 1100);
     }
-
-    this._updateTrueHeroProgress();
   }
 
-  _updateTrueHeroProgress() {
-    const ratio = Math.min(1, this.totalStuds / this.trueHeroGoal);
-    const pct = Math.floor(ratio * 100);
-
-    if (this.trueHeroPercentEl) {
-      this.trueHeroPercentEl.textContent = `${pct}%`;
-    }
-
-    if (this.segmentEls) {
-      const filledCount = Math.floor(ratio * 10);
-      this.segmentEls.forEach((el, idx) => {
-        el.classList.toggle('filled', idx < filledCount);
-      });
-    }
-
-    if (ratio >= 1 && !this.isTrueHero) {
-      this.isTrueHero = true;
-      if (this.trueHeroBadgeEl) {
-        this.trueHeroBadgeEl.classList.add('achieved');
-        this.trueHeroBadgeEl.textContent = '★ VERDADEIRO HERÓI ★';
-      }
-      soundFX.playTrueHeroFanfare();
-    }
-  }
-
-  setCharacterPortrait(presetKey, displayName, subtitle = '') {
-    if (this.charNameEl && displayName) {
-      this.charNameEl.textContent = displayName.toUpperCase();
-    }
-    if (this.charSubEl && subtitle) {
-      this.charSubEl.textContent = subtitle.toUpperCase();
+  setCharacterPortrait(presetKey, displayName) {
+    this.currentHeroKey = presetKey;
+    const info = getHeroInfo(presetKey);
+    if (this.charNameEl) {
+      this.charNameEl.textContent = (displayName || info.name).toUpperCase();
     }
     if (this.opTagEl) {
-      this.opTagEl.textContent = presetKey === 'solaris' ? 'OP-02' : 'OP-01';
+      this.opTagEl.textContent = info.opCode;
     }
     if (this.crosshairEl) {
       this.crosshairEl.dataset.hero = presetKey;
     }
-    if (this.pillCaveiraEl) {
-      this.pillCaveiraEl.classList.toggle('active', presetKey === 'caveira');
+    if (this.portraitCanvas) {
+      const ctx = this.portraitCanvas.getContext('2d');
+      drawHeroLegoPortrait(ctx, this.portraitCanvas.width, this.portraitCanvas.height, presetKey);
     }
-    if (this.pillSolarisEl) {
-      this.pillSolarisEl.classList.toggle('active', presetKey === 'solaris');
+    if (this.isDossierOpen) {
+      renderHeroDossierModal(this, presetKey);
     }
-    if (!this.portraitCanvas) return;
+  }
 
-    const ctx = this.portraitCanvas.getContext('2d');
-    const w = this.portraitCanvas.width;
-    const h = this.portraitCanvas.height;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Fundo tático seco em Preto Asfalto + Faixa Diagonal Militar
-    ctx.fillStyle = '#0d1017';
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.strokeStyle = presetKey === 'solaris' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(250, 204, 21, 0.18)';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(0, h * 0.75);
-    ctx.lineTo(w * 0.75, 0);
-    ctx.moveTo(w * 0.25, h);
-    ctx.lineTo(w, h * 0.25);
-    ctx.stroke();
-
-    // Pino superior da cabeça LEGO (Stud)
-    ctx.fillStyle = '#eab308';
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.roundRect(w * 0.37, 9, w * 0.26, 9, 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Cabeça cilíndrica amarela LEGO
-    ctx.fillStyle = '#facc15';
-    ctx.beginPath();
-    ctx.roundRect(w * 0.22, 17, w * 0.56, 38, 6);
-    ctx.fill();
-    ctx.stroke();
-
-    // Ombros/tronco na base
-    ctx.fillStyle =
-      presetKey === 'solaris' ? '#dc2626' :
-      presetKey === 'classic' ? '#2563eb' : '#171717';
-    ctx.beginPath();
-    ctx.roundRect(w * 0.14, 54, w * 0.72, 24, 4);
-    ctx.fill();
-    ctx.stroke();
-
-    if (presetKey === 'caveira') {
-      // Boina Preta do BOPE
-      ctx.fillStyle = '#171717';
-      ctx.beginPath();
-      ctx.ellipse(w * 0.48, 17, 22, 7, -0.1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Óculos escuros táticos angulares
-      ctx.fillStyle = '#090a0d';
-      ctx.fillRect(w * 0.26, 27, 15, 9);
-      ctx.fillRect(w * 0.53, 27, 15, 9);
-      ctx.fillRect(w * 0.41, 29, 12, 3);
-
-      // Sorriso
-      ctx.strokeStyle = '#090a0d';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.arc(w * 0.5, 43, 8, 0.15 * Math.PI, 0.85 * Math.PI);
-      ctx.stroke();
-    } else if (presetKey === 'solaris') {
-      // Coroa Solar Dourada
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(w * 0.21, 16, w * 0.58, 7);
-
-      // Olhos brilhantes
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.arc(w * 0.38, 33, 4, 0, Math.PI * 2);
-      ctx.arc(w * 0.62, 33, 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = '#090a0d';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.arc(w * 0.5, 42, 8, 0.15 * Math.PI, 0.85 * Math.PI);
-      ctx.stroke();
+  /**
+   * Abre/Fecha a Ficha Tática Individual [H] do personagem que o jogador está usando
+   */
+  setHeroDossierOpen(open, controller = null) {
+    if (controller) {
+      this._lastController = controller;
     }
+    this.isDossierOpen = Boolean(open);
+    if (this.dossierModalEl) {
+      this.dossierModalEl.classList.toggle('hidden', !this.isDossierOpen);
+    }
+    if (this.isDossierOpen) {
+      if (this.isFullMapOpen) this.setFullMapOpen(false);
+      if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+      const activeKey = this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira';
+      renderHeroDossierModal(this, activeKey);
+      if (document.pointerLockElement && document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    } else if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+      this._lastController.relockPointer();
+    }
+  }
+
+  toggleHeroDossier(controller = null) {
+    this.setHeroDossierOpen(!this.isDossierOpen, controller);
+  }
+
+  /**
+   * Abre/Fecha a Roda de Seleção de Personagem Estilo GTA V [TAB] com câmera lenta e filtro tático
+   */
+  setHeroWheelOpen(open, controller = null, confirmSelection = true) {
+    if (controller) {
+      this._lastController = controller;
+    }
+    const nextState = Boolean(open);
+    if (this.isHeroWheelOpen === nextState) return;
+
+    this.isHeroWheelOpen = nextState;
+    document.body.classList.toggle('hero-wheel-active', this.isHeroWheelOpen);
+
+    if (this.wheelOverlayEl) {
+      this.wheelOverlayEl.classList.toggle('hidden', !this.isHeroWheelOpen);
+    }
+
+    if (this.isHeroWheelOpen) {
+      if (this.isFullMapOpen) this.setFullMapOpen(false);
+      if (this.isDossierOpen) this.setHeroDossierOpen(false);
+      const activeKey = this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira';
+      this.wheelSelectedHeroKey = activeKey;
+      this._refreshHeroWheelDisplay();
+      soundFX.playTacticalRoll();
+    } else {
+      if (confirmSelection && this._lastController && this.wheelSelectedHeroKey) {
+        this._lastController.switchToHero(this.wheelSelectedHeroKey);
+      }
+      if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+        this._lastController.relockPointer();
+      }
+    }
+  }
+
+  /**
+   * Gira a seleção na Roda de Personagens (+1 horário ou -1 anti-horário) via WASD
+   */
+  stepHeroWheelSelection(stepDelta = 1) {
+    if (!this.isHeroWheelOpen) return;
+    const idx = HERO_CATALOG.findIndex((h) => h.key === this.wheelSelectedHeroKey);
+    const nextIdx = (idx + stepDelta + HERO_CATALOG.length) % HERO_CATALOG.length;
+    const nextHero = HERO_CATALOG[nextIdx];
+    if (nextHero && nextHero.key !== this.wheelSelectedHeroKey) {
+      this.wheelSelectedHeroKey = nextHero.key;
+      if (this._lastController) {
+        this._lastController.switchToHero(this.wheelSelectedHeroKey);
+      }
+      soundFX.playHeroSwap();
+      this._refreshHeroWheelDisplay();
+    }
+  }
+
+  /**
+   * Seleciona um setor da Roda de Personagens diretamente por vetor 2D (WASD combinado ou mouse)
+   */
+  setHeroWheelDirection(dx, dy) {
+    if (!this.isHeroWheelOpen) return;
+    if (Math.hypot(dx, dy) < 0.2) return;
+    // Ângulo a partir do Topo (0 rad no topo, crescendo em sentido horário)
+    let angleFromTop = Math.atan2(dy, dx) + Math.PI / 2;
+    if (angleFromTop < 0) angleFromTop += Math.PI * 2;
+    const stepAngle = (Math.PI * 2) / HERO_CATALOG.length;
+    const idx = Math.floor(((angleFromTop + stepAngle * 0.5) % (Math.PI * 2)) / stepAngle);
+    const targetHero = HERO_CATALOG[idx];
+    if (targetHero && targetHero.key !== this.wheelSelectedHeroKey) {
+      this.wheelSelectedHeroKey = targetHero.key;
+      if (this._lastController) {
+        this._lastController.switchToHero(this.wheelSelectedHeroKey);
+      }
+      soundFX.playHeroSwap();
+      this._refreshHeroWheelDisplay();
+    }
+  }
+
+  _refreshHeroWheelDisplay() {
+    const info = getHeroInfo(this.wheelSelectedHeroKey);
+    const activeKey = this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey;
+    renderHeroWheelCanvas(this.wheelCanvasEl, this.wheelSelectedHeroKey, activeKey);
+
+    if (this.wheelTitleEl) {
+      this.wheelTitleEl.textContent = `${info.opCode} // ${info.name}`;
+      this.wheelTitleEl.style.color = info.accent;
+    }
+    if (this.wheelRoleEl) {
+      this.wheelRoleEl.textContent = info.role;
+    }
+    if (this.wheelSpecEl) {
+      this.wheelSpecEl.textContent = info.specialty;
+    }
+  }
+
+  showRegionTransitionToast(region) {
+    if (!this.regionToastEl || !region) return;
+    const codeNum = region.num || String(region.number || 1).padStart(2, '0');
+    const accent = region.color || '#facc15';
+    if (this.regionToastCodeEl) {
+      this.regionToastCodeEl.textContent = `SETOR R-${codeNum} // TRANSIÇÃO DE ZONA`;
+    }
+    if (this.regionToastTitleEl) {
+      const iconSvg = getSvgIcon(region.icon || 'pin', accent, 18);
+      this.regionToastTitleEl.innerHTML = `${iconSvg} <span>${region.name}</span>`;
+    }
+    if (this.regionToastSubEl) {
+      this.regionToastSubEl.textContent = region.sub || region.shortName || '';
+    }
+    this.regionToastEl.style.borderLeftColor = accent;
+    this.regionToastEl.classList.remove('hidden');
+
+    clearTimeout(this._toastTimeout);
+    this._toastTimeout = setTimeout(() => {
+      this.regionToastEl.classList.add('hidden');
+    }, 2500);
+  }
+
+  setFullMapOpen(open, world = null, controller = null) {
+    if (controller) {
+      this._lastController = controller;
+    }
+    this.isFullMapOpen = Boolean(open);
+    if (this.fullmapModalEl) {
+      this.fullmapModalEl.classList.toggle('hidden', !this.isFullMapOpen);
+    }
+    if (this.isFullMapOpen) {
+      if (this.isDossierOpen) this.setHeroDossierOpen(false);
+      if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+      const promptEl = document.getElementById('pointer-prompt');
+      if (promptEl) {
+        promptEl.classList.remove('visible');
+      }
+      if (document.pointerLockElement && document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+      if (world && this._lastController) {
+        bindFullMapInteractions(this, world, this._lastController);
+        populateFullMapSidebar(this, world, this._lastController);
+        this.renderFullMap(world, this._lastController.position, this._lastController.facingAngle, this._lastController);
+      }
+    } else if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+      this._lastController.relockPointer();
+    }
+  }
+
+  toggleFullMap(world, controller) {
+    this.setFullMapOpen(!this.isFullMapOpen, world, controller);
+  }
+
+  _teleportPlayerTo(controller, target, label = 'SETOR SELECIONADO') {
+    if (!controller || !target) return;
+    this.setFullMapOpen(false);
+
+    if (typeof controller.startFastTravel === 'function') {
+      controller.startFastTravel(target, label);
+    } else {
+      if (controller.currentVehicle) {
+        controller.exitVehicle();
+      }
+      controller.position.set(target.x, target.y, target.z);
+      controller.velocity.set(0, 0, 0);
+      controller.currentSpeed = 0;
+      controller.isFlying = false;
+      controller.isSupersonic = false;
+      controller.isGrounded = true;
+      if (controller.minifigure?.root) {
+        controller.minifigure.root.position.copy(controller.position);
+      }
+    }
+  }
+
+  updateMinimap(
+    playerPos,
+    playerFacingYaw = 0,
+    cameraYaw = 0,
+    currentRegion = null,
+    world = null,
+    playerSpeed = 0,
+    dt = 0.016
+  ) {
+    renderMinimapRadar(this, playerPos, playerFacingYaw, cameraYaw, currentRegion, world, playerSpeed, dt);
+  }
+
+  renderFullMap(world, playerPos, playerFacingYaw = 0) {
+    renderFullMapCanvas(this, world, playerPos, playerFacingYaw);
   }
 
   update(dt) {

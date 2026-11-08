@@ -36,6 +36,89 @@ html, body {
   width: 100vw;
   height: 100vh;
   cursor: crosshair;
+  transition: filter 0.18s ease;
+}
+
+/* Filtro de Lente de Satélite Estilo GTA V durante a Viagem Rápida (Não-Jogável) */
+body.satellite-transition #game-container {
+  filter: contrast(1.26) saturate(0.42) brightness(0.92) hue-rotate(-12deg);
+}
+
+body.satellite-transition #ui-overlay,
+body.satellite-transition #crosshair {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+#satellite-fx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(6, 18, 32, 0.08) 35%, rgba(6, 12, 22, 0.72) 100%);
+}
+
+#satellite-fx-overlay.hidden {
+  display: none;
+}
+
+.sat-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 240, 255, 0.04) 0px,
+    rgba(0, 240, 255, 0.04) 2px,
+    rgba(0, 0, 0, 0.16) 2px,
+    rgba(0, 0, 0, 0.16) 4px
+  );
+}
+
+.sat-flash {
+  position: absolute;
+  inset: 0;
+  background: rgba(250, 204, 21, 0.28);
+  opacity: 0;
+  transition: opacity 0.14s ease-out;
+}
+
+.sat-flash.pulse {
+  opacity: 1;
+  transition: none;
+}
+
+.sat-reticle {
+  position: absolute;
+  inset: 36px;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+}
+
+.sat-corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-color: var(--idv-alert);
+  border-style: solid;
+}
+
+.sat-tl { top: -2px; left: -2px; border-width: 4px 0 0 4px; }
+.sat-tr { top: -2px; right: -2px; border-width: 4px 4px 0 0; }
+.sat-bl { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; }
+.sat-br { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
+
+.sat-telemetry {
+  position: absolute;
+  bottom: 18px;
+  left: 24px;
+  background: var(--idv-black);
+  border-left: 4px solid var(--idv-alert);
+  padding: 5px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--idv-alert);
+  box-shadow: 4px 4px 0 #000;
 }
 
 /* ===================================================
@@ -322,94 +405,273 @@ html, body {
 #hud-stud-gain[data-tier="purple"] { color: #c084fc; border-color: #a855f7; }
 
 /* ===================================================
-   RÉGUA TÁTICA TRUE HERO (TOPO CENTRAL COMPACTO)
+   VELOCÍMETRO ESTILIZADO IDV (CANTO SUPERIOR DIREITO)
+   Exibido APENAS ao Dirigir/Pilotar Veículos
    =================================================== */
-#true-hero-bar {
+#vehicle-speedometer {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  min-width: 220px;
   background: var(--idv-black);
-  border-left: 3px solid var(--idv-alert);
-  border-right: 3px solid var(--idv-alert);
-  padding: 5px 14px 7px;
-  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.85);
+  border: 2px solid var(--idv-alert);
+  border-right-width: 6px;
+  padding: 8px 14px 10px;
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.92);
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-.th-header {
+#vehicle-speedometer.hidden {
+  display: none;
+}
+
+#vehicle-speedometer.turbo-active {
+  border-color: #00f0ff;
+}
+
+#vehicle-speedometer.drift-active {
+  border-color: var(--idv-amber);
+}
+
+.speedo-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  border-bottom: 1.5px solid var(--idv-steel);
+  padding-bottom: 3px;
 }
 
-.true-hero-title {
+.speedo-veh-name {
   font-family: var(--font-tactical);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   color: var(--idv-alert);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 155px;
 }
 
-.true-hero-title.achieved {
-  color: #fef08a;
-  background: #ca8a04;
-  padding: 0 5px;
+#vehicle-speedometer.turbo-active .speedo-veh-name {
+  color: #00f0ff;
 }
 
-.true-hero-pct {
+.speedo-gear {
+  background: var(--idv-alert);
+  color: var(--idv-black);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 800;
-  color: var(--idv-white);
+  padding: 1px 6px;
+  clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
 }
 
-.true-hero-segments {
+#vehicle-speedometer.turbo-active .speedo-gear {
+  background: #00f0ff;
+}
+
+.speedo-main-row {
   display: flex;
-  gap: 4px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 1px 0;
 }
 
-.true-hero-stud-seg {
-  width: 15px;
+.speedo-kmh-val {
+  font-family: var(--font-display);
+  font-size: 2.9rem;
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--idv-white);
+  text-shadow: 3px 3px 0 #000;
+}
+
+#vehicle-speedometer.turbo-active .speedo-kmh-val {
+  color: #00f0ff;
+}
+
+.speedo-unit-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.speedo-unit {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.08em;
+}
+
+.speedo-mode-tag {
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  font-weight: 800;
+  color: var(--idv-muted);
+  letter-spacing: 0.06em;
+}
+
+#vehicle-speedometer.turbo-active .speedo-mode-tag {
+  color: #00f0ff;
+}
+
+#vehicle-speedometer.drift-active .speedo-mode-tag {
+  color: var(--idv-amber);
+}
+
+.speedo-rpm-bars {
+  display: flex;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.speedo-bar-seg {
+  flex: 1;
   height: 8px;
   background: var(--idv-steel);
-  transform: skewX(-20deg);
-  transition: background 0.15s ease;
+  transform: skewX(-24deg);
+  transition: background 0.08s ease;
 }
 
-.true-hero-stud-seg.filled {
+.speedo-bar-seg.lit {
   background: var(--idv-alert);
-  box-shadow: 0 0 6px rgba(250, 204, 21, 0.6);
+}
+
+.speedo-bar-seg.lit.high {
+  background: var(--idv-amber);
+}
+
+.speedo-bar-seg.lit.redline {
+  background: var(--idv-crimson);
+}
+
+#vehicle-speedometer.turbo-active .speedo-bar-seg.lit {
+  background: #00f0ff;
 }
 
 /* ===================================================
-   TELEMETRIA CANTO SUPERIOR DIREITO
+   RODA RADIAL DE PERSONAGENS ESTILO GTA V [TAB]
+   Câmera Lenta + Filtro Tático + Giro em WASD
    =================================================== */
-#stats-pill {
-  background: var(--idv-black);
-  border-right: 3px solid var(--idv-alert);
-  padding: 5px 12px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+body.hero-wheel-active #game-container {
+  filter: contrast(1.28) saturate(0.36) brightness(0.8) hue-rotate(-10deg);
+}
+
+body.hero-wheel-active #crosshair {
+  opacity: 0 !important;
+}
+
+#hero-wheel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
   display: flex;
   align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+#hero-wheel-overlay.hidden {
+  display: none;
+}
+
+.wheel-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(9, 10, 13, 0.25) 28%, rgba(6, 10, 18, 0.82) 100%);
+  pointer-events: none;
+}
+
+.wheel-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(250, 204, 21, 0.03) 0px,
+    rgba(250, 204, 21, 0.03) 2px,
+    rgba(0, 0, 0, 0.18) 2px,
+    rgba(0, 0, 0, 0.18) 4px
+  );
+  pointer-events: none;
+}
+
+.hero-wheel-center-wrap {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 8px;
-  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.85);
 }
 
-#fps-counter {
-  color: #4ade80;
+.wheel-top-tag {
+  background: var(--idv-black);
+  border-left: 4px solid var(--idv-alert);
+  border-right: 4px solid var(--idv-alert);
+  padding: 4px 16px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--idv-alert);
+  box-shadow: 4px 4px 0 #000;
 }
 
-#anim-state {
+#hero-wheel-canvas {
+  width: 460px;
+  height: 460px;
+  display: block;
+}
+
+.wheel-hero-info {
+  min-width: 390px;
+  background: var(--idv-black);
+  border: 2px solid var(--idv-alert);
+  border-left-width: 6px;
+  padding: 10px 20px;
+  text-align: center;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  box-shadow: 6px 6px 0 #000;
+}
+
+.wheel-hero-title {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
   color: var(--idv-alert);
 }
 
-.sep {
+.wheel-hero-role {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--idv-white);
+  margin-top: 2px;
+}
+
+.wheel-hero-spec {
+  font-family: var(--font-tactical);
+  font-size: 0.74rem;
   color: var(--idv-muted);
+  margin-top: 4px;
 }
 
 /* ===================================================
@@ -457,6 +719,38 @@ html, body {
   font-size: 0.76rem;
   color: var(--idv-white);
   margin-top: 3px;
+}
+
+/* ===================================================
+   INDICADOR CONTEXTUAL DE VEÍCULO [E]
+   =================================================== */
+#vehicle-prompt {
+  align-self: center;
+  margin-top: auto;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--idv-black);
+  border: 2px solid var(--idv-alert);
+  border-left-width: 5px;
+  padding: 6px 16px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--idv-white);
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.9);
+}
+
+#vehicle-prompt .pill-key {
+  background: var(--idv-alert);
+  color: var(--idv-black);
+}
+
+#vehicle-prompt.hidden {
+  display: none;
 }
 
 /* ===================================================
@@ -520,6 +814,20 @@ html, body {
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.85);
 }
 
+#bottom-right-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bottom-right-hints {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tactical-hint,
 #help-toggle-hint {
   display: flex;
   align-items: center;
@@ -536,37 +844,719 @@ html, body {
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.85);
 }
 
-#controls-hud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+/* ===================================================
+   BANNER / TOAST DE TRANSIÇÃO DE REGIÃO NO TOPO
+   =================================================== */
+#region-toast {
+  align-self: center;
+  margin-top: 8px;
   background: var(--idv-black);
-  border: 1.5px solid var(--idv-alert);
-  border-left-width: 5px;
-  padding: 8px 16px;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  border: 2px solid var(--idv-alert);
+  border-left-width: 6px;
+  padding: 8px 26px;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.92);
+  text-align: center;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#region-toast.hidden {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.toast-code {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.14em;
+}
+
+.toast-title {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--idv-white);
+  letter-spacing: 0.05em;
+  line-height: 1.02;
+}
+
+.toast-sub {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--idv-muted);
+  margin-top: 2px;
+}
+
+/* ===================================================
+   MINIMAPA TÁTICO URBANO ANGULAR (CANTO INFERIOR DIREITO)
+   =================================================== */
+#minimap-container {
+  display: flex;
+  flex-direction: column;
+  width: 204px;
+  background: var(--idv-black);
+  border: 2px solid var(--idv-alert);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
   box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.9);
+  pointer-events: auto;
+  cursor: pointer;
 }
 
-#controls-hud.hidden {
-  display: none;
+.minimap-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--idv-carbon);
+  border-bottom: 1.5px solid var(--idv-steel);
 }
 
-.control-item {
+.tactical-svg-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.minimap-num {
+  background: var(--idv-alert);
+  color: var(--idv-black);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  flex-shrink: 0;
+}
+
+.minimap-name {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-family: var(--font-tactical);
+  font-size: 0.68rem;
   font-weight: 700;
+  letter-spacing: 0.05em;
   color: var(--idv-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-kbd {
+.minimap-frame {
+  position: relative;
+  width: 200px;
+  height: 176px;
+  background: #060911;
+  overflow: hidden;
+}
+
+#minimap-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.minimap-north {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translate(-50%, 0);
+  background: var(--idv-black);
+  color: var(--idv-alert);
+  border: 1.5px solid var(--idv-alert);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 0 5px;
+  pointer-events: none;
+  box-shadow: 2px 2px 0 #000;
+  z-index: 6;
+}
+
+.minimap-sub {
+  padding: 4px 8px;
+  background: var(--idv-black);
+  border-top: 1.5px solid var(--idv-steel);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===================================================
+   MODAL DO MAPA COMPLETO INTERATIVO DAS 10 REGIÕES [M]
+   =================================================== */
+#fullmap-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 10, 13, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  pointer-events: auto;
+}
+
+#fullmap-modal.hidden {
+  display: none;
+}
+
+.fullmap-card {
+  width: min(1080px, 95vw);
+  background: var(--idv-black);
+  border: 2px solid var(--idv-alert);
+  border-left-width: 6px;
+  padding: 16px 20px;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 18px) 0,
+    100% 18px,
+    100% 100%,
+    18px 100%,
+    0 calc(100% - 18px)
+  );
+  box-shadow: 8px 8px 0 #000000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fullmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--idv-steel);
+  padding-bottom: 8px;
+  gap: 12px;
+}
+
+.fullmap-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tactical-btn-sm {
+  background: var(--idv-carbon);
+  color: var(--idv-white);
+  border: 1.5px solid var(--idv-steel);
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.tactical-btn-sm:hover {
+  border-color: var(--idv-alert);
+  color: var(--idv-alert);
+}
+
+.fullmap-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--idv-muted);
+  letter-spacing: 0.12em;
+}
+
+.fullmap-title {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: var(--idv-alert);
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.tactical-btn {
   background: var(--idv-alert);
   color: var(--idv-black);
-  padding: 1px 6px;
+  border: none;
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+
+.tactical-btn:hover {
+  background: var(--idv-white);
+}
+
+.fullmap-body {
+  display: grid;
+  grid-template-columns: 1fr 370px;
+  gap: 16px;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.fullmap-canvas-wrap {
+  position: relative;
+  background: #060911;
+  border: 2px solid var(--idv-steel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#fullmap-canvas {
+  width: 100%;
+  height: auto;
+  max-height: 540px;
+  display: block;
+  cursor: grab;
+}
+
+#fullmap-canvas:active {
+  cursor: grabbing;
+}
+
+.fullmap-help-bar {
+  width: 100%;
+  background: var(--idv-carbon);
+  border-top: 1.5px solid var(--idv-steel);
+  padding: 5px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--idv-muted);
+}
+
+.fullmap-help-bar b {
+  color: var(--idv-alert);
+}
+
+.fullmap-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.08em;
+  padding-bottom: 4px;
+  border-bottom: 1.5px solid var(--idv-steel);
+  flex-shrink: 0;
+}
+
+.region-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 515px;
+  overflow-y: auto;
+  padding: 6px 6px 8px 2px;
+  box-sizing: border-box;
+}
+
+/* Scrollbar Tático Urbano Angular (IDV) com Setinhas Customizadas */
+.region-list::-webkit-scrollbar,
+.fullmap-sidebar::-webkit-scrollbar {
+  width: 14px;
+  background: var(--idv-black);
+}
+
+.region-list::-webkit-scrollbar-track,
+.fullmap-sidebar::-webkit-scrollbar-track {
+  background: var(--idv-black);
+  border: 1.5px solid var(--idv-steel);
+}
+
+.region-list::-webkit-scrollbar-thumb,
+.fullmap-sidebar::-webkit-scrollbar-thumb {
+  background: var(--idv-alert);
+  border: 2px solid var(--idv-black);
+  min-height: 28px;
+}
+
+.region-list::-webkit-scrollbar-thumb:hover,
+.fullmap-sidebar::-webkit-scrollbar-thumb:hover {
+  background: var(--idv-white);
+}
+
+.region-list::-webkit-scrollbar-button:single-button,
+.fullmap-sidebar::-webkit-scrollbar-button:single-button {
+  display: block;
+  height: 16px;
+  background-color: var(--idv-carbon);
+  border: 1.5px solid var(--idv-alert);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px 6px;
+  cursor: pointer;
+}
+
+.region-list::-webkit-scrollbar-button:single-button:hover,
+.fullmap-sidebar::-webkit-scrollbar-button:single-button:hover {
+  background-color: var(--idv-steel);
+  border-color: var(--idv-white);
+}
+
+.region-list::-webkit-scrollbar-button:single-button:vertical:decrement,
+.fullmap-sidebar::-webkit-scrollbar-button:single-button:vertical:decrement {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'><polygon points='5,0 10,8 0,8' fill='%23facc15'/></svg>");
+}
+
+.region-list::-webkit-scrollbar-button:single-button:vertical:increment,
+.fullmap-sidebar::-webkit-scrollbar-button:single-button:vertical:increment {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 8'><polygon points='0,0 10,0 5,8' fill='%23facc15'/></svg>");
+}
+
+.region-item-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 56px;
+  box-sizing: border-box;
+  background: var(--idv-carbon);
+  border: 1.5px solid var(--idv-steel);
+  border-left: 4px solid var(--idv-alert);
+  padding: 7px 10px;
+  color: var(--idv-white);
+  font-family: var(--font-tactical);
+  text-align: left;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.region-item-btn:hover {
+  background: var(--idv-steel);
+  border-color: var(--idv-alert);
+  transform: translateX(2px);
+}
+
+.region-item-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1;
+}
+
+.region-item-icon-box {
+  width: 30px;
+  height: 30px;
+  background: var(--idv-black);
+  border: 1.5px solid var(--idv-steel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+}
+
+.region-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.region-item-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--idv-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.region-item-sub {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: var(--idv-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.region-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.region-item-code {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  background: var(--idv-black);
+  color: var(--idv-muted);
+  padding: 1px 5px;
+  border-left: 2px solid var(--idv-alert);
+}
+
+.region-item-tp-btn {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: var(--idv-alert);
+  color: var(--idv-black);
+  padding: 2px 6px;
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+}
+
+.region-item-btn:hover .region-item-tp-btn {
+  background: var(--idv-white);
+}
+
+/* ===================================================
+   MODAL DA FICHA TÁTICA INDIVIDUAL DO HERÓI [H]
+   =================================================== */
+#hero-dossier-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 10, 13, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 32;
+  pointer-events: auto;
+}
+
+#hero-dossier-modal.hidden {
+  display: none;
+}
+
+.dossier-card {
+  width: min(760px, 94vw);
+  background: var(--idv-black);
+  border: 2px solid var(--idv-alert);
+  border-left-width: 6px;
+  padding: 18px 22px;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 18px) 0,
+    100% 18px,
+    100% 100%,
+    18px 100%,
+    0 calc(100% - 18px)
+  );
+  box-shadow: 8px 8px 0 #000000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dossier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--idv-steel);
+  padding-bottom: 10px;
+  gap: 14px;
+}
+
+.dossier-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dossier-portrait-frame {
+  width: 66px;
+  height: 66px;
+}
+
+.dossier-tag {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.14em;
+}
+
+.dossier-title {
+  font-family: var(--font-display);
+  font-size: 2.0rem;
+  font-weight: 700;
+  color: var(--idv-alert);
+  letter-spacing: 0.05em;
+  line-height: 0.96;
+}
+
+.dossier-role {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--idv-white);
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+
+.dossier-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dossier-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--idv-carbon);
+  border: 1.5px solid var(--idv-steel);
+  padding: 5px 12px;
+  font-family: var(--font-tactical);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--idv-muted);
+  cursor: pointer;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+
+.dossier-tab-btn.active,
+.dossier-tab-btn:hover {
+  background: var(--idv-steel);
+  color: var(--idv-white);
+  border-color: var(--idv-alert);
+}
+
+.dossier-tab-op {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  background: var(--idv-black);
+  padding: 1px 5px;
+}
+
+.dossier-meta-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dossier-meta-box {
+  background: var(--idv-carbon);
+  border: 1.5px solid var(--idv-steel);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meta-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.1em;
+}
+
+.meta-val {
+  font-family: var(--font-tactical);
+  font-size: 0.76rem;
+  color: var(--idv-white);
+}
+
+.dossier-section-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.1em;
+  border-bottom: 1.5px solid var(--idv-steel);
+  padding-bottom: 4px;
+}
+
+.dossier-controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.dossier-control-card {
+  background: var(--idv-carbon);
+  border: 1.5px solid var(--idv-steel);
+  border-left: 4px solid var(--idv-alert);
+  padding: 8px 12px;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dossier-ctrl-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dossier-kbd {
+  background: var(--idv-alert);
+  color: var(--idv-black);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  flex-shrink: 0;
+}
+
+.dossier-ctrl-title {
+  font-family: var(--font-tactical);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--idv-white);
+  letter-spacing: 0.04em;
+}
+
+.dossier-ctrl-desc {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--idv-muted);
+  line-height: 1.3;
+}
+
+.dossier-footer-bar {
+  background: var(--idv-carbon);
+  border-top: 1.5px solid var(--idv-steel);
+  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--idv-muted);
+}
+
+.dossier-footer-bar b {
+  color: var(--idv-alert);
 }

@@ -59,6 +59,58 @@ export const MINIFIG_PRESETS = {
     capeColor: LEGO_COLORS.orange,
     weapon: 'solar_orbs',
     fireAura: true
+  },
+  tita: {
+    key: 'tita',
+    name: 'Titã Blindado (Big-Fig)',
+    subtitle: 'Soco Foguete [V] • Arremessar Carro [Mouse 2] • Terremoto [Q]',
+    headColor: 0x0f172a,
+    torsoColor: 0x0f172a,
+    armColor: 0x1e3a8a,
+    handColor: LEGO_COLORS.gold,
+    hipColor: LEGO_COLORS.gold,
+    legColor: 0x0f172a,
+    facePreset: 'tita',
+    torsoPreset: 'tita',
+    headgear: 'mecha_helmet',
+    capeColor: null,
+    weapon: 'tita_rig',
+    fireAura: false,
+    isBigFig: true
+  },
+  vingador: {
+    key: 'vingador',
+    name: 'Vingador de Chumbo',
+    subtitle: '[R] Trocar Arma: Duas SMGs • Escopeta • Bazuca RPG',
+    headColor: LEGO_COLORS.yellow,
+    torsoColor: 0x111827,
+    armColor: 0x1f2937,
+    handColor: LEGO_COLORS.darkGrey,
+    hipColor: LEGO_COLORS.silver,
+    legColor: 0x090a0d,
+    facePreset: 'vingador',
+    torsoPreset: 'vingador',
+    headgear: 'tactical_bandana',
+    capeColor: null,
+    weapon: 'vingador_arsenal',
+    fireAura: false
+  },
+  sombra: {
+    key: 'sombra',
+    name: 'Sombra Escarlate',
+    subtitle: 'Gancho Magnético [Mouse 2] • Katanas • Fumaça Invisível [Q] • Puxão [G]',
+    headColor: 0x090a0d,
+    torsoColor: 0x090a0d,
+    armColor: 0x18181b,
+    handColor: LEGO_COLORS.red,
+    hipColor: LEGO_COLORS.red,
+    legColor: 0x090a0d,
+    facePreset: 'sombra',
+    torsoPreset: 'sombra',
+    headgear: 'ninja_hood',
+    capeColor: 0x991b1b,
+    weapon: 'dual_katanas',
+    fireAura: false
   }
 };
 
@@ -87,7 +139,13 @@ export class Minifigure {
     this.currentHeroKey = presetKey;
     this.flameParticles = [];
     this.muzzleFlashMesh = null;
+    this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
+    this.vingadorWeapon = 'dual_smg'; // 'dual_smg' | 'shotgun' | 'rpg'
+    this.isCarryingCar = false;
+    this.isGrappling = false;
+    this.isStealth = false;
+    this.isBigFig = false;
 
     this.setHero(presetKey);
   }
@@ -95,6 +153,8 @@ export class Minifigure {
   setHero(presetKey) {
     const preset = MINIFIG_PRESETS[presetKey] || MINIFIG_PRESETS.caveira;
     this.currentHeroKey = preset.key;
+    this.isBigFig = Boolean(preset.isBigFig);
+    this.isStealth = false;
     this.buildModel(preset);
     return preset;
   }
@@ -105,7 +165,22 @@ export class Minifigure {
     }
     this.flameParticles = [];
     this.muzzleFlashMesh = null;
+    this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
+    this.dualSmgLeft = null;
+    this.dualSmgRight = null;
+    this.shotgunGroup = null;
+    this.rpgGroup = null;
+    this.leftKatanaGroup = null;
+    this.rightKatanaGroup = null;
+    this.titaShieldGroup = null;
+    this.titaCannonGroup = null;
+
+    if (preset.isBigFig) {
+      this.visualRoot.scale.set(1.68, 1.56, 1.68);
+    } else {
+      this.visualRoot.scale.set(1, 1, 1);
+    }
 
     const headMat = getLegoMaterial(preset.headColor, { roughness: 0.2, clearcoat: 0.5 });
     const torsoMat = getLegoMaterial(preset.torsoColor, { roughness: 0.24, clearcoat: 0.45 });
@@ -201,6 +276,12 @@ export class Minifigure {
       this._attachTacticalRifle(this.rightHandGroup);
     } else if (preset.weapon === 'solar_orbs') {
       this._attachSolarOrbs(this.leftHandGroup, this.rightHandGroup);
+    } else if (preset.weapon === 'tita_rig') {
+      this._attachTitaBigFigRig(this.leftHandGroup, this.rightHandGroup);
+    } else if (preset.weapon === 'vingador_arsenal') {
+      this._attachVingadorArsenal(this.leftHandGroup, this.rightHandGroup);
+    } else if (preset.weapon === 'dual_katanas') {
+      this._attachDualKatanas(this.leftHandGroup, this.rightHandGroup);
     }
 
     if (preset.fireAura) {
@@ -326,7 +407,332 @@ export class Minifigure {
       const goldStud = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.185, 0.14, 24), crownMat);
       goldStud.position.set(0, 0.67, 0);
       this.headGroup.add(goldStud);
+    } else if (preset.headgear === 'mecha_helmet') {
+      // Capacete Mecha-Policial do Titã Blindado (Big-Fig) com antenas laterais e visor ciano
+      const helmMat = getLegoMaterial(0x1e3a8a, { roughness: 0.2, metalness: 0.45 });
+      const goldMat = getLegoMaterial(LEGO_COLORS.gold, { roughness: 0.18, metalness: 0.55 });
+      const cyanMat = getLegoMaterial(0x00f0ff, { emissive: 0x00f0ff, emissiveIntensity: 1.4 });
+
+      const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.39, 0.16, 24), helmMat);
+      dome.position.set(0, 0.62, 0);
+      this.headGroup.add(dome);
+
+      const crest = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.48), goldMat);
+      crest.position.set(0, 0.72, 0.04);
+      this.headGroup.add(crest);
+
+      const visorBar = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.11, 0.14), cyanMat);
+      visorBar.position.set(0, 0.42, 0.33);
+      this.headGroup.add(visorBar);
+
+      for (const side of [-1, 1]) {
+        const earPod = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, 0.24), helmMat);
+        earPod.position.set(side * 0.37, 0.36, 0);
+        const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.32, 8), goldMat);
+        antenna.position.set(side * 0.39, 0.58, -0.06);
+        this.headGroup.add(earPod, antenna);
+      }
+    } else if (preset.headgear === 'tactical_bandana') {
+      // Cabelo Militar + Bandana Tática Preta/Prateada do Vingador de Chumbo
+      const hairMat = getLegoMaterial(0x090a0d, { roughness: 0.35 });
+      const silverMat = getLegoMaterial(LEGO_COLORS.silver, { metalness: 0.6, roughness: 0.2 });
+
+      const hairCap = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.38, 0.14, 24), hairMat);
+      hairCap.position.set(0, 0.62, 0);
+      this.headGroup.add(hairCap);
+
+      const headband = new THREE.Mesh(new THREE.CylinderGeometry(0.368, 0.368, 0.09, 24), silverMat);
+      headband.position.set(0, 0.54, 0);
+      this.headGroup.add(headband);
+
+      const knotTail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.1), hairMat);
+      knotTail.position.set(0, 0.46, -0.38);
+      knotTail.rotation.x = 0.35;
+      this.headGroup.add(knotTail);
+    } else if (preset.headgear === 'ninja_hood') {
+      // Capuz Shinobi Completo do Sombra Escarlate com Crista Vermelha Neon
+      const hoodMat = getLegoMaterial(0x090a0d, { roughness: 0.28 });
+      const redMat = getLegoMaterial(LEGO_COLORS.red, { emissive: 0xdc2626, emissiveIntensity: 0.35 });
+
+      const hoodTop = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.39, 0.16, 24), hoodMat);
+      hoodTop.position.set(0, 0.61, 0);
+      this.headGroup.add(hoodTop);
+
+      const scarfCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.41, 0.14, 24), redMat);
+      scarfCollar.position.set(0, 0.11, 0);
+      this.headGroup.add(scarfCollar);
+
+      const ninjaCrest = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.12), redMat);
+      ninjaCrest.position.set(0, 0.55, 0.36);
+      this.headGroup.add(ninjaCrest);
     }
+  }
+
+  /**
+   * Equipa o Chassi Colossal Big-Fig do Titã Blindado (#3):
+   * - Ombreiras blindadas largas com pinos LEGO e giroflex ciano/dourado
+   * - Reator de Peito 3D + Mochila Propulsora a Jato nas costas
+   * - Escudo Policial de Terremoto no braço esquerdo + Metralhadora Rotativa Pesada e Punho Foguete no direito!
+   */
+  _attachTitaBigFigRig(leftHandGroup, rightHandGroup) {
+    const navyMat = getLegoMaterial(0x1e3a8a, { roughness: 0.2, metalness: 0.35 });
+    const darkSteel = getLegoMaterial(0x0f172a, { roughness: 0.25, metalness: 0.5 });
+    const goldMat = getLegoMaterial(LEGO_COLORS.gold, { roughness: 0.18, metalness: 0.6 });
+    const cyanGlow = getLegoMaterial(0x00f0ff, { emissive: 0x00f0ff, emissiveIntensity: 1.8 });
+
+    // 1. Ombreiras Colossais (Big-Fig Broad Shoulders) + Pinos LEGO
+    for (const [armPivot, sign] of [[this.leftArmPivot, 1], [this.rightArmPivot, -1]]) {
+      armPivot.position.x = sign * 0.58;
+      const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.56), navyMat);
+      pauldron.position.set(sign * 0.08, 0.08, 0);
+      pauldron.castShadow = true;
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.08, 0.58), goldMat);
+      stripe.position.set(sign * 0.08, 0.18, 0);
+      const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 14), goldMat);
+      stud.position.set(sign * 0.08, 0.28, 0);
+      armPivot.add(pauldron, stripe, stud);
+    }
+
+    // 2. Reator de Energia Ciano 3D no peito + Propulsores Dorsais (Jetpack Pesado)
+    const reactorRing = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.08, 20), goldMat);
+    reactorRing.rotation.x = Math.PI / 2;
+    reactorRing.position.set(0, 0.42, 0.24);
+    const reactorCore = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 16), cyanGlow);
+    reactorCore.rotation.x = Math.PI / 2;
+    reactorCore.position.set(0, 0.42, 0.25);
+    this.upperBodyGroup.add(reactorRing, reactorCore);
+
+    const jetpack = new THREE.Group();
+    jetpack.position.set(0, 0.44, -0.32);
+    const packBox = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.56, 0.28), darkSteel);
+    jetpack.add(packBox);
+    for (const sx of [-0.2, 0.2]) {
+      const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.36, 14), goldMat);
+      thruster.position.set(sx, -0.18, -0.06);
+      const nozzleGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 12), cyanGlow);
+      nozzleGlow.position.set(sx, -0.36, -0.06);
+      jetpack.add(thruster, nozzleGlow);
+    }
+    this.upperBodyGroup.add(jetpack);
+
+    // 3. Punhos Colossais Big-Fig nas duas mãos
+    for (const hand of [leftHandGroup, rightHandGroup]) {
+      const bigFist = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.32), goldMat);
+      bigFist.position.set(0, -0.34, 0.04);
+      bigFist.castShadow = true;
+      hand.add(bigFist);
+    }
+
+    // 4. Braço Esquerdo: Escudo de Choque Sísmico (Terremoto de Escudo [Q])
+    const shield = new THREE.Group();
+    const shieldPlate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.92, 0.62), navyMat);
+    shieldPlate.castShadow = true;
+    const shieldTrim = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.96, 0.14), goldMat);
+    const shieldVisor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.18, 0.44), cyanGlow);
+    shieldVisor.position.set(0, 0.22, 0);
+    shield.add(shieldPlate, shieldTrim, shieldVisor);
+    shield.position.set(0.18, -0.24, 0.12);
+    leftHandGroup.add(shield);
+    this.titaShieldGroup = shield;
+
+    // 5. Braço Direito: Metralhadora Rotativa Pesada acoplada + Muzzle Flash
+    const cannon = new THREE.Group();
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, 0.56), darkSteel);
+    housing.position.set(-0.14, 0, 0.24);
+    cannon.add(housing);
+    for (const [bx, by] of [[-0.08, 0.05], [-0.2, 0.05], [-0.08, -0.05], [-0.2, -0.05]]) {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.58, 10), goldMat);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.set(bx, by, 0.62);
+      cannon.add(barrel);
+    }
+
+    const flashMat = getLegoMaterial(0x00f0ff, {
+      emissive: 0xfacc15,
+      emissiveIntensity: 2.4,
+      transparent: true,
+      opacity: 0.92
+    });
+    this.muzzleFlashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), flashMat);
+    this.muzzleFlashMesh.scale.set(0.9, 0.9, 2.4);
+    this.muzzleFlashMesh.position.set(-0.14, 0, 0.98);
+    this.muzzleFlashMesh.visible = false;
+    cannon.add(this.muzzleFlashMesh);
+
+    cannon.position.set(0, -0.32, 0.08);
+    cannon.rotation.x = Math.PI / 2 - 0.12;
+    rightHandGroup.add(cannon);
+    this.titaCannonGroup = cannon;
+  }
+
+  /**
+   * Constrói o Arsenal Triplo 3D do Vingador de Chumbo (#4):
+   * 1) Duas Submetralhadoras (Dual SMGs nas duas mãos)
+   * 2) Escopeta de Impacto (Pump-Action Shotgun pesada)
+   * 3) Bazuca RPG (Lança-Foguetes anticarro/antiprata)
+   */
+  _attachVingadorArsenal(leftHandGroup, rightHandGroup) {
+    const gunMetal = getLegoMaterial(0x1e293b, { roughness: 0.25, metalness: 0.5 });
+    const darkBlack = getLegoMaterial(0x090a0d, { roughness: 0.32 });
+    const silverMat = getLegoMaterial(LEGO_COLORS.silver, { roughness: 0.18, metalness: 0.7 });
+    const redShellMat = getLegoMaterial(LEGO_COLORS.red, { roughness: 0.25 });
+    const oliveMat = getLegoMaterial(0x365314, { roughness: 0.32 });
+    const warheadMat = getLegoMaterial(0xd97706, { roughness: 0.22, metalness: 0.45 });
+    const flashMat = getLegoMaterial(0xfef08a, {
+      emissive: 0xfacc15,
+      emissiveIntensity: 2.2,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    // 1. DUAS SUBMETRALHADORAS (Dual SMGs)
+    const buildSmg = (isLeft) => {
+      const smg = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.42), gunMetal);
+      body.position.set(0, 0, 0.18);
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.28, 10), silverMat);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.set(0, 0.03, 0.46);
+      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.09), darkBlack);
+      mag.position.set(0, -0.18, 0.16);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.32), silverMat);
+      rail.position.set(0, 0.09, 0.18);
+      smg.add(body, barrel, mag, rail);
+
+      const flash = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), flashMat);
+      flash.scale.set(0.8, 0.8, 2.0);
+      flash.position.set(0, 0.03, 0.66);
+      flash.visible = false;
+      smg.add(flash);
+      if (isLeft) this.leftMuzzleFlashMesh = flash;
+      else this.muzzleFlashMesh = flash;
+
+      smg.position.set(0, -0.34, 0.1);
+      smg.rotation.x = Math.PI / 2 - 0.15;
+      return smg;
+    };
+
+    this.dualSmgLeft = buildSmg(true);
+    this.dualSmgRight = buildSmg(false);
+    leftHandGroup.add(this.dualSmgLeft);
+    rightHandGroup.add(this.dualSmgRight);
+
+    // 2. ESCOPETA DE IMPACTO (Heavy Tactical Shotgun)
+    const shotgun = new THREE.Group();
+    const sgReceiver = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.56), darkBlack);
+    sgReceiver.position.set(0, 0, 0.24);
+    const sgBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.68, 12), silverMat);
+    sgBarrel.rotation.x = Math.PI / 2;
+    sgBarrel.position.set(0, 0.05, 0.64);
+    const sgTube = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.58, 10), gunMetal);
+    sgTube.rotation.x = Math.PI / 2;
+    sgTube.position.set(0, -0.03, 0.58);
+    const sgPump = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.11, 0.28), redShellMat);
+    sgPump.position.set(0, -0.04, 0.58);
+    const sgStock = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.16, 0.28), darkBlack);
+    sgStock.position.set(0, -0.03, -0.14);
+    shotgun.add(sgReceiver, sgBarrel, sgTube, sgPump, sgStock);
+    shotgun.position.set(0, -0.34, 0.12);
+    shotgun.rotation.x = Math.PI / 2 - 0.15;
+    rightHandGroup.add(shotgun);
+    this.shotgunGroup = shotgun;
+
+    // 3. BAZUCA RPG (Destruidora de Objetos Prateados & Blindados)
+    const rpg = new THREE.Group();
+    const rpgTube = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 1.18, 14), oliveMat);
+    rpgTube.rotation.x = Math.PI / 2;
+    rpgTube.position.set(0, 0.06, 0.34);
+    const rpgBell = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.09, 0.24, 14), darkBlack);
+    rpgBell.rotation.x = Math.PI / 2;
+    rpgBell.position.set(0, 0.06, -0.28);
+    const warheadCone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.38, 14), warheadMat);
+    warheadCone.rotation.x = Math.PI / 2;
+    warheadCone.position.set(0, 0.06, 1.06);
+    const rpgGrip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.22, 0.12), darkBlack);
+    rpgGrip.position.set(0, -0.1, 0.26);
+    rpg.add(rpgTube, rpgBell, warheadCone, rpgGrip);
+    rpg.position.set(0, -0.34, 0.12);
+    rpg.rotation.x = Math.PI / 2 - 0.15;
+    rightHandGroup.add(rpg);
+    this.rpgGroup = rpg;
+
+    this.setVingadorWeapon(this.vingadorWeapon || 'dual_smg');
+  }
+
+  /**
+   * Alterna a arma ativa do Vingador de Chumbo ('dual_smg' | 'shotgun' | 'rpg')
+   */
+  setVingadorWeapon(weaponKey) {
+    this.vingadorWeapon = weaponKey;
+    if (this.dualSmgLeft) this.dualSmgLeft.visible = weaponKey === 'dual_smg';
+    if (this.dualSmgRight) this.dualSmgRight.visible = weaponKey === 'dual_smg';
+    if (this.shotgunGroup) this.shotgunGroup.visible = weaponKey === 'shotgun';
+    if (this.rpgGroup) this.rpgGroup.visible = weaponKey === 'rpg';
+    return this.vingadorWeapon;
+  }
+
+  /**
+   * Equipa as Duas Katanas Energizadas Escarlates do Sombra Escarlate (#5) + Bainhas Cruzadas nas Costas
+   */
+  _attachDualKatanas(leftHandGroup, rightHandGroup) {
+    const hiltMat = getLegoMaterial(0x090a0d, { roughness: 0.3 });
+    const goldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.6, roughness: 0.2 });
+    const bladeMat = getLegoMaterial(0xff1e42, {
+      emissive: 0xef4444,
+      emissiveIntensity: 1.95,
+      roughness: 0.1,
+      clearcoat: 0.8
+    });
+
+    const buildKatana = () => {
+      const katana = new THREE.Group();
+      const tsuka = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.34, 10), hiltMat);
+      tsuka.rotation.x = Math.PI / 2;
+      tsuka.position.set(0, 0, -0.04);
+
+      const tsuba = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.035), goldMat);
+      tsuba.position.set(0, 0, 0.13);
+
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.085, 0.98), bladeMat);
+      blade.position.set(0, 0.01, 0.64);
+      blade.castShadow = true;
+
+      katana.add(tsuka, tsuba, blade);
+      katana.position.set(0, -0.34, 0.08);
+      katana.rotation.x = Math.PI / 2 - 0.18;
+      return katana;
+    };
+
+    this.leftKatanaGroup = buildKatana();
+    this.rightKatanaGroup = buildKatana();
+    leftHandGroup.add(this.leftKatanaGroup);
+    rightHandGroup.add(this.rightKatanaGroup);
+
+    // Bainhas cruzadas em X nas costas do Sombra Escarlate
+    for (const sign of [-1, 1]) {
+      const scabbard = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.92, 0.08), hiltMat);
+      scabbard.position.set(0, 0.42, -0.27);
+      scabbard.rotation.z = sign * 0.58;
+      this.upperBodyGroup.add(scabbard);
+    }
+  }
+
+  /**
+   * Ativa/desativa o efeito visual furtivo (Invisibilidade da Bomba de Fumaça do Sombra Escarlate)
+   */
+  setStealthVisual(isStealth) {
+    if (this.isStealth === isStealth) return;
+    this.isStealth = isStealth;
+    this.visualRoot.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (!child.userData._origMatCloned) {
+          child.material = child.material.clone();
+          child.userData._origMatCloned = true;
+        }
+        child.material.transparent = isStealth;
+        child.material.opacity = isStealth ? 0.26 : 1.0;
+      }
+    });
   }
 
   /**
@@ -534,6 +940,60 @@ export class Minifigure {
   }
 
   /**
+   * Diminui visualmente a Minifigura e a coloca sentada 100% dentro da cabine do carro ao apertar [E],
+   * voltando ao tamanho 100% normal ao sair do carro!
+   */
+  setSeatedInVehicle(isSeated, steerAngle = 0, openTop = false, isMotorcycle = false, wheeliePitch = 0) {
+    if (isSeated) {
+      this.state = 'DRIVE';
+      this.root.scale.setScalar(isMotorcycle ? 0.78 : openTop ? 0.58 : 0.44);
+      this.visualRoot.scale.setScalar(1.0);
+      this.visualRoot.position.set(0, 0, isMotorcycle ? 0.0 : -0.12);
+      this.visualRoot.rotation.set(0, 0, 0);
+      if (this.hipGroup) {
+        this.hipGroup.position.set(0, isMotorcycle ? 0.42 : 0.36, 0);
+      }
+      this.upperBodyGroup.position.set(0, isMotorcycle ? 0.52 : 0.44, 0);
+      if (isMotorcycle) {
+        // Postura esportiva/tática montado na moto: tronco inclinado à frente segurando o guidão e pernas abraçando o tanque
+        this.upperBodyGroup.rotation.set(0.28, steerAngle * 0.25, 0);
+        this.leftLegPivot.rotation.set(-0.98, 0, 0.24);
+        this.rightLegPivot.rotation.set(-0.98, 0, -0.24);
+        this.leftArmPivot.rotation.set(-1.32 + steerAngle * 0.35, 0, 0.16);
+        this.rightArmPivot.rotation.set(-1.32 - steerAngle * 0.35, 0, -0.16);
+        this.headGroup.rotation.set(-0.18 - wheeliePitch * 0.32, steerAngle * 0.35, 0);
+      } else {
+        this.upperBodyGroup.rotation.set(0.05, steerAngle * 0.25, 0);
+        this.leftLegPivot.rotation.set(-1.55, 0, 0);
+        this.rightLegPivot.rotation.set(-1.55, 0, 0);
+        this.leftArmPivot.rotation.set(-1.35 + steerAngle * 0.4, 0, 0.12);
+        this.rightArmPivot.rotation.set(-1.35 - steerAngle * 0.4, 0, -0.12);
+        this.headGroup.rotation.set(0, steerAngle * 0.35, 0);
+      }
+      if (this.rifleGroup) this.rifleGroup.visible = false;
+      if (this.capeMesh) this.capeMesh.visible = false;
+    } else {
+      this.root.scale.setScalar(1.0);
+      if (this.isBigFig) {
+        this.visualRoot.scale.set(1.68, 1.56, 1.68);
+      } else {
+        this.visualRoot.scale.setScalar(1.0);
+      }
+      this.visualRoot.position.set(0, 0, 0);
+      this.visualRoot.rotation.set(0, 0, 0);
+      if (this.hipGroup) {
+        this.hipGroup.position.set(0, 0.72, 0);
+      }
+      this.upperBodyGroup.position.set(0, 0.86, 0);
+      this.upperBodyGroup.rotation.set(0, 0, 0);
+      this.leftLegPivot.rotation.set(0, 0, 0);
+      this.rightLegPivot.rotation.set(0, 0, 0);
+      if (this.rifleGroup) this.rifleGroup.visible = true;
+      if (this.capeMesh) this.capeMesh.visible = true;
+    }
+  }
+
+  /**
    * Atualiza animações do boneco incluindo Rolamento Tático, Hover e Voo Supersônico de Cometa
    */
   updateAnimation(
@@ -549,9 +1009,12 @@ export class Minifigure {
   ) {
     this.animTime += dt;
 
+    this.muzzleFlashTimer = Math.max(0, this.muzzleFlashTimer - dt);
     if (this.muzzleFlashMesh) {
-      this.muzzleFlashTimer = Math.max(0, this.muzzleFlashTimer - dt);
       this.muzzleFlashMesh.visible = this.muzzleFlashTimer > 0;
+    }
+    if (this.leftMuzzleFlashMesh) {
+      this.leftMuzzleFlashMesh.visible = this.muzzleFlashTimer > 0;
     }
 
     if (isGrounded && !this.wasGrounded) {
@@ -863,14 +1326,30 @@ export class Minifigure {
     }
 
     // Reseta deslocamentos lineares dos ombros/cotovelos antes de aplicar o combo de soco
-    this.leftArmPivot.position.set(0.49, 0.66, 0);
-    this.rightArmPivot.position.set(-0.49, 0.66, 0);
+    const shoulderX = this.isBigFig ? 0.58 : 0.49;
+    this.leftArmPivot.position.set(shoulderX, 0.66, 0);
+    this.rightArmPivot.position.set(-shoulderX, 0.66, 0);
     this.leftArmPivot.rotation.y = 0;
     this.rightArmPivot.rotation.y = 0;
     this.upperBodyGroup.position.z = 0;
     if (this.leftHandGroup && this.rightHandGroup) {
       this.leftHandGroup.rotation.x = -0.22;
       this.rightHandGroup.rotation.x = -0.22;
+    }
+
+    // Pose do Titã Blindado segurando um carro levantado acima da cabeça!
+    if (this.isCarryingCar) {
+      this.leftArmPivot.rotation.x = -2.85;
+      this.rightArmPivot.rotation.x = -2.85;
+      this.leftArmPivot.rotation.z = 0.22;
+      this.rightArmPivot.rotation.z = -0.22;
+    }
+
+    // Pose acrobática do Sombra Escarlate balançando no Gancho Magnético!
+    if (this.isGrappling) {
+      this.leftArmPivot.rotation.x = -2.55;
+      this.rightArmPivot.rotation.x = 0.45;
+      this.upperBodyGroup.rotation.x = 0.32;
     }
 
     // Guarda de Boxe / Combate e Soco Reto Horizontal (Jab -> Direto -> Gancho)
@@ -941,7 +1420,7 @@ export class Minifigure {
       }
     }
 
-    // Sobreposição de Tiro / Disparo de Fuzil ou Bola de Fogo
+    // Sobreposição de Tiro / Disparo de Armas 3D
     if (this.shootTimer > 0) {
       this.shootTimer = Math.max(0, this.shootTimer - dt);
       const recoil = Math.sin((this.shootTimer / 0.16) * Math.PI);
@@ -949,6 +1428,13 @@ export class Minifigure {
       this.rightArmPivot.position.z = -recoil * 0.12;
       this.rightArmPivot.rotation.z = -0.04;
       if (this.rightHandGroup) this.rightHandGroup.rotation.x = -0.15;
+
+      if (this.currentHeroKey === 'vingador' && this.vingadorWeapon === 'dual_smg') {
+        this.leftArmPivot.rotation.x = -1.52 + recoil * 0.16;
+        this.leftArmPivot.position.z = -recoil * 0.12;
+        this.leftArmPivot.rotation.z = 0.04;
+        if (this.leftHandGroup) this.leftHandGroup.rotation.x = -0.15;
+      }
     }
   }
 }

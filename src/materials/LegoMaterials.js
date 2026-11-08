@@ -24,7 +24,11 @@ export const LEGO_COLORS = {
   cyan: 0x06b6d4,         // Neon Cyan (Turbo / Vidros)
   purple: 0x9333ea,       // A.R.E.S. Purple
   gold: 0xf59e0b,         // Warm Gold
-  silver: 0xcbd5e1        // Metallic Silver
+  silver: 0xcbd5e1,       // Metallic Silver
+  asphalt: 0x181c24,      // Asfalto Urbano Escuro
+  sidewalk: 0x64748b,     // Calçada LEGO
+  concrete: 0x475569,     // Concreto Urbano
+  darkBlue: 0x1e3a8a      // Azul Corporativo Escuro
 };
 
 const materialCache = new Map();
@@ -55,8 +59,8 @@ export function getLegoMaterial(colorHex, options = {}) {
   return mat;
 }
 
-// Geometria compartilhada para os pinos cilíndricos de LEGO (Studs)
-export const SHARED_STUD_GEO = new THREE.CylinderGeometry(0.16, 0.16, 0.11, 16);
+// Geometria compartilhada otimizada (8 lados) para os pinos cilíndricos de LEGO (Studs)
+export const SHARED_STUD_GEO = new THREE.CylinderGeometry(0.16, 0.16, 0.11, 8);
 SHARED_STUD_GEO.translate(0, 0.055, 0);
 
 /**
@@ -79,7 +83,8 @@ export function createLegoBrick(width, height, depth, colorHex, options = {}) {
     const count = cols * rows;
 
     const instancedStuds = new THREE.InstancedMesh(SHARED_STUD_GEO, mat, count);
-    instancedStuds.castShadow = options.castShadow ?? true;
+    // Pinos minúsculos (0.11m) não precisam projetar sombra no ShadowMap 1024x1024 (economiza centenas de Draw Calls de sombra!)
+    instancedStuds.castShadow = false;
     instancedStuds.receiveShadow = options.receiveShadow ?? true;
 
     const dummy = new THREE.Object3D();
@@ -208,6 +213,127 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     ctx.beginPath();
     ctx.arc(cx, cy + 14, 24, 0.15 * Math.PI, 0.85 * Math.PI);
     ctx.stroke();
+  } else if (preset === 'tita') {
+    // Base metálica azul-escura/titânio do capacete Mecha-Policial (Big-Fig)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 256, 256);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(24, 30, 208, 196);
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(28, 34, 200, 188);
+
+    // Visor Tático Ciano-Neon em V (Mecha HUD)
+    ctx.fillStyle = '#00f0ff';
+    ctx.beginPath();
+    ctx.moveTo(42, 74);
+    ctx.lineTo(128, 94);
+    ctx.lineTo(214, 74);
+    ctx.lineTo(204, 118);
+    ctx.lineTo(128, 134);
+    ctx.lineTo(52, 118);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#e0f2fe';
+    ctx.fillRect(64, 86, 48, 12);
+    ctx.fillRect(144, 86, 48, 12);
+
+    // Respirador blindado com grelha dourada/prateada no queixo
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(68, 152, 120, 48);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(68, 152, 120, 48);
+    ctx.fillStyle = '#facc15';
+    for (let gx = 84; gx <= 168; gx += 20) {
+      ctx.fillRect(gx, 160, 8, 32);
+    }
+  } else if (preset === 'vingador') {
+    // Rosto Justiceiro Urbano: pintura de guerra tática nos olhos + bandana de caveira prateada na boca
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+    ctx.fillRect(26, 66, 204, 52);
+
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(56, 70);
+    ctx.lineTo(108, 86);
+    ctx.moveTo(200, 70);
+    ctx.lineTo(148, 86);
+    ctx.stroke();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(66, 86, 36, 18);
+    ctx.fillRect(154, 86, 36, 18);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(78, 89, 12, 12);
+    ctx.fillRect(166, 89, 12, 12);
+
+    // Máscara/Bandana preta inferior com dentes de Caveira Prateada
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(22, 128, 212, 110);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(22, 128);
+    ctx.lineTo(234, 128);
+    ctx.stroke();
+
+    ctx.fillStyle = '#e2e8f0';
+    for (let tx = 70; tx <= 174; tx += 24) {
+      ctx.fillRect(tx, 146, 16, 44);
+    }
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(66, 166, 124, 6);
+  } else if (preset === 'sombra') {
+    // Ninja Cyber-Escarlate: máscara shinobi preta fosca + bandana escarlate + olhos vermelhos neon
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 0, 256, 256);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(34, 72, 188, 54);
+
+    // Bandana escarlate na testa com placa metálica shinobi
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(16, 34, 224, 34);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(88, 40, 80, 22);
+    ctx.strokeStyle = '#090a0d';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(88, 40, 80, 22);
+
+    // Olhos Cyber-Ninja Vermelho-Escarlate Brilhantes
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(54, 92);
+    ctx.lineTo(108, 102);
+    ctx.lineTo(98, 118);
+    ctx.lineTo(48, 108);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(202, 92);
+    ctx.lineTo(148, 102);
+    ctx.lineTo(158, 118);
+    ctx.lineTo(208, 108);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#fecaca';
+    ctx.fillRect(68, 98, 22, 8);
+    ctx.fillRect(166, 98, 22, 8);
+
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(64, 142);
+    ctx.lineTo(128, 198);
+    ctx.lineTo(192, 142);
+    ctx.stroke();
   } else {
     // Rosto clássico LEGO feliz/aventureiro
     ctx.fillStyle = '#171717';
@@ -328,6 +454,155 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
     // Cinto dourado
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(10, 212, 236, 32);
+  } else if (preset === 'tita') {
+    // Peitoral Blindado Mecha-Policial (Titã Blindado Big-Fig)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Placa peitoral hidráulica pesada
+    ctx.fillStyle = '#1e3a8a';
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.roundRect(18, 16, 220, 182, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    // Listras de alerta diagonal no peito (estilo mecha tático)
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(28, 30, 52, 16);
+    ctx.fillRect(176, 30, 52, 16);
+
+    // Reator de Energia Ciano no centro do peito
+    const coreGrad = ctx.createRadialGradient(128, 102, 6, 128, 102, 46);
+    coreGrad.addColorStop(0, '#ffffff');
+    coreGrad.addColorStop(0.5, '#00f0ff');
+    coreGrad.addColorStop(1, '#0284c7');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(128, 102, 42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#e0f2fe';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Pistões abdominais prateados e cinto blindado
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(46, 152, 36, 40);
+    ctx.fillRect(174, 152, 36, 40);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(10, 206, 236, 40);
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(98, 214, 60, 24);
+  } else if (preset === 'vingador') {
+    // Colete Pesado do Vingador de Chumbo (Preto/Grafite + Caveira Prateada + Bandoleira de Cartuchos)
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(0, 0, 256, 256);
+
+    ctx.fillStyle = '#1f2937';
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.roundRect(22, 18, 212, 184, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    // Grande Crânio Justiceiro Prateado no Peito
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.arc(128, 92, 44, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(98, 122, 60, 44);
+
+    // Olhos angulares escuros do crânio
+    ctx.fillStyle = '#090a0d';
+    ctx.beginPath();
+    ctx.moveTo(96, 82);
+    ctx.lineTo(122, 92);
+    ctx.lineTo(118, 108);
+    ctx.lineTo(92, 100);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(160, 82);
+    ctx.lineTo(134, 92);
+    ctx.lineTo(138, 108);
+    ctx.lineTo(164, 100);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dentes longos prateados/pretos
+    for (let gx = 108; gx <= 148; gx += 13) {
+      ctx.fillRect(gx, 130, 5, 34);
+    }
+
+    // Bandoleira diagonal de cartuchos vermelhos/dourados de Escopeta
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 22;
+    ctx.beginPath();
+    ctx.moveTo(28, 24);
+    ctx.lineTo(228, 198);
+    ctx.stroke();
+
+    for (let i = 0; i < 6; i++) {
+      const bx = 46 + i * 30;
+      const by = 40 + i * 26;
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(bx - 6, by - 10, 12, 16);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(bx - 6, by + 6, 12, 6);
+    }
+
+    // Cinto de munição pesado
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(10, 208, 236, 38);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(104, 214, 48, 26);
+  } else if (preset === 'sombra') {
+    // Traje Cyber-Shinobi do Sombra Escarlate (Preto Fosco + Armadura Escarlate Cruzada)
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Placas peitorais angulares pretas/grafite
+    ctx.fillStyle = '#18181b';
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.roundRect(26, 20, 204, 182, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // Faixas Shinobi Escarlates Cruzadas em V no peito
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 24;
+    ctx.beginPath();
+    ctx.moveTo(32, 24);
+    ctx.lineTo(128, 156);
+    ctx.lineTo(224, 24);
+    ctx.stroke();
+
+    // Insígnia Cyber-Escarlate Brilhante no centro
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(128, 54);
+    ctx.lineTo(156, 96);
+    ctx.lineTo(128, 138);
+    ctx.lineTo(100, 96);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fecaca';
+    ctx.beginPath();
+    ctx.arc(128, 96, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Faixa abdominal vermelha e cinto com Shurikens prateadas
+    ctx.fillStyle = '#991b1b';
+    ctx.fillRect(16, 198, 224, 44);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(52, 210, 24, 20);
+    ctx.fillRect(116, 208, 24, 24);
+    ctx.fillRect(180, 210, 24, 20);
   } else {
     // Jaqueta azul urbana clássica LEGO
     ctx.fillStyle = '#1d4ed8';
