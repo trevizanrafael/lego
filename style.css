@@ -405,185 +405,89 @@ body.satellite-transition #crosshair {
 #hud-stud-gain[data-tier="purple"] { color: #c084fc; border-color: #a855f7; }
 
 /* ===================================================
-   SELETOR DE ARSENAL ESTILO CS:GO (CANTO SUPERIOR DIREITO)
-   Exibido para o Vingador de Chumbo (OP-04) quando a pé
+   SCROLL DE SILHUETAS ESTILO CS (CANTO SUPERIOR DIREITO)
+   Exibido para o Vingador de Chumbo (OP-04) a pé — ZERO TEXTO
    =================================================== */
 #vingador-weapon-hud {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-  min-width: 268px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  pointer-events: none;
 }
 
 #vingador-weapon-hud.hidden {
   display: none;
 }
 
-.csgo-weapon-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  background: var(--idv-black);
-  border: 1.5px solid var(--idv-steel);
-  border-right: 4px solid var(--idv-white);
-  padding: 3px 10px;
-  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.9);
-}
-
-#vingador-weapon-hud.furor-active .csgo-weapon-header {
-  border-color: var(--idv-crimson);
-  border-right-color: var(--idv-alert);
-}
-
-.csgo-arsenal-tag {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--idv-muted);
-}
-
-#vingador-weapon-hud.furor-active .csgo-arsenal-tag {
-  color: var(--idv-crimson);
-}
-
-.csgo-key-badge {
-  background: var(--idv-alert);
-  color: var(--idv-black);
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  font-weight: 800;
-  padding: 1px 6px;
-  letter-spacing: 0.05em;
-  clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
-}
-
-#vingador-weapon-hud.furor-active .csgo-key-badge {
-  background: var(--idv-crimson);
-  color: var(--idv-white);
-}
-
-.csgo-weapon-slots {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-  width: 100%;
+.csgo-weapon-wheel {
+  position: relative;
+  width: 156px;
+  height: 154px;
 }
 
 .csgo-weapon-slot {
+  position: absolute;
+  top: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  width: 242px;
-  background: rgba(9, 10, 13, 0.86);
-  border: 1.5px solid var(--idv-steel);
-  border-right: 4px solid #475569;
-  padding: 5px 10px 5px 12px;
-  clip-path: polygon(
-    10px 0,
-    100% 0,
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    0 100%,
-    0 10px
-  );
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.85);
-  opacity: 0.56;
-  transform: translateX(0);
-  transition: width 0.14s ease, opacity 0.14s ease, border-color 0.14s ease, transform 0.12s ease, background 0.14s ease;
+  padding-right: 10px;
+  border-right: 3px solid transparent;
+  color: #94a3b8;
+  opacity: 0.28;
+  filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.85));
+  transform-origin: right center;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    filter 0.2s ease;
 }
 
-.csgo-weapon-slot.active {
-  width: 274px;
+/* Arma Anterior (Topo do Scroll) */
+.csgo-weapon-slot.slot-prev {
+  transform: translate3d(0, 0px, 0) scale(0.72);
+  opacity: 0.28;
+  color: #94a3b8;
+  border-right-color: rgba(148, 163, 184, 0.25);
+  z-index: 1;
+}
+
+/* Arma Ativa (Centro do Scroll — Em Destaque) */
+.csgo-weapon-slot.slot-active {
+  transform: translate3d(-6px, 50px, 0) scale(1.08);
   opacity: 1;
-  background: var(--idv-black);
-  border: 2px solid var(--idv-white);
-  border-right: 6px solid var(--idv-alert);
-  transform: translateX(-4px);
-  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.95);
-}
-
-#vingador-weapon-hud.furor-active .csgo-weapon-slot.active {
-  border-color: var(--idv-crimson);
+  color: var(--idv-white);
+  border-right-width: 4px;
   border-right-color: var(--idv-alert);
+  filter:
+    drop-shadow(3px 3px 0 #000000)
+    drop-shadow(-1px -1px 0 #000000);
+  z-index: 3;
 }
 
-.csgo-slot-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-  flex: 1;
-  min-width: 0;
+/* Arma Seguinte (Base do Scroll) */
+.csgo-weapon-slot.slot-next {
+  transform: translate3d(0, 102px, 0) scale(0.72);
+  opacity: 0.28;
+  color: #94a3b8;
+  border-right-color: rgba(148, 163, 184, 0.25);
+  z-index: 1;
 }
 
-.csgo-weapon-name {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 0.92;
-  letter-spacing: 0.04em;
-  color: var(--idv-muted);
-  white-space: nowrap;
-}
-
-.csgo-weapon-slot.active .csgo-weapon-name {
-  color: var(--idv-white);
-  text-shadow: 2px 2px 0 #000;
-}
-
-.csgo-weapon-sub {
-  font-family: var(--font-mono);
-  font-size: 0.54rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  color: #64748b;
-  white-space: nowrap;
-}
-
-.csgo-weapon-slot.active .csgo-weapon-sub {
+/* Quando [Q] Furor do Justiceiro está ativo, a silhueta central pulsa em Alerta/Carmesim */
+#vingador-weapon-hud.furor-active .csgo-weapon-slot.slot-active {
   color: var(--idv-alert);
+  border-right-color: var(--idv-crimson);
+  filter:
+    drop-shadow(3px 3px 0 #000000)
+    drop-shadow(0 0 6px rgba(239, 68, 68, 0.75));
 }
 
-.csgo-weapon-icon {
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: color 0.14s ease, transform 0.12s ease;
-}
-
-.csgo-weapon-slot.active .csgo-weapon-icon {
-  color: var(--idv-white);
-  filter: drop-shadow(2px 2px 0 #000);
-  transform: scale(1.05);
-}
-
-.csgo-slot-num {
-  font-family: var(--font-mono);
-  font-size: 0.76rem;
-  font-weight: 800;
-  color: var(--idv-muted);
-  background: var(--idv-carbon);
-  border: 1px solid var(--idv-steel);
-  width: 20px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.csgo-weapon-slot.active .csgo-slot-num {
-  background: var(--idv-alert);
-  color: var(--idv-black);
-  border-color: var(--idv-black);
+.csgo-silhouette-svg {
+  display: block;
 }
 
 /* ===================================================

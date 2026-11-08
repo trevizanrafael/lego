@@ -93,70 +93,69 @@
         </div>
       </div>
 
-      <!-- Canto Superior Direito: Seletor de Arsenal Estilo CS:GO (Exclusivo do Vingador de Chumbo a pé) -->
-      <div id="vingador-weapon-hud" class="hidden">
-        <div class="csgo-weapon-header">
-          <span class="csgo-arsenal-tag">ARSENAL // O JUSTICEIRO</span>
-          <span id="vingador-hud-keyhint" class="csgo-key-badge">[R / M2] TROCAR</span>
-        </div>
-
-        <div class="csgo-weapon-slots">
-          <!-- Slot 1: Castigadoras Gêmeas (.50) -->
-          <div class="csgo-weapon-slot active" data-weapon="dual_smg">
-            <div class="csgo-slot-info">
-              <span class="csgo-weapon-name">CASTIGADORAS GÊMEAS</span>
-              <span class="csgo-weapon-sub">.50 AE EXPLOSIVA // DUPLA</span>
-            </div>
-            <div class="csgo-weapon-icon" aria-hidden="true">
-              <svg viewBox="0 0 120 42" width="92" height="32">
-                <!-- Pistola Superior Esquerda -->
-                <polygon points="8,16 68,16 72,22 68,24 28,24 22,38 11,38 15,24 6,22" fill="currentColor" />
-                <rect x="68" y="16" width="8" height="7" fill="#ef4444" />
-                <!-- Pistola Inferior Direita Deslocada -->
-                <polygon points="38,6 98,6 102,12 98,14 58,14 52,28 41,28 45,14 36,12" fill="currentColor" opacity="0.88" />
-                <rect x="98" y="6" width="8" height="7" fill="#facc15" />
-              </svg>
-            </div>
-            <span class="csgo-slot-num">1</span>
+      <!-- Canto Superior Direito: Scroll de Silhuetas Estilo CS (Exclusivo do Vingador de Chumbo a pé — ZERO TEXTO) -->
+      <div id="vingador-weapon-hud" class="hidden" aria-hidden="true">
+        <div class="csgo-weapon-wheel">
+          <!-- Arma 1: Castigadoras Gêmeas (.50 Dupla) -->
+          <div class="csgo-weapon-slot slot-active" data-weapon="dual_smg">
+            <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
+              <!-- Pistola Traseira Superior (Deslocada) -->
+              <g opacity="0.58" transform="translate(22, -7)">
+                <path d="M18,16 L88,16 L92,20 L92,26 L62,26 L58,30 L42,30 L44,25 L35,25 L29,43 L16,43 L22,25 L14,23 Z" fill="currentColor" />
+                <rect x="88" y="17" width="12" height="7" fill="currentColor" />
+                <rect x="28" y="13" width="46" height="2" fill="currentColor" />
+                <polygon points="15,43 29,43 27,47 13,47" fill="currentColor" />
+              </g>
+              <!-- Pistola Frontal Principal -->
+              <g transform="translate(2, 6)">
+                <path d="M18,16 L88,16 L92,20 L92,26 L62,26 L58,30 L42,30 L44,25 L35,25 L29,43 L16,43 L22,25 L14,23 Z" fill="currentColor" />
+                <!-- Quebra-chamas .50 + Mira + Pente Estendido -->
+                <rect x="88" y="17" width="12" height="7" fill="currentColor" />
+                <rect x="20" y="12" width="6" height="4" fill="currentColor" />
+                <rect x="82" y="13" width="5" height="3" fill="currentColor" />
+                <polygon points="15,43 29,43 27,47 13,47" fill="currentColor" />
+                <!-- Guarda-mato vazado -->
+                <polygon points="35,25 43,25 41,30 33,30" fill="#090a0d" />
+              </g>
+            </svg>
           </div>
 
-          <!-- Slot 2: Escopeta de Tambor "Juiz Final" -->
-          <div class="csgo-weapon-slot" data-weapon="shotgun">
-            <div class="csgo-slot-info">
-              <span class="csgo-weapon-name">DOZE "JUIZ FINAL"</span>
-              <span class="csgo-weapon-sub">12GA DRUM // 18 BAGOS + JUMP</span>
-            </div>
-            <div class="csgo-weapon-icon" aria-hidden="true">
-              <svg viewBox="0 0 120 42" width="92" height="32">
-                <!-- Coronha, Receiver, Tambor Redondo e Cano Longo com Baioneta -->
-                <polygon points="4,18 24,15 28,12 72,12 72,22 34,22 28,32 19,32 23,22 4,24" fill="currentColor" />
-                <rect x="72" y="13" width="38" height="6" fill="currentColor" />
-                <polygon points="96,21 116,21 110,25 96,25" fill="#ef4444" />
-                <circle cx="54" cy="28" r="10" fill="currentColor" stroke="#090a0d" stroke-width="2" />
-                <circle cx="54" cy="28" r="4" fill="#ef4444" />
-              </svg>
-            </div>
-            <span class="csgo-slot-num">2</span>
+          <!-- Arma 2: Doze de Tambor "Juiz Final" -->
+          <div class="csgo-weapon-slot slot-next" data-weapon="shotgun">
+            <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
+              <!-- Coronha Tática + Receiver + Cano Duplo + Guarda-mão -->
+              <polygon points="6,23 30,19 35,14 82,14 82,26 42,26 34,39 23,39 29,26 6,31" fill="currentColor" />
+              <!-- Trilho Picatinny Superior -->
+              <rect x="38" y="11" width="40" height="2.5" fill="currentColor" />
+              <!-- Cano Principal Longo + Tubo de Gás Inferior -->
+              <rect x="82" y="15" width="48" height="5.5" fill="currentColor" />
+              <rect x="82" y="22" width="38" height="4" fill="currentColor" />
+              <!-- Quebra-chamas Dentado + Baioneta Inferior -->
+              <polygon points="130,14 136,14 136,21 130,21" fill="currentColor" />
+              <polygon points="104,26 128,26 121,31 104,31" fill="currentColor" />
+              <!-- Tambor Rotativo Calibre 12 -->
+              <circle cx="63" cy="33" r="12.5" fill="currentColor" stroke="#090a0d" stroke-width="2.5" />
+              <circle cx="63" cy="33" r="3.5" fill="#090a0d" />
+            </svg>
           </div>
 
-          <!-- Slot 3: Bazuca Pesada "Aniquiladora" -->
-          <div class="csgo-weapon-slot" data-weapon="rpg">
-            <div class="csgo-slot-info">
-              <span class="csgo-weapon-name">BAZUCA "ANIQUILADORA"</span>
-              <span class="csgo-weapon-sub">ANTI-PRATA // ROCKET JUMP 4X</span>
-            </div>
-            <div class="csgo-weapon-icon" aria-hidden="true">
-              <svg viewBox="0 0 120 42" width="92" height="32">
-                <!-- Bocal Traseiro, Tubo Militar, Punhos e Ogiva Cônica Vermelha -->
-                <polygon points="4,10 16,14 16,24 4,28" fill="currentColor" />
-                <rect x="16" y="14" width="70" height="10" fill="currentColor" />
-                <polygon points="38,24 46,24 43,35 35,35" fill="currentColor" />
-                <polygon points="66,24 73,24 71,33 64,33" fill="currentColor" />
-                <rect x="46" y="8" width="14" height="5" fill="#22c55e" />
-                <polygon points="86,12 104,12 116,19 104,26 86,26" fill="#ef4444" />
-              </svg>
-            </div>
-            <span class="csgo-slot-num">3</span>
+          <!-- Arma 3: Bazuca RPG "Aniquiladora" -->
+          <div class="csgo-weapon-slot slot-prev" data-weapon="rpg">
+            <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
+              <!-- Cone de Exaustão Traseiro -->
+              <polygon points="4,14 19,19 19,29 4,34" fill="currentColor" />
+              <!-- Tubo Principal de Lançamento + Câmara Reforçada -->
+              <rect x="19" y="19" width="76" height="10" fill="currentColor" />
+              <rect x="34" y="17" width="32" height="14" fill="currentColor" />
+              <!-- Luneta Óptica Superior -->
+              <polygon points="46,9 64,9 62,17 48,17" fill="currentColor" />
+              <!-- Empunhaduras Duplas -->
+              <polygon points="40,31 49,31 45,43 37,43" fill="currentColor" />
+              <polygon points="72,29 80,29 77,40 70,40" fill="currentColor" />
+              <!-- Ogiva Antitanque com Aletas -->
+              <polygon points="95,19 104,13 122,13 136,24 122,35 104,35 95,29" fill="currentColor" />
+              <rect x="93" y="15" width="4" height="18" fill="currentColor" />
+            </svg>
           </div>
         </div>
       </div>

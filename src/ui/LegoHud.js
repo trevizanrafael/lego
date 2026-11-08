@@ -158,7 +158,7 @@ export class LegoHud {
   }
 
   /**
-   * Atualiza o Visor de Arsenal Estilo CS:GO no canto superior direito para o Vingador de Chumbo (OP-04)
+   * Atualiza o Scroll de Silhuetas Estilo CS no canto superior direito para o Vingador de Chumbo (OP-04)
    */
   updateVingadorWeaponHud(activeWeapon = this.currentVingadorWeapon, isFurorActive = this.isVingadorFuror) {
     this.currentVingadorWeapon = activeWeapon || 'dual_smg';
@@ -170,15 +170,22 @@ export class LegoHud {
     if (!shouldShow) return;
 
     this.vingadorWeaponHudEl.classList.toggle('furor-active', this.isVingadorFuror);
-    if (this.vingadorKeyhintEl) {
-      this.vingadorKeyhintEl.textContent = this.isVingadorFuror
-        ? 'FUROR // +60% CADÊNCIA!'
-        : '[R / M2] TROCAR';
-    }
+
+    const order = ['dual_smg', 'shotgun', 'rpg'];
+    const activeIdx = Math.max(0, order.indexOf(this.currentVingadorWeapon));
+    const prevWeapon = order[(activeIdx + order.length - 1) % order.length];
+    const nextWeapon = order[(activeIdx + 1) % order.length];
 
     for (const slotEl of this.vingadorSlotEls) {
-      const isSelected = slotEl.dataset.weapon === this.currentVingadorWeapon;
-      slotEl.classList.toggle('active', isSelected);
+      const wKey = slotEl.dataset.weapon;
+      slotEl.classList.remove('slot-prev', 'slot-active', 'slot-next');
+      if (wKey === this.currentVingadorWeapon) {
+        slotEl.classList.add('slot-active');
+      } else if (wKey === prevWeapon) {
+        slotEl.classList.add('slot-prev');
+      } else if (wKey === nextWeapon) {
+        slotEl.classList.add('slot-next');
+      }
     }
   }
 

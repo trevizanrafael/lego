@@ -286,6 +286,16 @@ export class ThirdPersonController {
         if (e.target && typeof e.target.closest === 'function' && e.target.closest('#fullmap-modal')) {
           return;
         }
+        // Quando está com o Vingador de Chumbo a pé, o Scroll do Mouse roda as armas igual ao CS!
+        if (
+          this.minifigure?.currentHeroKey === 'vingador' &&
+          !this.currentVehicle &&
+          !this.hud?.isDossierOpen &&
+          !this.hud?.isHeroWheelOpen
+        ) {
+          this._cycleVingadorWeapon(e.deltaY > 0 ? 1 : -1);
+          return;
+        }
         this.targetDistance = THREE.MathUtils.clamp(
           this.targetDistance + e.deltaY * 0.005,
           3.2,
@@ -881,9 +891,9 @@ export class ThirdPersonController {
   }
 
   /**
-   * HERÓI #4 (Vingador de Chumbo): Alterna entre as 3 Armas 3D ([R] ou [Clique Direito])
+   * HERÓI #4 (Vingador de Chumbo): Roda entre as 3 Armas 3D ([R], [Clique Direito] ou Scroll do Mouse)
    */
-  _cycleVingadorWeapon() {
+  _cycleVingadorWeapon(step = 1) {
     const order = ['dual_smg', 'shotgun', 'rpg'];
     const labels = {
       dual_smg: 'ARMA 1: CASTIGADORAS GÊMEAS (.50 EXPLOSIVA) • [R] TROCAR • [Q] FUROR',
@@ -891,7 +901,9 @@ export class ThirdPersonController {
       rpg: 'ARMA 3: BAZUCA "ANIQUILADORA" (ROCKET JUMP 4X) • [R] TROCAR • [Q] FUROR'
     };
     const cur = this.minifigure.vingadorWeapon || 'dual_smg';
-    const next = order[(order.indexOf(cur) + 1) % order.length];
+    const curIdx = Math.max(0, order.indexOf(cur));
+    const dir = step < 0 ? -1 : 1;
+    const next = order[(curIdx + dir + order.length) % order.length];
     this.minifigure.setVingadorWeapon(next);
     soundFX.playHeroSwap();
     if (this.hud) {
