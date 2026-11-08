@@ -132,30 +132,32 @@ export class ThirdPersonController {
   _initGrappleCableMesh() {
     if (!this.world?.scene) return;
 
-    // Feixe / Corrente de Energia Vermelho-Sangue + Sombra Obsidiana
+    // Feixe / Cabo do Gancho (Escarlate para o Sombra | Tentáculo Roxo-Simbionte para o Vórtex!)
     const cableGroup = new THREE.Group();
-    const coreGeo = new THREE.CylinderGeometry(0.032, 0.032, 1, 8);
+    const coreGeo = new THREE.CylinderGeometry(0.036, 0.036, 1, 8);
     coreGeo.translate(0, 0.5, 0);
     coreGeo.rotateX(Math.PI / 2);
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
-    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    this.grappleCableCoreMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
+    const coreMesh = new THREE.Mesh(coreGeo, this.grappleCableCoreMat);
 
-    const shadowGeo = new THREE.CylinderGeometry(0.068, 0.068, 1, 8);
+    const shadowGeo = new THREE.CylinderGeometry(0.072, 0.072, 1, 8);
     shadowGeo.translate(0, 0.5, 0);
     shadowGeo.rotateX(Math.PI / 2);
-    const shadowMat = new THREE.MeshBasicMaterial({
+    this.grappleCableShadowMat = new THREE.MeshBasicMaterial({
       color: 0x090a0d,
       transparent: true,
-      opacity: 0.72
+      opacity: 0.78
     });
-    const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+    const shadowMesh = new THREE.Mesh(shadowGeo, this.grappleCableShadowMat);
     cableGroup.add(shadowMesh, coreMesh);
 
     this.grappleCableMesh = cableGroup;
     this.grappleCableMesh.visible = false;
     this.world.scene.add(this.grappleCableMesh);
 
-    // Kunai / Garra Ninja Escarlate 3D na ponta do Gancho (substitui a bolinha azul!)
+    // Ponta do Gancho: Kunai Escarlate (Sombra) + Garra/Mandíbula Simbionte Roxa (Vórtex)
+    const anchorRoot = new THREE.Group();
+
     const kunaiGroup = new THREE.Group();
     const bladeMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
     const coreBladeMat = new THREE.MeshBasicMaterial({ color: 0xfecaca });
@@ -176,9 +178,34 @@ export class ThirdPersonController {
 
     const kunaiRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.024, 8, 16), goldMat);
     kunaiRing.position.set(0, 0, -0.38);
-
     kunaiGroup.add(kunaiBlade, kunaiCore, kunaiHilt, kunaiRing);
-    this.grappleAnchorMesh = kunaiGroup;
+    this.grappleKunaiGroup = kunaiGroup;
+
+    // Mandíbula Simbionte Roxo-Neon com Presas Brancas (exclusiva do Hook do Vórtex!)
+    const symbioteMawGroup = new THREE.Group();
+    const purpleMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+    const deepPurpleMat = new THREE.MeshBasicMaterial({ color: 0x7e22ce });
+    const fangMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+
+    const mawCone = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.85, 6), deepPurpleMat);
+    mawCone.rotation.x = Math.PI / 2;
+    mawCone.position.set(0, 0, 0.18);
+    const mawCore = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 10), purpleMat);
+    mawCore.position.set(0, 0, -0.1);
+    symbioteMawGroup.add(mawCone, mawCore);
+
+    for (let f = 0; f < 4; f++) {
+      const ang = (f / 4) * Math.PI * 2;
+      const fang = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.48, 4), fangMat);
+      fang.position.set(Math.cos(ang) * 0.22, Math.sin(ang) * 0.22, 0.34);
+      fang.rotation.x = Math.PI / 2 - 0.25;
+      symbioteMawGroup.add(fang);
+    }
+    symbioteMawGroup.visible = false;
+    this.grappleSymbioteMawGroup = symbioteMawGroup;
+
+    anchorRoot.add(kunaiGroup, symbioteMawGroup);
+    this.grappleAnchorMesh = anchorRoot;
     this.grappleAnchorMesh.visible = false;
     this.world.scene.add(this.grappleAnchorMesh);
   }
@@ -1241,54 +1268,53 @@ export class ThirdPersonController {
     const bikeObj = this.destructibles.summonTurboEnergyBike(this.position, this.facingAngle);
     if (bikeObj) {
       this.enterVehicle(bikeObj);
-      this.vehicleSpeed = 95.0; // Arrancada instantânea já em ~300 KM/H subindo para 740+ KM/H!
-      this.turboOverdriveActive = true;
-      this.isTurboActive = true;
+      this.vehicleSpeed = 95.0; // Arrancada instantânea já em ~300 KM/H! Segure [Q] para bater 740+ KM/H!
+      this.turboOverdriveActive = Boolean(this.keys.turbo);
+      this.isTurboActive = Boolean(this.keys.turbo);
       this._lastLightWallPos = this.position.clone();
       if (this.hud) {
         this.hud.setCharacterPortrait(
           'turbo',
           'TURBO FANTASMA [MOTO 740 KM/H]',
-          'MOTO FANTASMA ATIVA • [W / Q] 740 KM/H + MURALHA INFINITA • [MOUSE 1] ESPADA DE PLASMA'
+          'MOTO FANTASMA ATIVA • SEGURE [Q] TURBO 740 KM/H • [MOUSE 1] ESPADA DE PLASMA'
         );
       }
     }
   }
 
   /**
-   * HERÓI #6 (Turbo Fantasma): Modo Overdrive Infinito + Muralha de Luz Sem Limite [Q]
-   * Alterna (Toggle) sem limite de tempo e sem cooldown!
+   * HERÓI #6 (Turbo Fantasma): Modo Overdrive Enquanto Segura [Q] (Estilo Turbo de Carro Sem Limite!)
+   * Enquanto o jogador segurar [Q], corre em Overdrive e solta a Muralha de Luz sem parar; ao soltar [Q], desliga!
    */
-  _triggerTurboOverdrive() {
-    this.turboOverdriveActive = !this.turboOverdriveActive;
+  _triggerTurboOverdrive(active = true) {
+    this.turboOverdriveActive = Boolean(active);
     this.turboOverdriveTimer = this.turboOverdriveActive ? 999999 : 0;
     this._lastLightWallPos = this.position.clone();
 
     if (this.turboOverdriveActive) {
       if (!this.currentVehicle) {
         this._alignCharacterToCrosshair();
-        this.currentSpeed = 52.0;
-        this.velocity.x = Math.sin(this.facingAngle) * 52.0;
-        this.velocity.z = Math.cos(this.facingAngle) * 52.0;
+        this.currentSpeed = 54.0;
+        this.velocity.x = Math.sin(this.facingAngle) * 54.0;
+        this.velocity.z = Math.cos(this.facingAngle) * 54.0;
       } else {
         this.isTurboActive = true;
       }
       soundFX.playHeroSwap();
-      soundFX.playExplosion(0.55);
+      soundFX.playExplosion(0.45);
       if (this.hud) {
         this.hud.setCharacterPortrait(
           'turbo',
-          'TURBO FANTASMA [OVERDRIVE INFINITO]',
-          'MODO OVERDRIVE INFINITO ATIVO [Q] • MURALHA DE LUZ CIANO SEMPRE LIGADA!'
+          'TURBO FANTASMA [TURBO OVERDRIVE]',
+          'TURBO OVERDRIVE ATIVO [SEGURANDO Q] • MURALHA DE LUZ CIANO ATIVA!'
         );
       }
     } else {
-      soundFX.playHeroSwap();
-      if (this.hud) {
+      if (this.hud && this.minifigure.currentHeroKey === 'turbo') {
         this.hud.setCharacterPortrait(
           'turbo',
-          'TURBO FANTASMA',
-          'MOTO 740 KM/H [MOUSE 2 / F] • ESPADA DE PLASMA [MOUSE 1] • OVERDRIVE INFINITO [Q]'
+          this.currentVehicle ? 'TURBO FANTASMA [MOTO 740 KM/H]' : 'TURBO FANTASMA',
+          'MOTO 740 KM/H [MOUSE 2 / F] • ESPADA DE PLASMA [MOUSE 1] • SEGURE [Q] TURBO INFINITO'
         );
       }
     }
@@ -1677,9 +1703,13 @@ export class ThirdPersonController {
         break;
       case 'KeyQ':
         this.keys.turbo = isDown;
-        if (this.minifigure.currentHeroKey === 'turbo' && isDown && !e.repeat) {
-          // No Turbo Fantasma, [Q] alterna a Arrancada Overdrive Infinita (a pé ou na Moto Energética de 740 KM/H)!
-          this._triggerTurboOverdrive();
+        if (this.minifigure.currentHeroKey === 'turbo') {
+          // No Turbo Fantasma, [Q] funciona igual Turbo de Carro: ativo enquanto segura [Q], desliga ao soltar!
+          if (isDown && !e.repeat) {
+            this._triggerTurboOverdrive(true);
+          } else if (!isDown) {
+            this._triggerTurboOverdrive(false);
+          }
         }
         if (this.currentVehicle) {
           // No carro/moto: Q aciona TURBO e cancela o Drift (só pode Drift OU Turbo, nunca os dois juntos!)
@@ -2204,14 +2234,7 @@ export class ThirdPersonController {
     }
 
     // Regra de Exclusividade Mútua: Só pode dar DRIFT (Shift) OU TURBO (Q), um por vez!
-    // Na Moto Energética Fantasma (Ghost Bike), Q (toggle Overdrive infinito) ou Shift também liberam o Turbo de 740+ KM/H!
-    const ghostBikeTurbo = Boolean(
-      spec.isGhostBike && (this.keys.turbo || this.turboOverdriveActive || this.keys.sprint)
-    );
-    if (ghostBikeTurbo) {
-      this.isTurboActive = true;
-      this.isDrifting = Boolean(this.keys.sprint && Math.abs(this.vehicleSpeed) > 8.0);
-    } else if (this.keys.sprint && !this.keys.turbo && Math.abs(this.vehicleSpeed) > 3.5) {
+    if (this.keys.sprint && !this.keys.turbo && Math.abs(this.vehicleSpeed) > 3.5) {
       this.isDrifting = true;
       this.isTurboActive = false;
     } else if (this.keys.turbo && !this.keys.sprint) {
@@ -3427,14 +3450,27 @@ export class ThirdPersonController {
           }
 
           if (this.destructibles && Math.random() < 0.85) {
-            this.destructibles.spawnSombraShadowStepTrail(this.position, isSymbiote ? 1.35 : 1.25);
+            if (isSymbiote) {
+              this.destructibles.spawnVortexSymbioteTrail(this.position, 1.35);
+            } else {
+              this.destructibles.spawnSombraShadowStepTrail(this.position, 1.25);
+            }
           }
 
           if (this.grappleCableMesh && this.grappleAnchorMesh) {
+            if (this.grappleCableCoreMat) {
+              this.grappleCableCoreMat.color.setHex(isSymbiote ? 0xa855f7 : 0xff1e42);
+            }
+            if (this.grappleKunaiGroup) {
+              this.grappleKunaiGroup.visible = !isSymbiote;
+            }
+            if (this.grappleSymbioteMawGroup) {
+              this.grappleSymbioteMawGroup.visible = isSymbiote;
+            }
             this.grappleCableMesh.visible = true;
             this.grappleCableMesh.position.copy(handPos);
             this.grappleCableMesh.lookAt(this.grappleState.anchor);
-            this.grappleCableMesh.scale.set(isSymbiote ? 2.4 : 1, isSymbiote ? 2.4 : 1, dist);
+            this.grappleCableMesh.scale.set(isSymbiote ? 2.6 : 1, isSymbiote ? 2.6 : 1, dist);
             this.grappleAnchorMesh.visible = true;
             this.grappleAnchorMesh.position.copy(this.grappleState.anchor);
             this.grappleAnchorMesh.lookAt(this.grappleState.anchor.clone().add(pullDir));
@@ -3442,7 +3478,7 @@ export class ThirdPersonController {
         }
       } else if (this.blastJumpTimer > 0 && !this.isGrounded) {
         this.blastJumpTimer = Math.max(0, this.blastJumpTimer - dt);
-        // Preserva o super-impulso aéreo da bomba (Satchel Caveira) ou do Sling do Gancho (Sombra) com alto controle direcional!
+        // Preserva o super-impulso aéreo da bomba (Satchel Caveira) ou do Sling do Gancho (Sombra / Vórtex) com alto controle direcional!
         const airSteer = 18.5;
         this.velocity.x = this.blastVelocity.x + moveInput.x * airSteer;
         this.velocity.z = this.blastVelocity.z + moveInput.z * airSteer;
@@ -3450,6 +3486,8 @@ export class ThirdPersonController {
         if (this.destructibles && Math.random() < 0.78) {
           if (this.minifigure.currentHeroKey === 'sombra') {
             this.destructibles.spawnSombraShadowStepTrail(this.position, 1.05);
+          } else if (this.minifigure.currentHeroKey === 'vortex') {
+            this.destructibles.spawnVortexSymbioteTrail(this.position, 1.15);
           } else if (this.minifigure.currentHeroKey === 'vingador') {
             this.destructibles.spawnVingadorShellAndSmokeTrail(this.position);
           } else {
@@ -3465,6 +3503,8 @@ export class ThirdPersonController {
         const isVoltaico = hero === 'voltaico';
         const isVortex = hero === 'vortex';
         const isVoltaicoGliding = isVoltaico && !this.isGrounded && this.keys.jump;
+        const isTurboHoldingQ = isTurbo && Boolean(this.keys.turbo);
+        this.turboOverdriveActive = isTurboHoldingQ;
 
         const heroWalkSpeed =
           isSombra ? 15.5 :
@@ -3477,7 +3517,7 @@ export class ThirdPersonController {
 
         const heroRunSpeed =
           isSombra ? 32.0 :
-          isTurbo ? (this.turboOverdriveActive ? 54.0 : 32.0) :
+          isTurbo ? (isTurboHoldingQ ? 54.0 : 32.0) :
           isVoltaico ? (isVoltaicoGliding ? 38.0 : 30.0) :
           isVortex ? (this.minifigure.isVortexMonster ? 28.0 : 33.0) :
           isVingador ? (this.vingadorFurorTimer > 0 ? 32.0 : 26.0) :
@@ -3485,9 +3525,9 @@ export class ThirdPersonController {
           this.runSpeed;
 
         const stealthMult = this.stealthTimer > 0 ? (38.0 / 32.0) : 1.0;
-        const forceRun = (isVingador && this.vingadorFurorTimer > 0) || (isTurbo && this.turboOverdriveActive) || isVoltaicoGliding;
+        const forceRun = (isVingador && this.vingadorFurorTimer > 0) || isTurboHoldingQ || isVoltaicoGliding;
         const targetMaxSpeed = (this.keys.sprint || forceRun ? heroRunSpeed : heroWalkSpeed) * stealthMult;
-        const targetSpeed = hasInput || (isTurbo && this.turboOverdriveActive) ? targetMaxSpeed : 0;
+        const targetSpeed = hasInput || isTurboHoldingQ ? targetMaxSpeed : 0;
 
         const accelRate = 22.0;
         this.currentSpeed = THREE.MathUtils.lerp(

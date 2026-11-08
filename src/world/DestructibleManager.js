@@ -1430,6 +1430,38 @@ export class DestructibleManager {
     });
   }
 
+  /**
+   * Rastro de Biomassa Simbionte Roxo-Abissal & Obsidiana do Vórtex durante o Laço Abissal (Hook) e Corrida!
+   */
+  spawnVortexSymbioteTrail(pos, scaleMult = 1.0) {
+    const colors = [0x090a0d, 0x581c87, 0x9333ea, 0xa855f7, 0xd8b4fe];
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    const mat = new THREE.MeshBasicMaterial({
+      color: c,
+      transparent: true,
+      opacity: 0.92
+    });
+    const mesh = new THREE.Mesh(FIREBALL_GEO, mat);
+    mesh.position.set(
+      pos.x + (Math.random() - 0.5) * 0.85,
+      pos.y + 0.35 + Math.random() * 0.85,
+      pos.z + (Math.random() - 0.5) * 0.85
+    );
+    mesh.scale.set(1.1 * scaleMult, 0.7 * scaleMult, 1.5 * scaleMult);
+    this.scene.add(mesh);
+
+    this.fxParticles.push({
+      mesh,
+      vel: new THREE.Vector3(
+        (Math.random() - 0.5) * 3.0,
+        1.5 + Math.random() * 2.8,
+        (Math.random() - 0.5) * 3.0
+      ),
+      life: 0.34,
+      maxLife: 0.34
+    });
+  }
+
   performMagneticPull(playerPos, aimData) {
     soundFX.playHeroSwap();
     const origin = playerPos.clone().add(new THREE.Vector3(0, 1.25, 0));
