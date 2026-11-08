@@ -28,19 +28,23 @@ export class ThirdPersonController {
     // Parâmetros de locomoção terrestre e voo
     this.walkSpeed = 7.5;
     this.runSpeed = 13.5;
-    this.flyHoverSpeed = 16.5;
-    this.flyCometSpeed = 38.0;
+    this.flyHoverSpeed = 28.0;
+    this.flyCometSpeed = 85.0;
     this.jumpForce = 11.0;
     this.gravity = -26.0;
     this.currentSpeed = 0;
 
-    // Estado de Voo (Solaris) e Rolamento (Caveira)
+    // Estado de Voo (Solaris), Supernova Carregável [Q] e Rolamento (Caveira)
     this.isFlying = false;
     this.isSupersonic = false;
     this.flightPitch = 0;
     this.flightBank = 0;
     this.lastYaw = 0;
     this.lastSpacePressTime = 0;
+    this.supernovaCharging = false;
+    this.supernovaChargeTime = 0;
+    this.supernovaMaxChargeTime = 2.0;
+    this.supernovaChargeSoundTimer = 0;
     this.rollImpulseTimer = 0;
     this.rollDir = new THREE.Vector3(0, 0, -1);
     this.blastJumpTimer = 0;
@@ -295,6 +299,13 @@ export class ThirdPersonController {
       this.isFlying = false;
       this.isSupersonic = false;
       this.velocity.y = Math.min(0, this.velocity.y);
+    }
+    if (this.supernovaCharging) {
+      this.supernovaCharging = false;
+      this.supernovaChargeTime = 0;
+      if (this.destructibles?.updateSupernovaChargeVisual) {
+        this.destructibles.updateSupernovaChargeVisual(false, this.position);
+      }
     }
 
     const swapColors = {
@@ -587,14 +598,53 @@ export class ThirdPersonController {
   }
 
   /**
-   * Explosão Supernova em área do Solaris (Q / F)
+   * Ativa o Voo Solar do Solaris descolando imediatamente de qualquer calçada, prédio ou morro!
    */
-  _triggerSolarisSupernova() {
+  _activateSolarisFlight() {
+    this.isFlying = true;
+    this.isGrounded = false;
+    this.position.y += 0.9;
+    this.velocity.y = 14.0;
+    soundFX.playTacticalRoll();
+  }
+
+  /**
+   * Inicia o carregamento do Poder [Q] (Supernova Carregável do Solaris):
+   * - Tap rápido (< 0.25s): Explosão Solar Rápida (Raio 12m, Dano 110)
+   * - Segurar [Q] (até 2.0s = 100%): Medidor 3D crescente embaixo dele até Explosão Colossal de 52m e Dano 350!
+   */
+  _startSolarisSupernovaCharge() {
+    if (this.supernovaCooldown > 0 || this.supernovaCharging) return;
+    this.supernovaCharging = true;
+    this.supernovaChargeTime = 0;
+    this.supernovaChargeSoundTimer = 0;
+  }
+
+  _releaseSolarisSupernovaCharge() {
+    if (!this.supernovaCharging) return;
+    const heldTime = this.supernovaChargeTime;
+    this.supernovaCharging = false;
+    this.supernovaChargeTime = 0;
+
+    // Se apertou e soltou rápido (< 0.25s), dispara Supernova Rápida (chargeRatio = 0 -> 12m, 110 dano)
+    const chargeRatio = heldTime < 0.25
+      ? 0
+      : THREE.MathUtils.clamp(heldTime / this.supernovaMaxChargeTime, 0, 1);
+
+    this._triggerSolarisSupernova(chargeRatio);
+  }
+
+  /**
+   * Explosão Supernova em área do Solaris (Q)
+   */
+  _triggerSolarisSupernova(chargeRatio = 0) {
     if (this.supernovaCooldown > 0) return;
-    this.supernovaCooldown = 1.2;
+    this.supernovaCooldown = 0.85 + chargeRatio * 0.55;
     this.minifigure.triggerPunch();
+    this.cameraShakeTimer = 0.38 + chargeRatio * 0.48;
     if (this.destructibles) {
-      this.destructibles.triggerSupernova(this.position);
+      const groundY = this._findGroundSupportAt(this.position.x, this.position.z, this.position.y);
+      this.destructibles.triggerSupernova(this.position, chargeRatio, groundY);
     }
   }
 
@@ -903,17 +953,17 @@ export class ThirdPersonController {
             // Pular durante o Gancho Magnético solta o cabo com impulso acrobático extra!
             this._stopGrapple();
             this.velocity.y = 14.5;
-          } else if (this.minifigure.currentHeroKey === 'solaris' && deltaTap < 360) {
-            // Se estiver com o Solaris, 2x Espaço ativa/desativa o Voo (Hover)!
-            this.isFlying = !this.isFlying;
+          } else if (this.minifigure.currentHeroKey === 'solaris') {
+            // REGRA DE VOO DO SOLARIS:
+            // - Se JÁ estiver voando, apertar Espaço (mesmo 2x rápido) NUNCA desliga o voo — serve 100% do tempo para SUBIR!
+            // - Se NÃO estiver voando, entra em voo ao apertar Espaço no ar (!isGrounded) ou 2x Espaço no chão!
             if (this.isFlying) {
-              this.isGrounded = false;
-              this.velocity.y = 4.5;
-              if (this.position.y < 1.2) {
-                this.position.y += 0.4;
-              }
+              this.velocity.y = Math.max(this.velocity.y, 18.0);
+            } else if (!this.isGrounded || deltaTap < 380) {
+              this._activateSolarisFlight();
             } else {
-              this.isSupersonic = false;
+              this.velocity.y = this.jumpForce;
+              this.isGrounded = false;
             }
           } else if (this.isGrounded && !this.isFlying) {
             if (this.minifigure.currentHeroKey === 'tita') {
@@ -978,12 +1028,16 @@ export class ThirdPersonController {
             this.keys.sprint = false;
             this.isDrifting = false;
           }
+        } else if (this.minifigure.currentHeroKey === 'solaris') {
+          if (isDown && !e.repeat) {
+            this._startSolarisSupernovaCharge();
+          } else if (!isDown) {
+            this._releaseSolarisSupernovaCharge();
+          }
         } else if (isDown && !e.repeat) {
           const hero = this.minifigure.currentHeroKey;
           if (hero === 'caveira') {
             this._triggerTacticalRoll();
-          } else if (hero === 'solaris') {
-            this._triggerSolarisSupernova();
           } else if (hero === 'tita') {
             this._triggerTitaEarthquake();
           } else if (hero === 'vingador') {
@@ -1002,7 +1056,12 @@ export class ThirdPersonController {
             if (hero === 'caveira') {
               this._triggerTacticalRoll();
             } else if (hero === 'solaris') {
-              this._triggerSolarisSupernova();
+              if (this.isFlying) {
+                this.isFlying = false;
+                this.isSupersonic = false;
+              } else {
+                this._activateSolarisFlight();
+              }
             } else if (hero === 'tita') {
               this._toggleTitaCarGrabOrThrow();
             } else if (hero === 'vingador') {
@@ -2364,6 +2423,35 @@ export class ThirdPersonController {
       this.destructibles.updateSolarBeam(false);
     }
 
+    // Carregamento em tempo real do Poder [Q] (SUPERNOVA CARREGÁVEL DO SOLARIS) com Medidor 3D no chão
+    if (this.supernovaCharging && this.minifigure.currentHeroKey === 'solaris') {
+      this.supernovaChargeTime = Math.min(
+        this.supernovaMaxChargeTime,
+        this.supernovaChargeTime + dt
+      );
+      const chargeRatio = this.supernovaChargeTime / this.supernovaMaxChargeTime;
+      const currentRadius = THREE.MathUtils.lerp(12.0, 52.0, chargeRatio);
+      this.cameraShakeTimer = Math.max(this.cameraShakeTimer, 0.08 + chargeRatio * 0.16);
+      this.supernovaChargeSoundTimer -= dt;
+      if (this.supernovaChargeSoundTimer <= 0) {
+        this.supernovaChargeSoundTimer = 0.11;
+        soundFX.playSolarChargeTick(chargeRatio);
+      }
+      if (this.destructibles?.updateSupernovaChargeVisual) {
+        const groundY = this._findGroundSupportAt(this.position.x, this.position.z, this.position.y);
+        this.destructibles.updateSupernovaChargeVisual(
+          true,
+          this.position,
+          chargeRatio,
+          currentRadius,
+          dt,
+          groundY
+        );
+      }
+    } else if (this.destructibles?.updateSupernovaChargeVisual) {
+      this.destructibles.updateSupernovaChargeVisual(false, this.position);
+    }
+
     const moveInput = new THREE.Vector3();
     if (this.keys.forward) moveInput.add(camForward);
     if (this.keys.backward) moveInput.sub(camForward);
@@ -2377,11 +2465,11 @@ export class ThirdPersonController {
 
     // Lógica de Voo 3D (Solaris) vs Locomoção Terrestre
     if (this.isFlying && this.minifigure.currentHeroKey === 'solaris') {
-      this.isSupersonic = hasInput && this.keys.sprint;
+      this.isSupersonic = (hasInput || this.keys.jump || this.keys.descend) && this.keys.sprint;
       const targetFlySpeed = this.isSupersonic ? this.flyCometSpeed : this.flyHoverSpeed;
       const targetSpeed = hasInput ? targetFlySpeed : 0;
 
-      this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, targetSpeed, Math.min(1, dt * 12));
+      this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, targetSpeed, Math.min(1, dt * 14));
 
       // Calcula o banking (inclinação de asa de avião ao fazer curva no ar)
       const yawDelta = this.yaw - this.lastYaw;
@@ -2391,52 +2479,48 @@ export class ThirdPersonController {
       this.flightBank = THREE.MathUtils.lerp(this.flightBank, targetBank, Math.min(1, dt * 10));
 
       if (this.isSupersonic) {
-        // MODO COMETA (ESTILO AVIÃO / JATO 3D):
-        // O vetor de voo segue a direção 3D completa da câmera (incluindo Pitch para cima/baixo!)
-        const camForward3D = new THREE.Vector3(
-          -Math.sin(this.yaw) * Math.cos(this.pitch),
-          -Math.sin(this.pitch),
-          -Math.cos(this.yaw) * Math.cos(this.pitch)
-        ).normalize();
+        // MODO COMETA HIPERSÔNICO (SHIFT NO AR — 85.0m/s!):
+        const horizDir = hasInput ? moveInput : camForward;
+        this.velocity.x = horizDir.x * this.currentSpeed;
+        this.velocity.z = horizDir.z * this.currentSpeed;
 
-        const flyDir3D = new THREE.Vector3();
-        if (this.keys.forward) flyDir3D.add(camForward3D);
-        if (this.keys.backward) flyDir3D.sub(camForward3D);
-        if (this.keys.right) flyDir3D.add(camRight);
-        if (this.keys.left) flyDir3D.sub(camRight);
-        if (flyDir3D.lengthSq() > 0.001) flyDir3D.normalize();
-
-        this.velocity.x = flyDir3D.x * this.currentSpeed;
-        this.velocity.z = flyDir3D.z * this.currentSpeed;
-
-        // Velocidade vertical guiada pelo Pitch da mira (olhou pra baixo -> mergulha; olhou pra cima -> sobe!)
-        // E se segurar Espaço/Ctrl dá propulsão vertical direta
-        let targetVy = flyDir3D.y * this.currentSpeed;
-        if (this.keys.jump) targetVy = Math.max(0, targetVy) + 16.5;
-        if (this.keys.descend) targetVy = Math.min(0, targetVy) - 16.5;
-        this.velocity.y = THREE.MathUtils.lerp(this.velocity.y, targetVy, Math.min(1, dt * 14));
+        // Conserto do Controle Vertical no Modo Cometa (Shift):
+        // - Segurar Espaço SEMPRE sobe forte (targetVy = +42.0), mesmo com a câmera inclinada para baixo!
+        // - Segurar Ctrl/C mergulha rápido (targetVy = -42.0)
+        // - Sem Espaço nem Ctrl, segue suavemente o pitch da mira sem afundar sozinho no chão!
+        let targetVy = 0;
+        if (this.keys.jump) {
+          targetVy = 42.0;
+        } else if (this.keys.descend) {
+          targetVy = -42.0;
+        } else if (hasInput) {
+          const pitchVy = -Math.sin(this.pitch) * this.currentSpeed * 0.52;
+          const groundSupport = this._findGroundSupportAt(this.position.x, this.position.z, this.position.y);
+          targetVy = (this.position.y <= groundSupport + 2.8 && pitchVy < 0) ? 0 : pitchVy;
+        }
+        this.velocity.y = THREE.MathUtils.lerp(this.velocity.y, targetVy, Math.min(1, dt * 16));
 
         // Ângulo de inclinação vertical do corpo do Solaris (mergulho vs subida)
-        const horizVel = Math.hypot(this.velocity.x, this.velocity.z);
-        const targetPitchAngle = Math.atan2(this.velocity.y, Math.max(0.1, horizVel));
+        const horizVel = Math.max(12.0, Math.hypot(this.velocity.x, this.velocity.z));
+        const targetPitchAngle = Math.atan2(this.velocity.y, horizVel);
         this.flightPitch = THREE.MathUtils.lerp(this.flightPitch, targetPitchAngle, Math.min(1, dt * 14));
 
-        const desiredAngle = Math.atan2(flyDir3D.x, flyDir3D.z);
+        const desiredAngle = Math.atan2(horizDir.x, horizDir.z);
         this.facingAngle = lerpAngle(this.facingAngle, desiredAngle, Math.min(1, dt * 16));
         this.minifigure.root.rotation.y = this.facingAngle;
 
         if (this.destructibles) {
           this.cometTrailTimer -= dt;
           if (this.cometTrailTimer <= 0) {
-            this.cometTrailTimer = 0.022;
+            this.cometTrailTimer = 0.018;
             this.destructibles.spawnFlameTrailParticle(
               new THREE.Vector3(this.position.x, this.position.y + 0.9, this.position.z),
-              1.35
+              1.5
             );
           }
         }
       } else {
-        // MODO HOVER (Levitação controlada):
+        // MODO HOVER (Levitação rápida a 28.0m/s):
         this.flightPitch = THREE.MathUtils.lerp(this.flightPitch, 0, Math.min(1, dt * 10));
 
         if (hasInput) {
@@ -2449,15 +2533,15 @@ export class ThirdPersonController {
             this.minifigure.root.rotation.y = this.facingAngle;
           }
         } else {
-          this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, 0, Math.min(1, dt * 10));
-          this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, 0, Math.min(1, dt * 10));
+          this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, 0, Math.min(1, dt * 12));
+          this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, 0, Math.min(1, dt * 12));
         }
 
-        // Subir (Espaço) e Descer (Ctrl / C) no Hover
+        // Subir (Espaço = +28.0) e Descer (Ctrl / C = -26.0) no Hover
         let targetVy = 0;
-        if (this.keys.jump) targetVy += 14.5;
-        if (this.keys.descend) targetVy -= 13.5;
-        this.velocity.y = THREE.MathUtils.lerp(this.velocity.y, targetVy, Math.min(1, dt * 12));
+        if (this.keys.jump) targetVy += 28.0;
+        if (this.keys.descend) targetVy -= 26.0;
+        this.velocity.y = THREE.MathUtils.lerp(this.velocity.y, targetVy, Math.min(1, dt * 14));
       }
     } else {
       this.isSupersonic = false;
@@ -2719,8 +2803,11 @@ export class ThirdPersonController {
 
     this.position.y += this.velocity.y * dt;
 
-    // Impede atravessar tetos de interiores (como o teto do Super Banco Central) de baixo para cima
-    if (this.position.y + playerHeight > ceilingY && this.velocity.y > 0) {
+    // Nunca trava a subida do Solaris quando estiver voando e segurando Espaço!
+    const isSolarisClimbing = this.isFlying && this.keys.jump;
+
+    // Impede atravessar tetos de interiores (exceto quando o Solaris está subindo em voo livre)
+    if (!isSolarisClimbing && this.position.y + playerHeight > ceilingY && this.velocity.y > 0) {
       this.position.y = ceilingY - playerHeight;
       this.velocity.y = 0;
     }
@@ -2732,7 +2819,7 @@ export class ThirdPersonController {
       this.position.y - supportY > 0 &&
       this.position.y - supportY < 0.9;
 
-    if (this.position.y <= supportY || wasGroundedDownhill) {
+    if (!isSolarisClimbing && (this.position.y <= supportY || wasGroundedDownhill)) {
       this.position.y = supportY;
       this.velocity.y = 0;
       this.isGrounded = true;

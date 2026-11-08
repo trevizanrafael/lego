@@ -28,19 +28,19 @@ export const HERO_CATALOG = [
     key: 'solaris',
     opCode: 'OP-02',
     shortName: 'SOLARIS',
-    name: 'SOLARIS',
-    role: 'SENTINELA TERMONUCLEAR // VOO SUPERSÔNICO',
+    name: 'SOLARIS (REI DO SOL)',
+    role: 'SOBERANO TERMONUCLEAR // VOO DE COMETA HIPERSÔNICO',
     accent: '#f97316',
     icon: 'star',
-    specialty: 'Domínio Aéreo Supersônico & Fusão de Estruturas de Ouro LEGO',
-    passive: 'Voo livre tridimensional (2x Espaço) e modo Cometa Supersônico (Shift no ar).',
+    specialty: 'Domínio Aéreo Hipersônico, Feixe Solar Imperial & Supernova Carregável (52m)',
+    passive: 'Coroa e Manto Real de Fogo Vivo 3D. Voo livre (Espaço no ar / F) e Modo Cometa (Shift).',
     controls: [
-      { key: '2x ESPAÇO', title: 'VOO & LEVITAÇÃO SOLAR', desc: 'Ativa voo livre. Segure ESPAÇO para subir no ar.' },
-      { key: 'CTRL / C', title: 'MERGULHO / DESCIDA AÉREA', desc: 'Reduz altitude rapidamente durante a levitação solar.' },
-      { key: 'SHIFT (AR)', title: 'VOO DE COMETA SUPERSÔNICO', desc: 'Propulsão extrema com rastro de plasma pelos prédios.' },
-      { key: 'MOUSE 1', title: 'BOLAS DE FOGO', desc: 'Dispara projéteis ígneos explosivos em sequência.' },
-      { key: 'MOUSE 2', title: 'RAIO SOLAR CONTÍNUO', desc: 'Feixe térmico concentrado que derrete objetos de OURO LEGO.' },
-      { key: 'Q / F', title: 'EXPLOSÃO SUPERNOVA', desc: 'Detona uma onda de choque solar em 360° ao redor do herói.' }
+      { key: 'ESPAÇO / F', title: 'VOO SOLAR & SUBIDA CONTÍNUA', desc: 'Ativa voo no ar (ou 2x Espaço). Segure ESPAÇO para subir.' },
+      { key: 'CTRL / C', title: 'MERGULHO & POUSO AÉREO', desc: 'Desce rápido no ar; pouse no chão segurando CTRL para sair do voo.' },
+      { key: 'SHIFT (AR)', title: 'COMETA HIPERSÔNICO (85M/S)', desc: 'Jato solar extremo pelo mapa (ESPAÇO sobe / CTRL mergulha).' },
+      { key: 'MOUSE 1', title: 'ESFERAS DE PLASMA SOLAR', desc: 'Dispara projéteis ígneos explosivos em sequência.' },
+      { key: 'MOUSE 2', title: 'FEIXE SOLAR IMPERIAL', desc: 'Raio termonuclear com vórtice de magma que derrete OURO LEGO.' },
+      { key: 'Q (SEGURAR)', title: 'SUPERNOVA CARREGÁVEL (ATÉ 52M)', desc: 'Toque rápido (12m) ou segure [Q] para carregar erupção colossal!' }
     ]
   },
   {
@@ -152,7 +152,7 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
 
   // Ombros / Torso superior
   ctx.fillStyle =
-    presetKey === 'solaris' ? '#dc2626' :
+    presetKey === 'solaris' ? '#7f1d1d' :
     presetKey === 'tita' ? '#1e3a8a' :
     presetKey === 'sombra' ? '#991b1b' : '#171717';
   ctx.beginPath();
@@ -239,20 +239,66 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     ctx.arc(76 * 0.5, 65, 4.5, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'solaris') {
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(76 * 0.21, 16, 76 * 0.58, 7);
-
-    ctx.fillStyle = '#fef08a';
+    // Crina de Fogo Vivo 2D + Coroa Imperial de 5 Pontas do Rei do Sol
+    ctx.fillStyle = '#f97316';
     ctx.beginPath();
-    ctx.arc(76 * 0.38, 33, 4, 0, Math.PI * 2);
-    ctx.arc(76 * 0.62, 33, 4, 0, Math.PI * 2);
+    ctx.moveTo(76 * 0.22, 18);
+    ctx.lineTo(76 * 0.28, 5);
+    ctx.lineTo(76 * 0.38, 13);
+    ctx.lineTo(76 * 0.5, 2);
+    ctx.lineTo(76 * 0.62, 13);
+    ctx.lineTo(76 * 0.72, 5);
+    ctx.lineTo(76 * 0.78, 18);
+    ctx.closePath();
     ctx.fill();
 
+    ctx.fillStyle = '#facc15';
     ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 42, 8, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.moveTo(76 * 0.2, 22);
+    ctx.lineTo(76 * 0.24, 11);
+    ctx.lineTo(76 * 0.35, 18);
+    ctx.lineTo(76 * 0.5, 8);
+    ctx.lineTo(76 * 0.65, 18);
+    ctx.lineTo(76 * 0.76, 11);
+    ctx.lineTo(76 * 0.8, 22);
+    ctx.closePath();
+    ctx.fill();
     ctx.stroke();
+
+    // Olhos de Plasma Branco-Dourado Flamejantes + Sobrancelhas Franzidas
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(76 * 0.25, 29, 14, 7);
+    ctx.fillRect(76 * 0.56, 29, 14, 7);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(76 * 0.28, 30.5, 9, 4);
+    ctx.fillRect(76 * 0.59, 30.5, 9, 4);
+
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.25, 26);
+    ctx.lineTo(76 * 0.46, 29);
+    ctx.moveTo(76 * 0.75, 26);
+    ctx.lineTo(76 * 0.54, 29);
+    ctx.stroke();
+
+    // Expressão fechada e soberana de Rei do Sol + Reator Solar no peito
+    ctx.strokeStyle = '#450a0a';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.36, 44);
+    ctx.lineTo(76 * 0.5, 41);
+    ctx.lineTo(76 * 0.64, 44);
+    ctx.stroke();
+
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(76 * 0.22, 55, 76 * 0.56, 3);
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 65, 5, 0, Math.PI * 2);
+    ctx.fill();
   } else if (presetKey === 'tita') {
     ctx.fillStyle = '#facc15';
     ctx.fillRect(76 * 0.42, 11, 76 * 0.16, 9);

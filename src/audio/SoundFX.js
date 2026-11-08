@@ -204,28 +204,73 @@ class SoundFX {
   }
 
   /**
-   * Pulso sonoro do Raio Solar Contínuo
+   * Rugido Termonuclear Grave e Potente do Feixe Solar Imperial (Mouse 2 do Solaris)
+   * Substitui o apito agudo antigo por grave de plasma sawtooth (95Hz–130Hz) + harmônico médio (220Hz–310Hz)
    */
   playSolarBeamTick() {
     const ctx = this._ensureContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
+    const bassOsc = ctx.createOscillator();
+    const plasmaOsc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(680 + Math.random() * 140, now);
-    osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+    bassOsc.type = 'sawtooth';
+    const bassFreq = 95 + Math.random() * 35;
+    bassOsc.frequency.setValueAtTime(bassFreq, now);
+    bassOsc.frequency.exponentialRampToValueAtTime(68, now + 0.095);
 
-    gain.gain.setValueAtTime(0.055, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+    plasmaOsc.type = 'triangle';
+    const midFreq = 220 + Math.random() * 90;
+    plasmaOsc.frequency.setValueAtTime(midFreq, now);
+    plasmaOsc.frequency.exponentialRampToValueAtTime(165, now + 0.095);
 
-    osc.connect(gain);
+    gain.gain.setValueAtTime(0.085, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+    bassOsc.connect(gain);
+    plasmaOsc.connect(gain);
     gain.connect(ctx.destination);
 
-    osc.start(now);
-    osc.stop(now + 0.06);
+    bassOsc.start(now);
+    plasmaOsc.start(now);
+    bassOsc.stop(now + 0.105);
+    plasmaOsc.stop(now + 0.105);
+  }
+
+  /**
+   * Pulso Crescente de Carregamento da Supernova [Q] do Solaris (0% -> 100%)
+   */
+  playSolarChargeTick(chargeRatio = 0) {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    const baseF = 110 + chargeRatio * 340;
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(baseF, now);
+    osc1.frequency.exponentialRampToValueAtTime(baseF * 1.18, now + 0.09);
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(baseF * 1.5, now);
+    osc2.frequency.exponentialRampToValueAtTime(baseF * 1.85, now + 0.09);
+
+    gain.gain.setValueAtTime(0.065 + chargeRatio * 0.065, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.1);
+    osc2.stop(now + 0.1);
   }
 
   /**

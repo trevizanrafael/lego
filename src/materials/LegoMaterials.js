@@ -285,35 +285,100 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     ctx.arc(cx - 46, cy + 38, 4, 0, Math.PI * 2);
     ctx.fill();
   } else if (preset === 'solaris') {
-    // Olhos brilhantes solares e expressão heroica
-    ctx.fillStyle = '#171717';
-    ctx.beginPath();
-    ctx.arc(cx - 32, cy - 10, 12, 0, Math.PI * 2);
-    ctx.arc(cx + 32, cy - 10, 12, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Brilho dourado/branco nos olhos
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.arc(cx - 35, cy - 14, 5, 0, Math.PI * 2);
-    ctx.arc(cx + 29, cy - 14, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Sobrancelhas vermelhas/escuras
-    ctx.strokeStyle = '#7f1d1d';
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.moveTo(cx - 50, cy - 32);
-    ctx.lineTo(cx - 16, cy - 24);
-    ctx.moveTo(cx + 50, cy - 32);
-    ctx.lineTo(cx + 16, cy - 24);
-    ctx.stroke();
-
-    // Sorriso clássico de herói LEGO
-    ctx.strokeStyle = '#171717';
+    // 1. Marcas Imperiais de Energia Solar nas faces (Runas do Rei do Sol)
+    ctx.strokeStyle = 'rgba(234, 88, 12, 0.85)';
     ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.arc(cx, cy + 14, 24, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.moveTo(cx - 86, cy + 8);
+    ctx.lineTo(cx - 36, cy + 20);
+    ctx.lineTo(cx - 48, cy + 42);
+    ctx.moveTo(cx + 86, cy + 8);
+    ctx.lineTo(cx + 36, cy + 20);
+    ctx.lineTo(cx + 48, cy + 42);
+    ctx.stroke();
+
+    // 2. Rastro de Chamas Solares subindo dos Olhos de Plasma até as têmporas
+    ctx.fillStyle = '#ea580c';
+    ctx.beginPath();
+    ctx.moveTo(cx - 72, cy - 12);
+    ctx.lineTo(cx - 96, cy - 38);
+    ctx.lineTo(cx - 52, cy - 28);
+    ctx.lineTo(cx - 12, cy - 8);
+    ctx.lineTo(cx - 48, cy + 8);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 72, cy - 12);
+    ctx.lineTo(cx + 96, cy - 38);
+    ctx.lineTo(cx + 52, cy - 28);
+    ctx.lineTo(cx + 12, cy - 8);
+    ctx.lineTo(cx + 48, cy + 8);
+    ctx.closePath();
+    ctx.fill();
+
+    // 3. Olhos de Plasma Branco-Dourado Flamejantes (Deus/Rei do Sol — Zero olhinho preto!)
+    ctx.fillStyle = '#fef08a';
+    ctx.strokeStyle = '#991b1b';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 64, cy - 16);
+    ctx.lineTo(cx - 14, cy - 8);
+    ctx.lineTo(cx - 22, cy + 6);
+    ctx.lineTo(cx - 58, cy + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 64, cy - 16);
+    ctx.lineTo(cx + 14, cy - 8);
+    ctx.lineTo(cx + 22, cy + 6);
+    ctx.lineTo(cx + 58, cy + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Núcleo branco incandescente dentro dos olhos solares
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - 50, cy - 11, 24, 9);
+    ctx.fillRect(cx + 26, cy - 11, 24, 9);
+
+    // 4. Sobrancelhas Reais Carmesim/Ouro Franzidas em V (Autoridade Soberana)
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 11;
+    ctx.lineCap = 'square';
+    ctx.beginPath();
+    ctx.moveTo(cx - 72, cy - 36);
+    ctx.lineTo(cx - 10, cy - 20);
+    ctx.moveTo(cx + 72, cy - 36);
+    ctx.lineTo(cx + 10, cy - 20);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 70, cy - 38);
+    ctx.lineTo(cx - 12, cy - 22);
+    ctx.moveTo(cx + 70, cy - 38);
+    ctx.lineTo(cx + 12, cy - 22);
+    ctx.stroke();
+
+    // 5. Expressão Fechada e Imponente de Rei do Sol (Sem sorrisinho feliz!)
+    ctx.strokeStyle = '#450a0a';
+    ctx.lineWidth = 6.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 28, cy + 34);
+    ctx.lineTo(cx - 14, cy + 26);
+    ctx.lineTo(cx + 14, cy + 26);
+    ctx.lineTo(cx + 28, cy + 34);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + 44);
+    ctx.lineTo(cx + 14, cy + 44);
     ctx.stroke();
   } else if (preset === 'tita') {
     // Base metálica azul-escura/titânio do capacete Mecha-Policial (Big-Fig)
@@ -524,20 +589,20 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
     ctx.fillRect(42, 150, 42, 42);
     ctx.fillRect(172, 150, 42, 42);
   } else if (preset === 'solaris') {
-    // Armadura Rubra & Dourada Solaris
-    ctx.fillStyle = '#b91c1c';
+    // Armadura Carmesim Imperial & Ouro Real do Solaris (Rei do Sol)
+    ctx.fillStyle = '#7f1d1d';
     ctx.fillRect(0, 0, 256, 256);
 
-    // Linhas de energia douradas
+    // Linhas de energia douradas reais
     ctx.strokeStyle = '#facc15';
     ctx.lineWidth = 10;
     ctx.beginPath();
-    ctx.moveTo(30, 20);
+    ctx.moveTo(26, 18);
     ctx.lineTo(95, 115);
-    ctx.lineTo(60, 220);
-    ctx.moveTo(226, 20);
+    ctx.lineTo(58, 224);
+    ctx.moveTo(230, 18);
     ctx.lineTo(161, 115);
-    ctx.lineTo(196, 220);
+    ctx.lineTo(198, 224);
     ctx.stroke();
 
     // Núcleo Solar no peito

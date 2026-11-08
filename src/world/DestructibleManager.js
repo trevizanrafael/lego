@@ -89,36 +89,191 @@ export class DestructibleManager {
   }
 
   _initSolarBeamMesh() {
+    // 1. Feixe Principal de 3 Cilindros Concêntricos (Núcleo Branco + Manto Dourado + Aura Magma)
     this.solarBeamGroup = new THREE.Group();
     this.solarBeamGroup.visible = false;
 
-    const coreGeo = new THREE.CylinderGeometry(0.11, 0.11, 1, 14);
+    const coreGeo = new THREE.CylinderGeometry(0.22, 0.22, 1, 16);
     coreGeo.translate(0, 0.5, 0);
     coreGeo.rotateX(Math.PI / 2);
     const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     this.beamCore = new THREE.Mesh(coreGeo, coreMat);
 
-    const glowGeo = new THREE.CylinderGeometry(0.26, 0.26, 1, 16);
-    glowGeo.translate(0, 0.5, 0);
-    glowGeo.rotateX(Math.PI / 2);
-    const glowMat = new THREE.MeshBasicMaterial({
+    const mantleGeo = new THREE.CylinderGeometry(0.45, 0.45, 1, 18);
+    mantleGeo.translate(0, 0.5, 0);
+    mantleGeo.rotateX(Math.PI / 2);
+    const mantleMat = new THREE.MeshBasicMaterial({
       color: 0xfacc15,
       transparent: true,
-      opacity: 0.62
+      opacity: 0.78
     });
-    this.beamGlow = new THREE.Mesh(glowGeo, glowMat);
+    this.beamGlow = new THREE.Mesh(mantleGeo, mantleMat);
 
-    const hitSphereMat = new THREE.MeshBasicMaterial({
+    const coronaGeo = new THREE.CylinderGeometry(0.72, 0.72, 1, 18);
+    coronaGeo.translate(0, 0.5, 0);
+    coronaGeo.rotateX(Math.PI / 2);
+    const coronaMat = new THREE.MeshBasicMaterial({
+      color: 0xf97316,
+      transparent: true,
+      opacity: 0.44
+    });
+    this.beamCorona = new THREE.Mesh(coronaGeo, coronaMat);
+
+    this.solarBeamGroup.add(this.beamCore, this.beamGlow, this.beamCorona);
+    this.scene.add(this.solarBeamGroup);
+
+    // 2. Orbe Concentrador Solar nas Mãos (Muzzle Sun Sphere + 2 Anéis Solares Giratórios)
+    this.solarMuzzleGroup = new THREE.Group();
+    this.solarMuzzleGroup.visible = false;
+    const muzzleSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.32, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    const muzzleOuter = new THREE.Mesh(
+      new THREE.SphereGeometry(0.48, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.72 })
+    );
+    this.muzzleRingA = new THREE.Mesh(
+      new THREE.TorusGeometry(0.62, 0.055, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    );
+    this.muzzleRingB = new THREE.Mesh(
+      new THREE.TorusGeometry(0.78, 0.045, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xf97316 })
+    );
+    this.muzzleRingB.rotation.x = Math.PI / 2;
+    this.solarMuzzleGroup.add(muzzleSphere, muzzleOuter, this.muzzleRingA, this.muzzleRingB);
+    this.scene.add(this.solarMuzzleGroup);
+
+    // 3. 8 Anéis de Choque Solar (Beam Rings) que viajam da mão até o impacto
+    this.solarBeamRings = [];
+    const beamRingGeo = new THREE.TorusGeometry(0.62, 0.06, 8, 20);
+    for (let i = 0; i < 8; i++) {
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xfef08a : 0xf97316,
+        transparent: true,
+        opacity: 0.88
+      });
+      const ringMesh = new THREE.Mesh(beamRingGeo, ringMat);
+      ringMesh.visible = false;
+      this.scene.add(ringMesh);
+      this.solarBeamRings.push(ringMesh);
+    }
+
+    // 4. Vórtice de Magma de 1.6m no Ponto de Impacto
+    this.beamHitSphere = new THREE.Group();
+    this.beamHitSphere.visible = false;
+
+    const hitCore = new THREE.Mesh(
+      new THREE.SphereGeometry(0.62, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    const hitDome = new THREE.Mesh(
+      new THREE.SphereGeometry(1.12, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.78 })
+    );
+    const vortexRingGeo = new THREE.TorusGeometry(1.6, 0.14, 10, 28);
+    vortexRingGeo.rotateX(Math.PI / 2);
+    this.beamVortexRing = new THREE.Mesh(
+      vortexRingGeo,
+      new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.92 })
+    );
+    this.beamVortexSpikes = new THREE.Group();
+    for (let s = 0; s < 6; s++) {
+      const ang = (s / 6) * Math.PI * 2;
+      const spike = new THREE.Mesh(
+        new THREE.ConeGeometry(0.22, 1.35, 5),
+        new THREE.MeshBasicMaterial({ color: s % 2 === 0 ? 0xfef08a : 0xef4444 })
+      );
+      spike.position.set(Math.cos(ang) * 1.15, 0.45, Math.sin(ang) * 1.15);
+      spike.rotation.z = -Math.cos(ang) * 0.42;
+      spike.rotation.x = Math.sin(ang) * 0.42;
+      this.beamVortexSpikes.add(spike);
+    }
+    this.beamHitSphere.add(hitCore, hitDome, this.beamVortexRing, this.beamVortexSpikes);
+    this.scene.add(this.beamHitSphere);
+
+    // 5. Medidor 3D de Carga da Supernova [Q] no Chão embaixo do Solaris
+    this._initSupernovaChargeMeter();
+  }
+
+  _initSupernovaChargeMeter() {
+    this.supernovaChargeGroup = new THREE.Group();
+    this.supernovaChargeGroup.visible = false;
+
+    // 24 Segmentos de Progresso Circular ao redor dos pés do Solaris (0% -> 100%)
+    this.chargeArcSegments = [];
+    const segCount = 24;
+    const segRadius = 1.95;
+    const segGeo = new THREE.BoxGeometry(0.36, 0.16, 0.24);
+    for (let i = 0; i < segCount; i++) {
+      const angle = (i / segCount) * Math.PI * 2;
+      const segMat = new THREE.MeshBasicMaterial({
+        color: 0xfacc15,
+        transparent: true,
+        opacity: 0.95
+      });
+      const segMesh = new THREE.Mesh(segGeo, segMat);
+      segMesh.position.set(
+        Math.sin(angle) * segRadius,
+        0.12,
+        Math.cos(angle) * segRadius
+      );
+      segMesh.rotation.y = angle;
+      this.supernovaChargeGroup.add(segMesh);
+      this.chargeArcSegments.push(segMesh);
+    }
+
+    // Runa Solar Giratória Interna nos pés do Solaris
+    this.chargeInnerSunGroup = new THREE.Group();
+    const innerRingGeo = new THREE.TorusGeometry(1.35, 0.08, 8, 28);
+    innerRingGeo.rotateX(Math.PI / 2);
+    const innerRingMat = new THREE.MeshBasicMaterial({
       color: 0xfef08a,
       transparent: true,
       opacity: 0.9
     });
-    this.beamHitSphere = new THREE.Mesh(new THREE.SphereGeometry(0.48, 14, 14), hitSphereMat);
+    this.chargeInnerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+    this.chargeInnerRing.position.y = 0.08;
+    this.chargeInnerSunGroup.add(this.chargeInnerRing);
 
-    this.solarBeamGroup.add(this.beamCore, this.beamGlow);
-    this.scene.add(this.solarBeamGroup);
-    this.scene.add(this.beamHitSphere);
-    this.beamHitSphere.visible = false;
+    for (let r = 0; r < 8; r++) {
+      const ang = (r / 8) * Math.PI * 2;
+      const ray = new THREE.Mesh(
+        new THREE.ConeGeometry(0.18, 0.85, 4),
+        new THREE.MeshBasicMaterial({ color: r % 2 === 0 ? 0xfacc15 : 0xf97316 })
+      );
+      ray.rotation.x = Math.PI / 2;
+      ray.rotation.z = -ang;
+      ray.position.set(Math.sin(ang) * 0.95, 0.09, Math.cos(ang) * 0.95);
+      this.chargeInnerSunGroup.add(ray);
+    }
+    this.supernovaChargeGroup.add(this.chargeInnerSunGroup);
+
+    // Anel Expansivo de Alcance da Explosão no Chão (cresce em tempo real de 12m até 52m!)
+    const rangeRingGeo = new THREE.TorusGeometry(1.0, 0.018, 10, 64);
+    rangeRingGeo.rotateX(Math.PI / 2);
+    this.chargeRangeRingMat = new THREE.MeshBasicMaterial({
+      color: 0xf97316,
+      transparent: true,
+      opacity: 0.88
+    });
+    this.chargeRangeRing = new THREE.Mesh(rangeRingGeo, this.chargeRangeRingMat);
+    this.chargeRangeRing.position.y = 0.14;
+    this.supernovaChargeGroup.add(this.chargeRangeRing);
+
+    const rangeSubRingGeo = new THREE.TorusGeometry(1.0, 0.01, 8, 48);
+    rangeSubRingGeo.rotateX(Math.PI / 2);
+    this.chargeSubRingMat = new THREE.MeshBasicMaterial({
+      color: 0xfef08a,
+      transparent: true,
+      opacity: 0.65
+    });
+    this.chargeSubRing = new THREE.Mesh(rangeSubRingGeo, this.chargeSubRingMat);
+    this.chargeSubRing.position.y = 0.12;
+    this.supernovaChargeGroup.add(this.chargeSubRing);
+
+    this.scene.add(this.supernovaChargeGroup);
   }
 
   registerDestructible({
@@ -899,71 +1054,211 @@ export class DestructibleManager {
   }
 
   /**
-   * Atualiza o Raio Solar Contínuo (derrete objetos de Ouro LEGO e queima alvos)
+   * Atualiza o Feixe Solar Imperial Pesado (Mouse 2 do Solaris — derrete objetos de Ouro LEGO e queima alvos)
+   * Inclui Orbe Concentrador Solar nas mãos, 3 Cilindros Concêntricos, 8 Anéis de Choque viajando pelo feixe e Vórtice de Magma no impacto!
    */
   updateSolarBeam(isActive, handOrigin, aimData, dt) {
     if (!isActive) {
       this.solarBeamGroup.visible = false;
       this.beamHitSphere.visible = false;
+      if (this.solarMuzzleGroup) this.solarMuzzleGroup.visible = false;
+      if (this.solarBeamRings) {
+        for (const r of this.solarBeamRings) r.visible = false;
+      }
       return;
     }
 
     this.solarBeamGroup.visible = true;
     this.beamHitSphere.visible = true;
+    if (this.solarMuzzleGroup) this.solarMuzzleGroup.visible = true;
 
     const targetPt = aimData.point;
     const dist = Math.max(0.5, handOrigin.distanceTo(targetPt));
+    const nowSec = performance.now() * 0.001;
 
     this.solarBeamGroup.position.copy(handOrigin);
     this.solarBeamGroup.lookAt(targetPt);
-    const pulse = 0.85 + Math.sin(performance.now() * 0.035) * 0.25;
+    const pulse = 0.92 + Math.sin(nowSec * 36.0) * 0.22;
     this.solarBeamGroup.scale.set(pulse, pulse, dist);
 
-    this.beamHitSphere.position.copy(targetPt);
-    this.beamHitSphere.scale.setScalar(0.8 + Math.sin(performance.now() * 0.04) * 0.28);
+    // Orbe Concentrador Solar nas mãos com 2 anéis dourados giratórios
+    if (this.solarMuzzleGroup) {
+      this.solarMuzzleGroup.position.copy(handOrigin);
+      this.solarMuzzleGroup.lookAt(targetPt);
+      const muzzleScale = 0.9 + Math.sin(nowSec * 42.0) * 0.18;
+      this.solarMuzzleGroup.scale.setScalar(muzzleScale);
+      if (this.muzzleRingA) {
+        this.muzzleRingA.rotation.z += dt * 12.0;
+        this.muzzleRingA.rotation.x = Math.sin(nowSec * 8.0) * 0.45;
+      }
+      if (this.muzzleRingB) {
+        this.muzzleRingB.rotation.y += dt * 15.0;
+        this.muzzleRingB.rotation.z += dt * 9.0;
+      }
+    }
 
-    // Som contínuo de laser solar
+    // 8 Anéis de Choque Solar (Beam Rings) viajando rapidamente da mão até o ponto de impacto
+    if (this.solarBeamRings && this.solarBeamRings.length > 0) {
+      const ringCount = this.solarBeamRings.length;
+      for (let i = 0; i < ringCount; i++) {
+        const ring = this.solarBeamRings[i];
+        ring.visible = true;
+        const u = ((nowSec * 3.8 + i / ringCount) % 1.0);
+        ring.position.lerpVectors(handOrigin, targetPt, u);
+        ring.lookAt(targetPt);
+        ring.rotation.z = nowSec * 10.0 + i * 0.8;
+        const s = 0.65 + Math.sin(u * Math.PI) * 0.75;
+        ring.scale.setScalar(s);
+        ring.material.opacity = (1.0 - u * 0.55) * 0.92;
+      }
+    }
+
+    // Vórtice de Magma de 1.6m girando no ponto de impacto
+    this.beamHitSphere.position.copy(targetPt);
+    const hitScale = 0.92 + Math.sin(nowSec * 38.0) * 0.24;
+    this.beamHitSphere.scale.setScalar(hitScale);
+    if (this.beamVortexRing) {
+      this.beamVortexRing.rotation.z += dt * 10.0;
+    }
+    if (this.beamVortexSpikes) {
+      this.beamVortexSpikes.rotation.y -= dt * 14.0;
+    }
+
+    // Rugido termonuclear grave contínuo
     this.beamSoundCooldown -= dt;
     if (this.beamSoundCooldown <= 0) {
-      this.beamSoundCooldown = 0.07;
+      this.beamSoundCooldown = 0.085;
       soundFX.playSolarBeamTick();
     }
 
-    // Solta faíscas solares no ponto de impacto
-    if (Math.random() < 0.55) {
-      this.spawnFlameTrailParticle(targetPt, 0.85);
+    // Solta faíscas solares intensas no ponto de impacto
+    if (Math.random() < 0.82) {
+      this.spawnFlameTrailParticle(targetPt, 1.25);
     }
 
-    // Aplica dano solar contínuo (capaz de derreter objetos de Ouro LEGO!)
+    // Aplica dano solar contínuo pesado (derrete objetos de Ouro LEGO rapidamente!)
+    const beamDps = 62;
     if (aimData.hitObj && !aimData.hitObj.destroyed) {
-      this.damageObject(aimData.hitObj, 42 * dt, targetPt, true);
+      this.damageObject(aimData.hitObj, beamDps * dt, targetPt, true);
     } else {
-      // Verifica também objetos muito próximos ao ponto de impacto do feixe
       for (const obj of this.objects) {
         if (obj.destroyed) continue;
         const dHoriz = Math.hypot(obj.basePos.x - targetPt.x, obj.basePos.z - targetPt.z);
         const dVert = Math.abs((obj.basePos.y + obj.height * 0.5) - targetPt.y);
-        if (dHoriz <= obj.radius + 0.65 && dVert <= obj.height * 0.7 + 0.6) {
-          this.damageObject(obj, 42 * dt, targetPt, true);
+        if (dHoriz <= obj.radius + 1.15 && dVert <= obj.height * 0.75 + 0.9) {
+          this.damageObject(obj, beamDps * dt, targetPt, true);
         }
       }
     }
   }
 
   /**
-   * Poder Especial Supernova do Solaris (Explosão Solar em Área)
+   * Atualiza o Medidor 3D de Força & Alcance da Supernova [Q] no chão embaixo dos pés do Solaris
    */
-  triggerSupernova(centerPos) {
-    const origin = centerPos.clone();
-    origin.y += 1.1;
-    this._triggerExplosion(origin, 11.5, 95, false, true);
+  updateSupernovaChargeVisual(isActive, playerPos, chargeRatio = 0, currentRadius = 12, dt = 0.016, groundY = null) {
+    if (!this.supernovaChargeGroup) return;
+    if (!isActive) {
+      this.supernovaChargeGroup.visible = false;
+      return;
+    }
+
+    this.supernovaChargeGroup.visible = true;
+    const clamped = THREE.MathUtils.clamp(chargeRatio, 0, 1);
+    const floorY = groundY !== null ? groundY : playerPos.y;
+    this.supernovaChargeGroup.position.set(playerPos.x, floorY + 0.05, playerPos.z);
+
+    // Cor progressiva da carga: Amarelo (0-35%) -> Laranja (35-75%) -> Vermelho Magma (75-97%) -> Branco-Ouro Piscante (100%)
+    const isMax = clamped >= 0.98;
+    const flashWhite = isMax && Math.sin(performance.now() * 0.045) > 0;
+    const activeColorHex = flashWhite
+      ? 0xffffff
+      : clamped >= 0.75
+        ? 0xef4444
+        : clamped >= 0.35
+          ? 0xf97316
+          : 0xfacc15;
+
+    const totalSegs = this.chargeArcSegments.length;
+    const litCount = Math.max(1, Math.ceil(clamped * totalSegs));
+    for (let i = 0; i < totalSegs; i++) {
+      const seg = this.chargeArcSegments[i];
+      if (i < litCount) {
+        seg.material.color.setHex(activeColorHex);
+        seg.material.opacity = 0.96;
+        const pop = i === litCount - 1 ? 1.45 : 1.0 + clamped * 0.35;
+        seg.scale.set(1.0, pop, 1.0 + clamped * 0.3);
+      } else {
+        seg.material.color.setHex(0x451a03);
+        seg.material.opacity = 0.35;
+        seg.scale.set(0.85, 0.55, 0.85);
+      }
+    }
+
+    // Runa Solar Giratória Interna acelerando com a carga
+    if (this.chargeInnerSunGroup) {
+      this.chargeInnerSunGroup.rotation.y += dt * (2.5 + clamped * 14.0);
+      const innerScale = 0.95 + clamped * 0.55;
+      this.chargeInnerSunGroup.scale.set(innerScale, 1.0, innerScale);
+    }
+
+    // Anel Expansivo de Alcance Real no Chão (12m -> 52m!)
+    if (this.chargeRangeRing) {
+      this.chargeRangeRing.scale.set(currentRadius, currentRadius, 1.0);
+      this.chargeRangeRingMat.color.setHex(activeColorHex);
+      this.chargeRangeRingMat.opacity = 0.75 + Math.sin(performance.now() * 0.025) * 0.2;
+    }
+    if (this.chargeSubRing) {
+      const subR = currentRadius * (0.55 + (performance.now() * 0.0015 % 0.45));
+      this.chargeSubRing.scale.set(subR, subR, 1.0);
+      this.chargeSubRingMat.color.setHex(flashWhite ? 0xffffff : 0xfef08a);
+    }
+
+    // Solta fagulhas solares ascendentes na borda do medidor durante o carregamento
+    if (Math.random() < 0.45 + clamped * 0.5) {
+      const ang = Math.random() * Math.PI * 2;
+      const r = 1.6 + Math.random() * (1.5 + clamped * 4.5);
+      this.spawnFlameTrailParticle(
+        new THREE.Vector3(
+          playerPos.x + Math.cos(ang) * r,
+          floorY + 0.25,
+          playerPos.z + Math.sin(ang) * r
+        ),
+        0.95 + clamped * 0.9
+      );
+    }
   }
 
   /**
-   * Cria uma explosão 3D em área (Granada, Bola de Fogo, Bazuca RPG ou Supernova)
+   * Poder Especial [Q] SUPERNOVA CARREGÁVEL do Solaris:
+   * - Tap rápido [Q] (chargeRatio ~ 0): Raio 12m, Dano 110
+   * - Carga Máxima [Q] (chargeRatio = 1.0): Explosão Colossal de Raio 52m e Dano 350!
+   */
+  triggerSupernova(centerPos, chargeRatio = 0, groundY = null) {
+    if (this.supernovaChargeGroup) {
+      this.supernovaChargeGroup.visible = false;
+    }
+    const clampedCharge = THREE.MathUtils.clamp(chargeRatio, 0, 1);
+    const blastRadius = THREE.MathUtils.lerp(12.0, 52.0, clampedCharge);
+    const blastDamage = THREE.MathUtils.lerp(110.0, 350.0, clampedCharge);
+
+    const origin = centerPos.clone();
+    origin.y += 1.1;
+    const floorY = groundY !== null ? groundY : centerPos.y;
+
+    this._triggerExplosion(origin, blastRadius, blastDamage, false, true, {
+      canBreakCrackedWall: true,
+      canBreakSilver: clampedCharge >= 0.35,
+      chargeRatio: clampedCharge,
+      groundY: floorY
+    });
+  }
+
+  /**
+   * Cria uma explosão 3D em área (Granada, Bola de Fogo, Bazuca RPG ou Supernova Multi-Camadas)
    */
   _triggerExplosion(center, radius, maxDamage, isFlashbang = false, isSupernova = false, damageOpts = {}) {
-    soundFX.playExplosion(isSupernova ? 1.6 : isFlashbang ? 1.25 : 0.9);
+    const chargeRatio = damageOpts.chargeRatio ?? 0;
+    soundFX.playExplosion(isSupernova ? 1.5 + chargeRatio * 1.1 : isFlashbang ? 1.25 : 0.9);
 
     const sphereColor = isFlashbang ? 0xfef9c3 : 0xf97316;
     const sphereMat = new THREE.MeshBasicMaterial({
@@ -971,27 +1266,144 @@ export class DestructibleManager {
       transparent: true,
       opacity: 0.88
     });
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 20), sphereMat);
+    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 22), sphereMat);
     sphereMesh.position.copy(center);
     this.scene.add(sphereMesh);
 
-    const ringGeo = new THREE.TorusGeometry(1, 0.12, 12, 32);
+    const ringGeo = new THREE.TorusGeometry(1, isSupernova ? 0.08 : 0.12, 12, 40);
     ringGeo.rotateX(Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xfef08a,
       transparent: true,
-      opacity: 0.92
+      opacity: 0.94
     });
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
     ringMesh.position.copy(center);
     this.scene.add(ringMesh);
 
+    const extraMeshes = [];
+    const extraRings = [];
+    const eruptionSpikes = [];
+    let innerCoreMesh = null;
+
+    // SUPERNOVA MULTI-CAMADAS CINEMATOGRÁFICA DO SOLARIS:
+    // 1) Núcleo Duplo de Plasma (Branco-Solar interno + Domo Magma externo)
+    // 2) 3 Ondas de Choque Concêntricas + 2 Anéis Solares Cruzados em X
+    // 3) Coroa de 12 a 24 Pilares/Lanças de Erupção Solar brotando do chão
+    // 4) 60+ Meteoros de Fogo LEGO 3D voando em todas as direções!
+    if (isSupernova) {
+      const innerMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.96
+      });
+      innerCoreMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 20), innerMat);
+      innerCoreMesh.position.copy(center);
+      this.scene.add(innerCoreMesh);
+      extraMeshes.push(innerCoreMesh);
+
+      const ringConfigs = [
+        { color: 0xf97316, speedMult: 1.18, tiltX: 0, tiltZ: 0 },
+        { color: 0xef4444, speedMult: 0.76, tiltX: 0, tiltZ: 0 },
+        { color: 0xfef08a, speedMult: 1.02, tiltX: 0.42, tiltZ: 0.35 },
+        { color: 0xfacc15, speedMult: 1.02, tiltX: -0.42, tiltZ: -0.35 }
+      ];
+      for (const rc of ringConfigs) {
+        const rGeo = new THREE.TorusGeometry(1, 0.055, 10, 36);
+        rGeo.rotateX(Math.PI / 2);
+        const rMat = new THREE.MeshBasicMaterial({
+          color: rc.color,
+          transparent: true,
+          opacity: 0.9
+        });
+        const rMesh = new THREE.Mesh(rGeo, rMat);
+        rMesh.position.copy(center);
+        rMesh.rotation.x = rc.tiltX;
+        rMesh.rotation.z = rc.tiltZ;
+        this.scene.add(rMesh);
+        extraMeshes.push(rMesh);
+        extraRings.push({ mesh: rMesh, speedMult: rc.speedMult });
+      }
+
+      // Coroa de 12 a 24 Pilares/Lanças de Erupção Solar 3D brotando do chão em círculos concêntricos!
+      const spikeCount = Math.round(12 + chargeRatio * 12);
+      const floorY = damageOpts.groundY ?? Math.max(0, center.y - 1.1);
+      const spikeColors = [0xffffff, 0xfef08a, 0xfacc15, 0xf97316, 0xef4444];
+      for (let s = 0; s < spikeCount; s++) {
+        const isOuterRing = s >= spikeCount * 0.45;
+        const ringRatio = isOuterRing ? 0.68 : 0.34;
+        const angle = (s / (isOuterRing ? Math.ceil(spikeCount * 0.55) : Math.floor(spikeCount * 0.45))) * Math.PI * 2 + (isOuterRing ? 0.25 : 0);
+        const distFromCenter = radius * ringRatio * (0.85 + (s % 3) * 0.08);
+        const maxSpikeH = (4.5 + chargeRatio * 11.5) * (isOuterRing ? 0.85 : 1.15);
+        const spikeR = (0.55 + chargeRatio * 1.1) * (isOuterRing ? 0.9 : 1.1);
+
+        const spikeMat = new THREE.MeshBasicMaterial({
+          color: spikeColors[s % spikeColors.length],
+          transparent: true,
+          opacity: 0.94
+        });
+        const spikeGeo = new THREE.ConeGeometry(spikeR, maxSpikeH, 5);
+        spikeGeo.translate(0, maxSpikeH * 0.5, 0);
+        const spikeMesh = new THREE.Mesh(spikeGeo, spikeMat);
+        spikeMesh.position.set(
+          center.x + Math.cos(angle) * distFromCenter,
+          floorY,
+          center.z + Math.sin(angle) * distFromCenter
+        );
+        // Inclina levemente as lanças de magma para fora a partir do epicentro
+        spikeMesh.rotation.z = -Math.cos(angle) * 0.22;
+        spikeMesh.rotation.x = Math.sin(angle) * 0.22;
+        spikeMesh.scale.set(1, 0.05, 1);
+        this.scene.add(spikeMesh);
+        extraMeshes.push(spikeMesh);
+        eruptionSpikes.push({
+          mesh: spikeMesh,
+          delay: isOuterRing ? 0.12 : 0.0
+        });
+      }
+
+      // 60+ Meteoros e Fagulhas de Fogo LEGO 3D voando para fora
+      const meteorCount = Math.round(36 + chargeRatio * 34);
+      for (let m = 0; m < meteorCount; m++) {
+        const ang = (m / meteorCount) * Math.PI * 2 + Math.random() * 0.2;
+        const elev = 0.15 + Math.random() * 0.85;
+        const speed = (16 + Math.random() * 26) * (0.65 + chargeRatio * 0.85);
+        const mColor = spikeColors[m % spikeColors.length];
+        const mMat = new THREE.MeshBasicMaterial({
+          color: mColor,
+          transparent: true,
+          opacity: 0.95
+        });
+        const mMesh = new THREE.Mesh(TRAIL_CUBE_GEO, mMat);
+        mMesh.position.copy(center);
+        mMesh.scale.setScalar(1.3 + chargeRatio * 1.6);
+        this.scene.add(mMesh);
+
+        const life = 0.55 + Math.random() * 0.45;
+        this.fxParticles.push({
+          mesh: mMesh,
+          vel: new THREE.Vector3(
+            Math.cos(ang) * Math.cos(elev) * speed,
+            Math.sin(elev) * speed * 0.85,
+            Math.sin(ang) * Math.cos(elev) * speed
+          ),
+          life,
+          maxLife: life
+        });
+      }
+    }
+
     this.explosions.push({
       sphereMesh,
       ringMesh,
+      innerCoreMesh,
+      extraMeshes,
+      extraRings,
+      eruptionSpikes,
+      isSupernova,
       maxRadius: radius,
       age: 0,
-      duration: isSupernova ? 0.55 : 0.36
+      duration: isSupernova ? 0.72 + chargeRatio * 0.38 : 0.36
     });
 
     // Causa dano em todos os objetos quebráveis dentro do raio (exceto o próprio veículo que o jogador está dirigindo!)
@@ -1518,7 +1930,7 @@ export class DestructibleManager {
       }
     }
 
-    // 4. Animação de Esferas e Anéis de Explosão (Granada / Bola de Fogo / Supernova)
+    // 4. Animação de Esferas, Ondas de Choque e Pilares de Erupção (Granada / Bola de Fogo / Supernova)
     for (let i = this.explosions.length - 1; i >= 0; i--) {
       const ex = this.explosions[i];
       ex.age += dt;
@@ -1526,16 +1938,45 @@ export class DestructibleManager {
       if (t >= 1) {
         this.scene.remove(ex.sphereMesh);
         this.scene.remove(ex.ringMesh);
+        if (ex.extraMeshes) {
+          for (const m of ex.extraMeshes) {
+            this.scene.remove(m);
+          }
+        }
         this.explosions.splice(i, 1);
         continue;
       }
 
-      const r = THREE.MathUtils.lerp(0.5, ex.maxRadius, Math.pow(t, 0.55));
-      ex.sphereMesh.scale.setScalar(r * 0.65);
+      const r = THREE.MathUtils.lerp(0.5, ex.maxRadius, Math.pow(t, 0.52));
+      ex.sphereMesh.scale.setScalar(r * (ex.isSupernova ? 0.58 : 0.65));
       ex.sphereMesh.material.opacity = (1 - t) * 0.78;
 
       ex.ringMesh.scale.setScalar(r);
-      ex.ringMesh.material.opacity = (1 - t) * 0.9;
+      ex.ringMesh.material.opacity = (1 - t) * 0.92;
+
+      if (ex.innerCoreMesh) {
+        ex.innerCoreMesh.scale.setScalar(r * 0.36);
+        ex.innerCoreMesh.material.opacity = Math.max(0, (1 - t * 1.15) * 0.96);
+      }
+
+      if (ex.extraRings) {
+        for (const er of ex.extraRings) {
+          const erRadius = Math.min(ex.maxRadius * 1.25, r * er.speedMult);
+          er.mesh.scale.setScalar(erRadius);
+          er.mesh.material.opacity = Math.max(0, (1 - t) * 0.88);
+        }
+      }
+
+      if (ex.eruptionSpikes) {
+        for (const sp of ex.eruptionSpikes) {
+          const localT = Math.max(0, (t - sp.delay) / (1 - sp.delay));
+          const growY = localT < 0.35
+            ? localT / 0.35
+            : Math.max(0.05, 1.0 - (localT - 0.35) / 0.65);
+          sp.mesh.scale.set(1.0, growY, 1.0);
+          sp.mesh.material.opacity = Math.max(0, (1 - localT) * 0.95);
+        }
+      }
     }
 
     // 5. Partículas de rastro de chamas e troca de herói
