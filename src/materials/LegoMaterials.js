@@ -861,68 +861,80 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     }
   } else if (preset === 'vortex') {
     // =========================================================================
-    // ROSTO COLOSSO SIMBIONTE DO VÓRTEX — ESTILO VENOM ABISSAL (512x256, cx=256)
+    // ROSTO COLOSSO SIMBIONTE DO VÓRTEX — ESTILO VENOM / KNULL (512x256, cx=256)
     // =========================================================================
-    ctx.fillStyle = '#090a0d';
+    ctx.fillStyle = '#050608';
     ctx.fillRect(0, 0, 512, 256);
 
-    // Veias de Biomassa Roxo-Abissal espalhadas pela cabeça simbionte
-    ctx.strokeStyle = '#9333ea';
-    ctx.lineWidth = 4.5;
-    ctx.beginPath();
-    ctx.moveTo(cx - 120, 34);
-    ctx.lineTo(cx - 68, 72);
-    ctx.lineTo(cx - 98, 140);
-    ctx.moveTo(cx + 120, 34);
-    ctx.lineTo(cx + 68, 72);
-    ctx.lineTo(cx + 98, 140);
-    ctx.stroke();
-
-    // Olhos Brancos Gigantes Rasgados e Curvos (Estilo Venom Clássico)
-    ctx.fillStyle = '#f8fafc';
-    ctx.strokeStyle = '#a855f7';
+    // Veias Orgânicas de Biomassa Roxo-Abissal Escuro e Grafite Líquido espalhadas pelo crânio
+    ctx.strokeStyle = '#581c87';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(cx - 16, 98);
-    ctx.bezierCurveTo(cx - 42, 74, cx - 82, 46, cx - 98, 32);
-    ctx.bezierCurveTo(cx - 96, 82, cx - 72, 118, cx - 16, 116);
-    ctx.closePath();
-    ctx.fill();
+    for (const s of [-1, 1]) {
+      ctx.moveTo(cx + s * 135, 18);
+      ctx.lineTo(cx + s * 92, 54);
+      ctx.lineTo(cx + s * 116, 108);
+      ctx.lineTo(cx + s * 88, 162);
+      ctx.moveTo(cx + s * 64, 24);
+      ctx.lineTo(cx + s * 36, 62);
+    }
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(cx + 16, 98);
-    ctx.bezierCurveTo(cx + 42, 74, cx + 82, 46, cx + 98, 32);
-    ctx.bezierCurveTo(cx + 96, 82, cx + 72, 118, cx + 16, 116);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Bocarra Monstruosa Simbionte Rasgada com Fileiras de Presas Afiadas
-    ctx.fillStyle = '#4c1d95';
-    ctx.beginPath();
-    ctx.moveTo(cx - 92, 140);
-    ctx.quadraticCurveTo(cx, 122, cx + 92, 140);
-    ctx.quadraticCurveTo(cx + 76, 224, cx, 232);
-    ctx.quadraticCurveTo(cx - 76, 224, cx - 92, 140);
-    ctx.closePath();
-    ctx.fill();
-
-    // Presas Superiores e Inferiores Pontiagudas Brancas
-    ctx.fillStyle = '#f8fafc';
-    for (let fx = cx - 72; fx <= cx + 72; fx += 18) {
-      // Presa superior
+    // OLHOS BRANCOS GIGANTES, CURVOS E COM BORDAS SERRILHADAS/RASGADAS (Estilo Clássico do Venom!)
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#d8b4fe';
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.moveTo(fx - 7, 136);
-      ctx.lineTo(fx + 7, 136);
-      ctx.lineTo(fx, 174);
+      ctx.moveTo(cx + s * 12, 106);
+      ctx.lineTo(cx + s * 34, 82);
+      ctx.lineTo(cx + s * 46, 88);
+      ctx.lineTo(cx + s * 68, 56);
+      ctx.lineTo(cx + s * 78, 64);
+      ctx.lineTo(cx + s * 106, 22);
+      // Borda externa serrilhada orgânica subindo pelas têmporas
+      ctx.lineTo(cx + s * 112, 48);
+      ctx.lineTo(cx + s * 98, 66);
+      ctx.lineTo(cx + s * 104, 84);
+      ctx.lineTo(cx + s * 82, 104);
+      ctx.lineTo(cx + s * 54, 118);
+      ctx.lineTo(cx + s * 12, 116);
       ctx.closePath();
       ctx.fill();
-      // Presa inferior
+      ctx.stroke();
+    }
+
+    // Bocarra Monstruosa Rasgada de Orelha a Orelha (Garganta Abissal Escura + Gengiva Simbionte)
+    ctx.fillStyle = '#1e0536';
+    ctx.strokeStyle = '#7e22ce';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 106, 134);
+    ctx.quadraticCurveTo(cx, 114, cx + 106, 134);
+    ctx.quadraticCurveTo(cx + 88, 232, cx, 242);
+    ctx.quadraticCurveTo(cx - 88, 232, cx - 106, 134);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Fileiras de Presas Longas, Irregulares e Afiadas como Agulhas (Venom Fangs)
+    ctx.fillStyle = '#f8fafc';
+    const upperFangs = [-86, -68, -50, -32, -16, 0, 16, 32, 50, 68, 86];
+    for (let i = 0; i < upperFangs.length; i++) {
+      const fx = cx + upperFangs[i];
+      const fangLen = (i % 2 === 0 ? 42 : 30) - Math.abs(upperFangs[i]) * 0.12;
       ctx.beginPath();
-      ctx.moveTo(fx - 6, 218);
-      ctx.lineTo(fx + 6, 218);
-      ctx.lineTo(fx, 184);
+      ctx.moveTo(fx - 6.5, 130);
+      ctx.lineTo(fx + 6.5, 130);
+      ctx.lineTo(fx, 130 + fangLen);
+      ctx.closePath();
+      ctx.fill();
+
+      // Presas inferiores apontando para cima
+      ctx.beginPath();
+      ctx.moveTo(fx - 5.5, 228);
+      ctx.lineTo(fx + 5.5, 228);
+      ctx.lineTo(fx, 228 - fangLen * 0.85);
       ctx.closePath();
       ctx.fill();
     }
@@ -1330,45 +1342,63 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
     ctx.fillStyle = '#38bdf8';
     ctx.fillRect(100, 212, 56, 26);
   } else if (preset === 'vortex') {
-    // Peitoral Simbionte Abissal (Preto Líquido + Emblema de Aranha/Vórtex Branco e Roxo-Neon)
-    ctx.fillStyle = '#090a0d';
+    // Peitoral Simbionte Musculoso (Preto Líquido + Emblema Clássico da Aranha Simbionte Branca do Venom!)
+    ctx.fillStyle = '#050608';
     ctx.fillRect(0, 0, 256, 256);
 
-    // Músculos Simbiontes com brilho roxo escuro
-    ctx.strokeStyle = '#6b21a8';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(18, 16, 220, 186);
-
-    // Emblema Simbionte Gigante (Branco Puro com Contorno Roxo-Neon e Pernas Rasgadas)
-    ctx.fillStyle = '#f8fafc';
-    ctx.strokeStyle = '#a855f7';
+    // Sombreamento anatômico dos Peitorais e Abdômen Simbionte + Veias Roxo-Abissal Escuro
+    ctx.strokeStyle = '#3b0764';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(128, 28);
-    ctx.lineTo(164, 96);
-    ctx.lineTo(128, 178);
-    ctx.lineTo(92, 96);
+    ctx.roundRect(18, 16, 102, 84, 14);
+    ctx.roundRect(136, 16, 102, 84, 14);
+    ctx.roundRect(42, 110, 78, 38, 8);
+    ctx.roundRect(136, 110, 78, 38, 8);
+    ctx.roundRect(48, 156, 72, 38, 8);
+    ctx.roundRect(136, 156, 72, 38, 8);
+    ctx.stroke();
+
+    // EMBLEMA CLÁSSICO DA ARANHA/DRAGÃO SIMBIONTE DO VENOM EM BRANCO PURO (#ffffff)
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineJoin = 'miter';
+    ctx.lineCap = 'square';
+
+    // Cabeça pontiaguda + Tórax esguio + Abdômen afiado como lâmina descendo até o umbigo
+    ctx.beginPath();
+    ctx.moveTo(128, 18);
+    ctx.lineTo(142, 46);
+    ctx.lineTo(135, 68);
+    ctx.lineTo(152, 102);
+    ctx.lineTo(128, 212);
+    ctx.lineTo(104, 102);
+    ctx.lineTo(121, 68);
+    ctx.lineTo(114, 46);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
 
-    // Tentáculos / Pernas brancas do símbolo simbionte se espalhando pelo peito
-    ctx.strokeStyle = '#f8fafc';
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    for (const [sy, ey] of [[58, 22], [88, 68], [118, 128], [146, 186]]) {
-      ctx.moveTo(104, sy);
-      ctx.lineTo(24, ey);
-      ctx.moveTo(152, sy);
-      ctx.lineTo(232, ey);
+    // 8 Pernas Angulares Quebradas em Ziguezague da Aranha do Venom (4 de cada lado abraçando o peito e costelas!)
+    ctx.lineWidth = 8.5;
+    const spiderLegs = [
+      // Perna 1 (Superior — sobe para as clavículas/ombros)
+      [[120, 56], [76, 26], [22, 10]],
+      // Perna 2 (Peitoral Superior — abre e quebra para cima/fora)
+      [[114, 78], [64, 58], [12, 48]],
+      // Perna 3 (Peitoral Inferior — abre e quebra agressivamente para baixo)
+      [[112, 104], [58, 106], [14, 138]],
+      // Perna 4 (Abdominal — desce rasgando pelas costelas)
+      [[116, 132], [68, 154], [24, 204]]
+    ];
+    for (const legPts of spiderLegs) {
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        const [p0, p1, p2] = legPts;
+        ctx.moveTo(128 + s * (p0[0] - 128), p0[1]);
+        ctx.lineTo(128 + s * (p1[0] - 128), p1[1]);
+        ctx.lineTo(128 + s * (p2[0] - 128), p2[1]);
+        ctx.stroke();
+      }
     }
-    ctx.stroke();
-
-    // Cinturão de Biomassa Roxo-Abissal
-    ctx.fillStyle = '#581c87';
-    ctx.fillRect(14, 206, 228, 38);
-    ctx.fillStyle = '#a855f7';
-    ctx.fillRect(98, 212, 60, 26);
   } else {
     // Jaqueta azul urbana clássica LEGO
     ctx.fillStyle = '#1d4ed8';

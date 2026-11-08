@@ -613,37 +613,83 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'vortex') {
-    // Olhos Brancos Rasgados Gigantes (Estilo Venom) + Bocarra de Presas + Símbolo Roxo/Branco
-    ctx.fillStyle = '#f8fafc';
+    // Olhos Brancos Rasgados/Serrilhados do Venom + Bocarra de Presas + Língua Longa Serpenteante + Aranha Branca no Peito!
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.24, 21);
-    ctx.lineTo(76 * 0.46, 29);
-    ctx.lineTo(76 * 0.44, 35);
-    ctx.lineTo(76 * 0.24, 30);
+    ctx.moveTo(76 * 0.46, 31);
+    ctx.lineTo(76 * 0.35, 25);
+    ctx.lineTo(76 * 0.23, 18);
+    ctx.lineTo(76 * 0.21, 27);
+    ctx.lineTo(76 * 0.31, 33);
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(76 * 0.76, 21);
-    ctx.lineTo(76 * 0.54, 29);
-    ctx.lineTo(76 * 0.56, 35);
-    ctx.lineTo(76 * 0.76, 30);
+    ctx.moveTo(76 * 0.54, 31);
+    ctx.lineTo(76 * 0.65, 25);
+    ctx.lineTo(76 * 0.77, 18);
+    ctx.lineTo(76 * 0.79, 27);
+    ctx.lineTo(76 * 0.69, 33);
     ctx.closePath();
     ctx.fill();
 
-    // Bocarra roxa com presas brancas afiadas
-    ctx.fillStyle = '#581c87';
-    ctx.fillRect(76 * 0.28, 39, 76 * 0.44, 12);
+    // Bocarra rasgada com presas brancas pontiagudas (sem grade quadrada!)
+    ctx.fillStyle = '#1e0536';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.24, 36);
+    ctx.quadraticCurveTo(76 * 0.5, 33, 76 * 0.76, 36);
+    ctx.quadraticCurveTo(76 * 0.68, 52, 76 * 0.5, 53);
+    ctx.quadraticCurveTo(76 * 0.32, 52, 76 * 0.24, 36);
+    ctx.closePath();
+    ctx.fill();
+
     ctx.fillStyle = '#f8fafc';
-    for (let fx = 76 * 0.31; fx <= 76 * 0.66; fx += 6.5) {
-      ctx.fillRect(fx, 39, 3, 5);
-      ctx.fillRect(fx, 46, 3, 5);
+    for (let fx = 76 * 0.28; fx <= 76 * 0.72; fx += 5.5) {
+      ctx.beginPath();
+      ctx.moveTo(fx - 2, 35.5);
+      ctx.lineTo(fx + 2, 35.5);
+      ctx.lineTo(fx, 42);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(fx - 1.8, 50.5);
+      ctx.lineTo(fx + 1.8, 50.5);
+      ctx.lineTo(fx, 45);
+      ctx.closePath();
+      ctx.fill();
     }
 
-    ctx.fillStyle = '#a855f7';
+    // Língua Longa Serpenteante do Venom saindo da bocarra!
+    ctx.strokeStyle = '#db2777';
+    ctx.lineWidth = 3.6;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
+    ctx.moveTo(76 * 0.5, 44);
+    ctx.bezierCurveTo(76 * 0.52, 54, 76 * 0.68, 52, 76 * 0.72, 43);
+    ctx.stroke();
+
+    // Emblema da Aranha Simbionte Branca no Peito
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.5, 56);
+    ctx.lineTo(76 * 0.56, 64);
+    ctx.lineTo(76 * 0.5, 74);
+    ctx.lineTo(76 * 0.44, 64);
+    ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(76 * 0.5, 61);
+      ctx.lineTo(76 * (0.5 + s * 0.24), 57);
+      ctx.moveTo(76 * 0.5, 65);
+      ctx.lineTo(76 * (0.5 + s * 0.26), 66);
+      ctx.moveTo(76 * 0.5, 69);
+      ctx.lineTo(76 * (0.5 + s * 0.22), 75);
+      ctx.stroke();
+    }
   }
 
   ctx.restore();
