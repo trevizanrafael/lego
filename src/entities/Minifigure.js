@@ -98,17 +98,17 @@ export const MINIFIG_PRESETS = {
   sombra: {
     key: 'sombra',
     name: 'Sombra Escarlate',
-    subtitle: 'Gancho Magnético [Mouse 2] • Katanas • Fumaça Invisível [Q] • Puxão [G]',
+    subtitle: 'Gancho 360° [Mouse 2] • Katanas Lua de Sangue [Mouse 1] • Rolamento Invisível [Q]',
     headColor: 0x090a0d,
     torsoColor: 0x090a0d,
     armColor: 0x18181b,
     handColor: LEGO_COLORS.red,
-    hipColor: LEGO_COLORS.red,
+    hipColor: 0x991b1b,
     legColor: 0x090a0d,
     facePreset: 'sombra',
     torsoPreset: 'sombra',
     headgear: 'ninja_hood',
-    capeColor: 0x991b1b,
+    capeColor: null,
     weapon: 'dual_katanas',
     fireAura: false
   }
@@ -148,6 +148,8 @@ export class Minifigure {
     this.stompDuration = 0.42;
     this.titaJumpChargeRatio = 0;
     this.isDashing = false;
+    this.sombraScarfStrips = [];
+    this.katanaAuraFlames = [];
     this.muzzleFlashMesh = null;
     this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
@@ -183,6 +185,8 @@ export class Minifigure {
     this.stompTimer = 0;
     this.titaJumpChargeRatio = 0;
     this.isDashing = false;
+    this.sombraScarfStrips = [];
+    this.katanaAuraFlames = [];
     this.muzzleFlashMesh = null;
     this.leftMuzzleFlashMesh = null;
     this.rifleGroup = null;
@@ -197,6 +201,8 @@ export class Minifigure {
 
     if (preset.isBigFig) {
       this.visualRoot.scale.set(1.78, 1.62, 1.78);
+    } else if (preset.key === 'sombra') {
+      this.visualRoot.scale.set(0.92, 1.07, 0.92);
     } else {
       this.visualRoot.scale.set(1, 1, 1);
     }
@@ -303,6 +309,7 @@ export class Minifigure {
       this._attachVingadorArsenal(this.leftHandGroup, this.rightHandGroup);
     } else if (preset.weapon === 'dual_katanas') {
       this._attachDualKatanas(this.leftHandGroup, this.rightHandGroup);
+      this._attachSombraShinobiRig();
     }
 
     if (preset.fireAura) {
@@ -699,21 +706,78 @@ export class Minifigure {
       knotTail.rotation.x = 0.35;
       this.headGroup.add(knotTail);
     } else if (preset.headgear === 'ninja_hood') {
-      // Capuz Shinobi Completo do Sombra Escarlate com Crista Vermelha Neon
-      const hoodMat = getLegoMaterial(0x090a0d, { roughness: 0.28 });
-      const redMat = getLegoMaterial(LEGO_COLORS.red, { emissive: 0xdc2626, emissiveIntensity: 0.35 });
+      // =========================================================================
+      // CAPUZ SHINOBI ASSASSINO 3D + MÁSCARA ONI MENPO + CHIFRES ESCARLATES
+      // =========================================================================
+      const hoodMat = getLegoMaterial(0x090a0d, { roughness: 0.28, clearcoat: 0.35 });
+      const darkSteelMat = getLegoMaterial(0x1e293b, { roughness: 0.22, metalness: 0.55 });
+      const silverMat = getLegoMaterial(0xe2e8f0, { roughness: 0.2, metalness: 0.65 });
+      const redMat = getLegoMaterial(0xdc2626, { roughness: 0.22, clearcoat: 0.5 });
+      const crimsonGlowMat = getLegoMaterial(0xff1e42, {
+        emissive: 0xef4444,
+        emissiveIntensity: 2.1,
+        roughness: 0.12
+      });
 
-      const hoodTop = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.39, 0.16, 24), hoodMat);
-      hoodTop.position.set(0, 0.61, 0);
+      // Domo do Capuz Shinobi 3D em preto fosco + Abas laterais de assassino
+      const hoodTop = new THREE.Mesh(new THREE.CylinderGeometry(0.388, 0.398, 0.18, 28), hoodMat);
+      hoodTop.position.set(0, 0.62, 0);
+      hoodTop.castShadow = true;
       this.headGroup.add(hoodTop);
 
-      const scarfCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.41, 0.14, 24), redMat);
-      scarfCollar.position.set(0, 0.11, 0);
-      this.headGroup.add(scarfCollar);
+      const hoodPeak = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.24), hoodMat);
+      hoodPeak.position.set(0, 0.58, 0.24);
+      hoodPeak.rotation.x = 0.24;
+      this.headGroup.add(hoodPeak);
 
-      const ninjaCrest = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.12), redMat);
-      ninjaCrest.position.set(0, 0.55, 0.36);
-      this.headGroup.add(ninjaCrest);
+      for (const side of [-1, 1]) {
+        const sideCowl = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.42, 0.36), hoodMat);
+        sideCowl.position.set(side * 0.36, 0.36, -0.02);
+        this.headGroup.add(sideCowl);
+      }
+
+      // Bandana Escarlate 3D na Testa + Placa Metálica Hachigane com Runa Mística
+      const headband3D = new THREE.Mesh(new THREE.CylinderGeometry(0.376, 0.376, 0.09, 28), redMat);
+      headband3D.position.set(0, 0.53, 0);
+      this.headGroup.add(headband3D);
+
+      const hachiganePlate = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.095, 0.06), darkSteelMat);
+      hachiganePlate.position.set(0, 0.53, 0.365);
+      const runeCore = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.032, 0.07), crimsonGlowMat);
+      runeCore.position.set(0, 0.53, 0.37);
+      this.headGroup.add(hachiganePlate, runeCore);
+
+      // 2 Chifres Curtos de Demônio Oni em Vermelho-Escarlate Brilhante na testa
+      for (const side of [-1, 1]) {
+        const oniHorn = new THREE.Mesh(new THREE.ConeGeometry(0.048, 0.22, 5), crimsonGlowMat);
+        oniHorn.position.set(side * 0.16, 0.66, 0.32);
+        oniHorn.rotation.x = 0.42;
+        oniHorn.rotation.z = -side * 0.28;
+        this.headGroup.add(oniHorn);
+      }
+
+      // Meia-Máscara Oni / Menpo 3D cobrindo a mandíbula com 2 Presas Prateadas 3D
+      const menpoGuard = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.22, 0.24), hoodMat);
+      menpoGuard.position.set(0, 0.19, 0.23);
+      const menpoTrim = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.04, 0.25), redMat);
+      menpoTrim.position.set(0, 0.29, 0.235);
+      this.headGroup.add(menpoGuard, menpoTrim);
+
+      for (const side of [-1, 1]) {
+        const fang = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.1, 4), silverMat);
+        fang.position.set(side * 0.13, 0.23, 0.36);
+        fang.rotation.x = Math.PI;
+        this.headGroup.add(fang);
+      }
+
+      // 2 Pontas da Bandana voando atrás da nuca
+      for (const side of [-1, 1]) {
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.34, 0.045), redMat);
+        tail.position.set(side * 0.12, 0.42, -0.4);
+        tail.rotation.x = 0.42;
+        tail.rotation.z = side * 0.22;
+        this.headGroup.add(tail);
+      }
     }
   }
 
@@ -1421,48 +1485,360 @@ export class Minifigure {
   }
 
   /**
-   * Equipa as Duas Katanas Energizadas Escarlates do Sombra Escarlate (#5) + Bainhas Cruzadas nas Costas
+   * Equipa as Duas Katanas Longas Místicas ("Muramasa da Lua de Sangue") do Sombra Escarlate (#5):
+   * - Lâmina Larga e Longa (1.42m x 0.16m) com Dorso Obsidiana + Fio de Plasma Escarlate + Ponta Kissaki
+   * - Guarda Tsuba Ornamental Dourada/Preta + Cabo Tsuka Longo Trançado com Pomo Dourado
+   * - Aura de Chamas Espirituais Escarlates/Negras nas lâminas + 2 Bainhas Saya Cruzadas nas Costas
    */
   _attachDualKatanas(leftHandGroup, rightHandGroup) {
-    const hiltMat = getLegoMaterial(0x090a0d, { roughness: 0.3 });
-    const goldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.6, roughness: 0.2 });
-    const bladeMat = getLegoMaterial(0xff1e42, {
+    const obsidianMat = getLegoMaterial(0x090a0d, { roughness: 0.22, metalness: 0.55, clearcoat: 0.6 });
+    const darkRedMat = getLegoMaterial(0x991b1b, { roughness: 0.25 });
+    const crimsonWrapMat = getLegoMaterial(0xdc2626, { roughness: 0.22 });
+    const goldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.68, roughness: 0.16 });
+    const bladeEdgeMat = getLegoMaterial(0xff1e42, {
       emissive: 0xef4444,
-      emissiveIntensity: 1.95,
-      roughness: 0.1,
-      clearcoat: 0.8
+      emissiveIntensity: 2.35,
+      roughness: 0.08,
+      clearcoat: 0.85
+    });
+    const whiteRoseCoreMat = getLegoMaterial(0xfecaca, {
+      emissive: 0xffffff,
+      emissiveIntensity: 2.1,
+      roughness: 0.06
+    });
+    const shadowFlameMat = getLegoMaterial(0x18181b, {
+      emissive: 0x991b1b,
+      emissiveIntensity: 0.85
     });
 
-    const buildKatana = () => {
+    const buildKatana = (sideSign) => {
       const katana = new THREE.Group();
-      const tsuka = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.34, 10), hiltMat);
+
+      // 1. Cabo Longo Trançado (Tsuka — 0.42m) em Preto Obsidiana com Losangos Escarlates (Tsuka-ito) + Pomo Dourado
+      const tsuka = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.04, 0.42, 12), obsidianMat);
       tsuka.rotation.x = Math.PI / 2;
-      tsuka.position.set(0, 0, -0.04);
+      tsuka.position.set(0, 0, -0.08);
+      katana.add(tsuka);
 
-      const tsuba = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.035), goldMat);
-      tsuba.position.set(0, 0, 0.13);
+      for (let w = 0; w < 5; w++) {
+        const wrapRing = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.095, 0.036), crimsonWrapMat);
+        wrapRing.position.set(0, 0, -0.23 + w * 0.075);
+        wrapRing.rotation.z = Math.PI / 4;
+        katana.add(wrapRing);
+      }
 
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.085, 0.98), bladeMat);
-      blade.position.set(0, 0.01, 0.64);
-      blade.castShadow = true;
+      const kashiraPommel = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.044, 0.05, 12), goldMat);
+      kashiraPommel.rotation.x = Math.PI / 2;
+      kashiraPommel.position.set(0, 0, -0.30);
+      katana.add(kashiraPommel);
 
-      katana.add(tsuka, tsuba, blade);
+      // 2. Guarda Ornamental Dourada & Obsidiana (Tsuba) + Colarinho da Lâmina (Habaki)
+      const tsubaOuter = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.042), goldMat);
+      tsubaOuter.position.set(0, 0, 0.14);
+      tsubaOuter.rotation.z = Math.PI / 4;
+      const tsubaInner = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.048), obsidianMat);
+      tsubaInner.position.set(0, 0, 0.14);
+      const habaki = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.15, 0.09), goldMat);
+      habaki.position.set(0, 0.005, 0.19);
+      katana.add(tsubaOuter, tsubaInner, habaki);
+
+      // 3. Lâmina Larga e Longa (1.42m comprimento x 0.16m largura total):
+      // Dorso Traseiro (Mune) em Aço Negro Obsidiana
+      const bladeSpine = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.092, 1.38), obsidianMat);
+      bladeSpine.position.set(0, -0.028, 0.88);
+      bladeSpine.castShadow = true;
+      katana.add(bladeSpine);
+
+      // Fio de Corte Largo Chanfrado (Ha) em Plasma Escarlate Incandescente
+      const bladeEdge = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.11, 1.42), bladeEdgeMat);
+      bladeEdge.position.set(0, 0.032, 0.90);
+      bladeEdge.castShadow = true;
+      katana.add(bladeEdge);
+
+      // Linha de têmpera espiritual (Hamon) Branco-Rosada Incandescente entre o dorso e o fio
+      const hamonLine = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.028, 1.38), whiteRoseCoreMat);
+      hamonLine.position.set(0, 0.004, 0.89);
+      katana.add(hamonLine);
+
+      // Ponta Angular de Katana (Kissaki) na extremidade
+      const kissakiTip = new THREE.Mesh(new THREE.ConeGeometry(0.088, 0.26, 4), bladeEdgeMat);
+      kissakiTip.rotation.x = Math.PI / 2;
+      kissakiTip.rotation.z = Math.PI / 4;
+      kissakiTip.scale.set(0.38, 1.0, 1.0);
+      kissakiTip.position.set(0, 0.008, 1.68);
+      katana.add(kissakiTip);
+
+      // 4. Aura Mística de Chamas Espirituais Escarlates e Negras deslizando pela lâmina
+      for (let f = 0; f < 4; f++) {
+        const auraCone = new THREE.Mesh(
+          new THREE.ConeGeometry(0.048, 0.22, 4),
+          f % 2 === 0 ? bladeEdgeMat : shadowFlameMat
+        );
+        const baseZ = 0.36 + f * 0.32;
+        auraCone.position.set(sideSign * 0.02, 0.055, baseZ);
+        auraCone.rotation.x = -Math.PI * 0.35;
+        katana.add(auraCone);
+        this.katanaAuraFlames.push({
+          mesh: auraCone,
+          baseZ,
+          phase: f * 1.3 + (sideSign > 0 ? 0 : 0.8)
+        });
+      }
+
       katana.position.set(0, -0.34, 0.08);
-      katana.rotation.x = Math.PI / 2 - 0.18;
+      katana.rotation.x = Math.PI / 2 - 0.16;
       return katana;
     };
 
-    this.leftKatanaGroup = buildKatana();
-    this.rightKatanaGroup = buildKatana();
+    this.leftKatanaGroup = buildKatana(1);
+    this.rightKatanaGroup = buildKatana(-1);
     leftHandGroup.add(this.leftKatanaGroup);
     rightHandGroup.add(this.rightKatanaGroup);
 
-    // Bainhas cruzadas em X nas costas do Sombra Escarlate
+    // 2 Bainhas Cruzadas em X nas Costas (Saya) em Laca Preta com Anéis Dourados e Escarlates
     for (const sign of [-1, 1]) {
-      const scabbard = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.92, 0.08), hiltMat);
-      scabbard.position.set(0, 0.42, -0.27);
-      scabbard.rotation.z = sign * 0.58;
-      this.upperBodyGroup.add(scabbard);
+      const sayaGroup = new THREE.Group();
+      const scabbard = new THREE.Mesh(new THREE.BoxGeometry(0.075, 1.24, 0.12), obsidianMat);
+      scabbard.castShadow = true;
+      sayaGroup.add(scabbard);
+
+      for (const ringY of [-0.42, 0.0, 0.42]) {
+        const ring = new THREE.Mesh(
+          new THREE.BoxGeometry(0.088, 0.055, 0.132),
+          ringY === 0 ? goldMat : crimsonWrapMat
+        );
+        ring.position.set(0, ringY, 0);
+        sayaGroup.add(ring);
+      }
+
+      const kojiriTip = new THREE.Mesh(new THREE.BoxGeometry(0.082, 0.09, 0.126), goldMat);
+      kojiriTip.position.set(0, -0.62, 0);
+      sayaGroup.add(kojiriTip);
+
+      sayaGroup.position.set(0, 0.42, -0.28);
+      sayaGroup.rotation.z = sign * 0.56;
+      this.upperBodyGroup.add(sayaGroup);
+    }
+  }
+
+  /**
+   * Equipa a Armadura Cyber-Shinobi Mística 3D Completa & Cachecol Longo Esvoaçante do Sombra Escarlate (#5):
+   * - Cachecol Ninja Longo de Duas Caudas Esfarrapadas (4 segmentos articulados que ondulam no vento)
+   * - Ombreiras Ninja Segmentadas 3D (Shinobi Pauldrons) em Preto Obsidiana e Vermelho-Sangue
+   * - Peitoral Furtivo 3D (Shinobi Chest Rig) com Amuleto Espiritual Escarlate Pulsante e 3 Kunais 3D
+   * - Braçadeiras Tekko-Kagi com Lâminas Serrilhadas nos Antebraços
+   * - Cinturão Obi Escarlate com 2 Bombas de Fumaça Esféricas, Shurikens 3D, Coldres de Coxa e Caneleiras Suneate
+   */
+  _attachSombraShinobiRig() {
+    const obsidianMat = getLegoMaterial(0x090a0d, { roughness: 0.24, metalness: 0.45, clearcoat: 0.5 });
+    const darkGraphiteMat = getLegoMaterial(0x18181b, { roughness: 0.28, metalness: 0.4 });
+    const silverMat = getLegoMaterial(0xe2e8f0, { roughness: 0.18, metalness: 0.7 });
+    const bloodRedMat = getLegoMaterial(0x991b1b, { roughness: 0.26, clearcoat: 0.4 });
+    const crimsonMat = getLegoMaterial(0xdc2626, { roughness: 0.22, clearcoat: 0.5 });
+    const scarletGlowMat = getLegoMaterial(0xff1e42, {
+      emissive: 0xef4444,
+      emissiveIntensity: 2.2,
+      roughness: 0.1
+    });
+    const whiteCoreMat = getLegoMaterial(0xfecaca, {
+      emissive: 0xffffff,
+      emissiveIntensity: 2.0
+    });
+
+    // =========================================================================
+    // 1. CACHECOL NINJA LONGO DE DUAS CAUDAS ESFARRAPADAS (FLOWING SHINOBI SCARF)
+    // =========================================================================
+    const scarfCollarGroup = new THREE.Group();
+    const neckWrap = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.43, 0.16, 24), crimsonMat);
+    neckWrap.position.set(0, 0.73, 0.01);
+    const neckWrapLower = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.11, 24), bloodRedMat);
+    neckWrapLower.position.set(0, 0.65, -0.02);
+    scarfCollarGroup.add(neckWrap, neckWrapLower);
+
+    // Duas caudas longas articuladas em 4 segmentos descendo pelas costas e ondulando no vento
+    for (const side of [-1, 1]) {
+      const tailPivot = new THREE.Group();
+      tailPivot.position.set(side * 0.18, 0.68, -0.31);
+      tailPivot.rotation.z = side * 0.14;
+
+      const segGroup = new THREE.Group();
+      for (let s = 0; s < 4; s++) {
+        const segW = 0.22 - s * 0.025;
+        const segH = 0.26;
+        const segMat = s % 2 === 0 ? crimsonMat : bloodRedMat;
+        const segMesh = new THREE.Mesh(new THREE.BoxGeometry(segW, segH, 0.036), segMat);
+        segMesh.position.set(0, -0.13 - s * 0.23, -s * 0.03);
+        segMesh.rotation.x = 0.08 * s;
+        segMesh.castShadow = true;
+        segGroup.add(segMesh);
+
+        // Friso energético escarlate nas bordas do cachecol
+        const edgeTrim = new THREE.Mesh(new THREE.BoxGeometry(segW + 0.015, 0.03, 0.04), scarletGlowMat);
+        edgeTrim.position.set(0, -0.24 - s * 0.23, -s * 0.03);
+        segGroup.add(edgeTrim);
+      }
+
+      // Ponta esfarrapada em V na extremidade do cachecol
+      const raggedTip = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.28, 4), scarletGlowMat);
+      raggedTip.position.set(0, -1.08, -0.12);
+      raggedTip.rotation.x = Math.PI;
+      raggedTip.scale.set(1.1, 1.0, 0.35);
+      segGroup.add(raggedTip);
+
+      tailPivot.add(segGroup);
+      scarfCollarGroup.add(tailPivot);
+
+      this.sombraScarfStrips.push({
+        pivot: tailPivot,
+        tipCone: raggedTip,
+        baseRotZ: side * 0.14,
+        phase: side > 0 ? 0.0 : 1.65
+      });
+    }
+    this.upperBodyGroup.add(scarfCollarGroup);
+
+    // =========================================================================
+    // 2. PEITORAL FURTIVO 3D (SHINOBI CHEST RIG) + AMULETO + 3 KUNAIS 3D
+    // =========================================================================
+    const chestRig = new THREE.Group();
+
+    const chestPlateMain = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.56, 0.06), obsidianMat);
+    chestPlateMain.position.set(0, 0.42, 0.22);
+    chestRig.add(chestPlateMain);
+
+    // Correias blindadas cruzadas em X no peito
+    for (const sign of [-1, 1]) {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.68, 0.075), bloodRedMat);
+      strap.position.set(0, 0.42, 0.23);
+      strap.rotation.z = sign * 0.52;
+      chestRig.add(strap);
+    }
+
+    // Amuleto / Núcleo Espiritual Escarlate Pulsante no centro do peito
+    const amuletFrame = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.085), obsidianMat);
+    amuletFrame.position.set(0, 0.44, 0.24);
+    amuletFrame.rotation.z = Math.PI / 4;
+    const amuletCore = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.095), scarletGlowMat);
+    amuletCore.position.set(0, 0.44, 0.245);
+    amuletCore.rotation.z = Math.PI / 4;
+    const amuletDot = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 10), whiteCoreMat);
+    amuletDot.position.set(0, 0.44, 0.295);
+    chestRig.add(amuletFrame, amuletCore, amuletDot);
+
+    // 3 Kunais / Adagas Ninja 3D presas diagonalmente no peito
+    for (let k = -1; k <= 1; k++) {
+      const kunaiGrp = new THREE.Group();
+      const kBlade = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.14, 4), silverMat);
+      kBlade.position.set(0, 0.07, 0);
+      const kHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 8), crimsonMat);
+      kHandle.position.set(0, -0.02, 0);
+      const kRing = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 6, 12), silverMat);
+      kRing.position.set(0, -0.065, 0);
+      kunaiGrp.add(kBlade, kHandle, kRing);
+      kunaiGrp.position.set(-0.22 + k * 0.085, 0.54 - k * 0.04, 0.265);
+      kunaiGrp.rotation.z = -0.45;
+      chestRig.add(kunaiGrp);
+    }
+
+    this.upperBodyGroup.add(chestRig);
+
+    // =========================================================================
+    // 3. OMBREIRAS NINJA SEGMENTADAS 3D (SHINOBI PAULDRONS)
+    // =========================================================================
+    for (const [armPivot, sign] of [[this.leftArmPivot, 1], [this.rightArmPivot, -1]]) {
+      const pauldronGrp = new THREE.Group();
+
+      const upperPlate = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.38), obsidianMat);
+      upperPlate.position.set(sign * 0.06, 0.04, 0);
+      upperPlate.rotation.z = -sign * 0.24;
+
+      const lowerPlate = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.36), darkGraphiteMat);
+      lowerPlate.position.set(sign * 0.08, -0.06, 0);
+      lowerPlate.rotation.z = -sign * 0.32;
+
+      const crimsonEdge = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.04, 0.39), scarletGlowMat);
+      crimsonEdge.position.set(sign * 0.065, 0.08, 0);
+      crimsonEdge.rotation.z = -sign * 0.24;
+
+      // Aleta afiada de assassino apontando para cima/fora na ombreira
+      const bladeFin = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.2, 4), crimsonMat);
+      bladeFin.position.set(sign * 0.16, 0.13, -0.02);
+      bladeFin.rotation.z = -sign * 0.55;
+
+      pauldronGrp.add(upperPlate, lowerPlate, crimsonEdge, bladeFin);
+      armPivot.add(pauldronGrp);
+    }
+
+    // =========================================================================
+    // 4. ANTEBRAÇOS BLINDADOS (TEKKO-KAGI) COM LÂMINAS LATERAIS SERRILHADAS
+    // =========================================================================
+    for (const [handGrp, sign] of [[this.leftHandGroup, 1], [this.rightHandGroup, -1]]) {
+      const gauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.25), obsidianMat);
+      gauntlet.position.set(0, -0.12, 0);
+      const gauntletStrap = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.045, 0.26), crimsonMat);
+      gauntletStrap.position.set(0, -0.12, 0);
+
+      // 2 Lâminas laterais serrilhadas (Tekko-Kagi) em cada antebraço
+      for (const zOff of [-0.04, 0.04]) {
+        const clawFin = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.22, 4), scarletGlowMat);
+        clawFin.position.set(sign * 0.14, -0.08, zOff);
+        clawFin.rotation.z = -sign * 0.38;
+        handGrp.add(clawFin);
+      }
+      handGrp.add(gauntlet, gauntletStrap);
+    }
+
+    // =========================================================================
+    // 5. CINTURÃO SHINOBI (OBI), BOMBAS DE FUMAÇA, SHURIKENS 3D & CANELEIRAS SUNEATE
+    // =========================================================================
+    const beltGrp = new THREE.Group();
+    const obiSash = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.14, 0.46), crimsonMat);
+    obiSash.position.set(0, 0.08, 0);
+    beltGrp.add(obiSash);
+
+    // 2 Bombas de Fumaça Esféricas 3D na frente da cintura
+    for (const side of [-1, 1]) {
+      const smokeBomb = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 12), darkGraphiteMat);
+      smokeBomb.position.set(side * 0.26, 0.08, 0.24);
+      const bombRing = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.025, 12), scarletGlowMat);
+      bombRing.position.set(side * 0.26, 0.08, 0.24);
+      beltGrp.add(smokeBomb, bombRing);
+    }
+
+    // 2 Shurikens Prateadas/Vermelhas de 4 Pontas presas nas laterais do cinto
+    for (const side of [-1, 1]) {
+      const shuriken = new THREE.Group();
+      const sStar1 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.16), silverMat);
+      const sStar2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.16), silverMat);
+      sStar2.rotation.x = Math.PI / 4;
+      const sCore = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.03, 10), scarletGlowMat);
+      sCore.rotation.z = Math.PI / 2;
+      shuriken.add(sStar1, sStar2, sCore);
+      shuriken.position.set(side * 0.42, 0.08, 0.04);
+      beltGrp.add(shuriken);
+    }
+    this.hipGroup.add(beltGrp);
+
+    // Protetores de Coxa com Kunais e Caneleiras Ninja Blindadas (Suneate) nas duas pernas
+    for (const [legPivot, sign] of [[this.leftLegPivot, 1], [this.rightLegPivot, -1]]) {
+      const thighHolster = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.44), crimsonMat);
+      thighHolster.position.set(0, -0.22, 0);
+
+      const thighKunai = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.18, 4), silverMat);
+      thighKunai.position.set(sign * 0.19, -0.22, 0.04);
+      thighKunai.rotation.x = Math.PI;
+
+      const kneeGuard = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.16, 0.1), obsidianMat);
+      kneeGuard.position.set(0, -0.38, 0.2);
+      const kneeGem = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.11), scarletGlowMat);
+      kneeGem.position.set(0, -0.38, 0.205);
+
+      const suneateShin = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.28, 0.45), obsidianMat);
+      suneateShin.position.set(0, -0.54, 0.01);
+      const shinTrim = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.045, 0.46), bloodRedMat);
+      shinTrim.position.set(0, -0.46, 0.01);
+
+      legPivot.add(thighHolster, thighKunai, kneeGuard, kneeGem, suneateShin, shinTrim);
     }
   }
 
@@ -2133,6 +2509,8 @@ export class Minifigure {
       this.root.scale.setScalar(1.0);
       if (this.isBigFig) {
         this.visualRoot.scale.set(1.78, 1.62, 1.78);
+      } else if (this.currentHeroKey === 'sombra') {
+        this.visualRoot.scale.set(0.92, 1.07, 0.92);
       } else {
         this.visualRoot.scale.setScalar(1.0);
       }
@@ -2228,6 +2606,36 @@ export class Minifigure {
         if (strip.tipCone) {
           strip.tipCone.scale.y = 0.85 + (w * 0.5 + 0.5) * 0.45;
         }
+      }
+    }
+
+    // Ondulação no vento do Cachecol Ninja Longo de 2 Caudas + Aura Mística nas Katanas do Sombra Escarlate
+    if (this.sombraScarfStrips && this.sombraScarfStrips.length > 0) {
+      const speedRatio = Math.min(1.8, moveSpeed / Math.max(1, maxRunSpeed));
+      const baseLift = this.isGrappling
+        ? 0.82
+        : !isGrounded
+          ? 0.55
+          : 0.22 + speedRatio * 0.48;
+      const waveFreq = 8.0 + speedRatio * 7.5;
+      const waveAmp = 0.14 + speedRatio * 0.14;
+      for (const sc of this.sombraScarfStrips) {
+        const w = Math.sin(this.animTime * waveFreq + sc.phase);
+        const wSide = Math.cos(this.animTime * (waveFreq * 0.8) + sc.phase);
+        sc.pivot.rotation.x = baseLift + w * waveAmp;
+        sc.pivot.rotation.z = sc.baseRotZ + wSide * 0.12;
+        if (sc.tipCone) {
+          sc.tipCone.scale.y = 0.85 + (w * 0.5 + 0.5) * 0.5;
+        }
+      }
+    }
+
+    if (this.katanaAuraFlames && this.katanaAuraFlames.length > 0) {
+      for (const kf of this.katanaAuraFlames) {
+        const pulse = 0.8 + Math.sin(this.animTime * 14.0 + kf.phase) * 0.35;
+        const slide = Math.sin(this.animTime * 9.0 + kf.phase) * 0.08;
+        kf.mesh.scale.set(1.0, pulse, 1.0);
+        kf.mesh.position.z = kf.baseZ + slide;
       }
     }
 
@@ -2388,13 +2796,14 @@ export class Minifigure {
         );
       } else if (this.state === 'WALK' || this.state === 'RUN') {
         const isRunning = this.state === 'RUN';
-        const freq = isRunning ? 15.5 : 10.5;
+        const isSombraRun = this.currentHeroKey === 'sombra' && isRunning;
+        const freq = isSombraRun ? 19.5 : isRunning ? 15.5 : 10.5;
         this.walkPhase += dt * freq;
 
-        const legAmp = isRunning ? 0.92 : 0.58;
+        const legAmp = isSombraRun ? 1.08 : isRunning ? 0.92 : 0.58;
         const armAmp = isRunning ? 0.98 : 0.52;
         const bounceAmp = isRunning ? 0.11 : 0.055;
-        const forwardLean = isRunning ? 0.16 : 0.05;
+        const forwardLean = isSombraRun ? 0.46 : isRunning ? 0.16 : 0.05;
 
         const s = Math.sin(this.walkPhase);
         const bounce = Math.abs(Math.sin(this.walkPhase)) * bounceAmp;
@@ -2416,20 +2825,36 @@ export class Minifigure {
           lerpSpeed
         );
 
-        this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(
-          this.leftArmPivot.rotation.x,
-          -s * armAmp,
-          lerpSpeed
-        );
-        const rightTargetX =
-          this.currentHeroKey === 'caveira' ? -0.75 + s * 0.25 : s * armAmp;
-        this.rightArmPivot.rotation.x = THREE.MathUtils.lerp(
-          this.rightArmPivot.rotation.x,
-          rightTargetX,
-          lerpSpeed
-        );
-        this.leftArmPivot.rotation.z = THREE.MathUtils.lerp(this.leftArmPivot.rotation.z, 0.04, lerpSpeed);
-        this.rightArmPivot.rotation.z = THREE.MathUtils.lerp(this.rightArmPivot.rotation.z, -0.04, lerpSpeed);
+        if (isSombraRun) {
+          // Postura de Corrida Shinobi: braços e Katanas voltados para trás cortando o vento!
+          this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(
+            this.leftArmPivot.rotation.x,
+            0.95 + s * 0.12,
+            lerpSpeed
+          );
+          this.rightArmPivot.rotation.x = THREE.MathUtils.lerp(
+            this.rightArmPivot.rotation.x,
+            0.95 - s * 0.12,
+            lerpSpeed
+          );
+          this.leftArmPivot.rotation.z = THREE.MathUtils.lerp(this.leftArmPivot.rotation.z, 0.28, lerpSpeed);
+          this.rightArmPivot.rotation.z = THREE.MathUtils.lerp(this.rightArmPivot.rotation.z, -0.28, lerpSpeed);
+        } else {
+          this.leftArmPivot.rotation.x = THREE.MathUtils.lerp(
+            this.leftArmPivot.rotation.x,
+            -s * armAmp,
+            lerpSpeed
+          );
+          const rightTargetX =
+            this.currentHeroKey === 'caveira' ? -0.75 + s * 0.25 : s * armAmp;
+          this.rightArmPivot.rotation.x = THREE.MathUtils.lerp(
+            this.rightArmPivot.rotation.x,
+            rightTargetX,
+            lerpSpeed
+          );
+          this.leftArmPivot.rotation.z = THREE.MathUtils.lerp(this.leftArmPivot.rotation.z, 0.04, lerpSpeed);
+          this.rightArmPivot.rotation.z = THREE.MathUtils.lerp(this.rightArmPivot.rotation.z, -0.04, lerpSpeed);
+        }
 
         this.upperBodyGroup.position.y = THREE.MathUtils.lerp(this.upperBodyGroup.position.y, 0.86, lerpSpeed);
         this.upperBodyGroup.rotation.x = THREE.MathUtils.lerp(
@@ -2450,7 +2875,7 @@ export class Minifigure {
         );
         this.headGroup.rotation.x = THREE.MathUtils.lerp(
           this.headGroup.rotation.x,
-          -forwardLean * 0.6,
+          isSombraRun ? -0.36 : -forwardLean * 0.6,
           lerpSpeed
         );
       } else if (this.state === 'JUMP') {
@@ -2626,7 +3051,7 @@ export class Minifigure {
 
     if (this.punchTimer > 0) {
       this.punchTimer = Math.max(0, this.punchTimer - dt);
-      // Curva explosiva de soco: avança muito rápido (primeiros 30%) e retrai para a guarda
+      // Curva explosiva de soco / corte de Katana: avança muito rápido (primeiros 30%) e retrai para a guarda
       const t = 1.0 - this.punchTimer / this.punchDuration;
       const thrust = t < 0.32 ? (t / 0.32) : Math.max(0, 1.0 - (t - 0.32) / 0.68);
       const snap = Math.sin(thrust * Math.PI * 0.5);
@@ -2634,7 +3059,36 @@ export class Minifigure {
       this.upperBodyGroup.position.z = 0.14 * snap;
       this.upperBodyGroup.rotation.x = 0.16 * snap;
 
-      if (this.punchComboStep === 1) {
+      if (this.currentHeroKey === 'sombra') {
+        // Coreografia de 3 Cortes da Lua de Sangue com as Duas Katanas:
+        const slashProgress = Math.min(1, t * 1.45);
+        if (this.punchComboStep === 1) {
+          // 1º Corte: Fenda Diagonal Direita (+35°)
+          this.rightArmPivot.rotation.x = -2.2 + slashProgress * 1.35;
+          this.rightArmPivot.rotation.y = -0.65 + slashProgress * 1.35;
+          this.rightArmPivot.rotation.z = -0.58;
+          this.leftArmPivot.rotation.x = -0.85;
+          this.leftArmPivot.rotation.z = 0.35;
+          this.upperBodyGroup.rotation.y = 0.68 * snap;
+        } else if (this.punchComboStep === 2) {
+          // 2º Corte: Fenda Diagonal Esquerda (-35°)
+          this.leftArmPivot.rotation.x = -2.2 + slashProgress * 1.35;
+          this.leftArmPivot.rotation.y = 0.65 - slashProgress * 1.35;
+          this.leftArmPivot.rotation.z = 0.58;
+          this.rightArmPivot.rotation.x = -0.85;
+          this.rightArmPivot.rotation.z = -0.35;
+          this.upperBodyGroup.rotation.y = -0.68 * snap;
+        } else {
+          // 3º Corte: Corte Duplo Cruzado em X (Lua de Sangue)
+          this.leftArmPivot.rotation.x = -2.35 + slashProgress * 1.55;
+          this.rightArmPivot.rotation.x = -2.35 + slashProgress * 1.55;
+          this.leftArmPivot.rotation.y = 0.75 - slashProgress * 1.45;
+          this.rightArmPivot.rotation.y = -0.75 + slashProgress * 1.45;
+          this.leftArmPivot.rotation.z = 0.52;
+          this.rightArmPivot.rotation.z = -0.52;
+          this.upperBodyGroup.rotation.x = 0.34 * snap;
+        }
+      } else if (this.punchComboStep === 1) {
         // Golpe 1: JAB ESQUERDO RETO (na linha do ombro/queixo, esticando o cotovelo para frente)
         this.leftArmPivot.rotation.x = -1.56;
         this.leftArmPivot.rotation.y = -0.22 * snap;

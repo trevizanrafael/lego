@@ -986,80 +986,215 @@ export class DestructibleManager {
   }
 
   // ============================================================================
-  // HERÓI #5: SOMBRA ESCARLATE (SHINOBI CYBER) — KATANAS, FUMAÇA E PUXÃO MAGNÉTICO
+  // HERÓI #5: SOMBRA ESCARLATE (CYBER-SHINOBI MÍSTICO) — COMBO LUA DE SANGUE, FUMAÇA E PUXÃO
   // ============================================================================
 
-  performKatanaSlash(playerPos, facingAngle) {
+  /**
+   * Poder Místico das Katanas [Mouse 1 / V] — COMBO DE 3 CORTES DA LUA DE SANGUE:
+   * - 1º Golpe: Fenda Diagonal Direita (+35°)
+   * - 2º Golpe: Fenda Diagonal Esquerda (-35°)
+   * - 3º Golpe: Corte Duplo Cruzado em X Gigante (Lua de Sangue)
+   * Dispara um Projétil de Lâmina Crescente Espiritual Grande (3.6m de envergadura:
+   * Núcleo Branco-Rosado + Lâmina Vermelho-Sangue + Sombra Negra Externa) que viaja
+   * a 56 m/s por até 32m cortando e explodindo todos os objetos e veículos pelo caminho!
+   */
+  performKatanaSlash(playerPos, facingAngle, targetPoint = null) {
     soundFX.playPunchSwing();
-    const slashCenter = new THREE.Vector3(
-      playerPos.x + Math.sin(facingAngle) * 1.9,
-      playerPos.y + 1.15,
-      playerPos.z + Math.cos(facingAngle) * 1.9
+    soundFX.playLaserShot();
+
+    this._katanaComboIndex = ((this._katanaComboIndex || 0) + 1) % 3;
+    const isCrossX = this._katanaComboIndex === 0;
+    const rollAngles = isCrossX
+      ? [0.61, -0.61]
+      : [this._katanaComboIndex === 1 ? 0.61 : -0.61];
+
+    const origin = new THREE.Vector3(
+      playerPos.x + Math.sin(facingAngle) * 1.35,
+      playerPos.y + 1.28,
+      playerPos.z + Math.cos(facingAngle) * 1.35
     );
 
-    // Onda de corte escarlate brilhante
-    const waveGeo = new THREE.TorusGeometry(1.45, 0.08, 8, 24, Math.PI * 1.15);
-    waveGeo.rotateX(Math.PI / 2);
-    const waveMat = new THREE.MeshBasicMaterial({
-      color: 0xff1e42,
-      transparent: true,
-      opacity: 0.92
-    });
-    const waveMesh = new THREE.Mesh(waveGeo, waveMat);
-    waveMesh.position.copy(slashCenter);
-    waveMesh.rotation.y = facingAngle - Math.PI * 0.55;
-    this.scene.add(waveMesh);
+    const slashDir = targetPoint
+      ? targetPoint.clone().sub(origin).normalize()
+      : new THREE.Vector3(Math.sin(facingAngle), 0, Math.cos(facingAngle)).normalize();
 
-    this.fxParticles.push({
-      mesh: waveMesh,
-      vel: new THREE.Vector3(Math.sin(facingAngle) * 12, 0, Math.cos(facingAngle) * 12),
-      life: 0.22,
-      maxLife: 0.22
-    });
+    const slashGroup = new THREE.Group();
+    const crescentRadius = isCrossX ? 2.15 : 1.8;
 
+    const buildCrescentArc = (rollAngle) => {
+      const arcWrapper = new THREE.Group();
+
+      // 1. Sombra Negra Externa (Aura Obsidiana)
+      const shadowGeo = new THREE.TorusGeometry(crescentRadius * 1.04, 0.16, 8, 28, Math.PI * 1.15);
+      shadowGeo.rotateX(Math.PI / 2);
+      shadowGeo.rotateY(-Math.PI * 0.575);
+      const shadowMat = new THREE.MeshBasicMaterial({
+        color: 0x090a0d,
+        transparent: true,
+        opacity: 0.88
+      });
+      const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+      shadowMesh.scale.set(1.0, 0.35, 1.35);
+      arcWrapper.add(shadowMesh);
+
+      // 2. Lâmina Crescente Principal Vermelho-Sangue (0xff1e42)
+      const crimsonGeo = new THREE.TorusGeometry(crescentRadius, 0.12, 10, 28, Math.PI * 1.12);
+      crimsonGeo.rotateX(Math.PI / 2);
+      crimsonGeo.rotateY(-Math.PI * 0.56);
+      const crimsonMat = new THREE.MeshBasicMaterial({
+        color: 0xff1e42,
+        transparent: true,
+        opacity: 0.96
+      });
+      const crimsonMesh = new THREE.Mesh(crimsonGeo, crimsonMat);
+      crimsonMesh.scale.set(1.0, 0.42, 1.28);
+      arcWrapper.add(crimsonMesh);
+
+      // 3. Núcleo Branco-Rosado Incandescente (0xfecaca)
+      const coreGeo = new THREE.TorusGeometry(crescentRadius * 0.96, 0.065, 8, 26, Math.PI * 1.05);
+      coreGeo.rotateX(Math.PI / 2);
+      coreGeo.rotateY(-Math.PI * 0.525);
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: 0xfecaca,
+        transparent: true,
+        opacity: 0.98
+      });
+      const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+      coreMesh.scale.set(1.0, 0.45, 1.22);
+      arcWrapper.add(coreMesh);
+
+      arcWrapper.rotation.z = rollAngle;
+      return arcWrapper;
+    };
+
+    for (const ang of rollAngles) {
+      slashGroup.add(buildCrescentArc(ang));
+    }
+
+    slashGroup.position.copy(origin);
+    slashGroup.lookAt(origin.clone().add(slashDir));
+    this.scene.add(slashGroup);
+
+    // Pétalas e faíscas místicas escarlates/negras no momento do corte
+    for (let i = 0; i < (isCrossX ? 18 : 10); i++) {
+      const pColor = i % 3 === 0 ? 0x090a0d : i % 2 === 0 ? 0xff1e42 : 0xfecaca;
+      const pMat = new THREE.MeshBasicMaterial({
+        color: pColor,
+        transparent: true,
+        opacity: 0.94
+      });
+      const pMesh = new THREE.Mesh(TRAIL_CUBE_GEO, pMat);
+      pMesh.position.copy(origin).add(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 1.8,
+          (Math.random() - 0.5) * 1.2,
+          (Math.random() - 0.5) * 1.8
+        )
+      );
+      pMesh.scale.set(1.4, 0.4, 2.2);
+      this.scene.add(pMesh);
+      this.fxParticles.push({
+        mesh: pMesh,
+        vel: slashDir.clone().multiplyScalar(18 + Math.random() * 16).add(
+          new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 8)
+        ),
+        life: 0.32 + Math.random() * 0.18,
+        maxLife: 0.5
+      });
+    }
+
+    // Dano imediato corpo a corpo + Projétil Perfuratriz de 56 m/s (alcance ~32m = 0.58s)
     for (const obj of this.objects) {
       if (obj.destroyed || obj.isDriven) continue;
-      const dx = obj.basePos.x - slashCenter.x;
-      const dz = obj.basePos.z - slashCenter.z;
-      const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - slashCenter.y);
-      if (Math.hypot(dx, dz) <= obj.radius + 2.8 && dy <= obj.height + 1.6) {
-        this.damageObject(obj, 36, slashCenter, false);
+      const dx = obj.basePos.x - origin.x;
+      const dz = obj.basePos.z - origin.z;
+      const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - origin.y);
+      if (Math.hypot(dx, dz) <= obj.radius + 3.4 && dy <= obj.height + 2.2) {
+        this.damageObject(obj, isCrossX ? 120 : 75, origin, false, {
+          canBreakCrackedWall: true
+        });
       }
     }
+
+    this.projectiles.push({
+      mesh: slashGroup,
+      type: 'katana_slash',
+      vel: slashDir.clone().multiplyScalar(56.0),
+      life: 0.58,
+      damage: isCrossX ? 120 : 75,
+      slashRadius: isCrossX ? 2.8 : 2.2,
+      hitObjects: new Set(),
+      canBreakCrackedWall: true
+    });
   }
 
+  /**
+   * Cortina de Fumaça Negra Obsidiana & Chamas Escarlates da Bomba de Fumaça [Q] do Sombra Escarlate
+   */
   spawnSmokeBombCloud(centerPos) {
     soundFX.playTacticalRoll();
-    const colors = [0x18181b, 0x27272a, 0x991b1b, 0xdc2626];
-    for (let i = 0; i < 20; i++) {
+    const colors = [0x090a0d, 0x18181b, 0x991b1b, 0xff1e42];
+    for (let i = 0; i < 28; i++) {
       const c = colors[i % colors.length];
       const mat = new THREE.MeshBasicMaterial({
         color: c,
         transparent: true,
-        opacity: 0.88
+        opacity: 0.92
       });
       const puff = new THREE.Mesh(FIREBALL_GEO, mat);
-      const angle = (i / 20) * Math.PI * 2;
-      const r = 0.4 + Math.random() * 0.9;
+      const angle = (i / 28) * Math.PI * 2;
+      const r = 0.35 + Math.random() * 1.25;
       puff.position.set(
         centerPos.x + Math.cos(angle) * r,
-        centerPos.y + 0.4 + Math.random() * 1.1,
+        centerPos.y + 0.35 + Math.random() * 1.35,
         centerPos.z + Math.sin(angle) * r
       );
-      puff.scale.setScalar(1.4 + Math.random() * 1.2);
+      puff.scale.setScalar(1.65 + Math.random() * 1.45);
       this.scene.add(puff);
 
       this.fxParticles.push({
         mesh: puff,
         vel: new THREE.Vector3(
-          Math.cos(angle) * (2.5 + Math.random() * 3.0),
-          1.8 + Math.random() * 2.6,
-          Math.sin(angle) * (2.5 + Math.random() * 3.0)
+          Math.cos(angle) * (3.5 + Math.random() * 4.5),
+          2.2 + Math.random() * 3.5,
+          Math.sin(angle) * (3.5 + Math.random() * 4.5)
         ),
-        life: 0.75,
-        maxLife: 0.75
+        life: 0.85,
+        maxLife: 0.85
       });
     }
+  }
+
+  /**
+   * Rastro sutil de Sombras Obsidiana e Pétalas Escarlates nos pés do Sombra Escarlate na Corrida / Furtividade / Dive-Grapple
+   */
+  spawnSombraShadowStepTrail(pos, scaleMult = 1.0) {
+    const colors = [0x090a0d, 0x18181b, 0xdc2626, 0xff1e42];
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    const mat = new THREE.MeshBasicMaterial({
+      color: c,
+      transparent: true,
+      opacity: 0.86
+    });
+    const mesh = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
+    mesh.position.set(
+      pos.x + (Math.random() - 0.5) * 0.7,
+      pos.y + 0.18 + Math.random() * 0.45,
+      pos.z + (Math.random() - 0.5) * 0.7
+    );
+    mesh.scale.set(1.3 * scaleMult, 0.45 * scaleMult, 1.8 * scaleMult);
+    this.scene.add(mesh);
+
+    this.fxParticles.push({
+      mesh,
+      vel: new THREE.Vector3(
+        (Math.random() - 0.5) * 2.4,
+        1.2 + Math.random() * 2.4,
+        (Math.random() - 0.5) * 2.4
+      ),
+      life: 0.32,
+      maxLife: 0.32
+    });
   }
 
   performMagneticPull(playerPos, aimData) {
@@ -1902,11 +2037,35 @@ export class DestructibleManager {
       }
     }
 
-    // 2. Projéteis (Fuzil Tático & Bolas de Fogo do Solaris)
+    // 2. Projéteis (Fuzil Tático, Bolas de Fogo do Solaris & Lâminas Crescentes da Lua de Sangue do Sombra)
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
       p.mesh.position.addScaledVector(p.vel, dt);
+
+      if (p.type === 'katana_slash') {
+        if (Math.random() < 0.85) {
+          this.spawnSombraShadowStepTrail(p.mesh.position, 1.4);
+        }
+        const slashR = p.slashRadius ?? 2.2;
+        for (const obj of this.objects) {
+          if (obj.destroyed || obj.isDriven || (p.hitObjects && p.hitObjects.has(obj))) continue;
+          const dx = p.mesh.position.x - obj.basePos.x;
+          const dz = p.mesh.position.z - obj.basePos.z;
+          const dy = p.mesh.position.y - (obj.basePos.y + obj.height * 0.5);
+          if (Math.hypot(dx, dz) <= obj.radius + slashR && Math.abs(dy) <= obj.height * 0.75 + 1.4) {
+            if (p.hitObjects) p.hitObjects.add(obj);
+            this.damageObject(obj, p.damage, p.mesh.position, false, {
+              canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
+            });
+          }
+        }
+        if (p.life <= 0) {
+          this.scene.remove(p.mesh);
+          this.projectiles.splice(i, 1);
+        }
+        continue;
+      }
 
       if (p.type === 'fireball' && Math.random() < 0.65) {
         this.spawnFlameTrailParticle(p.mesh.position, 0.7);

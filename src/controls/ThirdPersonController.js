@@ -124,18 +124,54 @@ export class ThirdPersonController {
 
   _initGrappleCableMesh() {
     if (!this.world?.scene) return;
-    const cableGeo = new THREE.CylinderGeometry(0.045, 0.045, 1, 8);
-    cableGeo.translate(0, 0.5, 0);
-    cableGeo.rotateX(Math.PI / 2);
-    const cableMat = new THREE.MeshBasicMaterial({
-      color: 0xff1e42
+
+    // Feixe / Corrente de Energia Vermelho-Sangue + Sombra Obsidiana
+    const cableGroup = new THREE.Group();
+    const coreGeo = new THREE.CylinderGeometry(0.032, 0.032, 1, 8);
+    coreGeo.translate(0, 0.5, 0);
+    coreGeo.rotateX(Math.PI / 2);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+
+    const shadowGeo = new THREE.CylinderGeometry(0.068, 0.068, 1, 8);
+    shadowGeo.translate(0, 0.5, 0);
+    shadowGeo.rotateX(Math.PI / 2);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x090a0d,
+      transparent: true,
+      opacity: 0.72
     });
-    this.grappleCableMesh = new THREE.Mesh(cableGeo, cableMat);
+    const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+    cableGroup.add(shadowMesh, coreMesh);
+
+    this.grappleCableMesh = cableGroup;
     this.grappleCableMesh.visible = false;
     this.world.scene.add(this.grappleCableMesh);
 
-    const anchorMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-    this.grappleAnchorMesh = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 10), anchorMat);
+    // Kunai / Garra Ninja Escarlate 3D na ponta do Gancho (substitui a bolinha azul!)
+    const kunaiGroup = new THREE.Group();
+    const bladeMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
+    const coreBladeMat = new THREE.MeshBasicMaterial({ color: 0xfecaca });
+    const hiltMat = new THREE.MeshBasicMaterial({ color: 0x090a0d });
+    const goldMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+
+    const kunaiBlade = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.62, 4), bladeMat);
+    kunaiBlade.rotation.x = Math.PI / 2;
+    kunaiBlade.position.set(0, 0, 0.18);
+
+    const kunaiCore = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.48, 4), coreBladeMat);
+    kunaiCore.rotation.x = Math.PI / 2;
+    kunaiCore.position.set(0, 0, 0.2);
+
+    const kunaiHilt = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.28, 8), hiltMat);
+    kunaiHilt.rotation.x = Math.PI / 2;
+    kunaiHilt.position.set(0, 0, -0.2);
+
+    const kunaiRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.024, 8, 16), goldMat);
+    kunaiRing.position.set(0, 0, -0.38);
+
+    kunaiGroup.add(kunaiBlade, kunaiCore, kunaiHilt, kunaiRing);
+    this.grappleAnchorMesh = kunaiGroup;
     this.grappleAnchorMesh.visible = false;
     this.world.scene.add(this.grappleAnchorMesh);
   }
@@ -443,10 +479,10 @@ export class ThirdPersonController {
         this.destructibles.spawnRpgRocket(muzzlePos, aimData.point);
       }
     } else if (hero === 'sombra') {
-      // Corte Duplo de Katanas Energizadas Escarlates
-      this.primaryCooldown = 0.22;
+      // Combo Místico de 3 Cortes da Lua de Sangue (Projétil Crescente de 3.6m a 56 m/s)
+      this.primaryCooldown = 0.24;
       this.minifigure.triggerPunch();
-      this.destructibles.performKatanaSlash(this.position, this.facingAngle);
+      this.destructibles.performKatanaSlash(this.position, this.facingAngle, aimData.point);
     }
   }
 
@@ -829,78 +865,153 @@ export class ThirdPersonController {
   }
 
   /**
-   * HERÓI #5 (Sombra Escarlate): Gancho Magnético [Clique Direito / F] para balançar pelos prédios!
+   * HERÓI #5 (Sombra Escarlate): Gancho Magnético 360° [Clique Direito / F] (Estilingue Zip-Dash & Dive-Grapple para o Chão!)
+   * - Mira 100% livre em 360°: joga para cima, para frente ou DIRETO PARA BAIXO NO CHÃO!
+   * - Se estiver no ar e olhar para baixo (aimDir.y < -0.12), faz um Mergulho Relâmpago (Dive-Grapple a 78 m/s) para o chão!
+   * - Nunca prende no ar: ao terminar o puxão curto (0.42s a 68 m/s) ou soltar, transfere a velocidade para um voo livre em arco!
    */
   _triggerSombraGrapple() {
     if (this.grappleState) {
-      this._stopGrapple();
+      this._stopGrapple(true);
       return;
     }
 
     const aimDir = this._alignCharacterToCrosshair();
     const rayOrigin = this.camera.position.clone();
+    const maxGrappleDist = 115.0;
+    let bestT = maxGrappleDist;
     let bestAnchor = null;
-    let bestT = 115.0;
 
-    // 1. Procura topo/quina de prédio ou estrutura na direção da mira
+    // 1. Interseção 3D exata (Ray-AABB Slab) contra qualquer prédio, muro, ponte ou estrutura em 360° (sem restrição de altura!)
     if (this.world?.colliders) {
       for (const col of this.world.colliders) {
-        if (col.disabled || col.maxY < this.position.y + 4.5) continue;
-        const cx = (col.minX + col.maxX) * 0.5;
-        const cz = (col.minZ + col.maxZ) * 0.5;
-        const targetY = Math.min(col.maxY, Math.max(this.position.y + 12.0, rayOrigin.y + aimDir.y * 45.0));
-        const candidate = new THREE.Vector3(cx, targetY, cz);
-        const toCand = candidate.clone().sub(rayOrigin);
-        const dist = toCand.length();
-        if (dist < 8.0 || dist > bestT) continue;
-        const align = toCand.normalize().dot(aimDir);
-        if (align > 0.78) {
-          bestT = dist;
-          bestAnchor = new THREE.Vector3(
-            THREE.MathUtils.clamp(rayOrigin.x + aimDir.x * dist, col.minX, col.maxX),
-            Math.min(col.maxY + 0.5, Math.max(8.0, rayOrigin.y + aimDir.y * dist + 8.0)),
-            THREE.MathUtils.clamp(rayOrigin.z + aimDir.z * dist, col.minZ, col.maxZ)
-          );
+        if (col.disabled) continue;
+        const colMinY = col.minY ?? 0;
+        let tMin = 0.0;
+        let tMax = bestT;
+
+        const axes = [
+          [rayOrigin.x, aimDir.x, col.minX, col.maxX],
+          [rayOrigin.y, aimDir.y, colMinY, col.maxY],
+          [rayOrigin.z, aimDir.z, col.minZ, col.maxZ]
+        ];
+        let hitBox = true;
+        for (const [orig, dir, minB, maxB] of axes) {
+          if (Math.abs(dir) < 1e-6) {
+            if (orig < minB || orig > maxB) {
+              hitBox = false;
+              break;
+            }
+          } else {
+            let t1 = (minB - orig) / dir;
+            let t2 = (maxB - orig) / dir;
+            if (t1 > t2) {
+              const tmp = t1;
+              t1 = t2;
+              t2 = tmp;
+            }
+            tMin = Math.max(tMin, t1);
+            tMax = Math.min(tMax, t2);
+            if (tMin > tMax) {
+              hitBox = false;
+              break;
+            }
+          }
+        }
+
+        if (hitBox && tMin >= 4.0 && tMin < bestT) {
+          bestT = tMin;
+          bestAnchor = rayOrigin.clone().addScaledVector(aimDir, tMin);
         }
       }
     }
 
-    // 2. Fallback: se apontou pro alto/frente entre avenidas, ancora num ponto aéreo elevado a 42m de distância!
-    if (!bestAnchor) {
-      const pitchUp = Math.max(0.28, aimDir.y);
-      bestAnchor = new THREE.Vector3(
-        this.position.x + aimDir.x * 44.0,
-        this.position.y + Math.max(18.0, pitchUp * 46.0),
-        this.position.z + aimDir.z * 44.0
-      );
+    // 2. Interseção com o chão / rua / morro quando olha para baixo (permite Dive-Grapple direto para o chão!)
+    if (aimDir.y < -0.02) {
+      for (let d = 4.0; d <= bestT; d += 2.0) {
+        const px = rayOrigin.x + aimDir.x * d;
+        const py = rayOrigin.y + aimDir.y * d;
+        const pz = rayOrigin.z + aimDir.z * d;
+        const terrainY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(px, pz) : 0;
+        if (py <= terrainY + 0.25) {
+          bestT = d;
+          bestAnchor = new THREE.Vector3(px, terrainY + 0.35, pz);
+          break;
+        }
+      }
     }
+
+    // 3. Fallback na direção EXATA do vetor 3D da câmera (respeita 100% o ângulo mirado sem jogar para cima à força!)
+    if (!bestAnchor) {
+      const reach = 64.0;
+      const fx = this.position.x + aimDir.x * reach;
+      const fz = this.position.z + aimDir.z * reach;
+      const floorY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(fx, fz) : 0;
+      const fy = Math.max(floorY + 0.4, this.position.y + 1.4 + aimDir.y * reach);
+      bestAnchor = new THREE.Vector3(fx, fy, fz);
+    }
+
+    const isDiveGrapple = !this.isGrounded && aimDir.y < -0.12 && bestAnchor.y < this.position.y - 1.2;
 
     this.grappleState = {
       anchor: bestAnchor,
-      timer: 1.45
+      timer: isDiveGrapple ? 0.65 : 0.42,
+      pullSpeed: isDiveGrapple ? 78.0 : 68.0,
+      isDiveGrapple
     };
     this.isGrounded = false;
-    this.velocity.y = Math.max(this.velocity.y, 11.5);
+    if (!isDiveGrapple && this.position.y <= bestAnchor.y) {
+      this.velocity.y = Math.max(this.velocity.y, 9.5);
+    }
     this.minifigure.isGrappling = true;
     soundFX.playTacticalRoll();
+    soundFX.playLaserShot();
   }
 
-  _stopGrapple() {
+  _stopGrapple(transferMomentum = false) {
+    const prevGrapple = this.grappleState;
     this.grappleState = null;
     if (this.minifigure) {
       this.minifigure.isGrappling = false;
     }
     if (this.grappleCableMesh) this.grappleCableMesh.visible = false;
     if (this.grappleAnchorMesh) this.grappleAnchorMesh.visible = false;
+
+    // Estilingue Ninja (Zip-Dash): transfere a velocidade do puxão para a inércia livre no ar sem frear o boneco!
+    if (transferMomentum && prevGrapple && !prevGrapple.isDiveGrapple) {
+      this.blastVelocity.set(this.velocity.x * 0.92, 0, this.velocity.z * 0.92);
+      const horizMag = Math.hypot(this.blastVelocity.x, this.blastVelocity.z);
+      if (horizMag > 66.0) {
+        this.blastVelocity.multiplyScalar(66.0 / horizMag);
+      }
+      this.blastJumpTimer = 0.85;
+      this.velocity.y = Math.max(this.velocity.y + 8.5, 16.0);
+    }
   }
 
   /**
-   * HERÓI #5 (Sombra Escarlate): Bomba de Fumaça & Invisibilidade Furtiva [Q]
+   * HERÓI #5 (Sombra Escarlate): [Q] = Rolamento Acrobático Sombrio + Bomba de Fumaça + Invisibilidade!
    */
   _triggerSombraSmokeBomb() {
     if (this.supernovaCooldown > 0) return;
-    this.supernovaCooldown = 1.2;
-    this.stealthTimer = 6.5;
+    this.supernovaCooldown = 0.95;
+
+    // Calcula direção de movimento atual ou usa a direção da mira para o Dash/Rolamento Sombrio
+    const camForward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
+    const camRight = new THREE.Vector3().crossVectors(camForward, UP).normalize();
+    const rollInput = new THREE.Vector3();
+    if (this.keys.forward) rollInput.add(camForward);
+    if (this.keys.backward) rollInput.sub(camForward);
+    if (this.keys.right) rollInput.add(camRight);
+    if (this.keys.left) rollInput.sub(camRight);
+    if (rollInput.lengthSq() < 0.001) {
+      this._alignCharacterToCrosshair();
+      rollInput.set(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+    }
+
+    // Inicia imediatamente o Rolamento Acrobático Ninja e já mergulha ficando Invisível!
+    this._triggerTacticalRoll(rollInput);
+    this.stealthTimer = 7.0;
     this.minifigure.setStealthVisual(true);
     if (this.destructibles) {
       this.destructibles.spawnSmokeBombCloud(this.position);
@@ -909,7 +1020,7 @@ export class ThirdPersonController {
       this.hud.setCharacterPortrait(
         'sombra',
         'SOMBRA ESCARLATE [FURTIVO]',
-        'INVISIBILIDADE ATIVA (IGNORA LASERS DO BANCO!)'
+        'PASSO FANTASMA INVISÍVEL ATIVO (IGNORA LASERS DO BANCO!)'
       );
     }
   }
@@ -998,7 +1109,12 @@ export class ThirdPersonController {
       case 'ControlRight':
       case 'KeyC':
         this.keys.descend = isDown;
-        if (isDown && !e.repeat && this.minifigure.currentHeroKey === 'caveira' && this.isGrounded) {
+        if (
+          isDown &&
+          !e.repeat &&
+          (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
+          this.isGrounded
+        ) {
           this._triggerTacticalRoll();
         }
         break;
@@ -1009,9 +1125,9 @@ export class ThirdPersonController {
           this.lastSpacePressTime = now;
 
           if (this.grappleState) {
-            // Pular durante o Gancho Magnético solta o cabo com impulso acrobático extra!
-            this._stopGrapple();
-            this.velocity.y = 14.5;
+            // Pular durante o Gancho Magnético solta o cabo transferindo todo o embalo em sling aéreo livre!
+            this._stopGrapple(true);
+            this.velocity.y = Math.max(this.velocity.y, 17.5);
           } else if (this.minifigure.currentHeroKey === 'solaris') {
             // REGRA DE VOO DO SOLARIS:
             // - Se JÁ estiver voando, apertar Espaço (mesmo 2x rápido) NUNCA desliga o voo — serve 100% do tempo para SUBIR!
@@ -1155,7 +1271,8 @@ export class ThirdPersonController {
           } else if (hero === 'sombra') {
             this.minifigure.triggerPunch();
             if (this.destructibles) {
-              this.destructibles.performKatanaSlash(this.position, this.facingAngle);
+              const aimData = this._getAimTargetPoint(48);
+              this.destructibles.performKatanaSlash(this.position, this.facingAngle, aimData.point);
             }
           } else {
             this.minifigure.triggerPunch();
@@ -2648,10 +2765,14 @@ export class ThirdPersonController {
 
       if (this.rollImpulseTimer > 0) {
         this.rollImpulseTimer = Math.max(0, this.rollImpulseTimer - dt);
-        const rollSpeed = 33.0;
+        const isSombra = this.minifigure.currentHeroKey === 'sombra';
+        const rollSpeed = isSombra ? 38.0 : 33.0;
         this.velocity.x = this.rollDir.x * rollSpeed;
         this.velocity.z = this.rollDir.z * rollSpeed;
-        this.currentSpeed = 27.5;
+        this.currentSpeed = isSombra ? 32.0 : 27.5;
+        if (isSombra && this.destructibles && Math.random() < 0.72) {
+          this.destructibles.spawnSombraShadowStepTrail(this.position, 1.15);
+        }
       } else if (this.rocketPunchTimer > 0) {
         this.rocketPunchTimer = Math.max(0, this.rocketPunchTimer - dt);
         this.minifigure.isDashing = this.rocketPunchTimer > 0;
@@ -2686,23 +2807,39 @@ export class ThirdPersonController {
           }
         }
       } else if (this.grappleState) {
-        // Balanço e tração acrobática do Gancho Magnético do Sombra Escarlate!
+        // Gancho Ninja 360° (Zip-Dash & Dive-Grapple) do Sombra Escarlate!
         this.grappleState.timer -= dt;
         const handPos = new THREE.Vector3(this.position.x, this.position.y + 1.45, this.position.z);
         const toAnchor = this.grappleState.anchor.clone().sub(handPos);
         const dist = toAnchor.length();
+        const isDive = Boolean(this.grappleState.isDiveGrapple);
 
-        if (dist <= 3.2 || this.grappleState.timer <= 0) {
-          this._stopGrapple();
-          this.velocity.y = Math.max(this.velocity.y, 10.5);
+        if (dist <= 3.6 || this.grappleState.timer <= 0) {
+          if (isDive) {
+            this._stopGrapple(false);
+            this._triggerTacticalRoll(moveInput);
+            if (this.destructibles) {
+              this.destructibles.performKatanaSlash(this.position, this.facingAngle);
+            }
+          } else {
+            this._stopGrapple(true);
+          }
         } else {
           const pullDir = toAnchor.normalize();
-          const pullSpeed = 32.0;
-          this.velocity.x = pullDir.x * pullSpeed + moveInput.x * 8.5;
-          this.velocity.z = pullDir.z * pullSpeed + moveInput.z * 8.5;
-          this.velocity.y = pullDir.y * pullSpeed + 4.5;
-          this.facingAngle = Math.atan2(pullDir.x, pullDir.z);
-          this.minifigure.root.rotation.y = this.facingAngle;
+          const pullSpeed = this.grappleState.pullSpeed || 68.0;
+          this.velocity.x = pullDir.x * pullSpeed + moveInput.x * 12.0;
+          this.velocity.z = pullDir.z * pullSpeed + moveInput.z * 12.0;
+          this.velocity.y = isDive
+            ? pullDir.y * pullSpeed - 8.0
+            : pullDir.y * pullSpeed + 3.5;
+          if (Math.hypot(pullDir.x, pullDir.z) > 0.05) {
+            this.facingAngle = Math.atan2(pullDir.x, pullDir.z);
+            this.minifigure.root.rotation.y = this.facingAngle;
+          }
+
+          if (this.destructibles && Math.random() < 0.85) {
+            this.destructibles.spawnSombraShadowStepTrail(this.position, 1.25);
+          }
 
           if (this.grappleCableMesh && this.grappleAnchorMesh) {
             this.grappleCableMesh.visible = true;
@@ -2711,27 +2848,33 @@ export class ThirdPersonController {
             this.grappleCableMesh.scale.set(1, 1, dist);
             this.grappleAnchorMesh.visible = true;
             this.grappleAnchorMesh.position.copy(this.grappleState.anchor);
+            this.grappleAnchorMesh.lookAt(this.grappleState.anchor.clone().add(pullDir));
           }
         }
       } else if (this.blastJumpTimer > 0 && !this.isGrounded) {
         this.blastJumpTimer = Math.max(0, this.blastJumpTimer - dt);
-        // Preserva o super-impulso aéreo da bomba (estilo Satchel da Raze) com alto controle direcional!
+        // Preserva o super-impulso aéreo da bomba (Satchel Caveira) ou do Sling do Gancho (Sombra) com alto controle direcional!
         const airSteer = 18.5;
         this.velocity.x = this.blastVelocity.x + moveInput.x * airSteer;
         this.velocity.z = this.blastVelocity.z + moveInput.z * airSteer;
         this.blastVelocity.multiplyScalar(Math.max(0.92, 1 - dt * 0.55));
         if (this.destructibles && Math.random() < 0.78) {
-          this.destructibles.spawnCaveiraBlastJumpTrail(this.position);
+          if (this.minifigure.currentHeroKey === 'sombra') {
+            this.destructibles.spawnSombraShadowStepTrail(this.position, 1.05);
+          } else {
+            this.destructibles.spawnCaveiraBlastJumpTrail(this.position);
+          }
         }
       } else {
         const isCaveira = this.minifigure.currentHeroKey === 'caveira';
-        const heroWalkSpeed = isCaveira ? 13.0 : this.walkSpeed;
-        const heroRunSpeed = isCaveira ? 27.5 : this.runSpeed;
-        const stealthMult = this.stealthTimer > 0 ? 1.25 : 1.0;
+        const isSombra = this.minifigure.currentHeroKey === 'sombra';
+        const heroWalkSpeed = isSombra ? 15.5 : isCaveira ? 13.0 : this.walkSpeed;
+        const heroRunSpeed = isSombra ? 32.0 : isCaveira ? 27.5 : this.runSpeed;
+        const stealthMult = this.stealthTimer > 0 ? (38.0 / 32.0) : 1.0;
         const targetMaxSpeed = (this.keys.sprint ? heroRunSpeed : heroWalkSpeed) * stealthMult;
         const targetSpeed = hasInput ? targetMaxSpeed : 0;
 
-        const accelRate = hasInput ? 20.0 : 22.0;
+        const accelRate = hasInput ? 22.0 : 22.0;
         this.currentSpeed = THREE.MathUtils.lerp(
           this.currentSpeed,
           targetSpeed,
@@ -2740,6 +2883,15 @@ export class ThirdPersonController {
 
         if (isCaveira && hasInput && this.keys.sprint && this.isGrounded && this.destructibles && Math.random() < 0.35) {
           this.destructibles.spawnCaveiraBlastJumpTrail(this.position);
+        } else if (
+          isSombra &&
+          hasInput &&
+          (this.keys.sprint || this.stealthTimer > 0) &&
+          this.isGrounded &&
+          this.destructibles &&
+          Math.random() < 0.48
+        ) {
+          this.destructibles.spawnSombraShadowStepTrail(this.position, this.stealthTimer > 0 ? 1.25 : 0.92);
         }
 
         if (hasInput) {
@@ -2771,7 +2923,7 @@ export class ThirdPersonController {
           this.hud.setCharacterPortrait(
             'sombra',
             'SOMBRA ESCARLATE',
-            'GANCHO MAGNÉTICO [MOUSE 2] • KATANAS • FUMAÇA INVISÍVEL [Q]'
+            'GANCHO 360° [MOUSE 2] • KATANAS LUA DE SANGUE [MOUSE 1] • ROLAMENTO INVISÍVEL [Q]'
           );
         }
       }
@@ -2779,15 +2931,26 @@ export class ThirdPersonController {
 
     const preLandVy = this.velocity.y;
     const wasInAir = !this.isGrounded && !this.isFlying;
+    const wasDiveGrappling = Boolean(this.grappleState?.isDiveGrapple);
 
     this._moveAndCollide(dt, moveInput);
 
-    // Se o Comandante Caveira pousou no chão vindo de uma queda alta (ex: trocou do Solaris lá no alto!),
-    // executa automaticamente o Rolamento Tático de impacto!
+    // Se o Sombra Escarlate mergulhou para o chão com o Gancho 360° (Dive-Grapple) e tocou o solo,
+    // solta a Kunai e já emenda um Rolamento Ninja + Onda de Corte da Lua de Sangue!
+    if (wasDiveGrappling && this.isGrounded && this.minifigure.currentHeroKey === 'sombra') {
+      this._stopGrapple(false);
+      this._triggerTacticalRoll(moveInput);
+      if (this.destructibles) {
+        this.destructibles.performKatanaSlash(this.position, this.facingAngle);
+      }
+    }
+
+    // Se o Comandante Caveira ou Sombra Escarlate pousou no chão vindo de uma queda alta,
+    // executa automaticamente o Rolamento Acrobático de impacto!
     if (
       wasInAir &&
       this.isGrounded &&
-      this.minifigure.currentHeroKey === 'caveira' &&
+      (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
       preLandVy < -13.5
     ) {
       this._triggerTacticalRoll(moveInput);
@@ -2969,15 +3132,22 @@ export class ThirdPersonController {
    * à esquerda da tela e o centro da mira (#crosshair) fique 100% livre!
    */
   _updateCamera(dt, camRight, isAimingBeam = false) {
-    // FOV dinâmico (aumenta no Voo Supersônico do Solaris, no Blast Jump / Corrida do Caveira e no Turbo Nitro dos Carros!)
-    const isCaveiraBlast = this.minifigure.currentHeroKey === 'caveira' && this.blastJumpTimer > 0 && !this.isGrounded;
-    const isCaveiraSprint = this.minifigure.currentHeroKey === 'caveira' && this.keys.sprint && this.currentSpeed > 18;
-    const desiredFov = (this.isSupersonic || this.isTurboActive)
+    // FOV dinâmico (aumenta no Voo Supersônico do Solaris, Gancho/Stealth do Sombra, Blast Jump do Caveira e Turbo Nitro dos Carros!)
+    const isCaveiraBlast =
+      (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
+      this.blastJumpTimer > 0 &&
+      !this.isGrounded;
+    const isSombraGrapple = this.minifigure.currentHeroKey === 'sombra' && Boolean(this.grappleState);
+    const isHeroSprint =
+      (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
+      (this.keys.sprint || this.stealthTimer > 0) &&
+      this.currentSpeed > 18;
+    const desiredFov = (this.isSupersonic || this.isTurboActive || isSombraGrapple)
       ? 74
       : isCaveiraBlast
         ? 72
-        : isCaveiraSprint
-          ? 65
+        : isHeroSprint
+          ? 66
           : isAimingBeam
             ? 53
             : this.baseFov;

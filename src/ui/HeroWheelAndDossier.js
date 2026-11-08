@@ -86,18 +86,18 @@ export const HERO_CATALOG = [
     opCode: 'OP-05',
     shortName: 'SOMBRA',
     name: 'SOMBRA ESCARLATE',
-    role: 'CYBER-SHINOBI // GANCHO MAGNÉTICO & FURTIVIDADE',
+    role: 'CYBER-SHINOBI MÍSTICO // ASSASSINO DA LUA DE SANGUE',
     accent: '#ef4444',
     icon: 'bolt',
-    specialty: 'Travessia Vertical com Gancho Magnético, Infiltração Furtiva & Katanas',
-    passive: 'Agilidade acrobática aumentada e camuflagem óptica para atravessar lasers.',
+    specialty: 'Gancho Magnético 360° (Ar e Chão), Katanas da Lua de Sangue & Rolamento Invisível',
+    passive: 'O personagem mais veloz a pé (32m/s na corrida e 38m/s invisível) com postura acrobática Shinobi.',
     controls: [
-      { key: 'MOUSE 2 / F', title: 'GANCHO MAGNÉTICO AÉREO', desc: 'Dispara cabo laser nos prédios e puxa o herói voando pelo ar.' },
-      { key: 'ESPAÇO (AR)', title: 'IMPULSO ACROBÁTICO', desc: 'Solta o cabo do gancho no ar com salto mortal elevado.' },
-      { key: 'MOUSE 1 / V', title: 'CORTE DUPLO DE KATANAS', desc: 'Golpeia com as duas lâminas lançando onda de energia escarlate.' },
-      { key: 'Q', title: 'BOMBA DE FUMAÇA FURTIVA', desc: 'Cria cortina de fumaça e fica invisível por 6.5 segundos.' },
-      { key: 'G', title: 'PUXÃO MAGNÉTICO', desc: 'Atrai todos os Studs em 28m e atinge o alvo na mira.' },
-      { key: 'SHIFT', title: 'PASSO FANTASMA SHINOBI', desc: 'Corrida ninja silenciosa de alta velocidade.' }
+      { key: 'MOUSE 2 / F', title: 'GANCHO MAGNÉTICO 360° (ZIP & DIVE)', desc: 'Lança Kunai para qualquer direção (inclusive mergulho relâmpago para o chão!) com impulso fluido.' },
+      { key: 'ESPAÇO (AR)', title: 'ESTILINGUE ACROBÁTICO', desc: 'Solta o gancho transferindo toda a velocidade para um voo livre em arco pelos prédios.' },
+      { key: 'MOUSE 1 / V', title: 'COMBO LUA DE SANGUE (3 CORTES)', desc: 'Dispara ondas crescentes espirituais gigantes (Diagonal Direita, Esquerda e Corte Cruzado em X).' },
+      { key: 'Q', title: 'ROLAMENTO SOMBRIO + INVISIBILIDADE', desc: 'Dá um dash acrobático estourando cortina de fumaça negra/escarlate e fica invisível por 7s.' },
+      { key: 'G', title: 'PUXÃO MAGNÉTICO ESPIRITUAL', desc: 'Atrai todos os Studs em 28m e atinge o alvo na mira.' },
+      { key: 'SHIFT', title: 'CORRIDA SHINOBI (PASSO FANTASMA)', desc: 'Corrida inclinada para frente em velocidade extrema com as duas Katanas voltadas para trás.' }
     ]
   }
 ];
@@ -352,11 +352,79 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
       ctx.fillRect(gx, 40, 4, 11);
     }
   } else if (presetKey === 'sombra') {
-    ctx.fillStyle = '#dc2626';
-    ctx.fillRect(76 * 0.21, 16, 76 * 0.58, 7);
+    // Capuz Shinobi com Chifres Oni Escarlates + Bandana com Placa Metálica + Olhos Carmesins + Máscara Oni
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.2, 13, 76 * 0.6, 8);
+
+    // Chifres curtos Oni em vermelho-escarlate na testa
     ctx.fillStyle = '#ef4444';
-    ctx.fillRect(76 * 0.28, 28, 12, 6);
-    ctx.fillRect(76 * 0.54, 28, 12, 6);
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.31, 16);
+    ctx.lineTo(76 * 0.27, 7);
+    ctx.lineTo(76 * 0.37, 15);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.69, 16);
+    ctx.lineTo(76 * 0.73, 7);
+    ctx.lineTo(76 * 0.63, 15);
+    ctx.closePath();
+    ctx.fill();
+
+    // Bandana escarlate (Hachigane) + Placa metálica escura com símbolo vermelho
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(76 * 0.21, 17, 76 * 0.58, 7.5);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(76 * 0.37, 17.5, 76 * 0.26, 6.5);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(76 * 0.37, 17.5, 76 * 0.26, 6.5);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(76 * 0.44, 19.8, 76 * 0.12, 2);
+
+    // Olhos Cyber-Shinobi Vermelho-Carmesim Brilhantes inclinados em V
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.26, 27);
+    ctx.lineTo(76 * 0.46, 30);
+    ctx.lineTo(76 * 0.44, 35);
+    ctx.lineTo(76 * 0.28, 33);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(76 * 0.74, 27);
+    ctx.lineTo(76 * 0.54, 30);
+    ctx.lineTo(76 * 0.56, 35);
+    ctx.lineTo(76 * 0.72, 33);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(76 * 0.32, 29.5, 6, 2.5);
+    ctx.fillRect(76 * 0.58, 29.5, 6, 2.5);
+
+    // Meia-Máscara Oni / Menpo Preta com borda vermelha e presas prateadas
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(76 * 0.23, 37, 76 * 0.54, 17);
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 1.8;
+    ctx.strokeRect(76 * 0.25, 38, 76 * 0.5, 14);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(76 * 0.33, 40, 3.5, 8);
+    ctx.fillRect(76 * 0.61, 40, 3.5, 8);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(76 * 0.43, 41, 2.5, 8);
+    ctx.fillRect(76 * 0.52, 41, 2.5, 8);
+
+    // Cachecol Ninja Escarlate no pescoço + Amuleto Espiritual no peito
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(76 * 0.18, 53, 76 * 0.64, 5.5);
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(76 * 0.5, 65, 4.5, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   ctx.restore();

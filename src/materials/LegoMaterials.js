@@ -505,51 +505,138 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     ctx.fillStyle = '#090a0d';
     ctx.fillRect(66, 166, 124, 6);
   } else if (preset === 'sombra') {
-    // Ninja Cyber-Escarlate: máscara shinobi preta fosca + bandana escarlate + olhos vermelhos neon
+    // =========================================================================
+    // ROSTO CYBER-SHINOBI MÍSTICO DO SOMBRA ESCARLATE (512x256, centro cx=256)
+    // =========================================================================
+    // 1. Preenchimento 100% da cabeça cilíndrica (0..512) em Preto Obsidiana
     ctx.fillStyle = '#090a0d';
-    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillRect(0, 0, 512, 256);
 
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(34, 72, 188, 54);
+    // Abertura dos olhos em grafite escuro sombreado (centrada em cx = 256)
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(cx - 112, 66, 224, 62);
 
-    // Bandana escarlate na testa com placa metálica shinobi
+    // 2. Bandana Preta/Escarlate na Testa (Hachigane) envolvendo toda a cabeça
+    ctx.fillStyle = '#991b1b';
+    ctx.fillRect(0, 18, 512, 46);
     ctx.fillStyle = '#dc2626';
-    ctx.fillRect(16, 34, 224, 34);
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(88, 40, 80, 22);
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(88, 40, 80, 22);
+    ctx.fillRect(0, 24, 512, 34);
 
-    // Olhos Cyber-Ninja Vermelho-Escarlate Brilhantes
+    // Placa Metálica Escura (Hachigane) centralizada em cx = 256 com Símbolo Místico Escarlate
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(cx - 56, 22, 112, 38);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(cx - 56, 22, 112, 38);
+
+    // Rebites prateados nas pontas da placa shinobi
+    ctx.fillStyle = '#e2e8f0';
+    for (const rx of [cx - 46, cx + 46]) {
+      ctx.beginPath();
+      ctx.arc(rx, 31, 3.5, 0, Math.PI * 2);
+      ctx.arc(rx, 51, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Símbolo Místico da Lua de Sangue gravado no centro da placa da testa
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, 41, 11, 0.2 * Math.PI, 1.8 * Math.PI);
+    ctx.moveTo(cx - 16, 41);
+    ctx.lineTo(cx + 16, 41);
+    ctx.stroke();
+
+    // 3. Rastro de Energia Espiritual Escarlate nos cantos externos dos olhos
+    ctx.fillStyle = 'rgba(220, 38, 38, 0.75)';
+    ctx.beginPath();
+    ctx.moveTo(cx - 72, 92);
+    ctx.lineTo(cx - 108, 72);
+    ctx.lineTo(cx - 94, 112);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 72, 92);
+    ctx.lineTo(cx + 108, 72);
+    ctx.lineTo(cx + 94, 112);
+    ctx.closePath();
+    ctx.fill();
+
+    // 4. Olhos Angulares Ferozes em Vermelho-Carmesim Brilhante (centrados em cx = 256)
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.moveTo(54, 92);
-    ctx.lineTo(108, 102);
-    ctx.lineTo(98, 118);
-    ctx.lineTo(48, 108);
+    ctx.moveTo(cx - 78, 86);
+    ctx.lineTo(cx - 16, 98);
+    ctx.lineTo(cx - 24, 116);
+    ctx.lineTo(cx - 72, 108);
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(202, 92);
-    ctx.lineTo(148, 102);
-    ctx.lineTo(158, 118);
-    ctx.lineTo(208, 108);
+    ctx.moveTo(cx + 78, 86);
+    ctx.lineTo(cx + 16, 98);
+    ctx.lineTo(cx + 24, 116);
+    ctx.lineTo(cx + 72, 108);
     ctx.closePath();
     ctx.fill();
 
+    // Núcleos incandescentes branco-rosados nos olhos
     ctx.fillStyle = '#fecaca';
-    ctx.fillRect(68, 98, 22, 8);
-    ctx.fillRect(166, 98, 22, 8);
+    ctx.fillRect(cx - 58, 94, 28, 10);
+    ctx.fillRect(cx + 30, 94, 28, 10);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - 48, 96, 14, 6);
+    ctx.fillRect(cx + 34, 96, 14, 6);
 
-    ctx.strokeStyle = '#dc2626';
-    ctx.lineWidth = 5;
+    // 5. Máscara Facial Ninja / Menpo (Meia-Máscara Oni Preta e Grafite com Presas/Entalhes)
+    ctx.fillStyle = '#111827';
     ctx.beginPath();
-    ctx.moveTo(64, 142);
-    ctx.lineTo(128, 198);
-    ctx.lineTo(192, 142);
+    ctx.moveTo(cx - 114, 128);
+    ctx.lineTo(cx, 116);
+    ctx.lineTo(cx + 114, 128);
+    ctx.lineTo(cx + 104, 244);
+    ctx.lineTo(cx - 104, 244);
+    ctx.closePath();
+    ctx.fill();
+
+    // Borda superior chanfrada em Vermelho-Sangue da Máscara Oni
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(cx - 112, 130);
+    ctx.lineTo(cx, 118);
+    ctx.lineTo(cx + 112, 130);
     ctx.stroke();
+
+    // Respirador / Entalhes de Presas Oni em Prata e Vermelho-Escarlate na máscara
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(cx - 68, 144, 136, 68);
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(cx - 68, 144, 136, 68);
+
+    // Presas laterais brancas/prateadas de demônio Oni
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.moveTo(cx - 56, 146);
+    ctx.lineTo(cx - 38, 146);
+    ctx.lineTo(cx - 47, 186);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 56, 146);
+    ctx.lineTo(cx + 38, 146);
+    ctx.lineTo(cx + 47, 186);
+    ctx.closePath();
+    ctx.fill();
+
+    // Fendas verticais escarlates no bocal da máscara
+    ctx.fillStyle = '#ef4444';
+    for (let gx = cx - 24; gx <= cx + 24; gx += 16) {
+      ctx.fillRect(gx - 3, 154, 6, 46);
+    }
   } else {
     // Rosto clássico LEGO feliz/aventureiro
     ctx.fillStyle = '#171717';
