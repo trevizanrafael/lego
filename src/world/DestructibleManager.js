@@ -300,7 +300,8 @@ export class DestructibleManager {
       mesh &&
       !mesh.userData?.isOptimizedGroup &&
       !mesh.userData?.skipStaticMerge &&
-      type !== 'npc_fighter'
+      type !== 'npc_fighter' &&
+      type !== 'pedestrian_civilian'
     ) {
       optimizeStaticGroupMeshes(mesh, []);
     }
@@ -440,6 +441,7 @@ export class DestructibleManager {
       playerPos.y + 1.0,
       playerPos.z + Math.cos(facingAngle) * 1.35
     );
+    this.world?.livingCity?.triggerPedestrianPanicNear(attackCenter, 22);
 
     let hitAny = false;
     for (const obj of this.objects) {
@@ -3267,6 +3269,15 @@ export class DestructibleManager {
     if (obj.silverOnly && !damageOpts.canBreakSilver && !isSolar) {
       obj.shakeTimer = 0.12;
       soundFX.playMetalRicochet();
+      return;
+    }
+
+    // Comédia LEGO Não-Letal para Civis: Salto acrobático, solta Studs de susto e corre sem morrer!
+    if (obj.isCivilianPedestrian) {
+      this.world?.livingCity?.triggerPedestrianPanicNear(obj.basePos, 28);
+      if (typeof obj.onDamaged === 'function') {
+        obj.onDamaged(amount, hitOrigin);
+      }
       return;
     }
 

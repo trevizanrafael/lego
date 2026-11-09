@@ -17,6 +17,7 @@ import {
   FACTION_DATA,
   UI_TEXTS,
   getFactionLogoSvg,
+  getFreeRoamLogoSvg,
   loadAllSaveSlots,
   writeSaveSlot,
   deleteSaveSlot,
@@ -48,7 +49,7 @@ export class LegoHud {
     this.isLoadingActive = false;
     this.isPauseMenuOpen = false;
     this.settings = loadGameSettings();
-    document.body.classList.add('title-or-loading-active');
+    document.body?.classList.add('title-or-loading-active');
 
     this.studCountEl = document.getElementById('hud-stud-count');
     this.studGainEl = document.getElementById('hud-stud-gain');
@@ -82,9 +83,10 @@ export class LegoHud {
     // Visor de Arsenal Estilo CS:GO no Canto Superior Direito (Exclusivo do Vingador de Chumbo a pé)
     this.vingadorWeaponHudEl = document.getElementById('vingador-weapon-hud');
     this.vingadorKeyhintEl = document.getElementById('vingador-hud-keyhint');
-    this.vingadorSlotEls = this.vingadorWeaponHudEl
-      ? Array.from(this.vingadorWeaponHudEl.querySelectorAll('.csgo-weapon-slot'))
-      : [];
+    this.vingadorSlotEls =
+      typeof this.vingadorWeaponHudEl?.querySelectorAll === 'function'
+        ? Array.from(this.vingadorWeaponHudEl.querySelectorAll('.csgo-weapon-slot'))
+        : [];
     this.currentVingadorWeapon = 'dual_smg';
     this.isVingadorFuror = false;
     this._isDrivingVehicle = false;
@@ -181,7 +183,7 @@ export class LegoHud {
 
   setHearts(activeCount) {
     this.hearts = Math.max(0, Math.min(this.maxHearts, Math.round(activeCount)));
-    if (!this.heartsContainer) return;
+    if (typeof this.heartsContainer?.querySelectorAll !== 'function') return;
     const nodes = this.heartsContainer.querySelectorAll('.lego-heart');
     nodes.forEach((node, idx) => {
       node.classList.toggle('active', idx < this.hearts);
@@ -391,7 +393,7 @@ export class LegoHud {
     if (this.isHeroWheelOpen === nextState) return;
 
     this.isHeroWheelOpen = nextState;
-    document.body.classList.toggle('hero-wheel-active', this.isHeroWheelOpen);
+    document.body?.classList.toggle('hero-wheel-active', this.isHeroWheelOpen);
 
     if (this.wheelOverlayEl) {
       this.wheelOverlayEl.classList.toggle('hidden', !this.isHeroWheelOpen);
@@ -471,16 +473,29 @@ export class LegoHud {
     }
   }
 
-  showRegionTransitionToast(_region) {
-    if (this.regionToastEl) this.regionToastEl.classList.add('hidden');
-    return;
+  showRegionTransitionToast(region) {
+    if (!this.regionToastEl) return;
+    if (!this.settings?.showRegionToast || this.isTitleScreenActive || this.isLoadingActive) {
+      this.regionToastEl.classList.add('hidden');
+      return;
+    }
+    if (!region) return;
+
+    if (this.regionToastCodeEl) this.regionToastCodeEl.textContent = `SETOR ${region.code || 'R-01'}`;
+    if (this.regionToastTitleEl) this.regionToastTitleEl.textContent = region.name || '';
+    if (this.regionToastSubEl) this.regionToastSubEl.textContent = region.subtitle || '';
+
+    this.regionToastEl.classList.remove('hidden');
+    if (this._toastTimeout) clearTimeout(this._toastTimeout);
+    this._toastTimeout = setTimeout(() => {
+      this.regionToastEl?.classList.add('hidden');
+    }, 2600);
   }
 
   /**
-   * Desativado para manter a tela de jogo 100% limpa sem divs de aviso flutuando no meio/topo.
+   * Desativado no Modo Livre para manter a tela limpa sem alertas de guerra.
    */
   showTacticalAlertToast(_code, _title, _subtitle = '', _accentColor = '#facc15', _icon = 'emergency', _durationMs = 3800) {
-    if (this.regionToastEl) this.regionToastEl.classList.add('hidden');
     return;
   }
 
@@ -696,7 +711,7 @@ export class LegoHud {
         this._setTitleSubPanel('slots');
       } else {
         this.titleOverlayEl?.classList.add('hidden');
-        document.body.classList.remove('title-or-loading-active');
+        document.body?.classList.remove('title-or-loading-active');
         this.setPauseMenuOpen(true, this._lastController);
       }
     });
@@ -753,7 +768,7 @@ export class LegoHud {
 
     document.getElementById('btn-pause-switch-faction')?.addEventListener('click', () => {
       this.setPauseMenuOpen(false, this._lastController, true);
-      document.body.classList.add('title-or-loading-active');
+      document.body?.classList.add('title-or-loading-active');
       this.titleOverlayEl?.classList.remove('hidden');
       this._openFactionSelectionPanel();
     });
@@ -762,7 +777,7 @@ export class LegoHud {
       this.saveCurrentProgress();
       this.setPauseMenuOpen(false, this._lastController, true);
       this.isTitleScreenActive = true;
-      document.body.classList.add('title-or-loading-active');
+      document.body?.classList.add('title-or-loading-active');
       this.titleOverlayEl?.classList.remove('hidden');
       this._setTitleSubPanel('main');
       if (document.pointerLockElement && document.exitPointerLock) {
@@ -1158,16 +1173,15 @@ export class LegoHud {
           `;
         }
 
-        const fInfo = FACTION_DATA[s.faction] || FACTION_DATA.cv;
         const heroInfo = getHeroInfo(s.heroKey || 'caveira');
         return `
-          <div class="save-slot-card" style="border-top-color:${fInfo.color}">
+          <div class="save-slot-card" style="border-top-color:#facc15">
             <div class="faction-card-top">
-              ${getFactionLogoSvg(fInfo.id, 58)}
+              ${getFreeRoamLogoSvg(58)}
               <div>
                 <div class="dossier-tag">SLOT 0${idx + 1} // ${s.updatedAt || ''}</div>
-                <div class="faction-card-name" style="color:${fInfo.color}; font-size:1.35rem;">
-                  ${fInfo.name[lang] || fInfo.name['pt-BR']}
+                <div class="faction-card-name" style="color:#facc15; font-size:1.35rem;">
+                  ${t.freeRoamSlotTitle}
                 </div>
               </div>
             </div>
@@ -1188,27 +1202,35 @@ export class LegoHud {
       })
       .join('');
 
-    this.saveSlotsGridEl.querySelectorAll('button[data-slot-action]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const idx = Number(btn.dataset.slot || 0);
-        const action = btn.dataset.slotAction;
-        if (action === 'delete') {
-          deleteSaveSlot(idx);
-          soundFX.playPlasticHit();
-          this._openSaveSlotsPanel(mode);
-        } else if (action === 'load') {
-          const currentSlots = loadAllSaveSlots();
-          const saved = currentSlots[idx];
-          if (saved) {
+    if (typeof this.saveSlotsGridEl?.querySelectorAll === 'function') {
+      this.saveSlotsGridEl.querySelectorAll('button[data-slot-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.slot || 0);
+          const action = btn.dataset.slotAction;
+          if (action === 'delete') {
+            deleteSaveSlot(idx);
+            soundFX.playPlasticHit();
+            this._openSaveSlotsPanel(mode);
+          } else if (action === 'load') {
+            const currentSlots = loadAllSaveSlots();
+            const saved = currentSlots[idx];
+            if (saved) {
+              this.activeSaveSlot = idx;
+              this.startLoadingSequence(saved, false);
+            }
+          } else {
+            // Fluxo Simplificado para o Modo Livre: escolheu o Slot, inicia direto na Tela de Loading!
             this.activeSaveSlot = idx;
-            this.startLoadingSequence(saved, false);
+            const slotData = writeSaveSlot(idx, {
+              faction: 'free_roam',
+              studs: 0,
+              heroKey: 'caveira'
+            });
+            this.startLoadingSequence(slotData, true);
           }
-        } else {
-          this.pendingSlotIndex = idx;
-          this._openFactionSelectionPanel();
-        }
+        });
       });
-    });
+    }
   }
 
   _openFactionSelectionPanel() {
@@ -1246,18 +1268,20 @@ export class LegoHud {
       })
       .join('');
 
-    this.factionCardsGridEl.querySelectorAll('button[data-choose-faction]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const chosenFaction = btn.dataset.chooseFaction || 'cv';
-        this.activeSaveSlot = this.pendingSlotIndex ?? this.activeSaveSlot ?? 0;
-        const slotData = writeSaveSlot(this.activeSaveSlot, {
-          faction: chosenFaction,
-          studs: this.isTitleScreenActive ? 0 : this.totalStuds,
-          heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
+    if (typeof this.factionCardsGridEl?.querySelectorAll === 'function') {
+      this.factionCardsGridEl.querySelectorAll('button[data-choose-faction]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const chosenFaction = btn.dataset.chooseFaction || 'cv';
+          this.activeSaveSlot = this.pendingSlotIndex ?? this.activeSaveSlot ?? 0;
+          const slotData = writeSaveSlot(this.activeSaveSlot, {
+            faction: chosenFaction,
+            studs: this.isTitleScreenActive ? 0 : this.totalStuds,
+            heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
+          });
+          this.startLoadingSequence(slotData, true);
         });
-        this.startLoadingSequence(slotData, true);
       });
-    });
+    }
   }
 
   _setLoadingProgressUI(pct, stageText) {
@@ -1282,34 +1306,35 @@ export class LegoHud {
   startLoadingSequence(slotData, isNewOrSwitch = false) {
     this.isTitleScreenActive = false;
     this.isLoadingActive = true;
-    document.body.classList.add('title-or-loading-active');
+    document.body?.classList.add('title-or-loading-active');
 
     this.titleOverlayEl?.classList.add('hidden');
     this.setPauseMenuOpen(false, this._lastController, true);
 
-    const factionKey = slotData?.faction || 'cv';
-    const fInfo = FACTION_DATA[factionKey] || FACTION_DATA.cv;
     const lang = this.settings?.language || 'pt-BR';
+    const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
 
     if (this.loadingFactionLogoEl) {
-      this.loadingFactionLogoEl.innerHTML = getFactionLogoSvg(fInfo.id, 78);
+      this.loadingFactionLogoEl.innerHTML = getFreeRoamLogoSvg(78);
     }
     if (this.loadingFactionTitleEl) {
-      this.loadingFactionTitleEl.textContent = fInfo.name[lang] || fInfo.name['pt-BR'];
-      this.loadingFactionTitleEl.style.color = fInfo.color;
+      this.loadingFactionTitleEl.textContent = t.subtitle;
+      this.loadingFactionTitleEl.style.color = '#facc15';
     }
     if (this.loadingTipTextEl) {
       const tips =
         lang === 'en-US'
           ? [
-              'Allied Combat Medics connect a 3D Heal Beam (+20 HP/s) and deploy Medical Stations on the ground!',
-              'Defeating enemies in the Central Front escalates the World War and summons Colossal Bosses (Allied vs Enemy)!',
-              'Press [TAB] at any time to open the Tactical Hero Wheel in slow-motion and switch between all 8 Operators!'
+              'Press [E] near any Yellow Taxi, LEGO City Bus, Supercar or Beach Buggy to cruise freely across all 10 Regions!',
+              'Hold [TAB] at any time to open the Hero Wheel in slow-motion and switch between all 8 LEGO Operators!',
+              'With Solaris, double-jump with [SPACE] to hover and hold [SHIFT] for Supersonic Comet Flight across the skyline!',
+              'Open the Full Map with [M] to place 3D Sky Beacons or trigger GTA-style Satellite Fast Travel anywhere!'
             ]
           : [
-              'Cientistas/Médicos da sua Facção Aliada conectam um Raio de Cura 3D (+20 HP/s) e plantam Estações Médicas no chão!',
-              'Combater no Front Central enche a Escalada de Guerra Mundial e invoca Bosses Colossais (Aliado vs Inimigo)!',
-              'Segure [TAB] a qualquer momento para abrir a Roda de Heróis em Câmera Lenta e alternar entre os 8 Operadores!'
+              'Aperte [E] perto de qualquer Táxi Amarelo, Ônibus LEGO, Supercarro ou Buggy de Praia para dirigir pelas 10 Regiões!',
+              'Segure [TAB] a qualquer momento para abrir a Roda de Heróis em Câmera Lenta e alternar entre os 8 Operadores LEGO!',
+              'Com o Solaris, aperte [ESPAÇO] duas vezes para pairar e segure [SHIFT] para ativar o Voo Supersônico de Cometa!',
+              'Abra o Mapa Completo com [M] para marcar Feixes de Luz 3D ou fazer Viagem Rápida por Satélite para qualquer bairro!'
             ];
       this.loadingTipTextEl.textContent = tips[Math.floor(Math.random() * tips.length)];
     }
@@ -1322,8 +1347,8 @@ export class LegoHud {
     this._setLoadingProgressUI(
       8,
       lang === 'en-US'
-        ? 'POSITIONING OPERATOR & SYNCING SECTORS...'
-        : 'POSICIONANDO OPERADOR & SINCRONIZANDO SETORES...'
+        ? 'POSITIONING OPERATOR & SYNCING METROPOLIS...'
+        : 'POSICIONANDO OPERADOR & SINCRONIZANDO METRÓPOLE...'
     );
 
     const nextFrame = (fn, delay = 28) => setTimeout(() => requestAnimationFrame(fn), delay);
@@ -1338,7 +1363,7 @@ export class LegoHud {
       }
     };
 
-    // ETAPA 1 (0% -> 20%): Configura dados do Save, Herói, Facção Aliada e Matrizes
+    // ETAPA 1 (0% -> 24%): Configura dados do Save, Herói, Corações LEGO e Matrizes
     nextFrame(() => {
       try {
         this.totalStuds = Number(slotData?.studs || 0);
@@ -1349,7 +1374,7 @@ export class LegoHud {
         if (this._lastController && slotData?.heroKey) {
           this._lastController.switchToHero(slotData.heroKey);
         }
-        this.setPlayerFaction(factionKey, true);
+        this.setPlayerFaction('free_roam', true);
         this.setPlayerHealth(250, 250, false);
       } catch (err) {
         console.warn('[Loading Stage 1]', err);
@@ -1359,8 +1384,8 @@ export class LegoHud {
       this._setLoadingProgressUI(
         24,
         lang === 'en-US'
-          ? 'MOBILIZING ARMIES, MEDICS & WORLD WAR BOSSES...'
-          : 'MOBILIZANDO EXÉRCITOS, MÉDICOS & BOSSES DA GUERRA MUNDIAL...'
+          ? 'POPULATING SIDEWALKS, TRAFFIC & CITY LIFE...'
+          : 'POPULANDO CALÇADAS, TRÂNSITO & VIDA URBANA...'
       );
 
       // ETAPA 2 (24% -> 46%): Aquecimento da simulação das facções, carros e partículas
@@ -1403,13 +1428,13 @@ export class LegoHud {
             this._setLoadingProgressUI(
               100,
               lang === 'en-US'
-                ? 'ALL SYSTEMS READY! LAUNCHING WORLD WAR...'
-                : 'TUDO PRONTO! INICIANDO GUERRA MUNDIAL...'
+                ? 'ALL SYSTEMS READY! ENTERING METROPOLIS...'
+                : 'TUDO PRONTO! ENTRANDO NA METRÓPOLE...'
             );
 
             nextFrame(() => {
               this.isLoadingActive = false;
-              document.body.classList.remove('title-or-loading-active');
+              document.body?.classList.remove('title-or-loading-active');
               if (this.loadingScreenEl) {
                 this.loadingScreenEl.classList.add('hidden');
               }
@@ -1419,17 +1444,6 @@ export class LegoHud {
 
               if (this._lastController && typeof this._lastController.relockPointer === 'function') {
                 this._lastController.relockPointer();
-              }
-
-              if (isNewOrSwitch) {
-                this.showTacticalAlertToast(
-                  'GUERRA MUNDIAL DE FACÇÕES // ALIANÇA ATIVA',
-                  `${fInfo.name[lang] || fInfo.name['pt-BR']}`,
-                  'Exército, Médicos de Combate e Boss Colossal da sua facção agora lutam ao seu lado!',
-                  fInfo.color,
-                  'emergency',
-                  4500
-                );
               }
             }, 140);
           };
@@ -1442,7 +1456,7 @@ export class LegoHud {
 
   saveCurrentProgress() {
     writeSaveSlot(this.activeSaveSlot || 0, {
-      faction: this.playerFaction || 'cv',
+      faction: 'free_roam',
       studs: this.totalStuds || 0,
       heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
     });

@@ -719,8 +719,9 @@ class SoundFX {
   }
 
   /**
-   * GERADOR DE MÚSICA DE GUERRA PROCEDURAL ("LEGO WAR MARCH / BACKYARD BATTLEGROUND THEME")
-   * Sequenciador tático em Ré Menor (132 BPM) com bumbo/caixa militar, baixo sintetizado e fanfarra de Boss!
+   * GROOVE URBANO SOLAR & HEROICO ESTILO LEGO MARVEL ("MANHATTAN FREE ROAM THEME")
+   * Sequenciador leve em Dó Maior / Sol Mixolídio (115 BPM): baixo elétrico saltitante,
+   * acordes solares suaves de piano elétrico e melodia aventureira para passear e voar pela cidade!
    */
   startWarMusic() {
     if (this.isMusicPlaying) return;
@@ -731,7 +732,7 @@ class SoundFX {
       clearInterval(this._musicInterval);
     }
 
-    // 132 BPM -> colcheia / semicolcheia a cada 114ms
+    // 115 BPM -> semicolcheia suave a cada 130ms
     this._musicInterval = setInterval(() => {
       if (!this.isMusicPlaying || this.masterVolume * this.musicVolume <= 0.01) return;
       const ctx = this._ensureContext();
@@ -742,78 +743,112 @@ class SoundFX {
       const now = ctx.currentTime;
       const dest = this.musicBus || ctx.destination;
 
-      // 1. Bumbo Militar Pesado nos tempos fortes (0, 4, 8, 12...) e duplo em modo Boss
-      if (step % 4 === 0 || (this.isBossMusicActive && step % 4 === 2)) {
+      // 1. Batida Urbana Suave (Groove leve de passeio sem peso militar)
+      if (step === 0 || step === 6 || step === 10 || step === 16 || step === 22 || step === 26) {
         const kickOsc = ctx.createOscillator();
         const kickGain = ctx.createGain();
         kickOsc.type = 'sine';
-        kickOsc.frequency.setValueAtTime(135, now);
-        kickOsc.frequency.exponentialRampToValueAtTime(34, now + 0.11);
-        kickGain.gain.setValueAtTime(0.22, now);
-        kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        kickOsc.frequency.setValueAtTime(108, now);
+        kickOsc.frequency.exponentialRampToValueAtTime(42, now + 0.095);
+        kickGain.gain.setValueAtTime(0.13, now);
+        kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.105);
         kickOsc.connect(kickGain);
         kickGain.connect(dest);
         kickOsc.start(now);
-        kickOsc.stop(now + 0.125);
+        kickOsc.stop(now + 0.11);
       }
 
-      // 2. Caixa Militar Tática (Snare / Marcha de Guerra) nos contratempos (2, 6, 10, 14, 15, 30, 31)
-      if (step % 4 === 2 || step === 15 || step === 31) {
-        const snareOsc = ctx.createOscillator();
-        const snareGain = ctx.createGain();
-        snareOsc.type = 'triangle';
-        snareOsc.frequency.setValueAtTime(240 + (step % 3) * 35, now);
-        snareOsc.frequency.exponentialRampToValueAtTime(82, now + 0.075);
-        snareGain.gain.setValueAtTime(0.11, now);
-        snareGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-        snareOsc.connect(snareGain);
-        snareGain.connect(dest);
-        snareOsc.start(now);
-        snareOsc.stop(now + 0.085);
+      // Rim / Clap suave nos tempos 4, 12, 20, 28 + Hi-hat leve nos pares
+      if (step % 8 === 4) {
+        const rimOsc = ctx.createOscillator();
+        const rimGain = ctx.createGain();
+        rimOsc.type = 'triangle';
+        rimOsc.frequency.setValueAtTime(340, now);
+        rimOsc.frequency.exponentialRampToValueAtTime(155, now + 0.055);
+        rimGain.gain.setValueAtTime(0.055, now);
+        rimGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        rimOsc.connect(rimGain);
+        rimGain.connect(dest);
+        rimOsc.start(now);
+        rimOsc.stop(now + 0.065);
+      } else if (step % 2 === 0) {
+        const hatOsc = ctx.createOscillator();
+        const hatGain = ctx.createGain();
+        hatOsc.type = 'sine';
+        hatOsc.frequency.setValueAtTime(1480 + (step % 4) * 120, now);
+        hatGain.gain.setValueAtTime(0.016, now);
+        hatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.028);
+        hatOsc.connect(hatGain);
+        hatGain.connect(dest);
+        hatOsc.start(now);
+        hatOsc.stop(now + 0.032);
       }
 
-      // 3. Linha de Baixo Sintetizada de Ação (Ré Menor: D2=73.42, F2=87.31, G2=98.00, A2=110.00, Bb2=116.54, C3=130.81)
+      // 2. Acordes Solares Alegres (C Major -> G Major -> F Major7 -> G6)
+      if (step % 8 === 0) {
+        const chordBank = [
+          [261.63, 329.63, 392.0], // C4 - E4 - G4
+          [246.94, 293.66, 392.0], // B3 - D4 - G4
+          [261.63, 349.23, 440.0], // C4 - F4 - A4
+          [293.66, 392.0, 493.88]  // D4 - G4 - B4
+        ];
+        const chord = chordBank[Math.floor(step / 8) % 4];
+        for (const freq of chord) {
+          const chOsc = ctx.createOscillator();
+          const chGain = ctx.createGain();
+          chOsc.type = 'sine';
+          chOsc.frequency.setValueAtTime(freq, now);
+          chGain.gain.setValueAtTime(0.032, now);
+          chGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+          chOsc.connect(chGain);
+          chGain.connect(dest);
+          chOsc.start(now);
+          chOsc.stop(now + 0.44);
+        }
+      }
+
+      // 3. Linha de Baixo Leve & Saltitante (Funky Urban Groove em Dó Maior)
       const bassPattern = [
-        73.42, 73.42, 146.83, 73.42, 87.31, 87.31, 98.0, 110.0,
-        73.42, 73.42, 146.83, 73.42, 116.54, 110.0, 98.0, 87.31,
-        73.42, 73.42, 146.83, 73.42, 87.31, 87.31, 130.81, 110.0,
-        116.54, 116.54, 110.0, 98.0, 87.31, 87.31, 110.0, 146.83
+        130.81, 0, 130.81, 164.81, 196.0, 0, 164.81, 146.83,
+        98.0, 0, 98.0, 123.47, 146.83, 0, 164.81, 146.83,
+        87.31, 0, 87.31, 110.0, 130.81, 0, 146.83, 130.81,
+        98.0, 0, 123.47, 0, 146.83, 164.81, 196.0, 0
       ];
-      const bassFreq = bassPattern[step] * (this.isBossMusicActive ? 1.122 : 1.0);
-      if (bassFreq) {
+      const bassFreq = bassPattern[step];
+      if (bassFreq > 0) {
         const bassOsc = ctx.createOscillator();
         const bassGain = ctx.createGain();
-        bassOsc.type = 'sawtooth';
+        bassOsc.type = 'triangle';
         bassOsc.frequency.setValueAtTime(bassFreq, now);
-        bassGain.gain.setValueAtTime(0.085, now);
-        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        bassGain.gain.setValueAtTime(0.082, now);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.115);
         bassOsc.connect(bassGain);
         bassGain.connect(dest);
         bassOsc.start(now);
-        bassOsc.stop(now + 0.105);
+        bassOsc.stop(now + 0.12);
       }
 
-      // 4. Fanfarra Heroica de Metais / Lead Tático (Mais intensa quando Boss está na Guerra Mundial!)
+      // 4. Tema Melódico Heroico & Aventureiro Estilo LEGO Marvel
       const leadMelody = [
-        293.66, 0, 349.23, 0, 440.0, 0, 392.0, 349.23,
-        293.66, 0, 440.0, 0, 466.16, 440.0, 392.0, 0,
-        293.66, 0, 349.23, 0, 523.25, 0, 440.0, 392.0,
-        466.16, 0, 440.0, 392.0, 349.23, 0, 440.0, 587.33
+        523.25, 0, 659.25, 0, 783.99, 0, 659.25, 587.33,
+        587.33, 0, 659.25, 783.99, 0, 0, 587.33, 0,
+        523.25, 0, 587.33, 0, 659.25, 0, 880.0, 783.99,
+        659.25, 0, 587.33, 523.25, 587.33, 0, 0, 0
       ];
       const leadFreq = leadMelody[step];
-      if (leadFreq > 0 && (step % 2 === 0 || this.isBossMusicActive)) {
+      if (leadFreq > 0) {
         const leadOsc = ctx.createOscillator();
         const leadGain = ctx.createGain();
-        leadOsc.type = this.isBossMusicActive ? 'sawtooth' : 'triangle';
+        leadOsc.type = 'triangle';
         leadOsc.frequency.setValueAtTime(leadFreq, now);
-        leadGain.gain.setValueAtTime(this.isBossMusicActive ? 0.085 : 0.06, now);
-        leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+        leadGain.gain.setValueAtTime(0.048, now);
+        leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
         leadOsc.connect(leadGain);
         leadGain.connect(dest);
         leadOsc.start(now);
-        leadOsc.stop(now + 0.2);
+        leadOsc.stop(now + 0.23);
       }
-    }, 114);
+    }, 130);
   }
 
   stopWarMusic() {

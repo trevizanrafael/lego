@@ -98,76 +98,96 @@ export const FACTION_DATA = {
 
 export const UI_TEXTS = {
   'pt-BR': {
-    subtitle: 'GUERRA MUNDIAL DE FACÇÕES // OPERAÇÕES ESPECIAIS',
+    subtitle: 'MUNDO ABERTO 3D // EXPLORAÇÃO LIVRE',
     newGame: 'NOVO JOGO',
     loadGame: 'CARREGAR JOGO',
-    options: 'OPÇÕES TÁTICAS',
+    options: 'OPÇÕES DE JOGO',
     languageBtn: 'IDIOMA: PT-BR',
-    selectSlotNew: 'ESCOLHA UM SLOT DE MEMÓRIA PARA INICIAR NOVA CAMPANHA',
-    selectSlotLoad: 'SELECIONE UM SLOT SALVO PARA CONTINUAR A GUERRA',
+    selectSlotNew: 'ESCOLHA UM SLOT DE MEMÓRIA PARA INICIAR NO MODO LIVRE',
+    selectSlotLoad: 'SELECIONE UM SLOT SALVO PARA CONTINUAR SUA PARTIDA',
     backBtn: 'VOLTAR',
-    emptySlot: 'SLOT VAZIO // PRONTO PARA OPERAÇÃO',
-    startSlotBtn: 'INICIAR NESTE SLOT',
-    overwriteSlotBtn: 'SOBRESCREVER SLOT',
-    loadSlotBtn: 'CARREGAR OPERAÇÃO',
+    emptySlot: 'SLOT VAZIO // PRONTO PARA EXPLORAÇÃO LIVRE',
+    startSlotBtn: 'INICIAR MODO LIVRE',
+    overwriteSlotBtn: 'NOVO JOGO NESTE SLOT',
+    loadSlotBtn: 'CARREGAR PARTIDA',
     deleteSlotBtn: 'APAGAR',
+    freeRoamSlotTitle: 'MUNDO ABERTO // EXPLORAÇÃO LIVRE',
     chooseFactionTag: 'SELEÇÃO DE ALIANÇA MILITAR // BACKYARD BATTLEGROUND',
     chooseFactionTitle: 'ESCOLHA SUA FACÇÃO ALIADA NA GUERRA MUNDIAL',
     chooseFactionSub:
       'Sua facção lutará ao seu lado no Centro da Metrópole, enviará Médicos de Combate para curar você e invocará Bosses Colossais aliados!',
     joinFactionBtn: 'JURAR LEALDADE & ENTRAR NA GUERRA',
     pauseTag: 'SISTEMA DE COMANDO // JOGO PAUSADO [ESC]',
-    pauseTitle: 'CENTRAL DE OPÇÕES & CONTROLE DE GUERRA',
+    pauseTitle: 'CENTRAL DE OPÇÕES & MUNDO ABERTO',
     masterVol: 'VOLUME GERAL (MASTER)',
-    musicVol: 'VOLUME DA MÚSICA DE GUERRA',
-    sfxVol: 'VOLUME DE EFEITOS SONOROS (TIROS / EXPLOSÕES)',
+    musicVol: 'VOLUME DA MÚSICA DA CIDADE',
+    sfxVol: 'VOLUME DE EFEITOS SONOROS (PODERES / VEÍCULOS)',
     regionToastToggle: 'AVISO DE TROCA DE REGIÃO NA TELA',
     langLabel: 'IDIOMA DA INTERFACE (LANGUAGE)',
-    resumeBtn: 'CONTINUAR OPERAÇÃO [ESC]',
+    resumeBtn: 'CONTINUAR PARTIDA [ESC]',
     saveNowBtn: 'SALVAR JOGO AGORA',
     switchFactionBtn: 'TROCAR DE FACÇÃO ALIADA',
     saveQuitBtn: 'SALVAR E SAIR PARA O MENU INICIAL',
     savedFeedback: '✔ PROGRESSO SALVO NO SLOT COM SUCESSO!',
-    worldWarFront: 'FRENTE CENTRAL DA GUERRA MUNDIAL',
-    invasionActive: '⚔️ GUERRA MUNDIAL: INVASÃO EM CURSO — ONDA DE BOSSES ATIVA!',
-    medicHealing: '✚ MÉDICO ALIADO CURANDO VOCÊ (+20 HP/s)'
+    worldWarFront: 'MUNDO ABERTO // EXPLORAÇÃO LIVRE',
+    invasionActive: '',
+    medicHealing: ''
   },
   'en-US': {
-    subtitle: 'WORLD FACTION WARFARE // SPECIAL OPERATIONS',
+    subtitle: '3D OPEN WORLD // FREE ROAM EXPLORATION',
     newGame: 'NEW GAME',
     loadGame: 'LOAD GAME',
-    options: 'TACTICAL OPTIONS',
+    options: 'GAME OPTIONS',
     languageBtn: 'LANGUAGE: EN-US',
-    selectSlotNew: 'SELECT A MEMORY SLOT TO START NEW CAMPAIGN',
-    selectSlotLoad: 'SELECT A SAVED SLOT TO RESUME WARFARE',
+    selectSlotNew: 'SELECT A MEMORY SLOT TO START FREE ROAM',
+    selectSlotLoad: 'SELECT A SAVED SLOT TO RESUME EXPLORATION',
     backBtn: 'BACK',
-    emptySlot: 'EMPTY SLOT // READY FOR DEPLOYMENT',
-    startSlotBtn: 'START IN THIS SLOT',
-    overwriteSlotBtn: 'OVERWRITE SLOT',
-    loadSlotBtn: 'LOAD OPERATION',
+    emptySlot: 'EMPTY SLOT // READY FOR FREE ROAM',
+    startSlotBtn: 'START FREE ROAM',
+    overwriteSlotBtn: 'NEW GAME IN THIS SLOT',
+    loadSlotBtn: 'LOAD SAVE',
     deleteSlotBtn: 'DELETE',
+    freeRoamSlotTitle: 'OPEN WORLD // FREE ROAM',
     chooseFactionTag: 'MILITARY ALLIANCE SELECTION // BACKYARD BATTLEGROUND',
     chooseFactionTitle: 'CHOOSE YOUR ALLIED FACTION IN THE WORLD WAR',
     chooseFactionSub:
       'Your faction will fight beside you in Downtown, send Combat Medics to heal you and deploy Allied Colossal Bosses!',
     joinFactionBtn: 'PLEDGE ALLEGIANCE & DEPLOY TO WAR',
     pauseTag: 'COMMAND SYSTEM // GAME PAUSED [ESC]',
-    pauseTitle: 'OPTIONS CENTER & WARFARE CONTROL',
+    pauseTitle: 'OPTIONS CENTER & OPEN WORLD',
     masterVol: 'MASTER VOLUME',
-    musicVol: 'WAR MUSIC VOLUME',
-    sfxVol: 'SOUND EFFECTS VOLUME (GUNS / EXPLOSIONS)',
+    musicVol: 'CITY MUSIC VOLUME',
+    sfxVol: 'SOUND EFFECTS VOLUME (POWERS / VEHICLES)',
     regionToastToggle: 'REGION TRANSITION BANNER ON SCREEN',
     langLabel: 'INTERFACE LANGUAGE (IDIOMA)',
-    resumeBtn: 'RESUME OPERATION [ESC]',
+    resumeBtn: 'RESUME GAME [ESC]',
     saveNowBtn: 'SAVE GAME NOW',
     switchFactionBtn: 'SWITCH ALLIED FACTION',
     saveQuitBtn: 'SAVE & QUIT TO TITLE SCREEN',
     savedFeedback: '✔ PROGRESS SAVED TO SLOT SUCCESSFULLY!',
-    worldWarFront: 'WORLD WAR CENTRAL FRONT',
-    invasionActive: '⚔️ WORLD WAR: BASE INVASION — BOSS WAVE ACTIVE!',
-    medicHealing: '✚ ALLIED MEDIC HEALING YOU (+20 HP/s)'
+    worldWarFront: 'OPEN WORLD // FREE ROAM',
+    invasionActive: '',
+    medicHealing: ''
   }
 };
+
+/**
+ * Emblema Oficial LEGO Mundo Aberto (Escudo Dourado + Bloco LEGO 3D) para Slots de Save e Loading Screen
+ */
+export function getFreeRoamLogoSvg(size = 76) {
+  return `
+    <svg viewBox="0 0 110 110" width="${size}" height="${size}" class="faction-svg-logo">
+      <polygon points="55,4 104,22 96,84 55,106 14,84 6,22" fill="#090a0d" stroke="#facc15" stroke-width="4.5"/>
+      <polygon points="55,12 96,27 89,79 55,98 21,79 14,27" fill="#38bdf8" opacity="0.22"/>
+      <rect x="33" y="25" width="12" height="6" fill="#facc15" stroke="#090a0d" stroke-width="2"/>
+      <rect x="49" y="25" width="12" height="6" fill="#facc15" stroke="#090a0d" stroke-width="2"/>
+      <rect x="65" y="25" width="12" height="6" fill="#facc15" stroke="#090a0d" stroke-width="2"/>
+      <rect x="27" y="31" width="56" height="36" fill="#facc15" stroke="#090a0d" stroke-width="3.2"/>
+      <text x="55" y="56" text-anchor="middle" fill="#090a0d" font-family="Teko, sans-serif" font-size="27" font-weight="700" letter-spacing="1.5">LEGO</text>
+      <polygon points="55,71 59,79 68,79 61,85 64,93 55,88 46,93 49,85 42,79 51,79" fill="#38bdf8" stroke="#facc15" stroke-width="1.8"/>
+    </svg>
+  `;
+}
 
 /**
  * Retorna a Logo Vetorial Exclusiva em SVG de cada uma das 3 Facções (CV, PCC, A.R.E.S.)

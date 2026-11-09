@@ -107,11 +107,9 @@ class LegoCityGame {
     } else if (stage === 'simulate_entities') {
       const lc = this.world?.livingCity;
       if (lc) {
-        for (const npc of lc.combatNpcs || []) {
-          if (npc.root) npc.root.visible = true;
-        }
         for (const ped of lc.pedestrians || []) {
-          if (ped.root) ped.root.visible = true;
+          const r = ped.visual?.root || ped.root;
+          if (r) r.visible = true;
         }
       }
       for (let i = 0; i < 3; i++) {

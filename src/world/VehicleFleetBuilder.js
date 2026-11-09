@@ -373,6 +373,24 @@ export const VEHICLE_SPECS = {
     // Guarda Studs Roxos!
     studDrops: { silver: 4, gold: 10, blue: 6, purple: 5 }
   },
+  onibus_urbano: {
+    id: 'onibus_urbano',
+    group: 'CIVIS & PESADOS',
+    name: 'ÔNIBUS METROPOLITANO LEGO',
+    kmh: 120,
+    turboKmh: 155,
+    maxForward: 120 * KMH_TO_UNITS,
+    turboSpeed: 155 * KMH_TO_UNITS,
+    maxReverse: -45 * KMH_TO_UNITS,
+    accel: 27.5,
+    turnRate: 1.85,
+    driftTurnRate: 2.55,
+    hp: 950,
+    openTop: false,
+    weapon: null,
+    rammingPower: 'unstoppable',
+    studDrops: { silver: 6, gold: 8, blue: 4, purple: 0 }
+  },
   tanque_titan: {
     id: 'tanque_titan',
     group: 'CIVIS & PESADOS',
@@ -844,6 +862,90 @@ export function createLegoCarMesh(cfg) {
     }
     group.userData.wheels = wheels;
     _attachTurboFlames(group, [-0.8, 0.8], 0.75, -3.0);
+    return group;
+  }
+
+  // ============================================================================
+  // CASO ESPECIAL 3: ÔNIBUS METROPOLITANO LEGO (ESTILO MANHATTAN / METRÓPOLE)
+  // ============================================================================
+  if (type === 'onibus_urbano') {
+    const busW = 2.82;
+    const busD = 8.4;
+    const lowerH = 1.05;
+    const upperH = 1.18;
+    const accentMat = getLegoMaterial(roofColor, { roughness: 0.22, clearcoat: 0.5 });
+    const ledSignMat = getLegoMaterial(0xfacc15, { emissive: 0xf59e0b, emissiveIntensity: 1.25 });
+
+    // Saia inferior colorida + faixa central + teto com pinos LEGO
+    const lowerHull = createLegoBrick(busW, lowerH, busD, bodyColor, { studs: false });
+    lowerHull.position.set(0, 0.44 + lowerH * 0.5, 0);
+    const midBelt = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.04, 0.22, busD + 0.02), accentMat);
+    midBelt.position.set(0, 0.44 + lowerH + 0.06, 0);
+    group.add(lowerHull, midBelt);
+
+    // Galeria panorâmica de janelas + colunas LEGO
+    const winBaseY = 0.44 + lowerH + 0.16;
+    const panoramicGlass = new THREE.Mesh(
+      new THREE.BoxGeometry(busW - 0.14, upperH, busD - 0.26),
+      glassMat
+    );
+    panoramicGlass.position.set(0, winBaseY + upperH * 0.5, 0);
+    group.add(panoramicGlass);
+
+    for (const pz of [-3.95, -2.5, -1.05, 0.4, 1.85, 3.3, 4.05]) {
+      for (const px of [-busW * 0.49, busW * 0.49]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.1, upperH + 0.04, 0.22), accentMat);
+        pillar.position.set(px, winBaseY + upperH * 0.5, pz);
+        group.add(pillar);
+      }
+    }
+
+    // Teto longo LEGO com pinos (Studs) e 2 módulos de Ar-Condicionado
+    const roofY = winBaseY + upperH + 0.11;
+    const busRoof = createLegoBrick(busW + 0.04, 0.22, busD + 0.04, roofColor, { studStep: 0.8 });
+    busRoof.position.set(0, roofY, 0);
+    const acFront = createLegoBrick(1.75, 0.26, 1.85, LEGO_COLORS.white, { studStep: 0.65 });
+    acFront.position.set(0, roofY + 0.24, 1.65);
+    const acRear = createLegoBrick(1.75, 0.26, 1.85, LEGO_COLORS.white, { studStep: 0.65 });
+    acRear.position.set(0, roofY + 0.24, -1.75);
+    group.add(busRoof, acFront, acRear);
+
+    // Letreiro Digital Luminoso frontal + Para-choques + Faróis e Lanternas
+    const destBoard = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.3, 0.12), ledSignMat);
+    destBoard.position.set(0, roofY - 0.26, busD * 0.5 + 0.03);
+    const fBumper = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.1, 0.34, 0.36), darkTrimMat);
+    fBumper.position.set(0, 0.48, busD * 0.5 + 0.06);
+    const rBumper = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.1, 0.36, 0.36), darkTrimMat);
+    rBumper.position.set(0, 0.48, -busD * 0.5 - 0.06);
+    group.add(destBoard, fBumper, rBumper);
+
+    for (const lx of [-1.02, 1.02]) {
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.26, 0.14), headlightMat);
+      hl.position.set(lx, 0.86, busD * 0.5 + 0.06);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.14), taillightMat);
+      tl.position.set(lx, 0.92, -busD * 0.5 - 0.06);
+      group.add(hl, tl);
+    }
+
+    // 6 Rodas Pesadas (Eixo dianteiro direcional + Eixo traseiro duplo)
+    const wheels = [];
+    for (const wz of [2.65, -1.85, -3.05]) {
+      for (const wx of [-busW * 0.49, busW * 0.49]) {
+        const steerGroup = new THREE.Group();
+        steerGroup.position.set(wx, 0.52, wz);
+        const spinGroup = new THREE.Group();
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.42, 16), tireMat);
+        tire.rotation.z = Math.PI / 2;
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.44, 12), silverMat);
+        hub.rotation.z = Math.PI / 2;
+        spinGroup.add(tire, hub);
+        steerGroup.add(spinGroup);
+        group.add(steerGroup);
+        wheels.push({ steerGroup, spinGroup, isFront: wz > 1.0 });
+      }
+    }
+    group.userData.wheels = wheels;
+    _attachTurboFlames(group, [-0.75, 0.75], 0.52, -busD * 0.5 - 0.24);
     return group;
   }
 

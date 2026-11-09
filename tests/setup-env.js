@@ -36,6 +36,9 @@ export function setupTestEnvironment() {
         this.children.push(child);
         return child;
       },
+      querySelectorAll() {
+        return this.children;
+      },
       addEventListener(type, fn) {
         this._listeners = this._listeners || {};
         this._listeners[type] = this._listeners[type] || [];
@@ -64,6 +67,8 @@ export function setupTestEnvironment() {
           closePath() {},
           moveTo() {},
           lineTo() {},
+          quadraticCurveTo() {},
+          bezierCurveTo() {},
           arc() {},
           ellipse() {},
           roundRect() {},
@@ -73,6 +78,9 @@ export function setupTestEnvironment() {
           restore() {},
           translate() {},
           rotate() {},
+          scale() {},
+          clip() {},
+          drawImage() {},
           setLineDash() {},
           strokeText() {},
           createLinearGradient() {
@@ -153,6 +161,7 @@ export function setupTestEnvironment() {
   };
 
   globalThis.document = {
+    body: createMockElement('body'),
     pointerLockElement: null,
     createElement(tag) {
       return createMockElement(tag);
