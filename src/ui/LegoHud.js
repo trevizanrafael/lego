@@ -789,17 +789,16 @@ export class LegoHud {
 
     document.getElementById('btn-slots-back')?.addEventListener('click', () => {
       soundFX.playTacticalRoll();
-      this.titleSlotsPanelEl?.classList.add('hidden');
-      this.titleMainPanelEl?.classList.remove('hidden');
+      this._setTitleSubPanel('main');
     });
 
     document.getElementById('btn-faction-back')?.addEventListener('click', () => {
       soundFX.playTacticalRoll();
-      this.titleFactionPanelEl?.classList.add('hidden');
       if (this.isTitleScreenActive) {
-        this.titleSlotsPanelEl?.classList.remove('hidden');
+        this._setTitleSubPanel('slots');
       } else {
         this.titleOverlayEl?.classList.add('hidden');
+        document.body.classList.remove('title-or-loading-active');
         this.setPauseMenuOpen(true, this._lastController);
       }
     });
@@ -858,8 +857,6 @@ export class LegoHud {
       this.setPauseMenuOpen(false, this._lastController, true);
       document.body.classList.add('title-or-loading-active');
       this.titleOverlayEl?.classList.remove('hidden');
-      this.titleMainPanelEl?.classList.add('hidden');
-      this.titleSlotsPanelEl?.classList.add('hidden');
       this._openFactionSelectionPanel();
     });
 
@@ -869,15 +866,30 @@ export class LegoHud {
       this.isTitleScreenActive = true;
       document.body.classList.add('title-or-loading-active');
       this.titleOverlayEl?.classList.remove('hidden');
-      this.titleMainPanelEl?.classList.remove('hidden');
-      this.titleSlotsPanelEl?.classList.add('hidden');
-      this.titleFactionPanelEl?.classList.add('hidden');
+      this._setTitleSubPanel('main');
       if (document.pointerLockElement && document.exitPointerLock) {
         document.exitPointerLock();
       }
     });
 
+    this._setTitleSubPanel('main');
     this._refreshLanguageAndOptionsUI();
+  }
+
+  /**
+   * Máquina de estados exclusiva para os 3 subpainéis da Tela Inicial ('main' | 'slots' | 'faction')
+   * Garante que APENAS UM painel fique visível por vez abaixo da Logo Oficial!
+   */
+  _setTitleSubPanel(panelName = 'main') {
+    if (this.titleMainPanelEl) {
+      this.titleMainPanelEl.classList.toggle('hidden', panelName !== 'main');
+    }
+    if (this.titleSlotsPanelEl) {
+      this.titleSlotsPanelEl.classList.toggle('hidden', panelName !== 'slots');
+    }
+    if (this.titleFactionPanelEl) {
+      this.titleFactionPanelEl.classList.toggle('hidden', panelName !== 'faction');
+    }
   }
 
   /**
@@ -1219,9 +1231,7 @@ export class LegoHud {
     const lang = this.settings?.language || 'pt-BR';
     const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
 
-    this.titleMainPanelEl?.classList.add('hidden');
-    this.titleFactionPanelEl?.classList.add('hidden');
-    this.titleSlotsPanelEl?.classList.remove('hidden');
+    this._setTitleSubPanel('slots');
 
     const titleEl = document.getElementById('slots-panel-title');
     if (titleEl) {
@@ -1297,7 +1307,6 @@ export class LegoHud {
           }
         } else {
           this.pendingSlotIndex = idx;
-          this.titleSlotsPanelEl?.classList.add('hidden');
           this._openFactionSelectionPanel();
         }
       });
@@ -1307,7 +1316,7 @@ export class LegoHud {
   _openFactionSelectionPanel() {
     const lang = this.settings?.language || 'pt-BR';
     const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
-    this.titleFactionPanelEl?.classList.remove('hidden');
+    this._setTitleSubPanel('faction');
     if (!this.factionCardsGridEl) return;
 
     this.factionCardsGridEl.innerHTML = ['cv', 'pcc', 'ares']
