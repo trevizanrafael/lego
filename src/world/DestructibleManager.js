@@ -296,7 +296,12 @@ export class DestructibleManager {
   }) {
     const basePos = mesh.position.clone();
     const baseRot = mesh.rotation.clone();
-    if (mesh && !mesh.userData?.isOptimizedGroup) {
+    if (
+      mesh &&
+      !mesh.userData?.isOptimizedGroup &&
+      !mesh.userData?.skipStaticMerge &&
+      type !== 'npc_fighter'
+    ) {
       optimizeStaticGroupMeshes(mesh, []);
     }
 

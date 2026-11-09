@@ -95,12 +95,77 @@ export class LivingCityManager {
     this.armoredConvoy = null;
     this.convoyRespawnTimer = 8.0;
 
+    this._buildingGrid = new Map();
+    this._buildingGridCellSize = 48;
+    this._initBuildingSpatialGrid();
+
     this._initCentralBattlegroundProps();
     this._initUrbanTraffic();
     this._initPedestrians();
     this._initFactionsAndPolice();
     this._initPccAssaultHelicopter();
     this._spawnArmoredConvoyEvent();
+  }
+
+  /**
+   * Pré-indexa todos os prédios e paredes sólidas do mapa em uma Grade Espacial 2D O(1) (células de 48m x 48m)
+   * para colisão instantânea e checagem de linha de visão sem varrer ~1.400 colisores a cada frame!
+   */
+  _initBuildingSpatialGrid() {
+    this._buildingGrid.clear();
+    const cs = this._buildingGridCellSize;
+    const boxes = [];
+
+    if (this.world?.mapBuildings) {
+      for (const bld of this.world.mapBuildings) {
+        const hw = (bld.w || 0) * 0.5;
+        const hd = (bld.d || 0) * 0.5;
+        if (hw < 1.5 || hd < 1.5) continue;
+        // Ignora a caixa global de minimapa do Super Banco Central (cujo interior é aberto e já possui colisores de parede próprios)
+        if (Math.abs(bld.x) < 56 && bld.z > -230 && bld.z < -128) continue;
+        boxes.push({
+          minX: bld.x - hw,
+          maxX: bld.x + hw,
+          minZ: bld.z - hd,
+          maxZ: bld.z + hd
+        });
+      }
+    }
+
+    if (this.world?.colliders) {
+      for (const col of this.world.colliders) {
+        const minY = col.minY ?? 0;
+        const h = col.maxY - minY;
+        const w = col.maxX - col.minX;
+        const d = col.maxZ - col.minZ;
+        // Filtra apenas paredes e edifícios sólidos no nível do chão (exclui carros h<=2.1, postes e helipontos)
+        if (col.disabled || h < 2.8 || minY >= 3.2 || (w < 2.2 && d < 2.2)) continue;
+        boxes.push({
+          minX: col.minX,
+          maxX: col.maxX,
+          minZ: col.minZ,
+          maxZ: col.maxZ
+        });
+      }
+    }
+
+    for (const box of boxes) {
+      const gx0 = Math.floor((box.minX - 3.0) / cs);
+      const gx1 = Math.floor((box.maxX + 3.0) / cs);
+      const gz0 = Math.floor((box.minZ - 3.0) / cs);
+      const gz1 = Math.floor((box.maxZ + 3.0) / cs);
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const key = `${gx},${gz}`;
+          let cell = this._buildingGrid.get(key);
+          if (!cell) {
+            cell = [];
+            this._buildingGrid.set(key, cell);
+          }
+          cell.push(box);
+        }
+      }
+    }
   }
 
   // ============================================================================
@@ -170,18 +235,26 @@ export class LivingCityManager {
   }
 
   /**
-   * Empurra imediatamente qualquer coordenada (x, z) para fora de prédios e paredes sólidas
+   * Empurra imediatamente qualquer coordenada (x, z) para fora de prédios e paredes sólidas usando a Grade Espacial O(1)!
    */
   _resolveBuildingCollision(x, z, radius = 1.35) {
     let curX = x;
     let curZ = z;
     let collided = false;
+    const cs = this._buildingGridCellSize || 48;
+    const gx = Math.floor(curX / cs);
+    const gz = Math.floor(curZ / cs);
+    const cell = this._buildingGrid.get(`${gx},${gz}`);
+    if (!cell || cell.length === 0) {
+      return { x: curX, z: curZ, collided: false };
+    }
 
-    const pushOutFromBox = (minX, maxX, minZ, maxZ) => {
-      const padMinX = minX - radius;
-      const padMaxX = maxX + radius;
-      const padMinZ = minZ - radius;
-      const padMaxZ = maxZ + radius;
+    for (let i = 0; i < cell.length; i++) {
+      const box = cell[i];
+      const padMinX = box.minX - radius;
+      const padMaxX = box.maxX + radius;
+      const padMinZ = box.minZ - radius;
+      const padMaxZ = box.maxZ + radius;
       if (curX > padMinX && curX < padMaxX && curZ > padMinZ && curZ < padMaxZ) {
         const dLeft = Math.abs(curX - padMinX);
         const dRight = Math.abs(padMaxX - curX);
@@ -194,51 +267,26 @@ export class LivingCityManager {
         else curZ = padMaxZ + 0.05;
         collided = true;
       }
-    };
-
-    for (let pass = 0; pass < 2; pass++) {
-      if (this.world?.mapBuildings) {
-        for (const bld of this.world.mapBuildings) {
-          const hw = (bld.w || 0) * 0.5;
-          const hd = (bld.d || 0) * 0.5;
-          if (hw < 1.5 || hd < 1.5) continue;
-          pushOutFromBox(bld.x - hw, bld.x + hw, bld.z - hd, bld.z + hd);
-        }
-      }
-      if (this.world?.colliders) {
-        for (const col of this.world.colliders) {
-          if (col.disabled || col.maxY <= 2.2 || (col.minY ?? 0) >= 3.5) continue;
-          pushOutFromBox(col.minX, col.maxX, col.minZ, col.maxZ);
-        }
-      }
     }
 
     return { x: curX, z: curZ, collided };
   }
 
   /**
-   * Verifica se há linha de visão livre (sem parede/prédio sólido no meio) entre (x1, z1) e (x2, z2)
+   * Verifica em O(1) via Grade Espacial se há linha de visão livre (sem prédio sólido no meio) entre (x1, z1) e (x2, z2)
    */
   _hasLineOfSight(x1, z1, x2, z2) {
-    const samples = [0.25, 0.5, 0.75];
-    for (const u of samples) {
+    const cs = this._buildingGridCellSize || 48;
+    for (let s = 1; s <= 2; s++) {
+      const u = s * 0.333;
       const sx = x1 + (x2 - x1) * u;
       const sz = z1 + (z2 - z1) * u;
-      if (this.world?.mapBuildings) {
-        for (const bld of this.world.mapBuildings) {
-          const hw = (bld.w || 0) * 0.5;
-          const hd = (bld.d || 0) * 0.5;
-          if (hw >= 2.0 && hd >= 2.0 && sx > bld.x - hw && sx < bld.x + hw && sz > bld.z - hd && sz < bld.z + hd) {
-            return false;
-          }
-        }
-      }
-      if (this.world?.colliders) {
-        for (const col of this.world.colliders) {
-          if (col.disabled || col.maxY <= 2.2 || (col.minY ?? 0) >= 3.5) continue;
-          if (sx > col.minX && sx < col.maxX && sz > col.minZ && sz < col.maxZ) {
-            return false;
-          }
+      const cell = this._buildingGrid.get(`${Math.floor(sx / cs)},${Math.floor(sz / cs)}`);
+      if (!cell) continue;
+      for (let i = 0; i < cell.length; i++) {
+        const box = cell[i];
+        if (sx > box.minX && sx < box.maxX && sz > box.minZ && sz < box.maxZ) {
+          return false;
         }
       }
     }
@@ -297,6 +345,7 @@ export class LivingCityManager {
         homeZ: safe.z
       });
       unit.isEscortingPlayer = true;
+      this._syncNpcAllegiance(unit);
     });
 
     // Também cria uma Estação de Cura 3D Aliada perto do ponto inicial (fora de prédios)!
@@ -324,20 +373,39 @@ export class LivingCityManager {
     if (npc.destructible) {
       npc.destructible.isAlliedToPlayer = isAllied;
     }
+
+    const enemyFactionColor =
+      npc.faction === 'cv'
+        ? 0xef4444
+        : npc.faction === 'pcc'
+          ? 0x38bdf8
+          : npc.faction === 'ares'
+            ? 0xd946ef
+            : 0xfacc15;
+
+    // REGRA 100% CLARA: Verde-Esmeralda (0x22c55e) APENAS para o seu Time Aliado; Cor Pura da Facção para Inimigos!
+    const teamColorHex = isAllied ? 0x22c55e : enemyFactionColor;
+
+    if (npc.visual?.markerMat) {
+      npc.visual.markerMat.color.setHex(teamColorHex);
+    }
+    if (npc.visual?.medicAccentMat) {
+      npc.visual.medicAccentMat.color.setHex(teamColorHex);
+      if (npc.visual.medicAccentMat.emissive) {
+        npc.visual.medicAccentMat.emissive.setHex(teamColorHex);
+      }
+    }
+    if (npc.visual?.healBeamMesh?.material) {
+      npc.visual.healBeamMesh.material.color.setHex(teamColorHex);
+    }
     if (npc.visual?.allyRing) {
       npc.visual.allyRing.visible = isAllied;
-    }
-    if (npc.visual?.allyMarker) {
-      npc.visual.allyMarker.visible = isAllied;
-    }
-    if (npc.visual?.enemyMarker) {
-      npc.visual.enemyMarker.visible = !isAllied;
     }
     if (npc.visual?.hpBarGroup) {
       npc.visual.hpBarGroup.visible = Boolean(npc.isBoss);
     }
     if (npc.visual?.hpFillMat) {
-      npc.visual.hpFillMat.color.setHex(isAllied ? 0x22c55e : 0xfacc15);
+      npc.visual.hpFillMat.color.setHex(isAllied ? 0x22c55e : enemyFactionColor);
     }
   }
 
@@ -851,8 +919,8 @@ export class LivingCityManager {
       const root = ped.visual.root;
       if (playerPos) {
         const dSq = (root.position.x - playerPos.x) ** 2 + (root.position.z - playerPos.z) ** 2;
-        root.visible = dSq <= 360 * 360;
-        if (!root.visible) continue;
+        root.visible = dSq <= 340 * 340;
+        if (dSq > 220 * 220) continue;
       }
 
       ped.animTime += dt;
@@ -1201,6 +1269,8 @@ export class LivingCityManager {
             : 0.72,
       attackRange: isBoss ? 68 : isMecha ? 54 : 46,
       healStationCooldown: 3.0 + Math.random() * 5.0,
+      targetSearchTimer: Math.random() * 0.28,
+      cachedTarget: null,
       isRecruitedByPlayer: false,
       hitFlashTimer: 0,
       muzzleFlashTimer: 0,
@@ -1299,6 +1369,7 @@ export class LivingCityManager {
 
   _buildAresDroneMesh() {
     const root = new THREE.Group();
+    root.userData.skipStaticMerge = true;
     const purpleArmor = getLegoMaterial(0x9333ea, { metalness: 0.55, roughness: 0.22 });
     const neonPurple = getLegoMaterial(0xd946ef, {
       emissive: 0xa855f7,
@@ -1334,19 +1405,13 @@ export class LivingCityManager {
     allyRing.position.y = -0.35;
     allyRing.visible = false;
 
-    // Ícone 3D Tático Limpo acima do Drone (Verde Esmeralda se Aliado, Magenta se Inimigo)
+    // Marcador Único com Material Próprio por Drone (Verde-Esmeralda se Aliado, Magenta se Inimigo!)
     const teamMarkerGroup = new THREE.Group();
     teamMarkerGroup.position.set(0, 0.85, 0);
-    const allyMarker = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.2, 0),
-      new THREE.MeshBasicMaterial({ color: 0x22c55e })
-    );
-    allyMarker.scale.set(0.9, 1.35, 0.9);
-    const enemyMarker = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.17, 0),
-      new THREE.MeshBasicMaterial({ color: 0xd946ef })
-    );
-    teamMarkerGroup.add(allyMarker, enemyMarker);
+    const markerMat = new THREE.MeshBasicMaterial({ color: 0xd946ef });
+    const teamDiamondMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), markerMat);
+    teamDiamondMesh.scale.set(0.9, 1.3, 0.9);
+    teamMarkerGroup.add(teamDiamondMesh);
 
     root.add(hull, goldTrim, eyeCore, laserBarrel, muzzleFlashMesh, allyRing, teamMarkerGroup);
 
@@ -1374,14 +1439,14 @@ export class LivingCityManager {
       muzzleFlashMesh,
       allyRing,
       teamMarkerGroup,
-      allyMarker,
-      enemyMarker,
+      markerMat,
       isDrone: true
     };
   }
 
   _buildLegoNpcMesh(cfg) {
     const root = new THREE.Group();
+    root.userData.skipStaticMerge = true;
     const isBoss = Boolean(cfg.isBoss);
     const isMecha = Boolean(cfg.isMecha);
     const isMedic = Boolean(cfg.isMedic);
@@ -1432,11 +1497,20 @@ export class LivingCityManager {
     const blackMat = getLegoMaterial(0x090a0d, { roughness: 0.28 });
     const goldMat = getLegoMaterial(0xfacc15, { metalness: 0.65, roughness: 0.18 });
     const whiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.18 });
-    const medicGreenMat = getLegoMaterial(0x22c55e, {
-      emissive: 0x16a34a,
-      emissiveIntensity: 1.8,
-      roughness: 0.15
-    });
+
+    // Material próprio da Mochila/Cruz do Médico: Verde se Aliado, Cor da Facção se Inimigo (sincronizado em _syncNpcAllegiance!)
+    const defaultFactionAccent =
+      faction === 'cv'
+        ? 0xef4444
+        : faction === 'pcc'
+          ? 0x38bdf8
+          : faction === 'ares'
+            ? 0xd946ef
+            : 0xfacc15;
+    let medicAccentMat = null;
+    if (isMedic) {
+      medicAccentMat = new THREE.MeshBasicMaterial({ color: defaultFactionAccent });
+    }
 
     // Pernas Articuladas
     const leftLeg = new THREE.Mesh(NPC_LEG_GEO, legMat);
@@ -1514,14 +1588,6 @@ export class LivingCityManager {
     // ------------------------------------------------------------------------
     let factionBanner = null;
     if (faction === 'cv' || faction === 'pcc' || faction === 'ares' || faction === 'police') {
-      const bannerColor =
-        faction === 'cv'
-          ? 0xef4444
-          : faction === 'pcc'
-            ? 0x38bdf8
-            : faction === 'ares'
-              ? 0xd946ef
-              : 0xfacc15;
       factionBanner = new THREE.Group();
       const mast = new THREE.Mesh(
         new THREE.CylinderGeometry(0.032, 0.038, 1.12, 8),
@@ -1530,7 +1596,7 @@ export class LivingCityManager {
       mast.position.set(0, 1.56, -0.26);
       const flagPlate = new THREE.Mesh(
         new THREE.BoxGeometry(0.05, 0.58, 0.38),
-        new THREE.MeshBasicMaterial({ color: bannerColor })
+        new THREE.MeshBasicMaterial({ color: defaultFactionAccent })
       );
       flagPlate.position.set(0, 1.82, -0.46);
       const topStud = new THREE.Mesh(SHARED_STUD_GEO, goldMat);
@@ -1540,24 +1606,24 @@ export class LivingCityManager {
     }
 
     // ------------------------------------------------------------------------
-    // MOCHILA MÉDICA 3D COM CRUZ VERDE BRILHANTE (+) + RAIO DE CURA 3D
+    // MOCHILA MÉDICA 3D COM CRUZ (+) + RAIO DE CURA 3D (VERDE SE ALIADO, COR DA FACÇÃO SE INIMIGO!)
     // ------------------------------------------------------------------------
     let healBeamMesh = null;
-    if (isMedic) {
+    if (isMedic && medicAccentMat) {
       const medPack = new THREE.Group();
       const packBox = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.58, 0.28), whiteMat);
-      const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.32), medicGreenMat);
-      const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.32), medicGreenMat);
-      const tankL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.56, 10), medicGreenMat);
+      const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.32), medicAccentMat);
+      const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.32), medicAccentMat);
+      const tankL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.56, 10), medicAccentMat);
       tankL.position.set(-0.32, 0, 0);
-      const tankR = tankL.clone();
+      const tankR = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.56, 10), medicAccentMat);
       tankR.position.set(0.32, 0, 0);
       medPack.add(packBox, crossV, crossH, tankL, tankR);
       medPack.position.set(0, 1.04, -0.32);
 
-      const chestCrossV = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, 0.48), medicGreenMat);
+      const chestCrossV = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, 0.48), medicAccentMat);
       chestCrossV.position.set(0, 1.02, 0);
-      const chestCrossH = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.48), medicGreenMat);
+      const chestCrossH = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.48), medicAccentMat);
       chestCrossH.position.set(0, 1.02, 0);
       root.add(medPack, chestCrossV, chestCrossH);
 
@@ -1567,7 +1633,7 @@ export class LivingCityManager {
       healBeamMesh = new THREE.Mesh(
         beamGeo,
         new THREE.MeshBasicMaterial({
-          color: 0x22c55e,
+          color: defaultFactionAccent,
           transparent: true,
           opacity: 0.85
         })
@@ -1704,8 +1770,6 @@ export class LivingCityManager {
 
     if (isTank) {
       leftArm.rotation.x = -Math.PI * 0.35;
-      const shieldColor =
-        faction === 'cv' ? 0xef4444 : faction === 'pcc' ? 0x38bdf8 : 0xd946ef;
       const shieldFrame = new THREE.Mesh(
         new THREE.BoxGeometry(0.68, 1.18, 0.08),
         whiteMat
@@ -1715,7 +1779,7 @@ export class LivingCityManager {
       const shieldGlass = new THREE.Mesh(
         new THREE.BoxGeometry(0.58, 1.06, 0.1),
         new THREE.MeshBasicMaterial({
-          color: shieldColor,
+          color: defaultFactionAccent,
           transparent: true,
           opacity: 0.72
         })
@@ -1734,22 +1798,20 @@ export class LivingCityManager {
       rightArm.rotation.x = -Math.PI * 0.42;
       const isRpg = cfg.role === 'cv_rpg';
       const gunLen = isBoss ? 1.32 : isRpg ? 1.2 : isMecha || isTank ? 0.98 : 0.76;
-      const gunColor = isMedic
-        ? 0x22c55e
-        : isBoss
+      const gunColor = isBoss
+        ? 0xfacc15
+        : faction === 'ares'
           ? 0xfacc15
-          : faction === 'ares'
-            ? 0xfacc15
-            : isRpg
-              ? 0x3f6212
-              : 0x1e293b;
+          : isRpg
+            ? 0x3f6212
+            : 0x1e293b;
       const gunGroup = new THREE.Group();
       gunGroup.position.set(0, -0.44, 0.28);
       gunGroup.rotation.x = Math.PI * 0.42;
 
       const receiver = new THREE.Mesh(
         new THREE.BoxGeometry(isBoss ? 0.2 : 0.12, isBoss ? 0.22 : 0.15, gunLen),
-        getLegoMaterial(gunColor, { roughness: 0.25 })
+        isMedic && medicAccentMat ? medicAccentMat : getLegoMaterial(gunColor, { roughness: 0.25 })
       );
       gunGroup.add(receiver);
 
@@ -1783,11 +1845,10 @@ export class LivingCityManager {
 
     root.add(leftArm, rightArm);
 
-    // Anel Verde Discreto (0.65m) nos pés APENAS das unidades Aliadas + Ícone 3D Tático Limpo na Cabeça (y = 2.45)!
+    // Anel Verde Discreto (0.65m) nos pés APENAS das unidades Aliadas + Ícone 3D Tático Limpo Único na Cabeça (y = 2.45)!
     let allyRing = null;
     let teamMarkerGroup = null;
-    let allyMarker = null;
-    let enemyMarker = null;
+    let markerMat = null;
 
     if (faction !== 'civilian') {
       const aRingGeo = new THREE.TorusGeometry(0.65, 0.045, 8, 22);
@@ -1803,35 +1864,18 @@ export class LivingCityManager {
       teamMarkerGroup = new THREE.Group();
       teamMarkerGroup.position.set(0, 2.45, 0);
 
-      // 1) Marcador de ALIADO: Cruz Médica Verde (+) se for Médico, ou Diamante/Chevron Verde-Esmeralda (0x22c55e)
-      allyMarker = new THREE.Group();
-      const allyGreenBasic = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+      // Material único por NPC: atualizado em _syncNpcAllegiance para Verde (0x22c55e) se Aliado ou Cor Pura da Facção se Inimigo!
+      markerMat = new THREE.MeshBasicMaterial({ color: defaultFactionAccent });
       if (isMedic) {
-        const cV = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), allyGreenBasic);
-        const cH = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.13, 0.13), allyGreenBasic);
-        allyMarker.add(cV, cH);
+        const cV = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), markerMat);
+        const cH = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.13, 0.13), markerMat);
+        teamMarkerGroup.add(cV, cH);
       } else {
-        const diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), allyGreenBasic);
-        diamond.scale.set(0.88, 1.38, 0.88);
-        allyMarker.add(diamond);
+        const teamDiamondMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), markerMat);
+        teamDiamondMesh.scale.set(0.9, 1.3, 0.9);
+        teamMarkerGroup.add(teamDiamondMesh);
       }
 
-      // 2) Marcador de INIMIGO: Cristal/Mira da Cor Pura da Facção Inimiga (ZERO VERDE!)
-      const enemyColor =
-        faction === 'cv'
-          ? 0xef4444
-          : faction === 'pcc'
-            ? 0x38bdf8
-            : faction === 'ares'
-              ? 0xd946ef
-              : 0xfacc15;
-      enemyMarker = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.17, 0),
-        new THREE.MeshBasicMaterial({ color: enemyColor })
-      );
-      enemyMarker.scale.set(0.95, 1.2, 0.95);
-
-      teamMarkerGroup.add(allyMarker, enemyMarker);
       root.add(teamMarkerGroup);
     }
 
@@ -1859,11 +1903,11 @@ export class LivingCityManager {
       rightArm,
       muzzleFlashMesh,
       healBeamMesh,
+      medicAccentMat,
       bossShieldRing,
       factionBanner,
       teamMarkerGroup,
-      allyMarker,
-      enemyMarker,
+      markerMat,
       allyRing,
       recruitRing
     };
@@ -2522,8 +2566,13 @@ export class LivingCityManager {
       let dSqToPlayer = 0;
       if (playerPos) {
         dSqToPlayer = (root.position.x - playerPos.x) ** 2 + (root.position.z - playerPos.z) ** 2;
-        root.visible = dSqToPlayer <= 410 * 410;
-        if (!root.visible) continue;
+        root.visible = dSqToPlayer <= 380 * 380;
+        if (dSqToPlayer > 235 * 235) {
+          if (npc.visual?.healBeamMesh) {
+            npc.visual.healBeamMesh.visible = false;
+          }
+          continue;
+        }
       }
 
       npc.animTime += dt;
@@ -2665,14 +2714,39 @@ export class LivingCityManager {
         }
       }
 
-      const target = this._findBestTargetForPosition(
-        npc.faction,
-        root.position,
-        npc.attackRange,
-        playerPos,
-        controller,
-        npc.isAlliedToPlayer
-      );
+      // Busca de alvo otimizada (4x por segundo por NPC em vez de 60x por segundo) com atualização O(1) da posição!
+      npc.targetSearchTimer -= dt;
+      if (
+        npc.targetSearchTimer <= 0 ||
+        (npc.cachedTarget?.type === 'npc' &&
+          (!npc.cachedTarget.npc?.destructible || npc.cachedTarget.npc.destructible.destroyed))
+      ) {
+        npc.targetSearchTimer = 0.24 + (i % 5) * 0.02;
+        npc.cachedTarget = this._findBestTargetForPosition(
+          npc.faction,
+          root.position,
+          npc.attackRange,
+          playerPos,
+          controller,
+          npc.isAlliedToPlayer
+        );
+      } else if (npc.cachedTarget) {
+        if (npc.cachedTarget.type === 'npc' && npc.cachedTarget.npc) {
+          const oPos = npc.cachedTarget.npc.visual.root.position;
+          npc.cachedTarget.pos.set(
+            oPos.x,
+            oPos.y + (npc.cachedTarget.npc.isBoss ? 2.4 : npc.cachedTarget.npc.isMecha ? 1.8 : 1.0),
+            oPos.z
+          );
+        } else if (npc.cachedTarget.type === 'player' && playerPos) {
+          if (npc.isAlliedToPlayer || (controller && controller.stealthTimer > 0)) {
+            npc.cachedTarget = null;
+          } else {
+            npc.cachedTarget.pos.set(playerPos.x, playerPos.y + 1.05, playerPos.z);
+          }
+        }
+      }
+      const target = npc.cachedTarget;
 
       let moveDirX = 0;
       let moveDirZ = 0;
