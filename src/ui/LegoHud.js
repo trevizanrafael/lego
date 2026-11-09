@@ -460,6 +460,31 @@ export class LegoHud {
     }, 2500);
   }
 
+  /**
+   * Exibe um Alerta Tático Urbano no topo da tela (Eventos Dinâmicos, Comboio do Carro-Forte e Reforços de Facção)
+   */
+  showTacticalAlertToast(code, title, subtitle = '', accentColor = '#facc15', icon = 'emergency', durationMs = 3800) {
+    if (!this.regionToastEl) return;
+    if (this.regionToastCodeEl) {
+      this.regionToastCodeEl.textContent = code;
+      this.regionToastCodeEl.style.color = accentColor;
+    }
+    if (this.regionToastTitleEl) {
+      const iconSvg = getSvgIcon(icon || 'emergency', accentColor, 18);
+      this.regionToastTitleEl.innerHTML = `${iconSvg} <span>${title}</span>`;
+    }
+    if (this.regionToastSubEl) {
+      this.regionToastSubEl.textContent = subtitle;
+    }
+    this.regionToastEl.style.borderLeftColor = accentColor;
+    this.regionToastEl.classList.remove('hidden');
+
+    clearTimeout(this._toastTimeout);
+    this._toastTimeout = setTimeout(() => {
+      this.regionToastEl.classList.add('hidden');
+    }, durationMs);
+  }
+
   setFullMapOpen(open, world = null, controller = null) {
     if (controller) {
       this._lastController = controller;

@@ -475,6 +475,68 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
     }
   }
 
+  // 7.5 Telemetria Viva no Mapa [M]: Zonas de Guerra, Combatentes (BOPE/CV/PCC/A.R.E.S.) e Comboio do Carro-Forte ($)
+  if (world.livingCity) {
+    const nowTime = performance.now() * 0.001;
+    const policeBlinkGold = Math.sin(nowTime * 8.0) > 0;
+
+    if (Array.isArray(world.livingCity.activeWarzones)) {
+      for (const wz of world.livingCity.activeWarzones) {
+        const wx = toX(wz.x);
+        const wy = toY(wz.z);
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.22)';
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(wx, wy, 11 * Math.max(0.85, hud.mapZoom * 0.65), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    if (Array.isArray(world.livingCity.combatNpcs)) {
+      for (const npc of world.livingCity.combatNpcs) {
+        if (!npc.destructible || npc.destructible.destroyed || !npc.visual?.root) continue;
+        const pos = npc.visual.root.position;
+        const nx = toX(pos.x);
+        const ny = toY(pos.z);
+        ctx.fillStyle =
+          npc.faction === 'police'
+            ? policeBlinkGold
+              ? '#facc15'
+              : '#38bdf8'
+            : npc.faction === 'cv'
+              ? '#ef4444'
+              : npc.faction === 'pcc'
+                ? '#38bdf8'
+                : '#d946ef';
+        ctx.beginPath();
+        ctx.arc(nx, ny, npc.isMecha ? 3.8 : 2.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const convoy = world.livingCity.armoredConvoy;
+    if (convoy && convoy.active && convoy.truck?.destructible && !convoy.truck.destructible.destroyed) {
+      const cPos = convoy.truck.mesh.position;
+      const cxMap = toX(cPos.x);
+      const cyMap = toY(cPos.z);
+      ctx.fillStyle = '#090a0d';
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(cxMap, cyMap, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#facc15';
+      ctx.font = '900 10px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('$', cxMap, cyMap + 3.5);
+      ctx.textAlign = 'left';
+    }
+  }
+
   // 8. Pins Vetoriais Elegantes + Rotulos Anti-Colisao + Linha de Chamada para o Aeroporta-Avioes (SKY)
   const labelLayouts = computeNonOverlappingLandmarkLabels(ctx, world.landmarks || [], toX, toY);
 

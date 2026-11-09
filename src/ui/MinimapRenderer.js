@@ -186,33 +186,163 @@ export function renderMinimapRadar(
     const sinCam = Math.sin(cameraYaw);
     const maxVisibleLocalR = Math.min(cx, cy) - 16;
 
-    // 6. MARCOS DAS REGIOES: So aparecem quando estao REALMENTE dentro da area visivel do radar local!
-    // 5.5 BLIPS TÁTICOS DA CIDADE VIVA (Polícia/BOPE + Facções CV, PCC e A.R.E.S.)
-    if (world.livingCity?.combatNpcs) {
-      for (const npc of world.livingCity.combatNpcs) {
-        if (!npc.destructibleObj || npc.destructibleObj.destroyed) continue;
-        const dx = npc.x - playerPos.x;
-        const dz = npc.z - playerPos.z;
+    // 5.5 BLIPS TÁTICOS DA CIDADE VIVA (Polícia/BOPE + Facções CV, PCC e A.R.E.S. + Helicóptero + Zonas de Conflito + Carro-Forte $)
+    const nowTime = performance.now() * 0.001;
+    const policeBlinkGold = Math.sin(nowTime * 9.0) > 0;
+
+    if (world.livingCity) {
+      // A) Zonas de Guerra Pulsantes (Ícone de Mira / Conflito)
+      if (Array.isArray(world.livingCity.activeWarzones)) {
+        for (const wz of world.livingCity.activeWarzones) {
+          const dx = wz.x - playerPos.x;
+          const dz = wz.z - playerPos.z;
+          const rx = dx * cosCam - dz * sinCam;
+          const ry = dx * sinCam + dz * cosCam;
+          const screenDist = Math.hypot(rx * scale, ry * scale);
+          if (screenDist > maxVisibleLocalR) continue;
+
+          const px = cx + rx * scale;
+          const py = cy + ry * scale;
+          const pulseR = 6.5 + Math.sin(nowTime * 6.5) * 2.5;
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.72)';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(px, py, pulseR, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(px - 4.5, py);
+          ctx.lineTo(px + 4.5, py);
+          ctx.moveTo(px, py - 4.5);
+          ctx.lineTo(px, py + 4.5);
+          ctx.stroke();
+        }
+      }
+
+      // B) Viaturas do BOPE e Veículos de Facção no Trânsito
+      if (Array.isArray(world.livingCity.trafficVehicles)) {
+        for (const tv of world.livingCity.trafficVehicles) {
+          if (!tv.destructible || tv.destructible.destroyed || tv.destructible.isDriven) continue;
+          const isPoliceCar = tv.isPoliceVehicle;
+          const isFactionCar = Boolean(tv.faction && tv.faction !== 'civilian');
+          if (!isPoliceCar && !isFactionCar) continue;
+
+          const pos = tv.mesh.position;
+          const dx = pos.x - playerPos.x;
+          const dz = pos.z - playerPos.z;
+          const rx = dx * cosCam - dz * sinCam;
+          const ry = dx * sinCam + dz * cosCam;
+          if (Math.hypot(rx * scale, ry * scale) > maxVisibleLocalR) continue;
+
+          const px = cx + rx * scale;
+          const py = cy + ry * scale;
+          ctx.fillStyle = isPoliceCar
+            ? policeBlinkGold
+              ? '#facc15'
+              : '#38bdf8'
+            : tv.faction === 'cv'
+              ? '#ef4444'
+              : tv.faction === 'pcc'
+                ? '#38bdf8'
+                : '#d946ef';
+          ctx.strokeStyle = '#090a0d';
+          ctx.lineWidth = 1.2;
+          ctx.fillRect(px - 2.8, py - 2.8, 5.6, 5.6);
+          ctx.strokeRect(px - 2.8, py - 2.8, 5.6, 5.6);
+        }
+      }
+
+      // C) Combatentes (CV Vermelho, PCC Azul-Ciano, A.R.E.S. Roxo/Magenta, BOPE Azul/Dourado Piscante)
+      if (Array.isArray(world.livingCity.combatNpcs)) {
+        for (const npc of world.livingCity.combatNpcs) {
+          const obj = npc.destructible;
+          if (!obj || obj.destroyed || !npc.visual?.root) continue;
+          const nPos = npc.visual.root.position;
+          const dx = nPos.x - playerPos.x;
+          const dz = nPos.z - playerPos.z;
+          const rx = dx * cosCam - dz * sinCam;
+          const ry = dx * sinCam + dz * cosCam;
+          const screenDist = Math.hypot(rx * scale, ry * scale);
+          if (screenDist > maxVisibleLocalR) continue;
+
+          const px = cx + rx * scale;
+          const py = cy + ry * scale;
+          const blipColor =
+            npc.faction === 'police'
+              ? npc.isRecruitedByPlayer || policeBlinkGold
+                ? '#facc15'
+                : '#38bdf8'
+              : npc.faction === 'cv'
+                ? '#ef4444'
+                : npc.faction === 'pcc'
+                  ? '#38bdf8'
+                  : '#d946ef';
+          const blipR = npc.isMecha ? 4.4 : 2.9;
+
+          ctx.fillStyle = blipColor;
+          ctx.strokeStyle = '#090a0d';
+          ctx.lineWidth = 1.25;
+          ctx.beginPath();
+          ctx.arc(px, py, blipR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+
+      // D) Helicóptero de Assalto do PCC
+      const heli = world.livingCity.pccHeli;
+      if (heli && heli.destructible && !heli.destructible.destroyed) {
+        const hPos = heli.mesh.position;
+        const dx = hPos.x - playerPos.x;
+        const dz = hPos.z - playerPos.z;
+        const rx = dx * cosCam - dz * sinCam;
+        const ry = dx * sinCam + dz * cosCam;
+        if (Math.hypot(rx * scale, ry * scale) <= maxVisibleLocalR) {
+          const px = cx + rx * scale;
+          const py = cy + ry * scale;
+          ctx.fillStyle = '#38bdf8';
+          ctx.strokeStyle = '#090a0d';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(px, py - 5);
+          ctx.lineTo(px + 5, py);
+          ctx.lineTo(px, py + 5);
+          ctx.lineTo(px - 5, py);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+
+      // E) Evento Dinâmico: Comboio do Carro-Forte Blindado ($)
+      const convoy = world.livingCity.armoredConvoy;
+      if (convoy && convoy.active && convoy.truck?.destructible && !convoy.truck.destructible.destroyed) {
+        const cPos = convoy.truck.mesh.position;
+        const dx = cPos.x - playerPos.x;
+        const dz = cPos.z - playerPos.z;
         const rx = dx * cosCam - dz * sinCam;
         const ry = dx * sinCam + dz * cosCam;
         const screenDist = Math.hypot(rx * scale, ry * scale);
-        if (screenDist > maxVisibleLocalR) continue;
+        const clampedR = Math.min(screenDist, maxVisibleLocalR - 4);
+        const ang = Math.atan2(ry, rx);
+        const px = screenDist <= maxVisibleLocalR ? cx + rx * scale : cx + Math.cos(ang) * clampedR;
+        const py = screenDist <= maxVisibleLocalR ? cy + ry * scale : cy + Math.sin(ang) * clampedR;
 
-        const px = cx + rx * scale;
-        const py = cy + ry * scale;
-        const blipColor =
-          npc.faction === 'police' ? '#38bdf8' :
-          npc.faction === 'cv' ? '#ef4444' :
-          npc.faction === 'pcc' ? '#60a5fa' : '#c084fc';
-        const blipR = npc.isBigFig ? 4.2 : 2.8;
-
-        ctx.fillStyle = blipColor;
-        ctx.strokeStyle = '#090a0d';
-        ctx.lineWidth = 1.2;
+        const pulse = 7.5 + Math.sin(nowTime * 8.0) * 1.6;
+        ctx.fillStyle = '#090a0d';
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 2.0;
         ctx.beginPath();
-        ctx.arc(px, py, blipR, 0, Math.PI * 2);
+        ctx.arc(px, py, pulse, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+
+        ctx.fillStyle = '#facc15';
+        ctx.font = '900 10px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('$', px, py + 3.5);
       }
     }
 

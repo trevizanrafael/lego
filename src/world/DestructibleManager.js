@@ -3267,6 +3267,9 @@ export class DestructibleManager {
     obj.hp -= amount;
     obj.shakeTimer = 0.2;
     this.world?.livingCity?.triggerPedestrianPanicNear(obj.basePos, 28);
+    if (typeof obj.onDamaged === 'function') {
+      obj.onDamaged(amount, hitOrigin);
+    }
 
     if (obj.hp > 0) {
       if (amount >= 5) {
@@ -3369,6 +3372,14 @@ export class DestructibleManager {
         maxLife: 4.6
       });
     }
+  }
+
+  spawnRewardStudFountain(origin, groundY = 0, studDrops = { purple: 6, blue: 14, gold: 18 }) {
+    this._spawnStudShower({
+      basePos: origin.clone(),
+      groundY,
+      studDrops
+    });
   }
 
   _spawnStudShower(obj) {

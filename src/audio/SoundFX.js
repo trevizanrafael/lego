@@ -527,6 +527,136 @@ class SoundFX {
     bassOsc.stop(now + 0.16);
     pingOsc.stop(now + 0.16);
   }
+
+  /**
+   * Buzina de Trânsito Urbano (Duplo tom automotivo ou Sirene curta policial YELP)
+   */
+  playCarHorn(volumeScale = 1.0, isPoliceSiren = false) {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+    const vol = Math.max(0.015, Math.min(0.14, 0.11 * volumeScale));
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    if (isPoliceSiren) {
+      osc1.type = 'sawtooth';
+      osc2.type = 'triangle';
+      osc1.frequency.setValueAtTime(640, now);
+      osc1.frequency.exponentialRampToValueAtTime(1280, now + 0.14);
+      osc1.frequency.exponentialRampToValueAtTime(660, now + 0.28);
+
+      osc2.frequency.setValueAtTime(648, now);
+      osc2.frequency.exponentialRampToValueAtTime(1292, now + 0.14);
+      osc2.frequency.exponentialRampToValueAtTime(668, now + 0.28);
+
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.31);
+      osc2.stop(now + 0.31);
+    } else {
+      const f1 = 370 + Math.random() * 45;
+      const f2 = f1 * 1.25;
+      osc1.type = 'sawtooth';
+      osc2.type = 'triangle';
+      osc1.frequency.setValueAtTime(f1, now);
+      osc2.frequency.setValueAtTime(f2, now);
+
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.setValueAtTime(vol * 0.9, now + 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.25);
+      osc2.stop(now + 0.25);
+    }
+  }
+
+  /**
+   * Disparo Espacial Atenuado por Distância dos NPCs (BOPE, CV, PCC e A.R.E.S.)
+   */
+  playNpcGunshot(faction = 'cv', isRpg = false, volumeScale = 1.0) {
+    const ctx = this._ensureContext();
+    if (!ctx || volumeScale <= 0.02) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const vol = Math.max(0.01, Math.min(0.11, 0.095 * volumeScale));
+
+    if (isRpg) {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(195, now);
+      osc.frequency.exponentialRampToValueAtTime(42, now + 0.19);
+      gain.gain.setValueAtTime(vol * 1.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.21);
+      return;
+    }
+
+    if (faction === 'ares') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(840 + Math.random() * 140, now);
+      osc.frequency.exponentialRampToValueAtTime(135, now + 0.09);
+    } else if (faction === 'cv') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(340 + Math.random() * 55, now);
+      osc.frequency.exponentialRampToValueAtTime(72, now + 0.075);
+    } else if (faction === 'pcc') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(460 + Math.random() * 70, now);
+      osc.frequency.exponentialRampToValueAtTime(98, now + 0.065);
+    } else {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(410 + Math.random() * 50, now);
+      osc.frequency.exponentialRampToValueAtTime(88, now + 0.07);
+    }
+
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
+  /**
+   * Sirene Tática de Alerta de Evento Urbano / Esquadrão de Elite
+   */
+  playRadioAlertSiren() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const notes = [587.33, 880.0, 587.33, 1174.66];
+    notes.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      const t = now + idx * 0.095;
+      osc.frequency.setValueAtTime(f, t);
+      gain.gain.setValueAtTime(0.09, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.095);
+    });
+  }
 }
 
 export const soundFX = new SoundFX();
