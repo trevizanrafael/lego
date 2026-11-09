@@ -2481,4 +2481,18 @@ body.hero-wheel-active #crosshair {
   display: none !important;
 }
 
+#region-toast,
+#world-war-hud-panel,
+#hud-hp-bar-wrap,
+#hud-faction-badge,
+#hud-medic-heal-tag,
+#hud-esc-hint-pill,
+#esc-pause-pill,
+#pointer-prompt {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+
 

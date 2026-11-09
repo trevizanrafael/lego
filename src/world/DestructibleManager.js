@@ -3270,15 +3270,37 @@ export class DestructibleManager {
       return;
     }
 
-    obj.hp -= amount;
+    // Blindagem Tática Anti-One-Shot para NPCs de Combate quando atingidos pelos poderes do jogador!
+    let finalDamage = amount;
+    if (obj.isCombatNpc && !damageOpts.fromEnemyNpc) {
+      finalDamage = amount * 0.55;
+      if (obj.isTankNpc) {
+        if (hitOrigin && obj.mesh) {
+          const fwdX = Math.sin(obj.mesh.rotation.y);
+          const fwdZ = Math.cos(obj.mesh.rotation.y);
+          const dx = hitOrigin.x - obj.mesh.position.x;
+          const dz = hitOrigin.z - obj.mesh.position.z;
+          if (dx * fwdX + dz * fwdZ > 0) {
+            finalDamage *= 0.6;
+          }
+        }
+        finalDamage = Math.min(85, finalDamage);
+      } else if (obj.isBossNpc) {
+        finalDamage = Math.min(160, finalDamage);
+      } else {
+        finalDamage = Math.min(95, finalDamage);
+      }
+    }
+
+    obj.hp -= finalDamage;
     obj.shakeTimer = 0.2;
     this.world?.livingCity?.triggerPedestrianPanicNear(obj.basePos, 28);
     if (typeof obj.onDamaged === 'function') {
-      obj.onDamaged(amount, hitOrigin);
+      obj.onDamaged(finalDamage, hitOrigin);
     }
 
     if (obj.hp > 0) {
-      if (amount >= 5) {
+      if (finalDamage >= 5) {
         soundFX.playPlasticHit();
         this._spawnDebris(obj, 2, 0.6);
       }
@@ -3290,7 +3312,7 @@ export class DestructibleManager {
   _shatterObject(obj) {
     obj.destroyed = true;
     obj.isGrabbed = false;
-    obj.respawnTimer = obj.isCombatNpc ? 14.0 : 28.0;
+    obj.respawnTimer = obj.isCombatNpc ? 4.0 : 28.0;
     obj.mesh.visible = false;
     if (typeof obj.onShattered === 'function') {
       obj.onShattered();

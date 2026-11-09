@@ -471,56 +471,17 @@ export class LegoHud {
     }
   }
 
-  showRegionTransitionToast(region) {
-    if (!this.settings?.showRegionToast) {
-      if (this.regionToastEl) this.regionToastEl.classList.add('hidden');
-      return;
-    }
-    if (!this.regionToastEl || !region) return;
-    const codeNum = region.num || String(region.number || 1).padStart(2, '0');
-    const accent = region.color || '#facc15';
-    if (this.regionToastCodeEl) {
-      this.regionToastCodeEl.textContent = `SETOR R-${codeNum} // TRANSIÇÃO DE ZONA`;
-    }
-    if (this.regionToastTitleEl) {
-      const iconSvg = getSvgIcon(region.icon || 'pin', accent, 18);
-      this.regionToastTitleEl.innerHTML = `${iconSvg} <span>${region.name}</span>`;
-    }
-    if (this.regionToastSubEl) {
-      this.regionToastSubEl.textContent = region.sub || region.shortName || '';
-    }
-    this.regionToastEl.style.borderLeftColor = accent;
-    this.regionToastEl.classList.remove('hidden');
-
-    clearTimeout(this._toastTimeout);
-    this._toastTimeout = setTimeout(() => {
-      this.regionToastEl.classList.add('hidden');
-    }, 2500);
+  showRegionTransitionToast(_region) {
+    if (this.regionToastEl) this.regionToastEl.classList.add('hidden');
+    return;
   }
 
   /**
-   * Exibe um Alerta Tático Urbano no topo da tela (Eventos Dinâmicos, Comboio do Carro-Forte e Reforços de Facção)
+   * Desativado para manter a tela de jogo 100% limpa sem divs de aviso flutuando no meio/topo.
    */
-  showTacticalAlertToast(code, title, subtitle = '', accentColor = '#facc15', icon = 'emergency', durationMs = 3800) {
-    if (!this.regionToastEl) return;
-    if (this.regionToastCodeEl) {
-      this.regionToastCodeEl.textContent = code;
-      this.regionToastCodeEl.style.color = accentColor;
-    }
-    if (this.regionToastTitleEl) {
-      const iconSvg = getSvgIcon(icon || 'emergency', accentColor, 18);
-      this.regionToastTitleEl.innerHTML = `${iconSvg} <span>${title}</span>`;
-    }
-    if (this.regionToastSubEl) {
-      this.regionToastSubEl.textContent = subtitle;
-    }
-    this.regionToastEl.style.borderLeftColor = accentColor;
-    this.regionToastEl.classList.remove('hidden');
-
-    clearTimeout(this._toastTimeout);
-    this._toastTimeout = setTimeout(() => {
-      this.regionToastEl.classList.add('hidden');
-    }, durationMs);
+  showTacticalAlertToast(_code, _title, _subtitle = '', _accentColor = '#facc15', _icon = 'emergency', _durationMs = 3800) {
+    if (this.regionToastEl) this.regionToastEl.classList.add('hidden');
+    return;
   }
 
   setFullMapOpen(open, world = null, controller = null) {
