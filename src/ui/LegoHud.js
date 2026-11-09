@@ -641,7 +641,7 @@ export class LegoHud {
     }
   }
 
-  setPlayerFaction(factionKey = 'cv') {
+  setPlayerFaction(factionKey = 'cv', notifyWorld = true) {
     const fData = FACTION_DATA[factionKey] || FACTION_DATA.cv;
     this.playerFaction = fData.id;
     const lang = this.settings?.language || 'pt-BR';
@@ -650,8 +650,13 @@ export class LegoHud {
       const dot = fData.id === 'cv' ? '🔴 ' : fData.id === 'pcc' ? '🔵 ' : '🟣 ';
       this.factionBadgeEl.textContent = dot + (fData.shortName[lang] || fData.shortName['pt-BR']);
     }
-    if (typeof this.onSelectFaction === 'function') {
-      this.onSelectFaction(fData.id);
+    if (notifyWorld && typeof this.onSelectFaction === 'function' && !this._isSyncingFaction) {
+      this._isSyncingFaction = true;
+      try {
+        this.onSelectFaction(fData.id);
+      } finally {
+        this._isSyncingFaction = false;
+      }
     }
   }
 
@@ -1165,7 +1170,7 @@ export class LegoHud {
     saveGameSettings(this.settings);
     soundFX.playHeroSwap();
     this._refreshLanguageAndOptionsUI();
-    this.setPlayerFaction(this.playerFaction);
+    this.setPlayerFaction(this.playerFaction, false);
   }
 
   _refreshLanguageAndOptionsUI() {
@@ -1430,22 +1435,34 @@ export class LegoHud {
 
     const nextFrame = (fn, delay = 28) => setTimeout(() => requestAnimationFrame(fn), delay);
 
+    const safeWarmup = (stage, idx = 0) => {
+      if (typeof this.onWarmupStep === 'function') {
+        try {
+          this.onWarmupStep(stage, idx);
+        } catch (err) {
+          console.warn(`[Warmup ${stage}]`, err);
+        }
+      }
+    };
+
     // ETAPA 1 (0% -> 20%): Configura dados do Save, Herói, Facção Aliada e Matrizes
     nextFrame(() => {
-      this.totalStuds = Number(slotData?.studs || 0);
-      this.displayedStuds = this.totalStuds;
-      if (this.studCountEl) {
-        this.studCountEl.textContent = this.totalStuds.toLocaleString('pt-BR');
+      try {
+        this.totalStuds = Number(slotData?.studs || 0);
+        this.displayedStuds = this.totalStuds;
+        if (this.studCountEl) {
+          this.studCountEl.textContent = this.totalStuds.toLocaleString('pt-BR');
+        }
+        if (this._lastController && slotData?.heroKey) {
+          this._lastController.switchToHero(slotData.heroKey);
+        }
+        this.setPlayerFaction(factionKey, true);
+        this.setPlayerHealth(250, 250, false);
+      } catch (err) {
+        console.warn('[Loading Stage 1]', err);
       }
-      if (this._lastController && slotData?.heroKey) {
-        this._lastController.switchToHero(slotData.heroKey);
-      }
-      this.setPlayerFaction(factionKey);
-      this.setPlayerHealth(250, 250, false);
 
-      if (typeof this.onWarmupStep === 'function') {
-        this.onWarmupStep('matrices', 0);
-      }
+      safeWarmup('matrices', 0);
       this._setLoadingProgressUI(
         24,
         lang === 'en-US'
@@ -1455,9 +1472,7 @@ export class LegoHud {
 
       // ETAPA 2 (24% -> 46%): Aquecimento da simulação das facções, carros e partículas
       nextFrame(() => {
-        if (typeof this.onWarmupStep === 'function') {
-          this.onWarmupStep('simulate_entities', 0);
-        }
+        safeWarmup('simulate_entities', 0);
         this._setLoadingProgressUI(
           48,
           lang === 'en-US'
@@ -1467,9 +1482,7 @@ export class LegoHud {
 
         // ETAPA 3 (48% -> 68%): Compilação explícita de Shaders WebGL na GPU
         nextFrame(() => {
-          if (typeof this.onWarmupStep === 'function') {
-            this.onWarmupStep('compile_shaders', 0);
-          }
+          safeWarmup('compile_shaders', 0);
           this._setLoadingProgressUI(
             68,
             lang === 'en-US'
@@ -1480,9 +1493,7 @@ export class LegoHud {
           // ETAPA 4 (68% -> 96%): Renderiza 8 direções (0°..315°) para carregar toda a geometria na VRAM!
           const runAngleStep = (angleIdx) => {
             if (angleIdx < 8) {
-              if (typeof this.onWarmupStep === 'function') {
-                this.onWarmupStep('render_360', angleIdx);
-              }
+              safeWarmup('render_360', angleIdx);
               const pct = 68 + Math.round(((angleIdx + 1) / 8) * 28);
               this._setLoadingProgressUI(
                 pct,
@@ -1495,9 +1506,7 @@ export class LegoHud {
             }
 
             // ETAPA 5 (100%): Restaura câmera, zera dt e libera o jogo a 60 FPS!
-            if (typeof this.onWarmupStep === 'function') {
-              this.onWarmupStep('finish', 0);
-            }
+            safeWarmup('finish', 0);
             this._setLoadingProgressUI(
               100,
               lang === 'en-US'

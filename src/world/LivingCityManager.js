@@ -182,7 +182,7 @@ export class LivingCityManager {
     this.timeSinceLastHit = 10.0;
 
     if (this.hud) {
-      this.hud.setPlayerFaction(factionKey);
+      this.hud.setPlayerFaction(factionKey, false);
       this.hud.setPlayerHealth(this.playerHp, this.playerMaxHp, false);
     }
 
