@@ -521,37 +521,69 @@ export class LivingCityManager {
   }
 
   /**
-   * Empurra imediatamente qualquer coordenada (x, z) para fora de prédios e paredes sólidas usando a Grade Espacial O(1)!
+   * Verifica na vizinhança 3x3 da Grade Espacial se o ponto (x, z) está dentro de algum prédio/muro sólido
    */
-  _resolveBuildingCollision(x, z, radius = 1.35) {
+  _isInsideBuilding(x, z, padding = 0.9) {
+    if (!this._buildingGrid) this._initBuildingSpatialGrid();
+    const cs = this._buildingGridCellSize || 48;
+    const gx = Math.floor(x / cs);
+    const gz = Math.floor(z / cs);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const cell = this._buildingGrid.get(`${gx + dx},${gz + dz}`);
+        if (!cell) continue;
+        for (let i = 0; i < cell.length; i++) {
+          const box = cell[i];
+          if (
+            x > box.minX - padding &&
+            x < box.maxX + padding &&
+            z > box.minZ - padding &&
+            z < box.maxZ + padding
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Empurra imediatamente qualquer coordenada (x, z) para fora de prédios e paredes sólidas checando a vizinhança 3x3 da Grade Espacial!
+   */
+  _resolveBuildingCollision(x, z, radius = 0.95) {
+    if (!this._buildingGrid) this._initBuildingSpatialGrid();
     let curX = x;
     let curZ = z;
     let collided = false;
     const cs = this._buildingGridCellSize || 48;
     const gx = Math.floor(curX / cs);
     const gz = Math.floor(curZ / cs);
-    const cell = this._buildingGrid.get(`${gx},${gz}`);
-    if (!cell || cell.length === 0) {
-      return { x: curX, z: curZ, collided: false };
-    }
 
-    for (let i = 0; i < cell.length; i++) {
-      const box = cell[i];
-      const padMinX = box.minX - radius;
-      const padMaxX = box.maxX + radius;
-      const padMinZ = box.minZ - radius;
-      const padMaxZ = box.maxZ + radius;
-      if (curX > padMinX && curX < padMaxX && curZ > padMinZ && curZ < padMaxZ) {
-        const dLeft = Math.abs(curX - padMinX);
-        const dRight = Math.abs(padMaxX - curX);
-        const dBack = Math.abs(curZ - padMinZ);
-        const dFront = Math.abs(padMaxZ - curZ);
-        const minD = Math.min(dLeft, dRight, dBack, dFront);
-        if (minD === dLeft) curX = padMinX - 0.05;
-        else if (minD === dRight) curX = padMaxX + 0.05;
-        else if (minD === dBack) curZ = padMinZ - 0.05;
-        else curZ = padMaxZ + 0.05;
-        collided = true;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const cell = this._buildingGrid.get(`${gx + dx},${gz + dz}`);
+        if (!cell || cell.length === 0) continue;
+
+        for (let i = 0; i < cell.length; i++) {
+          const box = cell[i];
+          const padMinX = box.minX - radius;
+          const padMaxX = box.maxX + radius;
+          const padMinZ = box.minZ - radius;
+          const padMaxZ = box.maxZ + radius;
+          if (curX > padMinX && curX < padMaxX && curZ > padMinZ && curZ < padMaxZ) {
+            const dLeft = Math.abs(curX - padMinX);
+            const dRight = Math.abs(padMaxX - curX);
+            const dBack = Math.abs(curZ - padMinZ);
+            const dFront = Math.abs(padMaxZ - curZ);
+            const minD = Math.min(dLeft, dRight, dBack, dFront);
+            if (minD === dLeft) curX = padMinX - 0.08;
+            else if (minD === dRight) curX = padMaxX + 0.08;
+            else if (minD === dBack) curZ = padMinZ - 0.08;
+            else curZ = padMaxZ + 0.08;
+            collided = true;
+          }
+        }
       }
     }
 
@@ -559,21 +591,42 @@ export class LivingCityManager {
   }
 
   /**
-   * Verifica em O(1) via Grade Espacial se há linha de visão livre (sem prédio sólido no meio) entre (x1, z1) e (x2, z2)
+   * Encontra um ponto 100% seguro na rua livre fora de qualquer prédio (usado para Spawn de Bosses e Esquadrões)
+   */
+  _findSafeStreetSpawn(x, z, radius = 2.2) {
+    let res = this._resolveBuildingCollision(x, z, radius);
+    if (!this._isInsideBuilding(res.x, res.z, radius * 0.85)) {
+      return { x: res.x, z: res.z };
+    }
+    for (let ring = 1; ring <= 5; ring++) {
+      const dist = ring * 6.5;
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        const tx = x + Math.cos(ang) * dist;
+        const tz = z + Math.sin(ang) * dist;
+        const cand = this._resolveBuildingCollision(tx, tz, radius);
+        if (!this._isInsideBuilding(cand.x, cand.z, radius * 0.85)) {
+          return { x: cand.x, z: cand.z };
+        }
+      }
+    }
+    return { x: res.x, z: res.z };
+  }
+
+  /**
+   * Raycasting Real Segmento-vs-AABB nas Paredes (testando a cada 2.2 metros ao longo do raio)
    */
   _hasLineOfSight(x1, z1, x2, z2) {
-    const cs = this._buildingGridCellSize || 48;
-    for (let s = 1; s <= 2; s++) {
-      const u = s * 0.333;
-      const sx = x1 + (x2 - x1) * u;
-      const sz = z1 + (z2 - z1) * u;
-      const cell = this._buildingGrid.get(`${Math.floor(sx / cs)},${Math.floor(sz / cs)}`);
-      if (!cell) continue;
-      for (let i = 0; i < cell.length; i++) {
-        const box = cell[i];
-        if (sx > box.minX && sx < box.maxX && sz > box.minZ && sz < box.maxZ) {
-          return false;
-        }
+    if (!this._buildingGrid) this._initBuildingSpatialGrid();
+    const dx = x2 - x1;
+    const dz = z2 - z1;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1.0) return true;
+    const steps = Math.max(3, Math.ceil(dist / 2.2));
+    for (let i = 1; i < steps; i++) {
+      const u = i / steps;
+      if (this._isInsideBuilding(x1 + dx * u, z1 + dz * u, 0.45)) {
+        return false;
       }
     }
     return true;
@@ -1277,7 +1330,10 @@ export class LivingCityManager {
       // ------------------------------------------------------------------------
       // FRONT CENTRAL DE GUERRA MUNDIAL (DOIS EXÉRCITOS FRENTE A FRENTE NA AVENIDA Z = -117)
       // Linha Oeste (CV: X = -34..-22) vs Linha Leste (PCC: X = +22..+34) — "Terra de Ninguém" no meio!
+      // Já inicia com Chefões Colossais das 3 Facções em campo!
       // ------------------------------------------------------------------------
+      { faction: 'cv', role: 'cv_boss', x: -16, z: -114, homeX: -16, homeZ: -114 },
+      { faction: 'cv', role: 'cv_boss', x: -18, z: -121, homeX: -18, homeZ: -121 },
       { faction: 'cv', role: 'cv_tank', x: -20, z: -117, homeX: -20, homeZ: -117 },
       { faction: 'cv', role: 'cv_rifle', x: -24, z: -112, homeX: -24, homeZ: -112 },
       { faction: 'cv', role: 'cv_rifle', x: -24, z: -122, homeX: -24, homeZ: -122 },
@@ -1285,6 +1341,8 @@ export class LivingCityManager {
       { faction: 'cv', role: 'cv_medic', x: -31, z: -117, homeX: -31, homeZ: -117 },
       { faction: 'cv', role: 'cv_rifle', x: -29, z: -120, homeX: -29, homeZ: -120 },
 
+      { faction: 'pcc', role: 'pcc_boss', x: 16, z: -114, homeX: 16, homeZ: -114 },
+      { faction: 'pcc', role: 'pcc_boss', x: 18, z: -121, homeX: 18, homeZ: -121 },
       { faction: 'pcc', role: 'pcc_tank', x: 20, z: -117, homeX: 20, homeZ: -117 },
       { faction: 'pcc', role: 'pcc_smg', x: 24, z: -112, homeX: 24, homeZ: -112 },
       { faction: 'pcc', role: 'pcc_smg', x: 24, z: -122, homeX: 24, homeZ: -122 },
@@ -1293,6 +1351,7 @@ export class LivingCityManager {
       { faction: 'pcc', role: 'pcc_smg', x: 29, z: -120, homeX: 29, homeZ: -120 },
 
       // Pelotão A.R.E.S. posicionado em formação na Avenida Sul (X = 0, Z = -82..-92)
+      { faction: 'ares', role: 'ares_boss', x: 0, z: -80, homeX: 0, homeZ: -80 },
       { faction: 'ares', role: 'ares_tank', x: 0, z: -84, homeX: 0, homeZ: -84 },
       { faction: 'ares', role: 'ares_exo', x: -5, z: -88, homeX: -5, homeZ: -88 },
       { faction: 'ares', role: 'ares_exo', x: 5, z: -88, homeX: 5, homeZ: -88 },
@@ -1431,8 +1490,8 @@ export class LivingCityManager {
     const isRpgOrC4 = sp.role === 'cv_rpg' || sp.role === 'pcc_c4';
 
     // Garante que NENHUM soldado, médico, tanque ou Boss nasça dentro de um prédio!
-    const safeSpawn = this._resolveBuildingCollision(sp.x, sp.z, isBoss ? 2.8 : 2.2);
-    const safeHome = this._resolveBuildingCollision(sp.homeX ?? sp.x, sp.homeZ ?? sp.z, isBoss ? 2.8 : 2.2);
+    const safeSpawn = this._findSafeStreetSpawn(sp.x, sp.z, isBoss ? 2.2 : 1.8);
+    const safeHome = this._findSafeStreetSpawn(sp.homeX ?? sp.x, sp.homeZ ?? sp.z, isBoss ? 2.2 : 1.8);
     const spawnX = safeSpawn.x;
     const spawnZ = safeSpawn.z;
     const homeX = safeHome.x;
@@ -1472,18 +1531,12 @@ export class LivingCityManager {
       visual.hpFillMat = fillMat;
     }
 
-    // HP Rebalanceado para Guerra Intensa sem One-Shot!
+    // HP Balanceado para Combate Letal (Soldados 160 HP, Tanques/Mechas 380 HP, Bosses 1100 HP)!
     const maxHp = isBoss
-      ? 3500
-      : isMecha
-        ? 1100
-        : isTank
-          ? 680
-          : isMedic
-            ? 380
-            : isRpgOrC4 || isDrone
-              ? 320
-              : 260;
+      ? 1100
+      : isMecha || isTank
+        ? 380
+        : 160;
     const radius = isBoss ? 2.15 : isMecha ? 1.55 : isTank ? 1.15 : isDrone ? 1.05 : 0.85;
     const height = isBoss ? 4.4 : isMecha ? 3.4 : isTank ? 2.4 : isDrone ? 1.6 : 1.9;
 
@@ -1620,12 +1673,8 @@ export class LivingCityManager {
         }
 
         if (npc.isBoss) {
-          destructibleObj.respawnTimer = 999999;
-          this.activeBosses = this.activeBosses.filter((b) => b !== npc);
-          if (this.activeBosses.length === 0) {
-            this.bossWaveActive = false;
-            soundFX.setBossMusicIntensity(false);
-          }
+          destructibleObj.respawnTimer = 6.0;
+          destructibleObj.basePos.set(npc.homeX, baseY, npc.homeZ);
           if (!npc.isAlliedToPlayer) {
             soundFX.playTrueHeroFanfare();
           }
@@ -2300,7 +2349,7 @@ export class LivingCityManager {
     this.factionKills[faction] = (this.factionKills[faction] || 0) + 1;
     this.worldWarEscalation = Math.min(1.0, this.worldWarEscalation + 0.22);
 
-    if (this.worldWarEscalation >= 1.0 && !this.bossWaveActive && this.bossWaveCooldown <= 0) {
+    if (this.worldWarEscalation >= 1.0 && this.bossWaveCooldown <= 0) {
       this.spawnWorldWarBossWave(faction, deathPos);
       return;
     }
@@ -2874,11 +2923,11 @@ export class LivingCityManager {
           this._spawnLegoHealStation(root.position, npc.faction, false);
         }
 
-        // 1) Se for Médico da Facção Aliada do Jogador e o jogador estiver com menos de 250 HP (até 26m), CURA O JOGADOR!
+        // 1) Se for Médico da Facção Aliada do Jogador e o jogador estiver com menos de 250 HP (até 12m), CURA O JOGADOR (+10 HP/s)!
         if (npc.isAlliedToPlayer && playerPos && this.playerHp < this.playerMaxHp) {
           const dP = Math.hypot(playerPos.x - root.position.x, playerPos.z - root.position.z);
-          if (dP <= 26.0) {
-            this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 20.0 * dt);
+          if (dP <= 12.0 && this._hasLineOfSight(root.position.x, root.position.z, playerPos.x, playerPos.z)) {
+            this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 10.0 * dt);
             this.playerBeingHealed = true;
             healingTargetPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.1, playerPos.z);
           }
@@ -2908,7 +2957,7 @@ export class LivingCityManager {
           if (bestWounded) {
             bestWounded.destructible.hp = Math.min(
               bestWounded.destructible.maxHp,
-              bestWounded.destructible.hp + 18.0 * dt
+              bestWounded.destructible.hp + 14.0 * dt
             );
             if (bestWounded.visual.hpFillMesh) {
               bestWounded.visual.hpFillMesh.scale.x = Math.min(
@@ -2980,13 +3029,42 @@ export class LivingCityManager {
           }
         }
       }
-      const target = npc.cachedTarget;
+
+      // Valida linha de visão real (Raycasting contra paredes) ANTES de mirar ou atirar!
+      let target = npc.cachedTarget;
+      let blockedByWall = false;
+      let blockedDx = 0;
+      let blockedDz = 0;
+      let blockedDist = 1;
+      if (target) {
+        const canSee = this._hasLineOfSight(
+          root.position.x,
+          root.position.z,
+          target.pos.x,
+          target.pos.z
+        );
+        if (!canSee) {
+          blockedByWall = true;
+          blockedDx = target.pos.x - root.position.x;
+          blockedDz = target.pos.z - root.position.z;
+          blockedDist = Math.max(0.1, Math.hypot(blockedDx, blockedDz));
+          npc.fireCooldown = Math.max(npc.fireCooldown, 0.25);
+          npc.cachedTarget = null;
+          target = null;
+        }
+      }
 
       let moveDirX = 0;
       let moveDirZ = 0;
       let isMoving = false;
 
-      if ((npc.isRecruitedByPlayer || npc.isEscortingPlayer || (npc.isMedic && npc.isAlliedToPlayer && this.playerHp < this.playerMaxHp)) && playerPos) {
+      if (blockedByWall) {
+        // Contorna lateralmente a quina da parede em vez de atirar contra o muro!
+        const flankSign = i % 2 === 0 ? 1 : -1;
+        moveDirX = (-blockedDz / blockedDist) * flankSign;
+        moveDirZ = (blockedDx / blockedDist) * flankSign;
+        isMoving = true;
+      } else if ((npc.isRecruitedByPlayer || npc.isEscortingPlayer || (npc.isMedic && npc.isAlliedToPlayer && this.playerHp < this.playerMaxHp)) && playerPos) {
         const dxP = playerPos.x - root.position.x;
         const dzP = playerPos.z - root.position.z;
         const distP = Math.hypot(dxP, dzP);
@@ -3102,6 +3180,99 @@ export class LivingCityManager {
   }
 
   // ============================================================================
+  // 7A. DIRETOR DE BOSSES ATIVOS (2 BOSSES ALIADOS VS 3 BOSSES INIMIGOS SEMPRE PERTO!)
+  // ============================================================================
+  _maintainActiveWorldWarBosses(dt, playerPos) {
+    if (!playerPos) return;
+    this._bossDirectorTimer = (this._bossDirectorTimer ?? 0.5) - dt;
+    if (this._bossDirectorTimer > 0) return;
+    this._bossDirectorTimer = 4.0;
+
+    const allyFaction = this.playerFaction || 'cv';
+    const enemyFactions = ['cv', 'pcc', 'ares'].filter((f) => f !== allyFaction);
+
+    let nearbyAlliedBosses = 0;
+    let nearbyEnemyBosses = 0;
+    const reusableAlliedBosses = [];
+    const reusableEnemyBosses = [];
+
+    for (let i = 0; i < this.combatNpcs.length; i++) {
+      const npc = this.combatNpcs[i];
+      if (!npc.isBoss || !npc.destructible) continue;
+      const pos = npc.visual.root.position;
+      const dist = Math.hypot(pos.x - playerPos.x, pos.z - playerPos.z);
+      const isAlly = npc.faction === allyFaction;
+
+      if (!npc.destructible.destroyed && dist <= 95.0) {
+        if (isAlly) nearbyAlliedBosses++;
+        else nearbyEnemyBosses++;
+      } else if (npc.destructible.destroyed || dist > 115.0) {
+        if (isAlly) reusableAlliedBosses.push(npc);
+        else reusableEnemyBosses.push(npc);
+      }
+    }
+
+    const deployOrSpawnBoss = (reusablePool, targetFaction, minDist, maxDist, idxOffset) => {
+      const ang = (idxOffset * 1.45 + performance.now() * 0.0005) % (Math.PI * 2);
+      const dist = minDist + ((idxOffset * 7) % (maxDist - minDist));
+      const rawX = playerPos.x + Math.cos(ang) * dist;
+      const rawZ = playerPos.z + Math.sin(ang) * dist;
+      const safe = this._findSafeStreetSpawn(rawX, rawZ, 2.2);
+      const groundY = this.world.getTerrainHeightAt
+        ? Math.max(0.28, this.world.getTerrainHeightAt(safe.x, safe.z))
+        : 0.28;
+
+      if (reusablePool.length > 0) {
+        const boss = reusablePool.pop();
+        boss.homeX = safe.x;
+        boss.homeZ = safe.z;
+        boss.x = safe.x;
+        boss.z = safe.z;
+        boss.cachedTarget = null;
+        boss.visual.root.position.set(safe.x, groundY, safe.z);
+        boss.visual.root.visible = true;
+        const obj = boss.destructible;
+        obj.destroyed = false;
+        obj.hp = obj.maxHp;
+        obj.respawnTimer = 0;
+        obj.basePos.set(safe.x, groundY, safe.z);
+        obj.groundY = groundY;
+        obj.mesh.visible = true;
+        if (boss.visual.hpFillMesh) {
+          boss.visual.hpFillMesh.scale.x = 1.0;
+        }
+        if (boss.visual.hpBarGroup) {
+          boss.visual.hpBarGroup.visible = true;
+        }
+        this._syncNpcAllegiance(boss);
+        return boss;
+      }
+
+      return this._spawnCombatNpc({
+        faction: targetFaction,
+        role: `${targetFaction}_boss`,
+        x: safe.x,
+        z: safe.z,
+        homeX: safe.x,
+        homeZ: safe.z
+      });
+    };
+
+    // 1) Garante pelo menos 2 Bosses Aliados num raio de 95m do jogador (a 28m-42m na rua livre)
+    while (nearbyAlliedBosses < 2) {
+      deployOrSpawnBoss(reusableAlliedBosses, allyFaction, 28.0, 42.0, nearbyAlliedBosses + 1);
+      nearbyAlliedBosses++;
+    }
+
+    // 2) Garante pelo menos 3 Bosses Inimigos num raio de 95m do jogador (a 32m-48m na rua livre)
+    while (nearbyEnemyBosses < 3) {
+      const eFac = enemyFactions[nearbyEnemyBosses % enemyFactions.length];
+      deployOrSpawnBoss(reusableEnemyBosses, eFac, 32.0, 48.0, nearbyEnemyBosses + 4);
+      nearbyEnemyBosses++;
+    }
+  }
+
+  // ============================================================================
   // 7B. DIRETOR DINÂMICO DE LINHAS DE FRENTE (GUERRA EM TODAS AS RUAS DA CIDADE!)
   // ============================================================================
   _updateDynamicWorldWarFrontline(dt, playerPos, controller) {
@@ -3171,13 +3342,11 @@ export class LivingCityManager {
       const forwardDist = 14.0 + row * 4.5;
       const lateralOffset = col * 4.6 + (row % 2 === 0 ? -1.2 : 1.2);
 
-      let spawnX = playerPos.x + fwdX * forwardDist + rightX * lateralOffset;
-      let spawnZ = playerPos.z + fwdZ * forwardDist + rightZ * lateralOffset;
-      const colCheck = this._resolveBuildingCollision(spawnX, spawnZ, 1.5);
-      if (colCheck.collided) {
-        spawnX = colCheck.x;
-        spawnZ = colCheck.z;
-      }
+      const rawX = playerPos.x + fwdX * forwardDist + rightX * lateralOffset;
+      const rawZ = playerPos.z + fwdZ * forwardDist + rightZ * lateralOffset;
+      const safe = this._findSafeStreetSpawn(rawX, rawZ, 1.6);
+      const spawnX = safe.x;
+      const spawnZ = safe.z;
       const groundY = this.world.getTerrainHeightAt
         ? Math.max(0.28, this.world.getTerrainHeightAt(spawnX, spawnZ))
         : 0.28;
@@ -3222,13 +3391,11 @@ export class LivingCityManager {
       const forwardDist = 36.0 + row * 5.0;
       const lateralOffset = col * 4.2 + (row % 2 === 0 ? 1.0 : -1.0);
 
-      let spawnX = playerPos.x + fwdX * forwardDist + rightX * lateralOffset;
-      let spawnZ = playerPos.z + fwdZ * forwardDist + rightZ * lateralOffset;
-      const colCheck = this._resolveBuildingCollision(spawnX, spawnZ, 1.5);
-      if (colCheck.collided) {
-        spawnX = colCheck.x;
-        spawnZ = colCheck.z;
-      }
+      const rawX = playerPos.x + fwdX * forwardDist + rightX * lateralOffset;
+      const rawZ = playerPos.z + fwdZ * forwardDist + rightZ * lateralOffset;
+      const safe = this._findSafeStreetSpawn(rawX, rawZ, 1.6);
+      const spawnX = safe.x;
+      const spawnZ = safe.z;
       const groundY = this.world.getTerrainHeightAt
         ? Math.max(0.28, this.world.getTerrainHeightAt(spawnX, spawnZ))
         : 0.28;
@@ -3262,8 +3429,7 @@ export class LivingCityManager {
       if (iAmAllied && other.isAlliedToPlayer) continue;
       const oPos = other.visual.root.position;
       const d = Math.hypot(oPos.x - myPos.x, oPos.z - myPos.z);
-      // Prioriza focar Chefões Rivais na Guerra Mundial!
-      const bossPriority = other.isBoss ? -12.0 : 0;
+      const bossPriority = other.isBoss ? -6.0 : 0;
       if (d + bossPriority < bestScore) {
         if (!this._hasLineOfSight(myPos.x, myPos.z, oPos.x, oPos.z)) continue;
         bestScore = d + bossPriority;
@@ -3279,17 +3445,20 @@ export class LivingCityManager {
       }
     }
 
-    // Unidades da Facção Aliada do Jogador NUNCA miram no jogador!
+    // Inimigos miram de verdade no Player quando ele está a até 36m com linha de visão livre!
     if (!iAmAllied && playerPos && (!controller || !(controller.stealthTimer > 0))) {
       const dPlayer = Math.hypot(playerPos.x - myPos.x, playerPos.z - myPos.z);
       if (
-        dPlayer < Math.min(maxRange, bestScore + 6.0) &&
+        dPlayer < 36.0 &&
         this._hasLineOfSight(myPos.x, myPos.z, playerPos.x, playerPos.z)
       ) {
-        bestTarget = {
-          type: 'player',
-          pos: new THREE.Vector3(playerPos.x, playerPos.y + 1.05, playerPos.z)
-        };
+        if (dPlayer <= bestScore || (dPlayer < 28.0 && Math.random() < 0.45)) {
+          bestTarget = {
+            type: 'player',
+            isPlayer: true,
+            pos: new THREE.Vector3(playerPos.x, playerPos.y + 1.05, playerPos.z)
+          };
+        }
       }
     }
 
@@ -3314,10 +3483,11 @@ export class LivingCityManager {
       }
     }
 
+    // Mira precisa (spread 0.32) para que soldados aliados e inimigos realmente acertem uns aos outros e o player!
     const dir = targetPos.clone().sub(origin);
-    dir.x += (Math.random() - 0.5) * 1.1;
-    dir.y += (Math.random() - 0.5) * 0.5;
-    dir.z += (Math.random() - 0.5) * 1.1;
+    dir.x += (Math.random() - 0.5) * 0.32;
+    dir.y += (Math.random() - 0.5) * 0.16;
+    dir.z += (Math.random() - 0.5) * 0.32;
     dir.normalize();
 
     const colorHex =
@@ -3337,11 +3507,11 @@ export class LivingCityManager {
     projMesh.lookAt(origin.clone().add(dir));
     this.scene.add(projMesh);
 
-    // Dano Específico Balanceado (para o Sistema de 250 HP do Jogador e Bots Blindados!):
-    // - Contra o Jogador: Soldado 4, Tanque/Exo 8, RPG/Mecha/Boss 18
-    // - Entre Bots (NPC vs NPC): Soldado 28, Tanque/RPG/Mecha 55, Boss 120
-    const playerSpecificDamage = isBoss || isRpg || role === 'ares_mecha' ? 18 : isTankOrExo ? 8 : 4;
-    const npcVsNpcDamage = isBoss ? 120 : isRpg || isTankOrExo || role === 'ares_mecha' ? 55 : 28;
+    // Dano Letal de Verdade:
+    // - Contra o Jogador: Soldado 18, Tanque/Exo/Drone 32, RPG/Mecha/Boss 55
+    // - Entre Bots (NPC vs NPC): Soldado 55, Tanque/RPG/Mecha 110, Boss 240
+    const playerSpecificDamage = isBoss || isRpg || role === 'ares_mecha' ? 55 : isTankOrExo ? 32 : 18;
+    const npcVsNpcDamage = isBoss ? 240 : isRpg || isTankOrExo || role === 'ares_mecha' ? 110 : 55;
 
     const speed = isRpg ? 38.0 : isLaser ? 68.0 : 58.0;
     this.npcProjectiles.push({
@@ -3361,23 +3531,31 @@ export class LivingCityManager {
     for (let i = this.npcProjectiles.length - 1; i >= 0; i--) {
       const p = this.npcProjectiles[i];
       p.life -= dt;
-      p.mesh.position.addScaledVector(p.vel, dt);
+      const oldX = p.mesh.position.x;
+      const oldZ = p.mesh.position.z;
+      const newX = oldX + p.vel.x * dt;
+      const newY = p.mesh.position.y + p.vel.y * dt;
+      const newZ = oldZ + p.vel.z * dt;
 
       let hit = false;
 
-      // Impede que projéteis atravessem prédios sólidos!
-      const wallCheck = this._resolveBuildingCollision(p.mesh.position.x, p.mesh.position.z, 0.25);
-      if (wallCheck.collided) {
+      // Impede que projéteis atravessem prédios sólidos checando tanto o ponto médio quanto o destino!
+      if (
+        this._isInsideBuilding((oldX + newX) * 0.5, (oldZ + newZ) * 0.5, 0.3) ||
+        this._isInsideBuilding(newX, newZ, 0.3)
+      ) {
         hit = true;
       }
+
+      p.mesh.position.set(newX, newY, newZ);
 
       if (!hit) {
         for (const npc of this.combatNpcs) {
           if (npc.faction === p.faction || !npc.destructible || npc.destructible.destroyed) continue;
           if (p.isAlliedShot && npc.isAlliedToPlayer) continue;
           const nPos = npc.visual.root.position;
-          const dH = Math.hypot(p.mesh.position.x - nPos.x, p.mesh.position.z - nPos.z);
-          const dV = Math.abs(p.mesh.position.y - (nPos.y + 1.0));
+          const dH = Math.hypot(newX - nPos.x, newZ - nPos.z);
+          const dV = Math.abs(newY - (nPos.y + 1.0));
           const hitRad = npc.isBoss ? 2.3 : npc.isMecha ? 1.6 : 0.95;
           const hitHeight = npc.isBoss ? 3.4 : npc.isMecha ? 2.2 : 1.3;
           if (dH <= hitRad && dV <= hitHeight) {
@@ -3392,12 +3570,16 @@ export class LivingCityManager {
         }
       }
 
-      // Tiros de facções inimigas acertam o jogador com Dano Específico Balanceado (Aliados nunca causam dano!)
+      // Tiros de facções inimigas acertam o jogador com Dano Real (validando linha de visão livre contra paredes!)
       if (!hit && !p.isAlliedShot && !this._isFactionAlliedToPlayer(p.faction) && playerPos) {
-        const dH = Math.hypot(p.mesh.position.x - playerPos.x, p.mesh.position.z - playerPos.z);
-        const dV = Math.abs(p.mesh.position.y - (playerPos.y + 1.0));
-        if (dH <= 0.95 && dV <= 1.25) {
-          this._applyPlayerHitDamage(controller, p.playerDamage || 4);
+        const dH = Math.hypot(newX - playerPos.x, newZ - playerPos.z);
+        const dV = Math.abs(newY - (playerPos.y + 1.0));
+        if (
+          dH <= 1.05 &&
+          dV <= 1.35 &&
+          this._hasLineOfSight(oldX, oldZ, playerPos.x, playerPos.z)
+        ) {
+          this._applyPlayerHitDamage(controller, p.playerDamage || 18);
           hit = true;
         }
       }
@@ -3409,7 +3591,7 @@ export class LivingCityManager {
     }
   }
 
-  _applyPlayerHitDamage(controller, rawDamage = 4) {
+  _applyPlayerHitDamage(controller, rawDamage = 18) {
     if (!this.hud || this.playerHitInvulnTimer > 0) return;
     if (
       controller &&
@@ -3451,9 +3633,9 @@ export class LivingCityManager {
     this.playerBeingHealed = false;
     this.timeSinceLastHit += dt;
 
-    // Auto-Regeneração Tática fora de combate (após 3.5s sem tomar tiro, regenera +25 HP/s até 250 HP!)
-    if (this.timeSinceLastHit >= 3.5 && this.playerHp < this.playerMaxHp) {
-      this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 25.0 * dt);
+    // Auto-Regeneração Tática fora de combate (após 6.0s sem tomar tiro, regenera +16 HP/s até 250 HP!)
+    if (this.timeSinceLastHit > 6.0 && this.playerHp < this.playerMaxHp) {
+      this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 16.0 * dt);
       this.playerBeingHealed = true;
     }
 
@@ -3463,7 +3645,7 @@ export class LivingCityManager {
     }
 
     // Se o jogador estiver no Front Central (Avenida Central Z = -117) ou invadindo a base de uma facção rival, sobe gradualmente a Escalada de Guerra Mundial!
-    if (playerPos && !this.bossWaveActive) {
+    if (playerPos) {
       const inCentralFront = Math.hypot(playerPos.x - 0, playerPos.z - -117) < 68.0;
       const inEnemyCdd = this.playerFaction !== 'cv' && playerPos.x < -480;
       const inEnemyPcc = this.playerFaction !== 'pcc' && playerPos.x > 550 && playerPos.z < 50;
@@ -3486,6 +3668,7 @@ export class LivingCityManager {
       }
     }
 
+    this._maintainActiveWorldWarBosses(dt, playerPos);
     this._updateDynamicWorldWarFrontline(dt, playerPos, controller);
     this._updateUrbanTraffic(dt, playerPos);
     this._updateArmoredConvoyEvent(dt, playerPos);

@@ -294,7 +294,14 @@ const TRIM_MATERIAL_CACHE = new Map();
 function getFastStandardMaterial(colorHex, roughness = 0.28, metalness = 0.15) {
   const key = `${colorHex}_${roughness}_${metalness}`;
   if (TRIM_MATERIAL_CACHE.has(key)) return TRIM_MATERIAL_CACHE.get(key);
-  const mat = new THREE.MeshStandardMaterial({ color: colorHex, roughness, metalness });
+  const mat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    roughness,
+    metalness,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
+  });
   TRIM_MATERIAL_CACHE.set(key, mat);
   return mat;
 }
@@ -357,7 +364,9 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 4;
 
   // MeshStandardMaterial garante 60 FPS sem o custo duplo do shader de Clearcoat em 135 arranha-céus!
   const mat = new THREE.MeshStandardMaterial({
@@ -445,11 +454,11 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
     const baseH = Math.min(6.8, h * 0.35);
     const vitW = Math.max(4, w * 0.58);
     const groundGeos = [
-      makeTranslatedBox(w + 0.45, baseH, d + 0.45, 0, baseH * 0.5, 0),
-      makeTranslatedBox(vitW + 2.0, 0.55, 1.9, 0, 5.1, -(d * 0.5 + 0.95)),
-      makeTranslatedBox(vitW + 2.0, 0.55, 1.9, 0, 5.1, d * 0.5 + 0.95),
-      makeTranslatedBox(vitW, 3.4, 0.5, 0, 2.5, -(d * 0.5 + 0.12)),
-      makeTranslatedBox(vitW, 3.4, 0.5, 0, 2.5, d * 0.5 + 0.12)
+      makeTranslatedBox(w + 0.5, baseH, d + 0.5, 0, baseH * 0.5, 0),
+      makeTranslatedBox(vitW + 2.0, 0.55, 1.9, 0, 5.1, -(d * 0.5 + 1.05)),
+      makeTranslatedBox(vitW + 2.0, 0.55, 1.9, 0, 5.1, d * 0.5 + 1.05),
+      makeTranslatedBox(vitW, 3.4, 0.4, 0, 2.5, -(d * 0.5 + 0.52)),
+      makeTranslatedBox(vitW, 3.4, 0.4, 0, 2.5, d * 0.5 + 0.52)
     ];
     const groundMesh = new THREE.Mesh(
       mergeBufferGeometries(groundGeos),

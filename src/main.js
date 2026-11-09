@@ -22,8 +22,9 @@ class LegoCityGame {
 
   _initRendererAndScene() {
     this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: 'high-performance'
+      antialias: false,
+      powerPreference: 'high-performance',
+      logarithmicDepthBuffer: true
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.35));
@@ -40,10 +41,10 @@ class LegoCityGame {
     this.scene.environmentIntensity = 0.55;
 
     this.camera = new THREE.PerspectiveCamera(
-      58,
+      60,
       window.innerWidth / window.innerHeight,
-      0.25,
-      2400
+      0.65,
+      2200
     );
   }
 

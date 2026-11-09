@@ -536,7 +536,8 @@ export class TestBlockWorld {
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
     sunLight.shadow.camera.bottom = -d;
-    sunLight.shadow.bias = -0.0006;
+    sunLight.shadow.normalBias = 0.06;
+    sunLight.shadow.bias = -0.0008;
 
     this.scene.add(sunLight);
     this.scene.add(sunLight.target);
