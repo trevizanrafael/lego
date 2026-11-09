@@ -180,7 +180,7 @@ export class LegoHud {
   }
 
   setHearts(activeCount) {
-    this.hearts = Math.max(1, Math.min(this.maxHearts, Math.round(activeCount)));
+    this.hearts = Math.max(0, Math.min(this.maxHearts, Math.round(activeCount)));
     if (!this.heartsContainer) return;
     const nodes = this.heartsContainer.querySelectorAll('.lego-heart');
     nodes.forEach((node, idx) => {
@@ -608,48 +608,26 @@ export class LegoHud {
   }
 
   /**
-   * Atualiza a Barra Numérica de 250 HP + 4 Corações LEGO + Indicador Compacto de Cura Médica Aliada
+   * Atualiza a vida do jogador (250 HP) exclusivamente nos 4 Corações LEGO Clássicos
    */
-  setPlayerHealth(hp, maxHp = 250, isBeingHealed = false) {
+  setPlayerHealth(hp, maxHp = 250, isHealing = false) {
     this.playerMaxHp = Math.max(1, maxHp);
     this.playerHp = Math.max(0, Math.min(this.playerMaxHp, Math.round(hp)));
-    const ratio = this.playerHp / this.playerMaxHp;
 
-    const heartCount = this.playerHp <= 0 ? 0 : Math.max(1, Math.ceil(ratio * this.maxHearts));
-    this.setHearts(heartCount);
+    const activeHearts =
+      this.playerHp <= 0
+        ? 0
+        : Math.max(0, Math.min(4, Math.ceil((this.playerHp / this.playerMaxHp) * 4)));
+    this.setHearts(activeHearts);
 
-    if (this.hpBarFillEl) {
-      this.hpBarFillEl.style.width = `${Math.round(ratio * 100)}%`;
-      if (!isBeingHealed) {
-        this.hpBarFillEl.style.background =
-          ratio < 0.3
-            ? 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)'
-            : ratio < 0.65
-              ? 'linear-gradient(90deg, #d97706 0%, #facc15 100%)'
-              : 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)';
-      }
-    }
-    if (this.hpBarWrapEl) {
-      this.hpBarWrapEl.classList.toggle('healing', Boolean(isBeingHealed));
-    }
-    if (this.hpBarTextEl) {
-      this.hpBarTextEl.textContent = `${this.playerHp} / ${this.playerMaxHp} HP`;
-    }
-    if (this.medicHealTagEl) {
-      this.medicHealTagEl.textContent = '✚ +20 HP/s';
-      this.medicHealTagEl.classList.toggle('hidden', !isBeingHealed);
+    if (this.heartsContainer) {
+      this.heartsContainer.classList.toggle('healing-pulse', Boolean(isHealing));
     }
   }
 
   setPlayerFaction(factionKey = 'cv', notifyWorld = true) {
     const fData = FACTION_DATA[factionKey] || FACTION_DATA.cv;
     this.playerFaction = fData.id;
-    const lang = this.settings?.language || 'pt-BR';
-    if (this.factionBadgeEl) {
-      this.factionBadgeEl.dataset.faction = fData.id;
-      const dot = fData.id === 'cv' ? '🔴 ' : fData.id === 'pcc' ? '🔵 ' : '🟣 ';
-      this.factionBadgeEl.textContent = dot + (fData.shortName[lang] || fData.shortName['pt-BR']);
-    }
     if (notifyWorld && typeof this.onSelectFaction === 'function' && !this._isSyncingFaction) {
       this._isSyncingFaction = true;
       try {
@@ -661,55 +639,9 @@ export class LegoHud {
   }
 
   /**
-   * Atualiza o Painel Central Superior da Guerra Mundial (Escalada de Batalha + Barras dos Bosses Colossais)
+   * Mantido como no-op para manter a tela limpa sem painéis de ameaça/boss no topo
    */
-  updateWorldWarHud(escalationRatio = 0.35, activeBosses = [], isInvasionWave = false) {
-    const lang = this.settings?.language || 'pt-BR';
-    const texts = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
-
-    if (this.wwTitleEl) {
-      this.wwTitleEl.textContent = isInvasionWave ? texts.invasionActive : texts.worldWarFront;
-      this.wwTitleEl.style.color = isInvasionWave ? '#ef4444' : '#facc15';
-    }
-    if (this.wwPctEl) {
-      this.wwPctEl.textContent = `${Math.round(escalationRatio * 100)}%`;
-    }
-    if (this.wwFillEl) {
-      this.wwFillEl.style.width = `${Math.max(8, Math.min(100, Math.round(escalationRatio * 100)))}%`;
-    }
-
-    if (this.wwBossBarsContainerEl) {
-      if (!activeBosses || activeBosses.length === 0) {
-        this.wwBossBarsContainerEl.classList.add('hidden');
-        this.wwBossBarsContainerEl.innerHTML = '';
-        return;
-      }
-
-      this.wwBossBarsContainerEl.classList.remove('hidden');
-      this.wwBossBarsContainerEl.innerHTML = activeBosses
-        .map((b) => {
-          const isAllied = b.isAlly ?? b.faction === this.playerFaction;
-          const fInfo = FACTION_DATA[b.faction] || FACTION_DATA.cv;
-          const bossTitle = b.name || fInfo.bossName[lang] || fInfo.bossName['pt-BR'];
-          const tag = isAllied ? (lang === 'en-US' ? '[ALLIED BOSS]' : '[BOSS ALIADO]') : '[BOSS INIMIGO]';
-          const hp = Math.max(0, Math.round(b.hp ?? b.destructible?.hp ?? 0));
-          const maxHp = Math.max(1, Math.round(b.maxHp ?? b.destructible?.maxHp ?? 1200));
-          const pct = Math.max(2, Math.min(100, Math.round((hp / maxHp) * 100)));
-          return `
-            <div class="ww-boss-bar-row ${isAllied ? 'allied-boss' : ''}">
-              <div class="ww-boss-bar-top">
-                <span>${tag} ${bossTitle}</span>
-                <span>${hp} / ${maxHp} HP</span>
-              </div>
-              <div class="ww-boss-bar-track">
-                <div class="ww-boss-bar-fill" style="width:${pct}%"></div>
-              </div>
-            </div>
-          `;
-        })
-        .join('');
-    }
-  }
+  updateWorldWarHud() {}
 
   /**
    * Inicializa a Tela Inicial Oficial na IDV do Jogo, Panorama da Favela 2D, Tela de Loading, Slots de Save e Pausa [ESC]

@@ -231,12 +231,20 @@ body.title-or-loading-active #vehicle-prompt {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(9, 10, 13, 0.86);
-  border: 2px solid var(--idv-steel);
-  border-left: 5px solid var(--idv-alert);
-  padding: 8px 14px 8px 8px;
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
-  box-shadow: 6px 6px 0 #000;
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+  clip-path: none;
+}
+
+#world-war-hud-panel,
+#hud-hp-bar-wrap,
+#hud-faction-badge,
+#hud-medic-heal-tag,
+#hud-esc-hint-pill,
+#esc-pause-pill {
+  display: none !important;
 }
 
 .tactical-portrait-frame {
@@ -343,7 +351,12 @@ body.title-or-loading-active #vehicle-prompt {
 
 .lego-heart {
   filter: drop-shadow(2px 2px 0 var(--idv-black));
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.hearts-row.healing-pulse .lego-heart.active {
+  filter: drop-shadow(0 0 6px #22c55e) drop-shadow(2px 2px 0 var(--idv-black));
+  transform: scale(1.06);
 }
 
 /* Contador de Studs solto na tela estilo jogo LEGO / GTA */

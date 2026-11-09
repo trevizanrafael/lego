@@ -111,7 +111,7 @@ export class LivingCityManager {
     const darkMat = getLegoMaterial(0x090a0d, { roughness: 0.3 });
     const goldMat = getLegoMaterial(0xfacc15, { emissive: 0xd97706, emissiveIntensity: 0.7 });
 
-    // Mastro Central da Bandeira de Poder (Flag of Power) na Praça/Avenida Central (0, 0, -96)
+    // Mastro Central da Bandeira de Poder (Flag of Power) no centro do Cruzamento Central (0, 0, -117)
     const pylonGroup = new THREE.Group();
     const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.8, 0.45, 16), darkMat);
     baseRing.position.y = 0.22;
@@ -135,7 +135,7 @@ export class LivingCityManager {
     auraRing.position.y = 0.15;
 
     pylonGroup.add(baseRing, innerPad, pole, topCrown, flagBanner, auraRing);
-    pylonGroup.position.set(0, 0, -96);
+    pylonGroup.position.set(0, 0, -117);
     this.scene.add(pylonGroup);
     this.centralFlagBeacon = {
       group: pylonGroup,
@@ -144,11 +144,11 @@ export class LivingCityManager {
       auraRing
     };
 
-    // Trincheiras e Bunkers Táticos LEGO das 3 Facções no Front Central
+    // Trincheiras e Bunkers Táticos LEGO das 3 Facções no Asfalto Aberto do Cruzamento Central
     const bunkerSpecs = [
-      { x: -26, z: -96, rotY: Math.PI * 0.45, color: 0xdc2626 }, // Bunker Avançado CV (Oeste)
-      { x: 26, z: -96, rotY: -Math.PI * 0.45, color: 0x2563eb }, // Bunker Avançado PCC (Leste)
-      { x: 0, z: -74, rotY: Math.PI, color: 0xa855f7 }           // Bunker Avançado A.R.E.S. (Sul)
+      { x: -24, z: -117, rotY: Math.PI * 0.5, color: 0xef4444 },  // Bunker Avançado CV (Avenida Oeste)
+      { x: 24, z: -117, rotY: -Math.PI * 0.5, color: 0x38bdf8 },  // Bunker Avançado PCC (Avenida Leste)
+      { x: 0, z: -98, rotY: Math.PI, color: 0xd946ef }            // Bunker Avançado A.R.E.S. (Avenida Sul X=0)
     ];
     for (const b of bunkerSpecs) {
       const bGroup = new THREE.Group();
@@ -170,7 +170,83 @@ export class LivingCityManager {
   }
 
   /**
-   * Define a Facção Aliada do Jogador ('cv', 'pcc' ou 'ares'), atualiza todos os anéis verdes de aliado,
+   * Empurra imediatamente qualquer coordenada (x, z) para fora de prédios e paredes sólidas
+   */
+  _resolveBuildingCollision(x, z, radius = 1.35) {
+    let curX = x;
+    let curZ = z;
+    let collided = false;
+
+    const pushOutFromBox = (minX, maxX, minZ, maxZ) => {
+      const padMinX = minX - radius;
+      const padMaxX = maxX + radius;
+      const padMinZ = minZ - radius;
+      const padMaxZ = maxZ + radius;
+      if (curX > padMinX && curX < padMaxX && curZ > padMinZ && curZ < padMaxZ) {
+        const dLeft = Math.abs(curX - padMinX);
+        const dRight = Math.abs(padMaxX - curX);
+        const dBack = Math.abs(curZ - padMinZ);
+        const dFront = Math.abs(padMaxZ - curZ);
+        const minD = Math.min(dLeft, dRight, dBack, dFront);
+        if (minD === dLeft) curX = padMinX - 0.05;
+        else if (minD === dRight) curX = padMaxX + 0.05;
+        else if (minD === dBack) curZ = padMinZ - 0.05;
+        else curZ = padMaxZ + 0.05;
+        collided = true;
+      }
+    };
+
+    for (let pass = 0; pass < 2; pass++) {
+      if (this.world?.mapBuildings) {
+        for (const bld of this.world.mapBuildings) {
+          const hw = (bld.w || 0) * 0.5;
+          const hd = (bld.d || 0) * 0.5;
+          if (hw < 1.5 || hd < 1.5) continue;
+          pushOutFromBox(bld.x - hw, bld.x + hw, bld.z - hd, bld.z + hd);
+        }
+      }
+      if (this.world?.colliders) {
+        for (const col of this.world.colliders) {
+          if (col.disabled || col.maxY <= 2.2 || (col.minY ?? 0) >= 3.5) continue;
+          pushOutFromBox(col.minX, col.maxX, col.minZ, col.maxZ);
+        }
+      }
+    }
+
+    return { x: curX, z: curZ, collided };
+  }
+
+  /**
+   * Verifica se há linha de visão livre (sem parede/prédio sólido no meio) entre (x1, z1) e (x2, z2)
+   */
+  _hasLineOfSight(x1, z1, x2, z2) {
+    const samples = [0.25, 0.5, 0.75];
+    for (const u of samples) {
+      const sx = x1 + (x2 - x1) * u;
+      const sz = z1 + (z2 - z1) * u;
+      if (this.world?.mapBuildings) {
+        for (const bld of this.world.mapBuildings) {
+          const hw = (bld.w || 0) * 0.5;
+          const hd = (bld.d || 0) * 0.5;
+          if (hw >= 2.0 && hd >= 2.0 && sx > bld.x - hw && sx < bld.x + hw && sz > bld.z - hd && sz < bld.z + hd) {
+            return false;
+          }
+        }
+      }
+      if (this.world?.colliders) {
+        for (const col of this.world.colliders) {
+          if (col.disabled || col.maxY <= 2.2 || (col.minY ?? 0) >= 3.5) continue;
+          if (sx > col.minX && sx < col.maxX && sz > col.minZ && sz < col.maxZ) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Define a Facção Aliada do Jogador ('cv', 'pcc' ou 'ares'), atualiza todos os ícones táticos de aliado,
    * restaura 250 HP e despacha um Esquadrão Aliado pessoal (com Cientista/Médico de Cura + Tanque de Escudo)!
    */
   setPlayerFaction(factionKey, controller = null) {
@@ -192,13 +268,16 @@ export class LivingCityManager {
       this.centralFlagBeacon.auraRing.material.color.setHex(cHex);
     }
 
-    // Atualiza o status de Aliado vs Inimigo em todas as tropas vivas na cidade!
+    // Desativa escolta anterior antes de criar o novo esquadrão aliado
     for (const npc of this.combatNpcs) {
+      if (npc.isEscortingPlayer) {
+        npc.isEscortingPlayer = false;
+      }
       this._syncNpcAllegiance(npc);
     }
 
-    // Spawna 1 Médico Aliado + 1 Tanque de Escudo Aliado + 1 Fuzileiro Aliado escoltando o jogador!
-    const pPos = controller?.position || new THREE.Vector3(0, 0.3, -92);
+    // Spawna 1 Médico Aliado + 1 Tanque de Escudo Aliado + 1 Fuzileiro Aliado escoltando o jogador na Avenida!
+    const pPos = controller?.position || new THREE.Vector3(0, 0.3, -117);
     const escortRoles = [
       `${factionKey}_medic`,
       `${factionKey}_tank`,
@@ -206,22 +285,24 @@ export class LivingCityManager {
     ];
     escortRoles.forEach((role, idx) => {
       const ang = (idx / escortRoles.length) * Math.PI * 2;
-      const sx = pPos.x + Math.cos(ang) * 5.5;
-      const sz = pPos.z + Math.sin(ang) * 5.5;
+      const rawX = pPos.x + Math.cos(ang) * 5.5;
+      const rawZ = pPos.z + Math.sin(ang) * 5.5;
+      const safe = this._resolveBuildingCollision(rawX, rawZ, 2.2);
       const unit = this._spawnCombatNpc({
         faction: factionKey,
         role,
-        x: sx,
-        z: sz,
-        homeX: sx,
-        homeZ: sz
+        x: safe.x,
+        z: safe.z,
+        homeX: safe.x,
+        homeZ: safe.z
       });
       unit.isEscortingPlayer = true;
     });
 
-    // Também cria uma Estação de Cura 3D Aliada perto do ponto inicial!
+    // Também cria uma Estação de Cura 3D Aliada perto do ponto inicial (fora de prédios)!
+    const healSafe = this._resolveBuildingCollision(pPos.x + 3.8, pPos.z - 2.5, 2.2);
     this._spawnLegoHealStation(
-      new THREE.Vector3(pPos.x + 3.8, pPos.y, pPos.z - 2.5),
+      new THREE.Vector3(healSafe.x, pPos.y, healSafe.z),
       factionKey,
       true
     );
@@ -246,10 +327,17 @@ export class LivingCityManager {
     if (npc.visual?.allyRing) {
       npc.visual.allyRing.visible = isAllied;
     }
+    if (npc.visual?.allyMarker) {
+      npc.visual.allyMarker.visible = isAllied;
+    }
+    if (npc.visual?.enemyMarker) {
+      npc.visual.enemyMarker.visible = !isAllied;
+    }
+    if (npc.visual?.hpBarGroup) {
+      npc.visual.hpBarGroup.visible = Boolean(npc.isBoss);
+    }
     if (npc.visual?.hpFillMat) {
-      npc.visual.hpFillMat.color.setHex(
-        isAllied ? 0x22c55e : npc.isBoss ? 0xfacc15 : 0xef4444
-      );
+      npc.visual.hpFillMat.color.setHex(isAllied ? 0x22c55e : 0xfacc15);
     }
   }
 
@@ -798,6 +886,12 @@ export class LivingCityManager {
       root.position.x += moveX * speed * dt;
       root.position.z += moveZ * speed * dt;
 
+      const pedCol = this._resolveBuildingCollision(root.position.x, root.position.z, 1.15);
+      if (pedCol.collided) {
+        root.position.x = pedCol.x;
+        root.position.z = pedCol.z;
+      }
+
       // Correção de altura Y seguindo pontes, rampas e o Morro da Cidade de Deus!
       const terrainY = this.world.getTerrainHeightAt
         ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
@@ -827,25 +921,25 @@ export class LivingCityManager {
   _initFactionsAndPolice() {
     const spawns = [
       // ------------------------------------------------------------------------
-      // FRONT CENTRAL DE GUERRA MUNDIAL (ESTILO PVZ GW2 BACKYARD BATTLEGROUND)
+      // FRONT CENTRAL DE GUERRA MUNDIAL (ASFALTO ABERTO DA AVENIDA Z = -117 & X = 0)
       // ------------------------------------------------------------------------
-      // Esquadrão CV no Front Central (com Médico Cientista e Tanque de Escudo!)
-      { faction: 'cv', role: 'cv_medic', x: -24, z: -96, homeX: -24, homeZ: -96 },
-      { faction: 'cv', role: 'cv_tank', x: -18, z: -92, homeX: -18, homeZ: -92 },
-      { faction: 'cv', role: 'cv_rifle', x: -28, z: -88, homeX: -28, homeZ: -88 },
-      { faction: 'cv', role: 'cv_rpg', x: -22, z: -102, homeX: -22, homeZ: -102 },
+      // Pelotão CV no Front Central (Avenida Oeste do Cruzamento Central)
+      { faction: 'cv', role: 'cv_medic', x: -36, z: -117, homeX: -36, homeZ: -117 },
+      { faction: 'cv', role: 'cv_tank', x: -28, z: -122, homeX: -28, homeZ: -122 },
+      { faction: 'cv', role: 'cv_rifle', x: -22, z: -113, homeX: -22, homeZ: -113 },
+      { faction: 'cv', role: 'cv_rpg', x: -14, z: -120, homeX: -14, homeZ: -120 },
 
-      // Esquadrão PCC no Front Central (com Médico Cientista e Tanque de Escudo!)
-      { faction: 'pcc', role: 'pcc_medic', x: 24, z: -96, homeX: 24, homeZ: -96 },
-      { faction: 'pcc', role: 'pcc_tank', x: 18, z: -92, homeX: 18, homeZ: -92 },
-      { faction: 'pcc', role: 'pcc_smg', x: 28, z: -88, homeX: 28, homeZ: -88 },
-      { faction: 'pcc', role: 'pcc_c4', x: 22, z: -102, homeX: 22, homeZ: -102 },
+      // Pelotão PCC no Front Central (Avenida Leste do Cruzamento Central)
+      { faction: 'pcc', role: 'pcc_medic', x: 36, z: -117, homeX: 36, homeZ: -117 },
+      { faction: 'pcc', role: 'pcc_tank', x: 28, z: -122, homeX: 28, homeZ: -122 },
+      { faction: 'pcc', role: 'pcc_smg', x: 22, z: -113, homeX: 22, homeZ: -113 },
+      { faction: 'pcc', role: 'pcc_c4', x: 14, z: -120, homeX: 14, homeZ: -120 },
 
-      // Esquadrão A.R.E.S. no Front Central (com Cientista Quântico e Tanque de Escudo!)
-      { faction: 'ares', role: 'ares_medic', x: 0, z: -72, homeX: 0, homeZ: -72 },
-      { faction: 'ares', role: 'ares_tank', x: -6, z: -76, homeX: -6, homeZ: -76 },
-      { faction: 'ares', role: 'ares_exo', x: 6, z: -76, homeX: 6, homeZ: -76 },
-      { faction: 'ares', role: 'ares_drone', x: 0, z: -66, homeX: 0, homeZ: -66 },
+      // Pelotão A.R.E.S. no Front Central (Corredor Aberto da Avenida X = 0)
+      { faction: 'ares', role: 'ares_medic', x: 0, z: -92, homeX: 0, homeZ: -92 },
+      { faction: 'ares', role: 'ares_tank', x: -6, z: -98, homeX: -6, homeZ: -98 },
+      { faction: 'ares', role: 'ares_exo', x: 6, z: -98, homeX: 6, homeZ: -98 },
+      { faction: 'ares', role: 'ares_drone', x: 0, z: -104, homeX: 0, homeZ: -104 },
 
       // ------------------------------------------------------------------------
       // ZONA DE GUERRA 1: CENTRO FINANCEIRO / AVENIDA DO SUPER BANCO (BOPE vs PCC vs CV)
@@ -858,9 +952,9 @@ export class LivingCityManager {
       { faction: 'pcc', role: 'pcc_smg', x: 94, z: -112, homeX: 94, homeZ: -112 },
       { faction: 'pcc', role: 'pcc_medic', x: 98, z: -116, homeX: 98, homeZ: -116 },
       { faction: 'pcc', role: 'pcc_c4', x: 102, z: -120, homeX: 102, homeZ: -120 },
-      { faction: 'pcc', role: 'pcc_tank', x: 108, z: -106, homeX: 108, homeZ: -106 },
-      { faction: 'cv', role: 'cv_rifle', x: 86, z: -96, homeX: 86, homeZ: -96 },
-      { faction: 'cv', role: 'cv_rpg', x: 92, z: -92, homeX: 92, homeZ: -92 },
+      { faction: 'pcc', role: 'pcc_tank', x: 108, z: -110, homeX: 108, homeZ: -110 },
+      { faction: 'cv', role: 'cv_rifle', x: 84, z: -115, homeX: 84, homeZ: -115 },
+      { faction: 'cv', role: 'cv_rpg', x: 88, z: -122, homeX: 88, homeZ: -122 },
 
       // ------------------------------------------------------------------------
       // ZONA DE GUERRA 2: FRONTEIRA OESTE — ENTRADA DA CIDADE DE DEUS (CV vs BOPE vs A.R.E.S.)
@@ -874,8 +968,8 @@ export class LivingCityManager {
       { faction: 'police', role: 'bope_rifle', x: -448, z: -120, homeX: -448, homeZ: -120 },
       { faction: 'police', role: 'bope_rifle', x: -444, z: -112, homeX: -444, homeZ: -112 },
       { faction: 'police', role: 'bope_rifle', x: -452, z: -246, homeX: -452, homeZ: -246 },
-      { faction: 'ares', role: 'ares_exo', x: -462, z: -96, homeX: -462, homeZ: -96 },
-      { faction: 'ares', role: 'ares_drone', x: -458, z: -102, homeX: -458, homeZ: -102 },
+      { faction: 'ares', role: 'ares_exo', x: -462, z: -115, homeX: -462, homeZ: -115 },
+      { faction: 'ares', role: 'ares_drone', x: -458, z: -122, homeX: -458, homeZ: -122 },
 
       // ------------------------------------------------------------------------
       // INTERIOR DO MORRO DA CIDADE DE DEUS (5 NÍVEIS DE TROPAS, MÉDICOS E TANQUES DO CV!)
@@ -968,10 +1062,10 @@ export class LivingCityManager {
       this._spawnCombatNpc(sp);
     }
 
-    // Já cria 3 Estações de Cura 3D no Front Central (uma para cada facção)!
-    this._spawnLegoHealStation(new THREE.Vector3(-25, 0, -93), 'cv', true);
-    this._spawnLegoHealStation(new THREE.Vector3(25, 0, -93), 'pcc', true);
-    this._spawnLegoHealStation(new THREE.Vector3(0, 0, -71), 'ares', true);
+    // Já cria 3 Estações de Cura 3D no Asfalto Aberto do Front Central (uma para cada facção)!
+    this._spawnLegoHealStation(new THREE.Vector3(-32, 0, -117), 'cv', true);
+    this._spawnLegoHealStation(new THREE.Vector3(32, 0, -117), 'pcc', true);
+    this._spawnLegoHealStation(new THREE.Vector3(0, 0, -90), 'ares', true);
   }
 
   _spawnCombatNpc(sp) {
@@ -980,6 +1074,14 @@ export class LivingCityManager {
     const isDrone = sp.role === 'ares_drone';
     const isMedic = String(sp.role || '').endsWith('_medic');
     const isTank = String(sp.role || '').endsWith('_tank');
+
+    // Garante que NENHUM soldado, médico, tanque ou Boss nasça dentro de um prédio!
+    const safeSpawn = this._resolveBuildingCollision(sp.x, sp.z, isBoss ? 2.8 : 2.2);
+    const safeHome = this._resolveBuildingCollision(sp.homeX ?? sp.x, sp.homeZ ?? sp.z, isBoss ? 2.8 : 2.2);
+    const spawnX = safeSpawn.x;
+    const spawnZ = safeSpawn.z;
+    const homeX = safeHome.x;
+    const homeZ = safeHome.z;
 
     const visual = isDrone
       ? this._buildAresDroneMesh()
@@ -993,28 +1095,27 @@ export class LivingCityManager {
         });
 
     const groundY = this.world.getTerrainHeightAt
-      ? this.world.getTerrainHeightAt(sp.x, sp.z)
+      ? this.world.getTerrainHeightAt(spawnX, spawnZ)
       : 0.28;
     const baseY = isDrone ? groundY + 4.2 : Math.max(0.28, groundY);
-    visual.root.position.set(sp.x, baseY, sp.z);
+    visual.root.position.set(spawnX, baseY, spawnZ);
     this.scene.add(visual.root);
 
-    // Barra de HP 3D Flutuante acima da cabeça
-    const hpBarGroup = new THREE.Group();
-    hpBarGroup.position.set(0, isBoss ? 2.45 : isMecha ? 2.25 : isDrone ? 0.95 : 2.35, 0);
-    hpBarGroup.visible = isBoss;
-    const bgMat = new THREE.MeshBasicMaterial({ color: 0x090a0d, side: THREE.DoubleSide });
-    const bgMesh = new THREE.Mesh(HP_BAR_BG_GEO, bgMat);
-    const fillColor =
-      sp.faction === 'ares' ? 0xd946ef : sp.faction === 'police' ? 0x38bdf8 : 0x22c55e;
-    const fillMat = new THREE.MeshBasicMaterial({ color: fillColor, side: THREE.DoubleSide });
-    const fillMesh = new THREE.Mesh(HP_BAR_FILL_GEO, fillMat);
-    fillMesh.position.set(-0.52, 0, 0.01);
-    hpBarGroup.add(bgMesh, fillMesh);
-    visual.root.add(hpBarGroup);
-    visual.hpBarGroup = hpBarGroup;
-    visual.hpFillMesh = fillMesh;
-    visual.hpFillMat = fillMat;
+    // Barra de HP 3D Flutuante APENAS para os Chefões Colossais (isBoss === true)
+    if (isBoss) {
+      const hpBarGroup = new THREE.Group();
+      hpBarGroup.position.set(0, 2.75, 0);
+      const bgMat = new THREE.MeshBasicMaterial({ color: 0x090a0d, side: THREE.DoubleSide });
+      const bgMesh = new THREE.Mesh(HP_BAR_BG_GEO, bgMat);
+      const fillMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide });
+      const fillMesh = new THREE.Mesh(HP_BAR_FILL_GEO, fillMat);
+      fillMesh.position.set(-0.52, 0, 0.01);
+      hpBarGroup.add(bgMesh, fillMesh);
+      visual.root.add(hpBarGroup);
+      visual.hpBarGroup = hpBarGroup;
+      visual.hpFillMesh = fillMesh;
+      visual.hpFillMat = fillMat;
+    }
 
     const maxHp = isBoss
       ? 1200
@@ -1032,12 +1133,12 @@ export class LivingCityManager {
 
     const debrisColors =
       sp.faction === 'cv'
-        ? [0xdc2626, 0x090a0d, 0xfacc15]
+        ? [0xef4444, 0xdc2626, 0xfacc15]
         : sp.faction === 'pcc'
-          ? [0x090a0d, 0x1d4ed8, 0x38bdf8]
+          ? [0x2563eb, 0x38bdf8, 0xf8fafc]
           : sp.faction === 'ares'
-            ? [0x475569, 0xa855f7, 0xd946ef]
-            : [0x090a0d, 0xfacc15, 0x334155];
+            ? [0x9333ea, 0xd946ef, 0xfacc15]
+            : [0x111827, 0xfacc15, 0x334155];
 
     const studDrops = isBoss
       ? { purple: 6, blue: 14, gold: 24, silver: 10 }
@@ -1085,10 +1186,10 @@ export class LivingCityManager {
       visual,
       destructible: destructibleObj,
       destructibleObj,
-      x: sp.x,
-      z: sp.z,
-      homeX: sp.homeX,
-      homeZ: sp.homeZ,
+      x: spawnX,
+      z: spawnZ,
+      homeX,
+      homeZ,
       moveSpeed: isBoss ? 5.6 : isMecha ? 4.8 : isTank ? 5.2 : isDrone ? 8.2 : 6.4,
       fireCooldown: 0.4 + Math.random() * 0.9,
       fireInterval: isBoss
@@ -1113,7 +1214,7 @@ export class LivingCityManager {
     if (destructibleObj) {
       destructibleObj.onDamaged = (amount, hitOrigin) => {
         npc.hitFlashTimer = 0.14;
-        if (npc.visual.hpBarGroup && npc.visual.hpFillMesh) {
+        if (npc.isBoss && npc.visual.hpBarGroup && npc.visual.hpFillMesh) {
           npc.visual.hpBarGroup.visible = true;
           const ratio = Math.max(0.04, Math.min(1, destructibleObj.hp / destructibleObj.maxHp));
           npc.visual.hpFillMesh.scale.x = ratio;
@@ -1198,18 +1299,22 @@ export class LivingCityManager {
 
   _buildAresDroneMesh() {
     const root = new THREE.Group();
-    const steelMat = getLegoMaterial(0x334155, { metalness: 0.75, roughness: 0.2 });
-    const neonPurple = getLegoMaterial(0xa855f7, {
-      emissive: 0x9333ea,
+    const purpleArmor = getLegoMaterial(0x9333ea, { metalness: 0.55, roughness: 0.22 });
+    const neonPurple = getLegoMaterial(0xd946ef, {
+      emissive: 0xa855f7,
       emissiveIntensity: 2.4,
       roughness: 0.1
     });
+    const goldMat = getLegoMaterial(0xfacc15, { metalness: 0.7, roughness: 0.18 });
     const darkMat = getLegoMaterial(0x090a0d, { roughness: 0.3 });
 
-    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.42, 0.32, 8), steelMat);
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.42, 0.32, 8), purpleArmor);
+    const goldTrim = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.04, 6, 16), goldMat);
+    goldTrim.rotation.x = Math.PI / 2;
+    goldTrim.position.y = 0.08;
     const eyeCore = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), neonPurple);
     eyeCore.position.set(0, -0.04, 0.42);
-    const laserBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.48, 8), darkMat);
+    const laserBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.48, 8), goldMat);
     laserBarrel.rotation.x = Math.PI / 2;
     laserBarrel.position.set(0, -0.18, 0.35);
 
@@ -1229,12 +1334,26 @@ export class LivingCityManager {
     allyRing.position.y = -0.35;
     allyRing.visible = false;
 
-    root.add(hull, eyeCore, laserBarrel, muzzleFlashMesh, allyRing);
+    // Ícone 3D Tático Limpo acima do Drone (Verde Esmeralda se Aliado, Magenta se Inimigo)
+    const teamMarkerGroup = new THREE.Group();
+    teamMarkerGroup.position.set(0, 0.85, 0);
+    const allyMarker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.2, 0),
+      new THREE.MeshBasicMaterial({ color: 0x22c55e })
+    );
+    allyMarker.scale.set(0.9, 1.35, 0.9);
+    const enemyMarker = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.17, 0),
+      new THREE.MeshBasicMaterial({ color: 0xd946ef })
+    );
+    teamMarkerGroup.add(allyMarker, enemyMarker);
+
+    root.add(hull, goldTrim, eyeCore, laserBarrel, muzzleFlashMesh, allyRing, teamMarkerGroup);
 
     const rotors = [];
     for (const sx of [-0.58, 0.58]) {
       for (const sz of [-0.58, 0.58]) {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.55), steelMat);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.55), goldMat);
         arm.position.set(sx * 0.6, 0.05, sz * 0.6);
         arm.rotation.y = Math.atan2(sx, sz);
 
@@ -1249,7 +1368,16 @@ export class LivingCityManager {
       }
     }
 
-    return { root, rotors, muzzleFlashMesh, allyRing, isDrone: true };
+    return {
+      root,
+      rotors,
+      muzzleFlashMesh,
+      allyRing,
+      teamMarkerGroup,
+      allyMarker,
+      enemyMarker,
+      isDrone: true
+    };
   }
 
   _buildLegoNpcMesh(cfg) {
@@ -1268,40 +1396,42 @@ export class LivingCityManager {
     }
 
     const faction = cfg.faction || 'civilian';
+
+    // CORES PURAS E VIBRANTES DE CORPO INTEIRO POR FACÇÃO (ZERO PRETO CONFUSO!)
     const headColor =
       cfg.headColor ??
       (faction === 'pcc'
-        ? 0x090a0d
+        ? 0x2563eb
         : faction === 'ares'
-          ? 0x334155
+          ? 0x9333ea
           : LEGO_COLORS.yellow);
     const torsoColor =
       cfg.torsoColor ??
       (faction === 'cv'
-        ? 0xdc2626
+        ? 0xef4444 // Vermelho Escarlate Vibrante (CV)
         : faction === 'pcc'
-          ? 0x090a0d
+          ? 0x2563eb // Azul Royal Vibrante (PCC)
           : faction === 'ares'
-            ? 0x475569
+            ? 0x9333ea // Roxo Neon Vibrante (A.R.E.S.)
             : faction === 'police'
-              ? 0x090a0d
+              ? 0x111827 // Farda Preta Tática (BOPE)
               : 0x2563eb);
     const legColor =
       cfg.legColor ??
       (faction === 'cv'
-        ? 0x1c1917
+        ? 0xdc2626 // Calça Vermelho Intenso (CV)
         : faction === 'pcc'
-          ? 0x1e3a8a
+          ? 0x38bdf8 // Calça Azul-Ciano Elétrico (PCC)
           : faction === 'ares'
-            ? 0x1e293b
-            : 0x090a0d);
+            ? 0xd946ef // Calça Magenta Vibrante (A.R.E.S.)
+            : 0x111827);
 
     const headMat = getLegoMaterial(headColor, { roughness: 0.22 });
-    const torsoMat = getLegoMaterial(torsoColor, { roughness: 0.25 });
-    const legMat = getLegoMaterial(legColor, { roughness: 0.26 });
+    const torsoMat = getLegoMaterial(torsoColor, { roughness: 0.22 });
+    const legMat = getLegoMaterial(legColor, { roughness: 0.24 });
     const blackMat = getLegoMaterial(0x090a0d, { roughness: 0.28 });
     const goldMat = getLegoMaterial(0xfacc15, { metalness: 0.65, roughness: 0.18 });
-    const whiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
+    const whiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.18 });
     const medicGreenMat = getLegoMaterial(0x22c55e, {
       emissive: 0x16a34a,
       emissiveIntensity: 1.8,
@@ -1320,45 +1450,55 @@ export class LivingCityManager {
     torso.position.set(0, 0.98, 0);
     root.add(torso);
 
-    // Detalhe Tático no Peito por Facção / Mochila Civil
+    // Detalhe Tático de Alta Visibilidade no Peito e Ombros por Facção
     if (faction === 'cv') {
-      const vest = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.48, 0.42), blackMat);
-      vest.position.set(0, 0.96, 0);
-      const redBand = new THREE.Mesh(
-        new THREE.BoxGeometry(0.76, 0.14, 0.44),
-        getLegoMaterial(0xef4444, { emissive: 0x991b1b, emissiveIntensity: 0.4 })
+      // CV: Faixas Táticas em Branco Puro + Vermelho Vivo + Corrente de Ouro Grossa
+      const redChest = new THREE.Mesh(
+        new THREE.BoxGeometry(0.74, 0.48, 0.42),
+        getLegoMaterial(0xdc2626, { roughness: 0.2 })
       );
-      redBand.position.set(0, 1.12, 0);
-      const goldChain = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.032, 8, 16), goldMat);
+      redChest.position.set(0, 0.96, 0);
+      const whiteStripe = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.14, 0.44), whiteMat);
+      whiteStripe.position.set(0, 1.08, 0);
+      const goldChain = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.036, 8, 16), goldMat);
       goldChain.rotation.x = Math.PI * 0.42;
       goldChain.position.set(0, 1.32, 0.06);
-      root.add(vest, redBand, goldChain);
+      root.add(redChest, whiteStripe, goldChain);
     } else if (faction === 'pcc') {
-      const bluePlate = new THREE.Mesh(
-        new THREE.BoxGeometry(0.74, 0.5, 0.42),
-        getLegoMaterial(0x1d4ed8, { metalness: 0.35, roughness: 0.22 })
+      // PCC: Colete Tático Branco Puro + Faixa Ciano Elétrica (Zero Preto!)
+      const whiteVest = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.48, 0.42), whiteMat);
+      whiteVest.position.set(0, 0.98, 0);
+      const cyanBand = new THREE.Mesh(
+        new THREE.BoxGeometry(0.76, 0.15, 0.45),
+        getLegoMaterial(0x38bdf8, { emissive: 0x0284c7, emissiveIntensity: 0.55 })
       );
-      bluePlate.position.set(0, 0.98, 0);
-      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.16, 0.46), blackMat);
-      pouch.position.set(0, 0.84, 0);
-      root.add(bluePlate, pouch);
+      cyanBand.position.set(0, 1.02, 0);
+      root.add(whiteVest, cyanBand);
     } else if (faction === 'ares') {
-      const neonMat = getLegoMaterial(0xa855f7, { emissive: 0x9333ea, emissiveIntensity: 2.2 });
-      const chestCore = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.44), neonMat);
+      // A.R.E.S.: Núcleo Magenta Neon + Ombreiras Douradas Brilhantes em todas as tropas!
+      const neonMat = getLegoMaterial(0xd946ef, { emissive: 0xa855f7, emissiveIntensity: 2.2 });
+      const chestCore = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.45), neonMat);
       chestCore.position.set(0, 1.02, 0);
       root.add(chestCore);
-      if (isMecha || isBoss) {
-        for (const side of [-1, 1]) {
-          const shoulderPod = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.34, 0.48), torsoMat);
-          shoulderPod.position.set(side * 0.52, 1.32, 0);
-          root.add(shoulderPod);
-        }
+      for (const side of [-1, 1]) {
+        const shoulderPod = new THREE.Mesh(
+          new THREE.BoxGeometry(isMecha || isBoss ? 0.38 : 0.26, 0.24, 0.44),
+          goldMat
+        );
+        shoulderPod.position.set(side * 0.46, 1.28, 0);
+        root.add(shoulderPod);
       }
     } else if (faction === 'police') {
+      // BOPE: Farda Preta Tática com Ombreiras e Brasão Dourados
       const bopeVest = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.52, 0.42), blackMat);
       bopeVest.position.set(0, 0.98, 0);
-      const goldBadge = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.45), goldMat);
+      const goldBadge = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.45), goldMat);
       goldBadge.position.set(0.14, 1.06, 0);
+      for (const side of [-1, 1]) {
+        const goldPad = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, 0.42), goldMat);
+        goldPad.position.set(side * 0.44, 1.28, 0);
+        root.add(goldPad);
+      }
       root.add(bopeVest, goldBadge);
     } else if ((cfg.styleIdx || 0) % 2 === 0) {
       const backpack = new THREE.Mesh(
@@ -1370,7 +1510,37 @@ export class LivingCityManager {
     }
 
     // ------------------------------------------------------------------------
-    // MOCHILA MÉDICA 3D COM CRUZ VERDE BRILHANTE (+) + RAIO DE CURA 3D (ESTILO CIENTISTA / GIRASSOL PVZ GW2!)
+    // ESTANDARTE DORSAL LEGO 3D (BANDEIRA VERTICAL DA FACÇÃO NAS COSTAS!)
+    // ------------------------------------------------------------------------
+    let factionBanner = null;
+    if (faction === 'cv' || faction === 'pcc' || faction === 'ares' || faction === 'police') {
+      const bannerColor =
+        faction === 'cv'
+          ? 0xef4444
+          : faction === 'pcc'
+            ? 0x38bdf8
+            : faction === 'ares'
+              ? 0xd946ef
+              : 0xfacc15;
+      factionBanner = new THREE.Group();
+      const mast = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.032, 0.038, 1.12, 8),
+        goldMat
+      );
+      mast.position.set(0, 1.56, -0.26);
+      const flagPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.58, 0.38),
+        new THREE.MeshBasicMaterial({ color: bannerColor })
+      );
+      flagPlate.position.set(0, 1.82, -0.46);
+      const topStud = new THREE.Mesh(SHARED_STUD_GEO, goldMat);
+      topStud.position.set(0, 2.14, -0.26);
+      factionBanner.add(mast, flagPlate, topStud);
+      root.add(factionBanner);
+    }
+
+    // ------------------------------------------------------------------------
+    // MOCHILA MÉDICA 3D COM CRUZ VERDE BRILHANTE (+) + RAIO DE CURA 3D
     // ------------------------------------------------------------------------
     let healBeamMesh = null;
     if (isMedic) {
@@ -1385,14 +1555,12 @@ export class LivingCityManager {
       medPack.add(packBox, crossV, crossH, tankL, tankR);
       medPack.position.set(0, 1.04, -0.32);
 
-      // Emblema de Cruz Médica no Peito Frontal
       const chestCrossV = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, 0.48), medicGreenMat);
       chestCrossV.position.set(0, 1.02, 0);
       const chestCrossH = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.48), medicGreenMat);
       chestCrossH.position.set(0, 1.02, 0);
       root.add(medPack, chestCrossV, chestCrossH);
 
-      // Raio de Cura Contínuo 3D (Ancorado na base para apontar e esticar até o Jogador ou Aliado!)
       const beamGeo = new THREE.CylinderGeometry(0.11, 0.16, 1.0, 10);
       beamGeo.rotateX(Math.PI / 2);
       beamGeo.translate(0, 0, 0.5);
@@ -1415,7 +1583,6 @@ export class LivingCityManager {
     let bossShieldRing = null;
     if (isBoss) {
       if (faction === 'cv') {
-        // TROVÃO RUBRO: Ombreiras blindadas com morteiros de fogo + Coroa Dourada
         const redGlowMat = getLegoMaterial(0xef4444, { emissive: 0xdc2626, emissiveIntensity: 1.6 });
         for (const side of [-1, 1]) {
           const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.52), goldMat);
@@ -1428,17 +1595,15 @@ export class LivingCityManager {
           root.add(pauldron, mortarTube, flameTip);
         }
       } else if (faction === 'pcc') {
-        // BLINDADO SUPREMO Z-15: Cúpula blindada azul-neon + Pods duplos de mísseis nos ombros
         const cyanGlowMat = getLegoMaterial(0x38bdf8, { emissive: 0x0284c7, emissiveIntensity: 1.8 });
         for (const side of [-1, 1]) {
-          const missilePod = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.56), blackMat);
+          const missilePod = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.56), whiteMat);
           missilePod.position.set(side * 0.56, 1.42, -0.05);
           const podFront = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.34, 0.6), cyanGlowMat);
           podFront.position.set(side * 0.56, 1.42, -0.05);
           root.add(missilePod, podFront);
         }
       } else if (faction === 'ares') {
-        // OVERLORD QUÂNTICO: Anel Eletromagnético Rotativo 3D + Ombreiras Douradas Quânticas
         const purpleGlow = getLegoMaterial(0xd946ef, { emissive: 0xa855f7, emissiveIntensity: 2.4 });
         for (const side of [-1, 1]) {
           const wingPylon = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.52, 0.48), goldMat);
@@ -1478,32 +1643,35 @@ export class LivingCityManager {
     faceShell.position.set(0, 1.6, 0);
     root.add(head, faceShell, stud);
 
-    // Capacete / Boina / Bandana / Cabelo / Boné por Facção e Estilo Civil
+    // Capacete / Boina / Bandana / Capuz Colorido por Facção
     if (faction === 'cv') {
-      const bandanaMat = getLegoMaterial(isBoss ? 0xfacc15 : 0xdc2626);
-      const redBandana = new THREE.Mesh(new THREE.CylinderGeometry(0.345, 0.345, 0.14, 14), bandanaMat);
-      redBandana.position.set(0, 1.78, 0);
+      const bandanaMat = getLegoMaterial(isBoss ? 0xfacc15 : 0xef4444);
+      const redBandana = new THREE.Mesh(new THREE.CylinderGeometry(0.348, 0.348, 0.16, 14), bandanaMat);
+      redBandana.position.set(0, 1.79, 0);
       const knot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.18), bandanaMat);
       knot.position.set(0, 1.74, -0.34);
       root.add(redBandana, knot);
     } else if (faction === 'pcc') {
-      const hoodCap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.14, 14), isBoss ? goldMat : blackMat);
+      const pccCyanMat = getLegoMaterial(isBoss ? 0xfacc15 : 0x38bdf8);
+      const hoodCap = new THREE.Mesh(new THREE.CylinderGeometry(0.348, 0.348, 0.16, 14), pccCyanMat);
       hoodCap.position.set(0, 1.8, 0);
-      root.add(hoodCap);
+      const brim = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.06, 0.32), whiteMat);
+      brim.position.set(0, 1.75, 0.25);
+      root.add(hoodCap, brim);
     } else if (faction === 'ares') {
-      const helmetTop = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.2, 0.68), isBoss ? goldMat : torsoMat);
+      const helmetTop = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.2, 0.68), goldMat);
       helmetTop.position.set(0, 1.82, 0);
       const visor = new THREE.Mesh(
-        new THREE.BoxGeometry(0.52, 0.12, 0.12),
-        getLegoMaterial(0xd946ef, { emissive: 0xa855f7, emissiveIntensity: 2.2 })
+        new THREE.BoxGeometry(0.54, 0.13, 0.12),
+        getLegoMaterial(0xfacc15, { emissive: 0xd97706, emissiveIntensity: 2.0 })
       );
       visor.position.set(0, 1.62, 0.3);
       root.add(helmetTop, visor);
     } else if (faction === 'police') {
-      const beret = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.34, 0.14, 14), blackMat);
+      const beret = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.34, 0.14, 14), goldMat);
       beret.position.set(-0.04, 1.82, 0);
       beret.rotation.z = 0.16;
-      const beretBadge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.06), goldMat);
+      const beretBadge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.06), blackMat);
       beretBadge.position.set(0.1, 1.83, 0.33);
       root.add(beret, beretBadge);
     } else {
@@ -1534,14 +1702,13 @@ export class LivingCityManager {
     leftArm.position.set(-0.44, 1.26, 0);
     leftArm.add(new THREE.Mesh(NPC_ARM_GEO, torsoMat));
 
-    // Escudo de Energia Translúcido 3D para os Tanques Pesados (Estilo Citron / All-Star PvZ GW2!)
     if (isTank) {
       leftArm.rotation.x = -Math.PI * 0.35;
       const shieldColor =
         faction === 'cv' ? 0xef4444 : faction === 'pcc' ? 0x38bdf8 : 0xd946ef;
       const shieldFrame = new THREE.Mesh(
         new THREE.BoxGeometry(0.68, 1.18, 0.08),
-        blackMat
+        whiteMat
       );
       shieldFrame.position.set(-0.08, -0.34, 0.36);
       shieldFrame.rotation.x = Math.PI * 0.35;
@@ -1550,7 +1717,7 @@ export class LivingCityManager {
         new THREE.MeshBasicMaterial({
           color: shieldColor,
           transparent: true,
-          opacity: 0.65
+          opacity: 0.72
         })
       );
       shieldGlass.position.copy(shieldFrame.position);
@@ -1572,7 +1739,7 @@ export class LivingCityManager {
         : isBoss
           ? 0xfacc15
           : faction === 'ares'
-            ? 0xa855f7
+            ? 0xfacc15
             : isRpg
               ? 0x3f6212
               : 0x1e293b;
@@ -1616,10 +1783,14 @@ export class LivingCityManager {
 
     root.add(leftArm, rightArm);
 
-    // Anel Verde Brilhante nos pés de todas as unidades da Facção Aliada do Jogador!
+    // Anel Verde Discreto (0.65m) nos pés APENAS das unidades Aliadas + Ícone 3D Tático Limpo na Cabeça (y = 2.45)!
     let allyRing = null;
+    let teamMarkerGroup = null;
+    let allyMarker = null;
+    let enemyMarker = null;
+
     if (faction !== 'civilian') {
-      const aRingGeo = new THREE.TorusGeometry(0.64, 0.05, 8, 22);
+      const aRingGeo = new THREE.TorusGeometry(0.65, 0.045, 8, 22);
       aRingGeo.rotateX(Math.PI / 2);
       allyRing = new THREE.Mesh(
         aRingGeo,
@@ -1628,6 +1799,40 @@ export class LivingCityManager {
       allyRing.position.y = 0.06;
       allyRing.visible = false;
       root.add(allyRing);
+
+      teamMarkerGroup = new THREE.Group();
+      teamMarkerGroup.position.set(0, 2.45, 0);
+
+      // 1) Marcador de ALIADO: Cruz Médica Verde (+) se for Médico, ou Diamante/Chevron Verde-Esmeralda (0x22c55e)
+      allyMarker = new THREE.Group();
+      const allyGreenBasic = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+      if (isMedic) {
+        const cV = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), allyGreenBasic);
+        const cH = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.13, 0.13), allyGreenBasic);
+        allyMarker.add(cV, cH);
+      } else {
+        const diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), allyGreenBasic);
+        diamond.scale.set(0.88, 1.38, 0.88);
+        allyMarker.add(diamond);
+      }
+
+      // 2) Marcador de INIMIGO: Cristal/Mira da Cor Pura da Facção Inimiga (ZERO VERDE!)
+      const enemyColor =
+        faction === 'cv'
+          ? 0xef4444
+          : faction === 'pcc'
+            ? 0x38bdf8
+            : faction === 'ares'
+              ? 0xd946ef
+              : 0xfacc15;
+      enemyMarker = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.17, 0),
+        new THREE.MeshBasicMaterial({ color: enemyColor })
+      );
+      enemyMarker.scale.set(0.95, 1.2, 0.95);
+
+      teamMarkerGroup.add(allyMarker, enemyMarker);
+      root.add(teamMarkerGroup);
     }
 
     let recruitRing = null;
@@ -1655,6 +1860,10 @@ export class LivingCityManager {
       muzzleFlashMesh,
       healBeamMesh,
       bossShieldRing,
+      factionBanner,
+      teamMarkerGroup,
+      allyMarker,
+      enemyMarker,
       allyRing,
       recruitRing
     };
@@ -1956,8 +2165,9 @@ export class LivingCityManager {
    * Cria uma Estação de Cura LEGO 3D no chão (Totem Médico com Cruz Verde + Anel Pulsante de Cura em Área de 6.8m)!
    */
   _spawnLegoHealStation(pos, faction = 'cv', permanent = false) {
+    const safePos = this._resolveBuildingCollision(pos.x, pos.z, 2.0);
     const groundY = this.world.getTerrainHeightAt
-      ? this.world.getTerrainHeightAt(pos.x, pos.z)
+      ? this.world.getTerrainHeightAt(safePos.x, safePos.z)
       : 0;
     const group = new THREE.Group();
     const whiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
@@ -1991,7 +2201,7 @@ export class LivingCityManager {
     auraRing.position.y = 0.1;
 
     group.add(basePedestal, pillar, crossGroup, auraRing);
-    group.position.set(pos.x, Math.max(0.05, groundY), pos.z);
+    group.position.set(safePos.x, Math.max(0.05, groundY), safePos.z);
     this.scene.add(group);
 
     this.healStations.push({
@@ -2009,8 +2219,9 @@ export class LivingCityManager {
    * Cria um Cristal Verde de Vida 3D (+50 HP) quando um inimigo é derrotado!
    */
   _spawnHealthCrystal(pos) {
+    const safePos = this._resolveBuildingCollision(pos.x, pos.z, 1.4);
     const groundY = this.world.getTerrainHeightAt
-      ? this.world.getTerrainHeightAt(pos.x, pos.z)
+      ? this.world.getTerrainHeightAt(safePos.x, safePos.z)
       : 0;
     const crystalGroup = new THREE.Group();
     const crystalMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
@@ -2023,7 +2234,7 @@ export class LivingCityManager {
       new THREE.MeshBasicMaterial({ color: 0x86efac })
     );
     crystalGroup.add(coreMesh, ringMesh);
-    crystalGroup.position.set(pos.x, Math.max(0.75, groundY + 0.75), pos.z);
+    crystalGroup.position.set(safePos.x, Math.max(0.75, groundY + 0.75), safePos.z);
     this.scene.add(crystalGroup);
 
     this.healthCrystals.push({
@@ -2308,14 +2519,23 @@ export class LivingCityManager {
       }
 
       const root = npc.visual.root;
+      let dSqToPlayer = 0;
       if (playerPos) {
-        const dSq = (root.position.x - playerPos.x) ** 2 + (root.position.z - playerPos.z) ** 2;
-        root.visible = dSq <= 410 * 410;
+        dSqToPlayer = (root.position.x - playerPos.x) ** 2 + (root.position.z - playerPos.z) ** 2;
+        root.visible = dSqToPlayer <= 410 * 410;
         if (!root.visible) continue;
       }
 
       npc.animTime += dt;
       npc.fireCooldown = Math.max(0, npc.fireCooldown - dt);
+
+      // Gira o Ícone Tático 3D de Time acima da cabeça (Chevron Verde para Aliados / Cristal de Facção para Inimigos)
+      if (npc.visual.teamMarkerGroup) {
+        npc.visual.teamMarkerGroup.rotation.y += dt * 2.4;
+      }
+      if (npc.visual.allyRing) {
+        npc.visual.allyRing.visible = npc.isAlliedToPlayer && (!playerPos || dSqToPlayer <= 55 * 55);
+      }
 
       // Gira o Anel de Escudo Eletromagnético do Overlord Quântico (A.R.E.S. Boss)
       if (npc.visual.bossShieldRing) {
@@ -2342,7 +2562,7 @@ export class LivingCityManager {
         root.scale.set(baseScaleX, baseScaleY, baseScaleX);
       }
 
-      if (npc.visual.hpBarGroup && npc.visual.hpBarGroup.visible && playerPos) {
+      if (npc.isBoss && npc.visual.hpBarGroup && npc.visual.hpBarGroup.visible && playerPos) {
         npc.visual.hpBarGroup.lookAt(playerPos.x, playerPos.y + 3.5, playerPos.z);
       }
 
@@ -2500,6 +2720,17 @@ export class LivingCityManager {
         root.position.z += moveDirZ * spd * dt;
       }
 
+      // COLISÃO FÍSICA REAL COM PRÉDIOS E PAREDES: Impede qualquer NPC de entrar dentro de edifícios!
+      const bCol = this._resolveBuildingCollision(
+        root.position.x,
+        root.position.z,
+        npc.isBoss ? 2.2 : npc.isMecha ? 1.65 : 1.25
+      );
+      if (bCol.collided) {
+        root.position.x = bCol.x;
+        root.position.z = bCol.z;
+      }
+
       const groundY = this.world.getTerrainHeightAt
         ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
         : 0.28;
@@ -2561,6 +2792,7 @@ export class LivingCityManager {
       // Prioriza focar Chefões Rivais na Guerra Mundial!
       const bossPriority = other.isBoss ? -12.0 : 0;
       if (d + bossPriority < bestScore) {
+        if (!this._hasLineOfSight(myPos.x, myPos.z, oPos.x, oPos.z)) continue;
         bestScore = d + bossPriority;
         bestTarget = {
           type: 'npc',
@@ -2577,7 +2809,10 @@ export class LivingCityManager {
     // Unidades da Facção Aliada do Jogador NUNCA miram no jogador!
     if (!iAmAllied && playerPos && (!controller || !(controller.stealthTimer > 0))) {
       const dPlayer = Math.hypot(playerPos.x - myPos.x, playerPos.z - myPos.z);
-      if (dPlayer < Math.min(maxRange, bestScore + 6.0)) {
+      if (
+        dPlayer < Math.min(maxRange, bestScore + 6.0) &&
+        this._hasLineOfSight(myPos.x, myPos.z, playerPos.x, playerPos.z)
+      ) {
         bestTarget = {
           type: 'player',
           pos: new THREE.Vector3(playerPos.x, playerPos.y + 1.05, playerPos.z)
@@ -2658,22 +2893,30 @@ export class LivingCityManager {
 
       let hit = false;
 
-      for (const npc of this.combatNpcs) {
-        if (npc.faction === p.faction || !npc.destructible || npc.destructible.destroyed) continue;
-        if (p.isAlliedShot && npc.isAlliedToPlayer) continue;
-        const nPos = npc.visual.root.position;
-        const dH = Math.hypot(p.mesh.position.x - nPos.x, p.mesh.position.z - nPos.z);
-        const dV = Math.abs(p.mesh.position.y - (nPos.y + 1.0));
-        const hitRad = npc.isBoss ? 2.3 : npc.isMecha ? 1.6 : 0.95;
-        const hitHeight = npc.isBoss ? 3.4 : npc.isMecha ? 2.2 : 1.3;
-        if (dH <= hitRad && dV <= hitHeight) {
-          if (this.destructibles) {
-            this.destructibles.damageObject(npc.destructible, p.damage, p.mesh.position, false, {
-              fromEnemyNpc: true
-            });
+      // Impede que projéteis atravessem prédios sólidos!
+      const wallCheck = this._resolveBuildingCollision(p.mesh.position.x, p.mesh.position.z, 0.25);
+      if (wallCheck.collided) {
+        hit = true;
+      }
+
+      if (!hit) {
+        for (const npc of this.combatNpcs) {
+          if (npc.faction === p.faction || !npc.destructible || npc.destructible.destroyed) continue;
+          if (p.isAlliedShot && npc.isAlliedToPlayer) continue;
+          const nPos = npc.visual.root.position;
+          const dH = Math.hypot(p.mesh.position.x - nPos.x, p.mesh.position.z - nPos.z);
+          const dV = Math.abs(p.mesh.position.y - (nPos.y + 1.0));
+          const hitRad = npc.isBoss ? 2.3 : npc.isMecha ? 1.6 : 0.95;
+          const hitHeight = npc.isBoss ? 3.4 : npc.isMecha ? 2.2 : 1.3;
+          if (dH <= hitRad && dV <= hitHeight) {
+            if (this.destructibles) {
+              this.destructibles.damageObject(npc.destructible, p.damage, p.mesh.position, false, {
+                fromEnemyNpc: true
+              });
+            }
+            hit = true;
+            break;
           }
-          hit = true;
-          break;
         }
       }
 
@@ -2757,9 +3000,9 @@ export class LivingCityManager {
       this.centralFlagBeacon.topCrown.rotation.y += dt * 1.8;
     }
 
-    // Se o jogador estiver no Front Central ou invadindo a base de uma facção rival, sobe gradualmente a Escalada de Guerra Mundial!
+    // Se o jogador estiver no Front Central (Avenida Central Z = -117) ou invadindo a base de uma facção rival, sobe gradualmente a Escalada de Guerra Mundial!
     if (playerPos && !this.bossWaveActive) {
-      const inCentralFront = Math.hypot(playerPos.x - 0, playerPos.z - -96) < 68.0;
+      const inCentralFront = Math.hypot(playerPos.x - 0, playerPos.z - -117) < 68.0;
       const inEnemyCdd = this.playerFaction !== 'cv' && playerPos.x < -480;
       const inEnemyPcc = this.playerFaction !== 'pcc' && playerPos.x > 550 && playerPos.z < 50;
       const inEnemyAres = this.playerFaction !== 'ares' && ((playerPos.x > 740 && playerPos.z > 120) || playerPos.x < -1050);
@@ -2799,19 +3042,6 @@ export class LivingCityManager {
     if (this.hud) {
       if (typeof this.hud.setPlayerHealth === 'function') {
         this.hud.setPlayerHealth(this.playerHp, this.playerMaxHp, this.playerBeingHealed);
-      }
-      if (typeof this.hud.updateWorldWarHud === 'function') {
-        this.activeBosses = this.activeBosses.filter(
-          (b) => b.destructible && !b.destructible.destroyed
-        );
-        const bossHudData = this.activeBosses.map((b) => ({
-          name: b.name,
-          faction: b.faction,
-          hp: b.destructible.hp,
-          maxHp: b.destructible.maxHp,
-          isAlly: b.isAlliedToPlayer
-        }));
-        this.hud.updateWorldWarHud(this.worldWarEscalation, bossHudData, this.bossWaveActive);
       }
     }
   }
