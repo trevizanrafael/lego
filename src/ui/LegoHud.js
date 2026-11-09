@@ -13,6 +13,16 @@ import {
   renderHeroDossierModal,
   renderHeroWheelCanvas
 } from './HeroWheelAndDossier.js';
+import {
+  FACTION_DATA,
+  UI_TEXTS,
+  getFactionLogoSvg,
+  loadAllSaveSlots,
+  writeSaveSlot,
+  deleteSaveSlot,
+  loadGameSettings,
+  saveGameSettings
+} from './FactionIconsAndSaveSystem.js';
 
 /**
  * Gerencia a HUD Tática Urbana Angular Limpa (IDV LEGO: Cidade de Deus):
@@ -28,7 +38,15 @@ export class LegoHud {
     this.displayedStuds = 0;
     this.hearts = 4;
     this.maxHearts = 4;
+    this.playerHp = 250;
+    this.playerMaxHp = 250;
     this.currentHeroKey = 'caveira';
+    this.playerFaction = 'cv';
+    this.activeSaveSlot = 0;
+    this.pendingSlotIndex = 0;
+    this.isTitleScreenActive = true;
+    this.isPauseMenuOpen = false;
+    this.settings = loadGameSettings();
 
     this.studCountEl = document.getElementById('hud-stud-count');
     this.studGainEl = document.getElementById('hud-stud-gain');
@@ -37,7 +55,18 @@ export class LegoHud {
     this.opTagEl = document.getElementById('hud-op-tag');
     this.portraitCanvas = document.getElementById('hud-portrait-canvas');
     this.heartsContainer = document.getElementById('hud-hearts');
+    this.hpBarWrapEl = document.getElementById('hud-hp-bar-wrap');
+    this.hpBarFillEl = document.getElementById('hud-hp-bar-fill');
+    this.hpBarTextEl = document.getElementById('hud-hp-bar-text');
+    this.factionBadgeEl = document.getElementById('hud-faction-badge');
+    this.medicHealTagEl = document.getElementById('hud-medic-heal-tag');
     this.crosshairEl = document.getElementById('crosshair');
+
+    // Painel Superior da Guerra Mundial de Facções & Bosses
+    this.wwTitleEl = document.getElementById('ww-front-title');
+    this.wwPctEl = document.getElementById('ww-escalation-pct');
+    this.wwFillEl = document.getElementById('ww-escalation-fill');
+    this.wwBossBarsContainerEl = document.getElementById('ww-boss-bars-container');
 
     // Velocímetro Tático no Canto Superior Direito (Apenas em Veículos)
     this.speedoContainerEl = document.getElementById('vehicle-speedometer');
@@ -125,7 +154,10 @@ export class LegoHud {
     this._gainTimeout = null;
     this._initHearts();
     this._initSpeedometerBars();
+    this._initTitleScreenAndPauseMenu();
     this.setCharacterPortrait('caveira', 'COMANDANTE CAVEIRA');
+    this.setPlayerHealth(250, 250, false);
+    this.setPlayerFaction(this.playerFaction);
   }
 
   _initHearts() {
@@ -438,6 +470,10 @@ export class LegoHud {
   }
 
   showRegionTransitionToast(region) {
+    if (!this.settings?.showRegionToast) {
+      if (this.regionToastEl) this.regionToastEl.classList.add('hidden');
+      return;
+    }
     if (!this.regionToastEl || !region) return;
     const codeNum = region.num || String(region.number || 1).padStart(2, '0');
     const accent = region.color || '#facc15';
@@ -564,5 +600,532 @@ export class LegoHud {
         this.studCountEl.textContent = this.displayedStuds.toLocaleString('pt-BR');
       }
     }
+  }
+
+  /**
+   * Atualiza a Barra Numérica de 250 HP + 4 Corações LEGO + Indicador de Feixe Médico Aliado
+   */
+  setPlayerHealth(hp, maxHp = 250, isBeingHealed = false) {
+    this.playerMaxHp = Math.max(1, maxHp);
+    this.playerHp = Math.max(0, Math.min(this.playerMaxHp, Math.round(hp)));
+    const ratio = this.playerHp / this.playerMaxHp;
+
+    const heartCount = this.playerHp <= 0 ? 0 : Math.max(1, Math.ceil(ratio * this.maxHearts));
+    this.setHearts(heartCount);
+
+    if (this.hpBarFillEl) {
+      this.hpBarFillEl.style.width = `${Math.round(ratio * 100)}%`;
+      if (!isBeingHealed) {
+        this.hpBarFillEl.style.background =
+          ratio < 0.3
+            ? 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)'
+            : ratio < 0.65
+              ? 'linear-gradient(90deg, #d97706 0%, #facc15 100%)'
+              : 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)';
+      }
+    }
+    if (this.hpBarWrapEl) {
+      this.hpBarWrapEl.classList.toggle('healing', Boolean(isBeingHealed));
+    }
+    if (this.hpBarTextEl) {
+      this.hpBarTextEl.textContent = `${this.playerHp} / ${this.playerMaxHp} HP`;
+    }
+    if (this.medicHealTagEl) {
+      const lang = this.settings?.language || 'pt-BR';
+      this.medicHealTagEl.textContent = UI_TEXTS[lang]?.medicHealing || UI_TEXTS['pt-BR'].medicHealing;
+      this.medicHealTagEl.classList.toggle('hidden', !isBeingHealed);
+    }
+  }
+
+  setPlayerFaction(factionKey = 'cv') {
+    const fData = FACTION_DATA[factionKey] || FACTION_DATA.cv;
+    this.playerFaction = fData.id;
+    const lang = this.settings?.language || 'pt-BR';
+    if (this.factionBadgeEl) {
+      this.factionBadgeEl.dataset.faction = fData.id;
+      this.factionBadgeEl.textContent = fData.shortName[lang] || fData.shortName['pt-BR'];
+    }
+    if (typeof this.onSelectFaction === 'function') {
+      this.onSelectFaction(fData.id);
+    }
+  }
+
+  /**
+   * Atualiza o Painel Central Superior da Guerra Mundial (Escalada de Batalha + Barras dos Bosses Colossais)
+   */
+  updateWorldWarHud(escalationRatio = 0.35, activeBosses = [], isInvasionWave = false) {
+    const lang = this.settings?.language || 'pt-BR';
+    const texts = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
+
+    if (this.wwTitleEl) {
+      this.wwTitleEl.textContent = isInvasionWave ? texts.invasionActive : texts.worldWarFront;
+      this.wwTitleEl.style.color = isInvasionWave ? '#ef4444' : '#facc15';
+    }
+    if (this.wwPctEl) {
+      this.wwPctEl.textContent = `${Math.round(escalationRatio * 100)}%`;
+    }
+    if (this.wwFillEl) {
+      this.wwFillEl.style.width = `${Math.max(8, Math.min(100, Math.round(escalationRatio * 100)))}%`;
+    }
+
+    if (this.wwBossBarsContainerEl) {
+      if (!activeBosses || activeBosses.length === 0) {
+        this.wwBossBarsContainerEl.classList.add('hidden');
+        this.wwBossBarsContainerEl.innerHTML = '';
+        return;
+      }
+
+      this.wwBossBarsContainerEl.classList.remove('hidden');
+      this.wwBossBarsContainerEl.innerHTML = activeBosses
+        .map((b) => {
+          const isAllied = b.faction === this.playerFaction;
+          const fInfo = FACTION_DATA[b.faction] || FACTION_DATA.cv;
+          const bossTitle = fInfo.bossName[lang] || fInfo.bossName['pt-BR'];
+          const tag = isAllied ? (lang === 'en-US' ? '[ALLIED BOSS]' : '[BOSS ALIADO]') : '[BOSS INIMIGO]';
+          const hp = Math.max(0, Math.round(b.destructible?.hp || 0));
+          const maxHp = Math.max(1, Math.round(b.destructible?.maxHp || 1200));
+          const pct = Math.max(2, Math.min(100, Math.round((hp / maxHp) * 100)));
+          return `
+            <div class="ww-boss-bar-row ${isAllied ? 'allied-boss' : ''}">
+              <div class="ww-boss-bar-top">
+                <span>${tag} ${bossTitle}</span>
+                <span>${hp} / ${maxHp} HP</span>
+              </div>
+              <div class="ww-boss-bar-track">
+                <div class="ww-boss-bar-fill" style="width:${pct}%"></div>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+    }
+  }
+
+  /**
+   * Inicializa a Tela Inicial Oficial na IDV do Jogo, Slots de Save, Seleção de Facção e Menu de Pausa [ESC]
+   */
+  _initTitleScreenAndPauseMenu() {
+    this.titleOverlayEl = document.getElementById('title-screen-overlay');
+    this.titleMainPanelEl = document.getElementById('title-main-panel');
+    this.titleSlotsPanelEl = document.getElementById('title-slots-panel');
+    this.titleFactionPanelEl = document.getElementById('title-faction-panel');
+    this.saveSlotsGridEl = document.getElementById('save-slots-grid');
+    this.factionCardsGridEl = document.getElementById('faction-cards-grid');
+
+    this.pauseModalEl = document.getElementById('pause-options-modal');
+    this.pauseIngameActionsEl = document.getElementById('pause-ingame-actions');
+    this.pauseSaveFeedbackEl = document.getElementById('pause-save-feedback');
+
+    this.sliderMasterEl = document.getElementById('slider-master-vol');
+    this.sliderMusicEl = document.getElementById('slider-music-vol');
+    this.sliderSfxEl = document.getElementById('slider-sfx-vol');
+    this.valMasterEl = document.getElementById('val-master-vol');
+    this.valMusicEl = document.getElementById('val-music-vol');
+    this.valSfxEl = document.getElementById('val-sfx-vol');
+    this.btnToggleRegionToastEl = document.getElementById('btn-toggle-region-toast');
+    this.btnPauseLangEl = document.getElementById('btn-pause-language');
+
+    // Aplica configurações salvas de áudio imediatamente
+    soundFX.setVolumes({
+      masterVolume: this.settings.masterVolume,
+      musicVolume: this.settings.musicVolume,
+      sfxVolume: this.settings.sfxVolume
+    });
+
+    // Botões do Menu Inicial
+    document.getElementById('btn-title-new-game')?.addEventListener('click', () => {
+      soundFX.playHeroSwap();
+      soundFX.startWarMusic();
+      this._openSaveSlotsPanel('new');
+    });
+
+    document.getElementById('btn-title-load-game')?.addEventListener('click', () => {
+      soundFX.playHeroSwap();
+      soundFX.startWarMusic();
+      this._openSaveSlotsPanel('load');
+    });
+
+    document.getElementById('btn-title-options')?.addEventListener('click', () => {
+      soundFX.playTacticalRoll();
+      soundFX.startWarMusic();
+      this.setPauseMenuOpen(true, this._lastController, true);
+    });
+
+    document.getElementById('btn-title-language')?.addEventListener('click', () => {
+      this._toggleLanguage();
+    });
+
+    document.getElementById('btn-slots-back')?.addEventListener('click', () => {
+      soundFX.playTacticalRoll();
+      this.titleSlotsPanelEl?.classList.add('hidden');
+      this.titleMainPanelEl?.classList.remove('hidden');
+    });
+
+    document.getElementById('btn-faction-back')?.addEventListener('click', () => {
+      soundFX.playTacticalRoll();
+      this.titleFactionPanelEl?.classList.add('hidden');
+      if (this.isTitleScreenActive) {
+        this.titleSlotsPanelEl?.classList.remove('hidden');
+      } else {
+        this.titleOverlayEl?.classList.add('hidden');
+        this.setPauseMenuOpen(true, this._lastController);
+      }
+    });
+
+    // Sliders e Toggles do Modal de Opções / Pausa [ESC]
+    const onVolumeChange = () => {
+      const m = Number(this.sliderMasterEl?.value ?? 85) / 100;
+      const mu = Number(this.sliderMusicEl?.value ?? 55) / 100;
+      const s = Number(this.sliderSfxEl?.value ?? 90) / 100;
+      this.settings.masterVolume = m;
+      this.settings.musicVolume = mu;
+      this.settings.sfxVolume = s;
+      if (this.valMasterEl) this.valMasterEl.textContent = `${Math.round(m * 100)}%`;
+      if (this.valMusicEl) this.valMusicEl.textContent = `${Math.round(mu * 100)}%`;
+      if (this.valSfxEl) this.valSfxEl.textContent = `${Math.round(s * 100)}%`;
+      soundFX.setVolumes({ masterVolume: m, musicVolume: mu, sfxVolume: s });
+      saveGameSettings(this.settings);
+    };
+
+    this.sliderMasterEl?.addEventListener('input', onVolumeChange);
+    this.sliderMusicEl?.addEventListener('input', onVolumeChange);
+    this.sliderSfxEl?.addEventListener('input', onVolumeChange);
+
+    this.btnToggleRegionToastEl?.addEventListener('click', () => {
+      this.settings.showRegionToast = !this.settings.showRegionToast;
+      if (!this.settings.showRegionToast && this.regionToastEl) {
+        this.regionToastEl.classList.add('hidden');
+      }
+      saveGameSettings(this.settings);
+      soundFX.playPlasticHit();
+      this._refreshLanguageAndOptionsUI();
+    });
+
+    this.btnPauseLangEl?.addEventListener('click', () => {
+      this._toggleLanguage();
+    });
+
+    document.getElementById('pause-close-btn')?.addEventListener('click', () => {
+      this.setPauseMenuOpen(false, this._lastController);
+    });
+
+    document.getElementById('btn-pause-resume')?.addEventListener('click', () => {
+      this.setPauseMenuOpen(false, this._lastController);
+    });
+
+    document.getElementById('btn-pause-save')?.addEventListener('click', () => {
+      this.saveCurrentProgress();
+      if (this.pauseSaveFeedbackEl) {
+        this.pauseSaveFeedbackEl.classList.remove('hidden');
+        setTimeout(() => this.pauseSaveFeedbackEl?.classList.add('hidden'), 2400);
+      }
+      soundFX.playTrueHeroFanfare();
+    });
+
+    document.getElementById('btn-pause-switch-faction')?.addEventListener('click', () => {
+      this.setPauseMenuOpen(false, this._lastController, true);
+      this.titleOverlayEl?.classList.remove('hidden');
+      this.titleMainPanelEl?.classList.add('hidden');
+      this.titleSlotsPanelEl?.classList.add('hidden');
+      this._openFactionSelectionPanel();
+    });
+
+    document.getElementById('btn-pause-save-quit')?.addEventListener('click', () => {
+      this.saveCurrentProgress();
+      this.setPauseMenuOpen(false, this._lastController, true);
+      this.isTitleScreenActive = true;
+      this.titleOverlayEl?.classList.remove('hidden');
+      this.titleMainPanelEl?.classList.remove('hidden');
+      this.titleSlotsPanelEl?.classList.add('hidden');
+      this.titleFactionPanelEl?.classList.add('hidden');
+      if (document.pointerLockElement && document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    });
+
+    this._refreshLanguageAndOptionsUI();
+  }
+
+  _toggleLanguage() {
+    this.settings.language = this.settings.language === 'en-US' ? 'pt-BR' : 'en-US';
+    saveGameSettings(this.settings);
+    soundFX.playHeroSwap();
+    this._refreshLanguageAndOptionsUI();
+    this.setPlayerFaction(this.playerFaction);
+  }
+
+  _refreshLanguageAndOptionsUI() {
+    const lang = this.settings?.language || 'pt-BR';
+    const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
+
+    const setTxt = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val) el.textContent = val;
+    };
+
+    setTxt('title-sub-banner', t.subtitle);
+    setTxt('txt-new-game', t.newGame);
+    setTxt('txt-load-game', t.loadGame);
+    setTxt('txt-options', t.options);
+    setTxt('txt-language-btn', t.languageBtn);
+    setTxt('btn-slots-back', t.backBtn);
+    setTxt('btn-faction-back', t.backBtn);
+    setTxt('faction-panel-tag', t.chooseFactionTag);
+    setTxt('faction-panel-title', t.chooseFactionTitle);
+    setTxt('faction-panel-sub', t.chooseFactionSub);
+
+    setTxt('pause-tag', t.pauseTag);
+    setTxt('pause-title', t.pauseTitle);
+    setTxt('lbl-master-vol', t.masterVol);
+    setTxt('lbl-music-vol', t.musicVol);
+    setTxt('lbl-sfx-vol', t.sfxVol);
+    setTxt('lbl-region-toast', t.regionToastToggle);
+    setTxt('lbl-lang-select', t.langLabel);
+    setTxt('btn-pause-resume', t.resumeBtn);
+    setTxt('btn-pause-save', t.saveNowBtn);
+    setTxt('btn-pause-switch-faction', t.switchFactionBtn);
+    setTxt('btn-pause-save-quit', t.saveQuitBtn);
+    setTxt('pause-save-feedback', t.savedFeedback);
+
+    if (this.sliderMasterEl) this.sliderMasterEl.value = Math.round((this.settings.masterVolume ?? 0.85) * 100);
+    if (this.sliderMusicEl) this.sliderMusicEl.value = Math.round((this.settings.musicVolume ?? 0.55) * 100);
+    if (this.sliderSfxEl) this.sliderSfxEl.value = Math.round((this.settings.sfxVolume ?? 0.9) * 100);
+    if (this.valMasterEl) this.valMasterEl.textContent = `${Math.round((this.settings.masterVolume ?? 0.85) * 100)}%`;
+    if (this.valMusicEl) this.valMusicEl.textContent = `${Math.round((this.settings.musicVolume ?? 0.55) * 100)}%`;
+    if (this.valSfxEl) this.valSfxEl.textContent = `${Math.round((this.settings.sfxVolume ?? 0.9) * 100)}%`;
+
+    if (this.btnToggleRegionToastEl) {
+      const on = Boolean(this.settings.showRegionToast);
+      this.btnToggleRegionToastEl.classList.toggle('active', on);
+      this.btnToggleRegionToastEl.textContent = on
+        ? lang === 'en-US'
+          ? 'ON // ENABLED'
+          : 'ON // ATIVADO'
+        : lang === 'en-US'
+          ? 'OFF // HIDDEN'
+          : 'OFF // OCULTO';
+    }
+
+    if (this.btnPauseLangEl) {
+      this.btnPauseLangEl.textContent = lang === 'en-US' ? 'EN-US // ENGLISH' : 'PT-BR // PORTUGUÊS';
+    }
+  }
+
+  _openSaveSlotsPanel(mode = 'new') {
+    this._slotsMode = mode;
+    const lang = this.settings?.language || 'pt-BR';
+    const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
+
+    this.titleMainPanelEl?.classList.add('hidden');
+    this.titleFactionPanelEl?.classList.add('hidden');
+    this.titleSlotsPanelEl?.classList.remove('hidden');
+
+    const titleEl = document.getElementById('slots-panel-title');
+    if (titleEl) {
+      titleEl.textContent = mode === 'new' ? t.selectSlotNew : t.selectSlotLoad;
+    }
+
+    const slots = loadAllSaveSlots();
+    if (!this.saveSlotsGridEl) return;
+
+    this.saveSlotsGridEl.innerHTML = [0, 1, 2]
+      .map((idx) => {
+        const s = slots[idx];
+        if (!s) {
+          return `
+            <div class="save-slot-card">
+              <div class="dossier-tag">SLOT 0${idx + 1}</div>
+              <div class="slot-meta-list" style="padding: 18px 0; color: #94a3b8;">
+                <span>${t.emptySlot}</span>
+              </div>
+              <div class="slot-actions-row">
+                <button class="tactical-btn" data-slot-action="start-new" data-slot="${idx}">
+                  ${t.startSlotBtn}
+                </button>
+              </div>
+            </div>
+          `;
+        }
+
+        const fInfo = FACTION_DATA[s.faction] || FACTION_DATA.cv;
+        const heroInfo = getHeroInfo(s.heroKey || 'caveira');
+        return `
+          <div class="save-slot-card" style="border-top-color:${fInfo.color}">
+            <div class="faction-card-top">
+              ${getFactionLogoSvg(fInfo.id, 58)}
+              <div>
+                <div class="dossier-tag">SLOT 0${idx + 1} // ${s.updatedAt || ''}</div>
+                <div class="faction-card-name" style="color:${fInfo.color}; font-size:1.35rem;">
+                  ${fInfo.name[lang] || fInfo.name['pt-BR']}
+                </div>
+              </div>
+            </div>
+            <div class="slot-meta-list">
+              <span><b>STUDS:</b> ${(s.studs || 0).toLocaleString('pt-BR')}</span>
+              <span><b>OPERADOR:</b> ${heroInfo.name}</span>
+            </div>
+            <div class="slot-actions-row">
+              <button class="tactical-btn" data-slot-action="${mode === 'new' ? 'start-new' : 'load'}" data-slot="${idx}">
+                ${mode === 'new' ? t.overwriteSlotBtn : t.loadSlotBtn}
+              </button>
+              <button class="tactical-btn danger-btn" data-slot-action="delete" data-slot="${idx}">
+                ${t.deleteSlotBtn}
+              </button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    this.saveSlotsGridEl.querySelectorAll('button[data-slot-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.slot || 0);
+        const action = btn.dataset.slotAction;
+        if (action === 'delete') {
+          deleteSaveSlot(idx);
+          soundFX.playPlasticHit();
+          this._openSaveSlotsPanel(mode);
+        } else if (action === 'load') {
+          const currentSlots = loadAllSaveSlots();
+          const saved = currentSlots[idx];
+          if (saved) {
+            this.activeSaveSlot = idx;
+            this._startCampaignWithSlotData(saved, false);
+          }
+        } else {
+          this.pendingSlotIndex = idx;
+          this.titleSlotsPanelEl?.classList.add('hidden');
+          this._openFactionSelectionPanel();
+        }
+      });
+    });
+  }
+
+  _openFactionSelectionPanel() {
+    const lang = this.settings?.language || 'pt-BR';
+    const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
+    this.titleFactionPanelEl?.classList.remove('hidden');
+    if (!this.factionCardsGridEl) return;
+
+    this.factionCardsGridEl.innerHTML = ['cv', 'pcc', 'ares']
+      .map((fKey) => {
+        const f = FACTION_DATA[fKey];
+        return `
+          <div class="faction-choice-card" data-faction="${fKey}">
+            <div>
+              <div class="faction-card-top">
+                ${getFactionLogoSvg(fKey, 76)}
+                <div>
+                  <div class="faction-card-name" style="color:${f.color}">
+                    ${f.name[lang] || f.name['pt-BR']}
+                  </div>
+                  <div class="faction-card-fortress">
+                    ${f.fortress[lang] || f.fortress['pt-BR']}
+                  </div>
+                </div>
+              </div>
+              <p class="faction-card-desc" style="margin-top:12px;">
+                ${f.desc[lang] || f.desc['pt-BR']}
+              </p>
+            </div>
+            <button class="tactical-btn" data-choose-faction="${fKey}" style="border-color:${f.color}; color:${f.color}; width:100%;">
+              ${t.joinFactionBtn}
+            </button>
+          </div>
+        `;
+      })
+      .join('');
+
+    this.factionCardsGridEl.querySelectorAll('button[data-choose-faction]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const chosenFaction = btn.dataset.chooseFaction || 'cv';
+        this.activeSaveSlot = this.pendingSlotIndex ?? this.activeSaveSlot ?? 0;
+        const slotData = writeSaveSlot(this.activeSaveSlot, {
+          faction: chosenFaction,
+          studs: this.isTitleScreenActive ? 0 : this.totalStuds,
+          heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
+        });
+        this._startCampaignWithSlotData(slotData, true);
+      });
+    });
+  }
+
+  _startCampaignWithSlotData(slotData, isNewOrSwitch = false) {
+    this.isTitleScreenActive = false;
+    this.titleOverlayEl?.classList.add('hidden');
+    this.setPauseMenuOpen(false, this._lastController, true);
+
+    this.totalStuds = Number(slotData.studs || 0);
+    this.displayedStuds = this.totalStuds;
+    if (this.studCountEl) {
+      this.studCountEl.textContent = this.totalStuds.toLocaleString('pt-BR');
+    }
+
+    if (this._lastController && slotData.heroKey) {
+      this._lastController.switchToHero(slotData.heroKey);
+    }
+
+    this.setPlayerFaction(slotData.faction || 'cv');
+    this.setPlayerHealth(250, 250, false);
+
+    soundFX.playTrueHeroFanfare();
+    soundFX.startWarMusic();
+
+    if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+      this._lastController.relockPointer();
+    }
+
+    if (isNewOrSwitch) {
+      const fInfo = FACTION_DATA[this.playerFaction] || FACTION_DATA.cv;
+      const lang = this.settings?.language || 'pt-BR';
+      this.showTacticalAlertToast(
+        'GUERRA MUNDIAL DE FACÇÕES // ALIANÇA ATIVA',
+        `${fInfo.name[lang] || fInfo.name['pt-BR']}`,
+        'Exército, Médicos de Combate e Boss Colossal da sua facção agora lutam ao seu lado!',
+        fInfo.color,
+        'emergency',
+        4500
+      );
+    }
+  }
+
+  saveCurrentProgress() {
+    writeSaveSlot(this.activeSaveSlot || 0, {
+      faction: this.playerFaction || 'cv',
+      studs: this.totalStuds || 0,
+      heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
+    });
+  }
+
+  setPauseMenuOpen(open, controller = null, keepTitleState = false) {
+    if (controller) {
+      this._lastController = controller;
+    }
+    this.isPauseMenuOpen = Boolean(open);
+    if (this.pauseModalEl) {
+      this.pauseModalEl.classList.toggle('hidden', !this.isPauseMenuOpen);
+    }
+    if (this.pauseIngameActionsEl) {
+      this.pauseIngameActionsEl.classList.toggle('hidden', this.isTitleScreenActive);
+    }
+
+    if (this.isPauseMenuOpen) {
+      if (this.isFullMapOpen) this.setFullMapOpen(false);
+      if (this.isDossierOpen) this.setHeroDossierOpen(false);
+      if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+      this._refreshLanguageAndOptionsUI();
+      if (document.pointerLockElement && document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    } else if (!this.isTitleScreenActive && !keepTitleState) {
+      if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+        this._lastController.relockPointer();
+      }
+    }
+  }
+
+  togglePauseMenu(controller = null) {
+    if (this.isTitleScreenActive) return;
+    this.setPauseMenuOpen(!this.isPauseMenuOpen, controller);
   }
 }

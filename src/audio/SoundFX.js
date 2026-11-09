@@ -4,6 +4,15 @@
 class SoundFX {
   constructor() {
     this.ctx = null;
+    this.sfxBus = null;
+    this.musicBus = null;
+    this.masterVolume = 0.85;
+    this.musicVolume = 0.55;
+    this.sfxVolume = 0.9;
+    this.isMusicPlaying = false;
+    this.isBossMusicActive = false;
+    this._musicInterval = null;
+    this._musicStep = 0;
   }
 
   _ensureContext() {
@@ -11,12 +20,40 @@ class SoundFX {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
+        this.sfxBus = this.ctx.createGain();
+        this.musicBus = this.ctx.createGain();
+        this.sfxBus.connect(this.ctx.destination);
+        this.musicBus.connect(this.ctx.destination);
+        this._applyBusVolumes();
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  _applyBusVolumes() {
+    if (!this.ctx) return;
+    if (this.sfxBus) {
+      this.sfxBus.gain.setValueAtTime(
+        Math.max(0, Math.min(1, this.masterVolume * this.sfxVolume)),
+        this.ctx.currentTime
+      );
+    }
+    if (this.musicBus) {
+      this.musicBus.gain.setValueAtTime(
+        Math.max(0, Math.min(1, this.masterVolume * this.musicVolume)),
+        this.ctx.currentTime
+      );
+    }
+  }
+
+  setVolumes({ masterVolume, musicVolume, sfxVolume } = {}) {
+    if (typeof masterVolume === 'number') this.masterVolume = Math.max(0, Math.min(1, masterVolume));
+    if (typeof musicVolume === 'number') this.musicVolume = Math.max(0, Math.min(1, musicVolume));
+    if (typeof sfxVolume === 'number') this.sfxVolume = Math.max(0, Math.min(1, sfxVolume));
+    this._applyBusVolumes();
   }
 
   playStudCollect(value = 10) {
@@ -47,7 +84,7 @@ class SoundFX {
 
     osc1.connect(gain);
     osc2.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc1.start(now);
     osc2.start(now + 0.015);
@@ -71,7 +108,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.07);
@@ -93,7 +130,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.1);
@@ -120,7 +157,7 @@ class SoundFX {
       gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.06);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.sfxBus || ctx.destination);
 
       osc.start(now + delay);
       osc.stop(now + delay + 0.065);
@@ -146,7 +183,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.085);
@@ -177,7 +214,7 @@ class SoundFX {
 
     osc.connect(gain);
     subOsc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     subOsc.start(now);
@@ -210,7 +247,7 @@ class SoundFX {
 
     osc.connect(gain);
     crunchOsc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     crunchOsc.start(now);
@@ -237,7 +274,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.18);
@@ -263,7 +300,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + duration + 0.02);
@@ -297,7 +334,7 @@ class SoundFX {
 
     bassOsc.connect(gain);
     plasmaOsc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     bassOsc.start(now);
     plasmaOsc.start(now);
@@ -331,7 +368,7 @@ class SoundFX {
 
     osc1.connect(gain);
     osc2.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc1.start(now);
     osc2.start(now);
@@ -359,7 +396,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.26);
@@ -383,7 +420,7 @@ class SoundFX {
       gain.gain.setValueAtTime(0.11, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.sfxBus || ctx.destination);
       osc.start(t);
       osc.stop(t + 0.13);
     });
@@ -405,7 +442,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.09);
@@ -426,7 +463,7 @@ class SoundFX {
       gain.gain.setValueAtTime(0.16, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.sfxBus || ctx.destination);
       osc.start(t);
       osc.stop(t + 0.29);
     });
@@ -452,7 +489,7 @@ class SoundFX {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.31);
@@ -483,7 +520,7 @@ class SoundFX {
 
     osc1.connect(gain);
     osc2.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     osc1.start(now);
     osc2.start(now);
@@ -520,7 +557,7 @@ class SoundFX {
 
     bassOsc.connect(gain);
     pingOsc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
 
     bassOsc.start(now);
     pingOsc.start(now);
@@ -556,7 +593,7 @@ class SoundFX {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
       osc1.connect(gain);
       osc2.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.sfxBus || ctx.destination);
       osc1.start(now);
       osc2.start(now);
       osc1.stop(now + 0.31);
@@ -575,7 +612,7 @@ class SoundFX {
 
       osc1.connect(gain);
       osc2.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.sfxBus || ctx.destination);
       osc1.start(now);
       osc2.start(now);
       osc1.stop(now + 0.25);
@@ -602,7 +639,7 @@ class SoundFX {
       gain.gain.setValueAtTime(vol * 1.35, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.sfxBus || ctx.destination);
       osc.start(now);
       osc.stop(now + 0.21);
       return;
@@ -629,7 +666,7 @@ class SoundFX {
     gain.gain.setValueAtTime(vol, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.sfxBus || ctx.destination);
     osc.start(now);
     osc.stop(now + 0.09);
   }
@@ -652,10 +689,143 @@ class SoundFX {
       gain.gain.setValueAtTime(0.09, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.sfxBus || ctx.destination);
       osc.start(t);
       osc.stop(t + 0.095);
     });
+  }
+
+  /**
+   * Som cristalino do Feixe de Cura Médico (Heal Beam estilo Girassol/Cientista PvZ GW2)
+   */
+  playHealTick() {
+    const ctx = this._ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    const baseF = 660 + Math.random() * 220;
+    osc.frequency.setValueAtTime(baseF, now);
+    osc.frequency.exponentialRampToValueAtTime(baseF * 1.35, now + 0.11);
+
+    gain.gain.setValueAtTime(0.055, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    osc.connect(gain);
+    gain.connect(this.sfxBus || ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.125);
+  }
+
+  /**
+   * GERADOR DE MÚSICA DE GUERRA PROCEDURAL ("LEGO WAR MARCH / BACKYARD BATTLEGROUND THEME")
+   * Sequenciador tático em Ré Menor (132 BPM) com bumbo/caixa militar, baixo sintetizado e fanfarra de Boss!
+   */
+  startWarMusic() {
+    if (this.isMusicPlaying) return;
+    this.isMusicPlaying = true;
+    this._musicStep = 0;
+
+    if (this._musicInterval) {
+      clearInterval(this._musicInterval);
+    }
+
+    // 132 BPM -> colcheia / semicolcheia a cada 114ms
+    this._musicInterval = setInterval(() => {
+      if (!this.isMusicPlaying || this.masterVolume * this.musicVolume <= 0.01) return;
+      const ctx = this._ensureContext();
+      if (!ctx || ctx.state !== 'running') return;
+
+      const step = this._musicStep % 32;
+      this._musicStep++;
+      const now = ctx.currentTime;
+      const dest = this.musicBus || ctx.destination;
+
+      // 1. Bumbo Militar Pesado nos tempos fortes (0, 4, 8, 12...) e duplo em modo Boss
+      if (step % 4 === 0 || (this.isBossMusicActive && step % 4 === 2)) {
+        const kickOsc = ctx.createOscillator();
+        const kickGain = ctx.createGain();
+        kickOsc.type = 'sine';
+        kickOsc.frequency.setValueAtTime(135, now);
+        kickOsc.frequency.exponentialRampToValueAtTime(34, now + 0.11);
+        kickGain.gain.setValueAtTime(0.22, now);
+        kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        kickOsc.connect(kickGain);
+        kickGain.connect(dest);
+        kickOsc.start(now);
+        kickOsc.stop(now + 0.125);
+      }
+
+      // 2. Caixa Militar Tática (Snare / Marcha de Guerra) nos contratempos (2, 6, 10, 14, 15, 30, 31)
+      if (step % 4 === 2 || step === 15 || step === 31) {
+        const snareOsc = ctx.createOscillator();
+        const snareGain = ctx.createGain();
+        snareOsc.type = 'triangle';
+        snareOsc.frequency.setValueAtTime(240 + (step % 3) * 35, now);
+        snareOsc.frequency.exponentialRampToValueAtTime(82, now + 0.075);
+        snareGain.gain.setValueAtTime(0.11, now);
+        snareGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        snareOsc.connect(snareGain);
+        snareGain.connect(dest);
+        snareOsc.start(now);
+        snareOsc.stop(now + 0.085);
+      }
+
+      // 3. Linha de Baixo Sintetizada de Ação (Ré Menor: D2=73.42, F2=87.31, G2=98.00, A2=110.00, Bb2=116.54, C3=130.81)
+      const bassPattern = [
+        73.42, 73.42, 146.83, 73.42, 87.31, 87.31, 98.0, 110.0,
+        73.42, 73.42, 146.83, 73.42, 116.54, 110.0, 98.0, 87.31,
+        73.42, 73.42, 146.83, 73.42, 87.31, 87.31, 130.81, 110.0,
+        116.54, 116.54, 110.0, 98.0, 87.31, 87.31, 110.0, 146.83
+      ];
+      const bassFreq = bassPattern[step] * (this.isBossMusicActive ? 1.122 : 1.0);
+      if (bassFreq) {
+        const bassOsc = ctx.createOscillator();
+        const bassGain = ctx.createGain();
+        bassOsc.type = 'sawtooth';
+        bassOsc.frequency.setValueAtTime(bassFreq, now);
+        bassGain.gain.setValueAtTime(0.085, now);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        bassOsc.connect(bassGain);
+        bassGain.connect(dest);
+        bassOsc.start(now);
+        bassOsc.stop(now + 0.105);
+      }
+
+      // 4. Fanfarra Heroica de Metais / Lead Tático (Mais intensa quando Boss está na Guerra Mundial!)
+      const leadMelody = [
+        293.66, 0, 349.23, 0, 440.0, 0, 392.0, 349.23,
+        293.66, 0, 440.0, 0, 466.16, 440.0, 392.0, 0,
+        293.66, 0, 349.23, 0, 523.25, 0, 440.0, 392.0,
+        466.16, 0, 440.0, 392.0, 349.23, 0, 440.0, 587.33
+      ];
+      const leadFreq = leadMelody[step];
+      if (leadFreq > 0 && (step % 2 === 0 || this.isBossMusicActive)) {
+        const leadOsc = ctx.createOscillator();
+        const leadGain = ctx.createGain();
+        leadOsc.type = this.isBossMusicActive ? 'sawtooth' : 'triangle';
+        leadOsc.frequency.setValueAtTime(leadFreq, now);
+        leadGain.gain.setValueAtTime(this.isBossMusicActive ? 0.085 : 0.06, now);
+        leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+        leadOsc.connect(leadGain);
+        leadGain.connect(dest);
+        leadOsc.start(now);
+        leadOsc.stop(now + 0.2);
+      }
+    }, 114);
+  }
+
+  stopWarMusic() {
+    this.isMusicPlaying = false;
+    if (this._musicInterval) {
+      clearInterval(this._musicInterval);
+      this._musicInterval = null;
+    }
+  }
+
+  setBossMusicIntensity(active) {
+    this.isBossMusicActive = Boolean(active);
   }
 }
 

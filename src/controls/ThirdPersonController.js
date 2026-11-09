@@ -217,6 +217,7 @@ export class ThirdPersonController {
     this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 
     this.domElement.addEventListener('mousedown', (e) => {
+      if (this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen) return;
       this.hasEnteredGame = true;
       const promptEl = document.getElementById('pointer-prompt');
       if (promptEl) {
@@ -286,13 +287,25 @@ export class ThirdPersonController {
       this.isPointerLocked = document.pointerLockElement === this.domElement;
       if (this.isPointerLocked) {
         this.hasEnteredGame = true;
+      } else if (
+        this.hasEnteredGame &&
+        !this.hud?.isTitleScreenActive &&
+        !this.hud?.isPauseMenuOpen &&
+        !this.hud?.isFullMapOpen &&
+        !this.hud?.isDossierOpen &&
+        !this.hud?.isHeroWheelOpen &&
+        !this.fastTravelState?.active
+      ) {
+        // Quando o jogador aperta [ESC] durante o jogo e o navegador solta o PointerLock, abre o Menu de Pausa & Opções!
+        this.hud?.setPauseMenuOpen(true, this);
       }
       const promptEl = document.getElementById('pointer-prompt');
       if (promptEl) {
-        // Nunca reexibe o prompt de clique depois que o jogador já entrou no jogo ou enquanto o mapa está aberto
         const shouldShowPrompt =
           !this.isPointerLocked &&
           !this.hasEnteredGame &&
+          !this.hud?.isTitleScreenActive &&
+          !this.hud?.isPauseMenuOpen &&
           !this.hud?.isFullMapOpen &&
           !this.hud?.isDossierOpen &&
           !this.hud?.isHeroWheelOpen;
@@ -301,7 +314,15 @@ export class ThirdPersonController {
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (this.hud?.isFullMapOpen || this.hud?.isDossierOpen || this.fastTravelState?.active) return;
+      if (
+        this.hud?.isTitleScreenActive ||
+        this.hud?.isPauseMenuOpen ||
+        this.hud?.isFullMapOpen ||
+        this.hud?.isDossierOpen ||
+        this.fastTravelState?.active
+      ) {
+        return;
+      }
       if (this.hud?.isHeroWheelOpen) {
         if (Math.hypot(e.movementX, e.movementY) > 10) {
           this.hud.setHeroWheelDirection(e.movementX, e.movementY);
@@ -1523,6 +1544,20 @@ export class ThirdPersonController {
   }
 
   _onKey(e, isDown) {
+    if (this.hud?.isTitleScreenActive) {
+      if (e.code === 'Escape' && isDown && !e.repeat && this.hud?.isPauseMenuOpen) {
+        this.hud.setPauseMenuOpen(false, this);
+      }
+      return;
+    }
+
+    if (this.hud?.isPauseMenuOpen) {
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud.setPauseMenuOpen(false, this);
+      }
+      return;
+    }
+
     // Se a Roda de Personagens [TAB] estiver aberta, WASD gira a roda!
     if (this.hud?.isHeroWheelOpen) {
       if (e.code === 'Tab') {
@@ -1562,6 +1597,8 @@ export class ThirdPersonController {
             this.hud.setFullMapOpen(false, this.world, this);
           } else if (this.hud?.isHeroWheelOpen) {
             this.hud.setHeroWheelOpen(false, this, true);
+          } else if (this.hud) {
+            this.hud.setPauseMenuOpen(!this.hud.isPauseMenuOpen, this);
           }
         }
         break;

@@ -80,10 +80,20 @@
         <div class="hud-right-col">
           <div class="hud-name-row">
             <span id="hud-char-name">COMANDANTE CAVEIRA</span>
+            <span id="hud-faction-badge" class="hud-faction-pill" data-faction="cv">ALIADO: CV</span>
           </div>
 
-          <!-- 4 Corações de LEGO Facetados -->
-          <div id="hud-hearts" class="hearts-row"></div>
+          <!-- 4 Corações de LEGO Facetados + Barra Numérica 250 HP Estilo PvZ GW2 -->
+          <div class="hud-health-cluster">
+            <div id="hud-hearts" class="hearts-row"></div>
+            <div id="hud-hp-bar-wrap" class="hud-hp-bar-wrap">
+              <div id="hud-hp-bar-fill" class="hud-hp-bar-fill"></div>
+              <span id="hud-hp-bar-text" class="hud-hp-bar-text">250 / 250 HP</span>
+            </div>
+          </div>
+
+          <!-- Indicador de Feixe de Cura Médico Aliado -->
+          <div id="hud-medic-heal-tag" class="hud-medic-heal-tag hidden">✚ MÉDICO ALIADO CURANDO VOCÊ (+20 HP/s)</div>
 
           <!-- Contador de Studs Solto (Alto Contraste Tático) -->
           <div class="stud-counter-row">
@@ -92,6 +102,19 @@
             <span id="hud-stud-gain"></span>
           </div>
         </div>
+      </div>
+
+      <!-- Painel Central Superior da Guerra Mundial de Facções (Backyard Battleground + Barra de Bosses) -->
+      <div id="world-war-hud-panel" class="world-war-hud-panel">
+        <div class="ww-front-header">
+          <span id="ww-front-title" class="ww-front-title">FRENTE CENTRAL DA GUERRA MUNDIAL</span>
+          <span id="ww-escalation-pct" class="ww-escalation-pct">DOMÍNIO TÁTICO</span>
+        </div>
+        <div class="ww-escalation-track">
+          <div id="ww-escalation-fill" class="ww-escalation-fill"></div>
+        </div>
+        <!-- Barras de Vida dos Bosses Colossais (Aliado vs Inimigo) -->
+        <div id="ww-boss-bars-container" class="ww-boss-bars-container hidden"></div>
       </div>
 
       <!-- Canto Superior Direito: Scroll de Silhuetas Estilo CS (Exclusivo do Vingador de Chumbo a pé — ZERO TEXTO) -->
@@ -186,12 +209,149 @@
     </div>
 
     <!-- Aviso de Clique para Travar Mira (Some assim que clica na tela!) -->
-    <div id="pointer-prompt" class="visible">
+    <div id="pointer-prompt">
       <div class="prompt-card">
         <div class="prompt-tag">SISTEMA DE COMBATE // LEGO: CIDADE DE DEUS</div>
         <div class="prompt-title">CLIQUE NA TELA PARA TRAVAR A MIRA EM 3ª PESSOA</div>
         <div class="prompt-sub">
-          <b>[TAB]</b> Roda de Heróis • <b>[E]</b> Veículo • <b>[M]</b> Mapa • <b>[H]</b> Ficha do Herói
+          <b>[TAB]</b> Roda de Heróis • <b>[E]</b> Veículo • <b>[M]</b> Mapa • <b>[H]</b> Ficha • <b>[ESC]</b> Pausa/Opções
+        </div>
+      </div>
+    </div>
+
+    <!-- =======================================================================
+         TELA INICIAL OFICIAL NA IDV DO JOGO + SISTEMA DE SAVES + 3 FACÇÕES
+         ======================================================================= -->
+    <div id="title-screen-overlay" class="title-screen-overlay">
+      <div class="title-scanlines"></div>
+      <div class="title-content-wrap">
+        <!-- Logo Oficial Monumental em SVG + Tipografia 3D LEGO -->
+        <div class="official-logo-block">
+          <div class="logo-emblem-row">
+            <svg viewBox="0 0 110 110" width="88" height="88" class="official-crest-svg">
+              <polygon points="55,4 104,22 96,84 55,106 14,84 6,22" fill="#090a0d" stroke="#facc15" stroke-width="4.5"/>
+              <polygon points="55,12 96,27 89,79 55,98 21,79 14,27" fill="#ef4444" opacity="0.24"/>
+              <!-- Bloco LEGO 3D Central com Pinos (Studs) -->
+              <rect x="33" y="25" width="12" height="6" fill="#facc15" stroke="#090a0d" stroke-width="2"/>
+              <rect x="49" y="25" width="12" height="6" fill="#facc15" stroke="#090a0d" stroke-width="2"/>
+              <rect x="65" y="25" width="12" height="6" fill="#facc15" stroke="#090a0d" stroke-width="2"/>
+              <rect x="27" y="31" width="56" height="36" fill="#facc15" stroke="#090a0d" stroke-width="3.2"/>
+              <text x="55" y="56" text-anchor="middle" fill="#090a0d" font-family="Teko, sans-serif" font-size="28" font-weight="700" letter-spacing="1.5">LEGO</text>
+              <!-- Estrela Tática de Guerra Mundial -->
+              <polygon points="55,70 59,79 69,79 61,85 64,94 55,88 46,94 49,85 41,79 51,79" fill="#ef4444" stroke="#facc15" stroke-width="1.8"/>
+            </svg>
+            <div class="logo-text-col">
+              <div class="logo-top-pill">LEGO® TACTICAL OPEN WORLD // BACKYARD BATTLEGROUND</div>
+              <h1 class="logo-main-title">LEGO: <span>CIDADE DE DEUS</span></h1>
+              <div id="title-sub-banner" class="logo-sub-banner">GUERRA MUNDIAL DE FACÇÕES // OPERAÇÕES ESPECIAIS</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAINEL 1: Botões Principais do Menu Inicial -->
+        <div id="title-main-panel" class="title-panel">
+          <button id="btn-title-new-game" class="title-action-btn primary-btn">
+            <span class="btn-tag">01</span>
+            <span id="txt-new-game">NOVO JOGO</span>
+          </button>
+          <button id="btn-title-load-game" class="title-action-btn">
+            <span class="btn-tag">02</span>
+            <span id="txt-load-game">CARREGAR JOGO</span>
+          </button>
+          <button id="btn-title-options" class="title-action-btn">
+            <span class="btn-tag">03</span>
+            <span id="txt-options">OPÇÕES TÁTICAS</span>
+          </button>
+          <button id="btn-title-language" class="title-action-btn">
+            <span class="btn-tag">04</span>
+            <span id="txt-language-btn">IDIOMA: PT-BR</span>
+          </button>
+        </div>
+
+        <!-- PAINEL 2: Seleção de Slots de Save (3 Slots localStorage) -->
+        <div id="title-slots-panel" class="title-slots-panel hidden">
+          <div class="panel-header-bar">
+            <span id="slots-panel-title" class="panel-header-title">ESCOLHA UM SLOT DE MEMÓRIA</span>
+            <button id="btn-slots-back" class="tactical-btn">VOLTAR</button>
+          </div>
+          <div id="save-slots-grid" class="save-slots-grid"></div>
+        </div>
+
+        <!-- PAINEL 3: Escolha da Facção Aliada na Guerra Mundial (3 Cards Grandes com SVG) -->
+        <div id="title-faction-panel" class="title-faction-panel hidden">
+          <div class="panel-header-bar">
+            <div>
+              <div id="faction-panel-tag" class="dossier-tag">SELEÇÃO DE ALIANÇA MILITAR // BACKYARD BATTLEGROUND</div>
+              <div id="faction-panel-title" class="panel-header-title">ESCOLHA SUA FACÇÃO ALIADA NA GUERRA MUNDIAL</div>
+              <div id="faction-panel-sub" class="faction-panel-sub">Sua facção lutará ao seu lado no Centro da Metrópole, enviará Médicos de Combate para curar você e invocará Bosses Colossais aliados!</div>
+            </div>
+            <button id="btn-faction-back" class="tactical-btn">VOLTAR</button>
+          </div>
+          <div id="faction-cards-grid" class="faction-cards-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =======================================================================
+         MODAL TÁTICO DE PAUSA & OPÇÕES COMPLETAS [ESC]
+         ======================================================================= -->
+    <div id="pause-options-modal" class="hidden">
+      <div class="pause-card">
+        <div class="dossier-header">
+          <div>
+            <div id="pause-tag" class="dossier-tag">SISTEMA DE COMANDO // JOGO PAUSADO [ESC]</div>
+            <div id="pause-title" class="dossier-title">CENTRAL DE OPÇÕES & CONTROLE DE GUERRA</div>
+          </div>
+          <button id="pause-close-btn" class="tactical-btn">[ESC] FECHAR</button>
+        </div>
+
+        <div class="pause-options-body">
+          <!-- Sliders de Volume (Master, Música de Guerra, Efeitos Sonoros) -->
+          <div class="option-row">
+            <div class="option-label-col">
+              <span id="lbl-master-vol" class="option-title">VOLUME GERAL (MASTER)</span>
+              <span id="val-master-vol" class="option-val">85%</span>
+            </div>
+            <input id="slider-master-vol" type="range" min="0" max="100" value="85" class="tactical-slider" />
+          </div>
+
+          <div class="option-row">
+            <div class="option-label-col">
+              <span id="lbl-music-vol" class="option-title">VOLUME DA MÚSICA DE GUERRA</span>
+              <span id="val-music-vol" class="option-val">55%</span>
+            </div>
+            <input id="slider-music-vol" type="range" min="0" max="100" value="55" class="tactical-slider" />
+          </div>
+
+          <div class="option-row">
+            <div class="option-label-col">
+              <span id="lbl-sfx-vol" class="option-title">VOLUME DE EFEITOS SONOROS (TIROS / EXPLOSÕES)</span>
+              <span id="val-sfx-vol" class="option-val">90%</span>
+            </div>
+            <input id="slider-sfx-vol" type="range" min="0" max="100" value="90" class="tactical-slider" />
+          </div>
+
+          <!-- Toggle para Desligar o Aviso de Troca de Região (#region-toast) -->
+          <div class="option-row option-row-inline">
+            <span id="lbl-region-toast" class="option-title">AVISO DE TROCA DE REGIÃO NA TELA</span>
+            <button id="btn-toggle-region-toast" class="tactical-toggle-btn active">ON // ATIVADO</button>
+          </div>
+
+          <!-- Seletor de Idioma (PT-BR / EN-US) -->
+          <div class="option-row option-row-inline">
+            <span id="lbl-lang-select" class="option-title">IDIOMA DA INTERFACE (LANGUAGE)</span>
+            <button id="btn-pause-language" class="tactical-toggle-btn active">PT-BR // PORTUGUÊS</button>
+          </div>
+
+          <div id="pause-save-feedback" class="pause-save-feedback hidden">✔ PROGRESSO SALVO NO SLOT COM SUCESSO!</div>
+        </div>
+
+        <!-- Botões de Jogo quando aberto durante a partida [ESC] -->
+        <div id="pause-ingame-actions" class="pause-actions-grid">
+          <button id="btn-pause-resume" class="tactical-btn pause-main-btn">CONTINUAR OPERAÇÃO [ESC]</button>
+          <button id="btn-pause-save" class="tactical-btn">SALVAR JOGO AGORA</button>
+          <button id="btn-pause-switch-faction" class="tactical-btn">TROCAR DE FACÇÃO ALIADA</button>
+          <button id="btn-pause-save-quit" class="tactical-btn danger-btn">SALVAR E SAIR PARA O MENU INICIAL</button>
         </div>
       </div>
     </div>

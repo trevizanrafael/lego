@@ -391,9 +391,9 @@ export class DestructibleManager {
     let closestDist = maxDist;
     let hitObj = null;
 
-    // 1. Verifica interseção do raio da mira central com a esfera/cilindro dos objetos quebráveis (ignorando o veículo atual do jogador!)
+    // 1. Verifica interseção do raio da mira central com a esfera/cilindro dos objetos quebráveis (ignorando o veículo atual do jogador e tropas aliadas!)
     for (const obj of this.objects) {
-      if (obj.destroyed || obj.isDriven) continue;
+      if (obj.destroyed || obj.isDriven || obj.isAlliedToPlayer) continue;
 
       const objCenter = new THREE.Vector3(
         obj.basePos.x,
@@ -3242,6 +3242,7 @@ export class DestructibleManager {
 
   damageObject(obj, amount, hitOrigin = null, isSolar = false, damageOpts = {}) {
     if (obj.destroyed) return;
+    if (obj.isAlliedToPlayer && !damageOpts.fromEnemyNpc) return;
 
     // Objetos de Ouro LEGO só derretem com o Raio Solar Contínuo ou Supernova do Solaris!
     if (obj.goldOnly && !isSolar) {

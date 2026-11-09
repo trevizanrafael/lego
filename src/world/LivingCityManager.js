@@ -63,7 +63,22 @@ export class LivingCityManager {
       { id: 'wz_prison', x: 1370, z: 780, label: 'PONTE BLINDADA DA PRISÃO' }
     ];
 
-    // Estado de Rádio do Caveira e Dano do Jogador
+    // Estado de Rádio do Caveira e Sistema de Vida de 250 HP + Guerra Mundial (Estilo PvZ GW2 Backyard Battleground)
+    this.playerFaction = 'cv';
+    this.playerMaxHp = 250;
+    this.playerHp = 250;
+    this.timeSinceLastHit = 10.0;
+    this.playerBeingHealed = false;
+    this._healChimeTimer = 0;
+
+    this.worldWarEscalation = 0.35;
+    this.bossWaveActive = false;
+    this.bossWaveCooldown = 0;
+    this.activeBosses = [];
+    this.healStations = [];
+    this.healthCrystals = [];
+    this.centralFlagBeacon = null;
+
     this.caveiraSupportCooldown = 0;
     this.caveiraCallToggle = 0;
     this.playerHitInvulnTimer = 0;
@@ -80,11 +95,162 @@ export class LivingCityManager {
     this.armoredConvoy = null;
     this.convoyRespawnTimer = 8.0;
 
+    this._initCentralBattlegroundProps();
     this._initUrbanTraffic();
     this._initPedestrians();
     this._initFactionsAndPolice();
     this._initPccAssaultHelicopter();
     this._spawnArmoredConvoyEvent();
+  }
+
+  // ============================================================================
+  // 0. FRONT CENTRAL DE GUERRA MUNDIAL (ESTILO PVZ GW2 BACKYARD BATTLEGROUND)
+  // ============================================================================
+  _initCentralBattlegroundProps() {
+    const steelMat = getLegoMaterial(0x1e293b, { metalness: 0.6, roughness: 0.25 });
+    const darkMat = getLegoMaterial(0x090a0d, { roughness: 0.3 });
+    const goldMat = getLegoMaterial(0xfacc15, { emissive: 0xd97706, emissiveIntensity: 0.7 });
+
+    // Mastro Central da Bandeira de Poder (Flag of Power) na Praça/Avenida Central (0, 0, -96)
+    const pylonGroup = new THREE.Group();
+    const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.8, 0.45, 16), darkMat);
+    baseRing.position.y = 0.22;
+    const innerPad = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.8, 0.55, 16), steelMat);
+    innerPad.position.y = 0.28;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.32, 9.5, 12), steelMat);
+    pole.position.y = 4.9;
+    const topCrown = new THREE.Mesh(new THREE.OctahedronGeometry(0.95, 0), goldMat);
+    topCrown.position.y = 10.1;
+
+    const flagMat = new THREE.MeshBasicMaterial({
+      color: 0xef4444,
+      side: THREE.DoubleSide
+    });
+    const flagBanner = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.8), flagMat);
+    flagBanner.position.set(1.9, 8.2, 0);
+
+    const auraGeo = new THREE.TorusGeometry(3.6, 0.12, 8, 28);
+    auraGeo.rotateX(Math.PI / 2);
+    const auraRing = new THREE.Mesh(auraGeo, new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    auraRing.position.y = 0.15;
+
+    pylonGroup.add(baseRing, innerPad, pole, topCrown, flagBanner, auraRing);
+    pylonGroup.position.set(0, 0, -96);
+    this.scene.add(pylonGroup);
+    this.centralFlagBeacon = {
+      group: pylonGroup,
+      topCrown,
+      flagMat,
+      auraRing
+    };
+
+    // Trincheiras e Bunkers Táticos LEGO das 3 Facções no Front Central
+    const bunkerSpecs = [
+      { x: -26, z: -96, rotY: Math.PI * 0.45, color: 0xdc2626 }, // Bunker Avançado CV (Oeste)
+      { x: 26, z: -96, rotY: -Math.PI * 0.45, color: 0x2563eb }, // Bunker Avançado PCC (Leste)
+      { x: 0, z: -74, rotY: Math.PI, color: 0xa855f7 }           // Bunker Avançado A.R.E.S. (Sul)
+    ];
+    for (const b of bunkerSpecs) {
+      const bGroup = new THREE.Group();
+      const wallMat = getLegoMaterial(b.color, { roughness: 0.25 });
+      const wMain = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.45, 0.9), steelMat);
+      wMain.position.y = 0.72;
+      const wStripe = new THREE.Mesh(new THREE.BoxGeometry(5.3, 0.38, 0.96), wallMat);
+      wStripe.position.y = 1.05;
+      bGroup.add(wMain, wStripe);
+      for (let sx = -2.0; sx <= 2.0; sx += 1.0) {
+        const st = new THREE.Mesh(SHARED_STUD_GEO, wallMat);
+        st.position.set(sx, 1.52, 0);
+        bGroup.add(st);
+      }
+      bGroup.position.set(b.x, 0, b.z);
+      bGroup.rotation.y = b.rotY;
+      this.scene.add(bGroup);
+    }
+  }
+
+  /**
+   * Define a Facção Aliada do Jogador ('cv', 'pcc' ou 'ares'), atualiza todos os anéis verdes de aliado,
+   * restaura 250 HP e despacha um Esquadrão Aliado pessoal (com Cientista/Médico de Cura + Tanque de Escudo)!
+   */
+  setPlayerFaction(factionKey, controller = null) {
+    if (!['cv', 'pcc', 'ares'].includes(factionKey)) {
+      factionKey = 'cv';
+    }
+    this.playerFaction = factionKey;
+    this.playerHp = this.playerMaxHp;
+    this.timeSinceLastHit = 10.0;
+
+    if (this.hud) {
+      this.hud.setPlayerFaction(factionKey);
+      this.hud.setPlayerHealth(this.playerHp, this.playerMaxHp, false);
+    }
+
+    if (this.centralFlagBeacon) {
+      const cHex = factionKey === 'cv' ? 0xef4444 : factionKey === 'pcc' ? 0x38bdf8 : 0xd946ef;
+      this.centralFlagBeacon.flagMat.color.setHex(cHex);
+      this.centralFlagBeacon.auraRing.material.color.setHex(cHex);
+    }
+
+    // Atualiza o status de Aliado vs Inimigo em todas as tropas vivas na cidade!
+    for (const npc of this.combatNpcs) {
+      this._syncNpcAllegiance(npc);
+    }
+
+    // Spawna 1 Médico Aliado + 1 Tanque de Escudo Aliado + 1 Fuzileiro Aliado escoltando o jogador!
+    const pPos = controller?.position || new THREE.Vector3(0, 0.3, -92);
+    const escortRoles = [
+      `${factionKey}_medic`,
+      `${factionKey}_tank`,
+      factionKey === 'cv' ? 'cv_rifle' : factionKey === 'pcc' ? 'pcc_smg' : 'ares_exo'
+    ];
+    escortRoles.forEach((role, idx) => {
+      const ang = (idx / escortRoles.length) * Math.PI * 2;
+      const sx = pPos.x + Math.cos(ang) * 5.5;
+      const sz = pPos.z + Math.sin(ang) * 5.5;
+      const unit = this._spawnCombatNpc({
+        faction: factionKey,
+        role,
+        x: sx,
+        z: sz,
+        homeX: sx,
+        homeZ: sz
+      });
+      unit.isEscortingPlayer = true;
+    });
+
+    // Também cria uma Estação de Cura 3D Aliada perto do ponto inicial!
+    this._spawnLegoHealStation(
+      new THREE.Vector3(pPos.x + 3.8, pPos.y, pPos.z - 2.5),
+      factionKey,
+      true
+    );
+  }
+
+  _isFactionAlliedToPlayer(faction, isRecruited = false) {
+    if (isRecruited) return true;
+    if (faction === this.playerFaction) return true;
+    if (faction === 'police' && this.playerFaction === 'ares') return true;
+    return false;
+  }
+
+  _syncNpcAllegiance(npc) {
+    const isAllied =
+      npc.faction === this.playerFaction ||
+      npc.isRecruitedByPlayer ||
+      (npc.faction === 'police' && this.playerFaction === 'ares');
+    npc.isAlliedToPlayer = isAllied;
+    if (npc.destructible) {
+      npc.destructible.isAlliedToPlayer = isAllied;
+    }
+    if (npc.visual?.allyRing) {
+      npc.visual.allyRing.visible = isAllied;
+    }
+    if (npc.visual?.hpFillMat) {
+      npc.visual.hpFillMat.color.setHex(
+        isAllied ? 0x22c55e : npc.isBoss ? 0xfacc15 : 0xef4444
+      );
+    }
   }
 
   // ============================================================================
@@ -656,10 +822,31 @@ export class LivingCityManager {
   }
 
   // ============================================================================
-  // 3. AS 3 FACÇÕES INIMIGAS (CV, PCC, A.R.E.S.) + POLÍCIA / BOPE (~78 TROPAS)
+  // 3. AS 3 FACÇÕES (CV, PCC, A.R.E.S.) + MÉDICOS DE CURA, TANQUES E CHEFÕES!
   // ============================================================================
   _initFactionsAndPolice() {
     const spawns = [
+      // ------------------------------------------------------------------------
+      // FRONT CENTRAL DE GUERRA MUNDIAL (ESTILO PVZ GW2 BACKYARD BATTLEGROUND)
+      // ------------------------------------------------------------------------
+      // Esquadrão CV no Front Central (com Médico Cientista e Tanque de Escudo!)
+      { faction: 'cv', role: 'cv_medic', x: -24, z: -96, homeX: -24, homeZ: -96 },
+      { faction: 'cv', role: 'cv_tank', x: -18, z: -92, homeX: -18, homeZ: -92 },
+      { faction: 'cv', role: 'cv_rifle', x: -28, z: -88, homeX: -28, homeZ: -88 },
+      { faction: 'cv', role: 'cv_rpg', x: -22, z: -102, homeX: -22, homeZ: -102 },
+
+      // Esquadrão PCC no Front Central (com Médico Cientista e Tanque de Escudo!)
+      { faction: 'pcc', role: 'pcc_medic', x: 24, z: -96, homeX: 24, homeZ: -96 },
+      { faction: 'pcc', role: 'pcc_tank', x: 18, z: -92, homeX: 18, homeZ: -92 },
+      { faction: 'pcc', role: 'pcc_smg', x: 28, z: -88, homeX: 28, homeZ: -88 },
+      { faction: 'pcc', role: 'pcc_c4', x: 22, z: -102, homeX: 22, homeZ: -102 },
+
+      // Esquadrão A.R.E.S. no Front Central (com Cientista Quântico e Tanque de Escudo!)
+      { faction: 'ares', role: 'ares_medic', x: 0, z: -72, homeX: 0, homeZ: -72 },
+      { faction: 'ares', role: 'ares_tank', x: -6, z: -76, homeX: -6, homeZ: -76 },
+      { faction: 'ares', role: 'ares_exo', x: 6, z: -76, homeX: 6, homeZ: -76 },
+      { faction: 'ares', role: 'ares_drone', x: 0, z: -66, homeX: 0, homeZ: -66 },
+
       // ------------------------------------------------------------------------
       // ZONA DE GUERRA 1: CENTRO FINANCEIRO / AVENIDA DO SUPER BANCO (BOPE vs PCC vs CV)
       // ------------------------------------------------------------------------
@@ -669,15 +856,17 @@ export class LivingCityManager {
       { faction: 'police', role: 'bope_rifle', x: 72, z: -124, homeX: 72, homeZ: -124 },
       { faction: 'police', role: 'bope_rifle', x: 68, z: -108, homeX: 68, homeZ: -108 },
       { faction: 'pcc', role: 'pcc_smg', x: 94, z: -112, homeX: 94, homeZ: -112 },
+      { faction: 'pcc', role: 'pcc_medic', x: 98, z: -116, homeX: 98, homeZ: -116 },
       { faction: 'pcc', role: 'pcc_c4', x: 102, z: -120, homeX: 102, homeZ: -120 },
-      { faction: 'pcc', role: 'pcc_smg', x: 108, z: -106, homeX: 108, homeZ: -106 },
+      { faction: 'pcc', role: 'pcc_tank', x: 108, z: -106, homeX: 108, homeZ: -106 },
       { faction: 'cv', role: 'cv_rifle', x: 86, z: -96, homeX: 86, homeZ: -96 },
       { faction: 'cv', role: 'cv_rpg', x: 92, z: -92, homeX: 92, homeZ: -92 },
 
       // ------------------------------------------------------------------------
       // ZONA DE GUERRA 2: FRONTEIRA OESTE — ENTRADA DA CIDADE DE DEUS (CV vs BOPE vs A.R.E.S.)
       // ------------------------------------------------------------------------
-      { faction: 'cv', role: 'cv_rifle', x: -508, z: -122, homeX: -508, homeZ: -122 },
+      { faction: 'cv', role: 'cv_tank', x: -508, z: -122, homeX: -508, homeZ: -122 },
+      { faction: 'cv', role: 'cv_medic', x: -512, z: -118, homeX: -512, homeZ: -118 },
       { faction: 'cv', role: 'cv_rpg', x: -514, z: -112, homeX: -514, homeZ: -112 },
       { faction: 'cv', role: 'cv_rifle', x: -506, z: -246, homeX: -506, homeZ: -246 },
       { faction: 'cv', role: 'cv_rpg', x: -514, z: -254, homeX: -514, homeZ: -254 },
@@ -689,15 +878,17 @@ export class LivingCityManager {
       { faction: 'ares', role: 'ares_drone', x: -458, z: -102, homeX: -458, homeZ: -102 },
 
       // ------------------------------------------------------------------------
-      // INTERIOR DO MORRO DA CIDADE DE DEUS (5 NÍVEIS DE TROPAS E OLHEIROS DO CV!)
+      // INTERIOR DO MORRO DA CIDADE DE DEUS (5 NÍVEIS DE TROPAS, MÉDICOS E TANQUES DO CV!)
       // ------------------------------------------------------------------------
       { faction: 'cv', role: 'cv_rifle', x: -585, z: -140, homeX: -585, homeZ: -140 },
+      { faction: 'cv', role: 'cv_medic', x: -600, z: -132, homeX: -600, homeZ: -132 },
       { faction: 'cv', role: 'cv_rpg', x: -612, z: -125, homeX: -612, homeZ: -125 },
-      { faction: 'cv', role: 'cv_rifle', x: -648, z: -135, homeX: -648, homeZ: -135 },
+      { faction: 'cv', role: 'cv_tank', x: -648, z: -135, homeX: -648, homeZ: -135 },
       { faction: 'cv', role: 'cv_rpg', x: -692, z: -138, homeX: -692, homeZ: -138 },
+      { faction: 'cv', role: 'cv_medic', x: -720, z: -136, homeX: -720, homeZ: -136 },
       { faction: 'cv', role: 'cv_rifle', x: -735, z: -135, homeX: -735, homeZ: -135 },
       { faction: 'cv', role: 'cv_rpg', x: -780, z: -142, homeX: -780, homeZ: -142 },
-      { faction: 'cv', role: 'cv_rifle', x: -835, z: -130, homeX: -835, homeZ: -130 },
+      { faction: 'cv', role: 'cv_tank', x: -835, z: -130, homeX: -835, homeZ: -130 },
       { faction: 'cv', role: 'cv_rpg', x: -885, z: -120, homeX: -885, homeZ: -120 },
       { faction: 'cv', role: 'cv_rifle', x: -635, z: -245, homeX: -635, homeZ: -245 },
       { faction: 'cv', role: 'cv_rpg', x: -705, z: -250, homeX: -705, homeZ: -250 },
@@ -711,7 +902,8 @@ export class LivingCityManager {
       // ------------------------------------------------------------------------
       // ZONA DE GUERRA 3 & INTERIOR DA QUEBRADA LESTE (DOMÍNIO DO PCC vs CV vs BOPE)
       // ------------------------------------------------------------------------
-      { faction: 'pcc', role: 'pcc_smg', x: 598, z: -122, homeX: 598, homeZ: -122 },
+      { faction: 'pcc', role: 'pcc_tank', x: 598, z: -122, homeX: 598, homeZ: -122 },
+      { faction: 'pcc', role: 'pcc_medic', x: 602, z: -116, homeX: 602, homeZ: -116 },
       { faction: 'pcc', role: 'pcc_c4', x: 604, z: -112, homeX: 604, homeZ: -112 },
       { faction: 'pcc', role: 'pcc_smg', x: 602, z: -248, homeX: 602, homeZ: -248 },
       { faction: 'pcc', role: 'pcc_c4', x: 610, z: -254, homeX: 610, homeZ: -254 },
@@ -722,11 +914,12 @@ export class LivingCityManager {
 
       // Quadras e Galpões Internos do PCC no Leste
       { faction: 'pcc', role: 'pcc_smg', x: 668, z: -315, homeX: 668, homeZ: -315 },
+      { faction: 'pcc', role: 'pcc_medic', x: 676, z: -315, homeX: 676, homeZ: -315 },
       { faction: 'pcc', role: 'pcc_c4', x: 685, z: -315, homeX: 685, homeZ: -315 },
-      { faction: 'pcc', role: 'pcc_smg', x: 735, z: -245, homeX: 735, homeZ: -245 },
+      { faction: 'pcc', role: 'pcc_tank', x: 735, z: -245, homeX: 735, homeZ: -245 },
       { faction: 'pcc', role: 'pcc_c4', x: 750, z: -120, homeX: 750, homeZ: -120 },
-      { faction: 'pcc', role: 'pcc_smg', x: 680, z: -115, homeX: 680, homeZ: -115 },
-      { faction: 'pcc', role: 'pcc_smg', x: 820, z: -185, homeX: 820, homeZ: -185 },
+      { faction: 'pcc', role: 'pcc_medic', x: 680, z: -115, homeX: 680, homeZ: -115 },
+      { faction: 'pcc', role: 'pcc_tank', x: 820, z: -185, homeX: 820, homeZ: -185 },
       { faction: 'pcc', role: 'pcc_c4', x: 840, z: -195, homeX: 840, homeZ: -195 },
       { faction: 'pcc', role: 'pcc_smg', x: 710, z: -15, homeX: 710, homeZ: -15 },
       { faction: 'pcc', role: 'pcc_c4', x: 790, z: -410, homeX: 790, homeZ: -410 },
@@ -735,7 +928,8 @@ export class LivingCityManager {
       // ZONA DE GUERRA 4 & PORTO DE CONTÊINERES / BASE MILITAR (DOMÍNIO DA A.R.E.S.)
       // ------------------------------------------------------------------------
       { faction: 'ares', role: 'ares_mecha', x: 775, z: 152, homeX: 775, homeZ: 152 },
-      { faction: 'ares', role: 'ares_exo', x: 768, z: 160, homeX: 768, homeZ: 160 },
+      { faction: 'ares', role: 'ares_medic', x: 770, z: 158, homeX: 770, homeZ: 158 },
+      { faction: 'ares', role: 'ares_tank', x: 768, z: 160, homeX: 768, homeZ: 160 },
       { faction: 'ares', role: 'ares_drone', x: 782, z: 146, homeX: 782, homeZ: 146 },
       { faction: 'pcc', role: 'pcc_smg', x: 764, z: 118, homeX: 764, homeZ: 118 },
       { faction: 'pcc', role: 'pcc_c4', x: 774, z: 116, homeX: 774, homeZ: 116 },
@@ -743,17 +937,20 @@ export class LivingCityManager {
 
       // Interior do Porto Leste (Guindastes, Pátio de Contêineres e Doca A.R.E.S.)
       { faction: 'ares', role: 'ares_mecha', x: 965, z: 590, homeX: 965, homeZ: 590 },
-      { faction: 'ares', role: 'ares_exo', x: 952, z: 585, homeX: 952, homeZ: 585 },
+      { faction: 'ares', role: 'ares_medic', x: 958, z: 586, homeX: 958, homeZ: 586 },
+      { faction: 'ares', role: 'ares_tank', x: 952, z: 585, homeX: 952, homeZ: 585 },
       { faction: 'ares', role: 'ares_drone', x: 978, z: 585, homeX: 978, homeZ: 585 },
       { faction: 'ares', role: 'ares_exo', x: 1060, z: 340, homeX: 1060, homeZ: 340 },
+      { faction: 'ares', role: 'ares_medic', x: 1070, z: 345, homeX: 1070, homeZ: 345 },
       { faction: 'ares', role: 'ares_drone', x: 1080, z: 350, homeX: 1080, homeZ: 350 },
       { faction: 'ares', role: 'ares_mecha', x: 1190, z: 460, homeX: 1190, homeZ: 460 },
       { faction: 'ares', role: 'ares_exo', x: 1175, z: 450, homeX: 1175, homeZ: 450 },
 
       // Base Militar Oeste & Aeroporto
       { faction: 'ares', role: 'ares_mecha', x: -1140, z: 360, homeX: -1140, homeZ: 360 },
+      { faction: 'ares', role: 'ares_medic', x: -1134, z: 355, homeX: -1134, homeZ: 355 },
       { faction: 'ares', role: 'ares_drone', x: -1128, z: 350, homeX: -1128, homeZ: 350 },
-      { faction: 'ares', role: 'ares_exo', x: -1155, z: 375, homeX: -1155, homeZ: 375 },
+      { faction: 'ares', role: 'ares_tank', x: -1155, z: 375, homeX: -1155, homeZ: 375 },
       { faction: 'ares', role: 'ares_exo', x: -1240, z: -210, homeX: -1240, homeZ: -210 },
       { faction: 'ares', role: 'ares_drone', x: -1225, z: -195, homeX: -1225, homeZ: -195 },
 
@@ -770,17 +967,29 @@ export class LivingCityManager {
     for (const sp of spawns) {
       this._spawnCombatNpc(sp);
     }
+
+    // Já cria 3 Estações de Cura 3D no Front Central (uma para cada facção)!
+    this._spawnLegoHealStation(new THREE.Vector3(-25, 0, -93), 'cv', true);
+    this._spawnLegoHealStation(new THREE.Vector3(25, 0, -93), 'pcc', true);
+    this._spawnLegoHealStation(new THREE.Vector3(0, 0, -71), 'ares', true);
   }
 
   _spawnCombatNpc(sp) {
+    const isBoss = ['cv_boss', 'pcc_boss', 'ares_boss'].includes(sp.role);
     const isMecha = sp.role === 'ares_mecha';
     const isDrone = sp.role === 'ares_drone';
+    const isMedic = String(sp.role || '').endsWith('_medic');
+    const isTank = String(sp.role || '').endsWith('_tank');
+
     const visual = isDrone
       ? this._buildAresDroneMesh()
       : this._buildLegoNpcMesh({
           faction: sp.faction,
           role: sp.role,
-          isMecha
+          isBoss,
+          isMecha,
+          isMedic,
+          isTank
         });
 
     const groundY = this.world.getTerrainHeightAt
@@ -790,10 +999,10 @@ export class LivingCityManager {
     visual.root.position.set(sp.x, baseY, sp.z);
     this.scene.add(visual.root);
 
-    // Barra de HP 3D Flutuante acima da cabeça (Invisível com 100% de HP, aparece ao tomar dano!)
+    // Barra de HP 3D Flutuante acima da cabeça
     const hpBarGroup = new THREE.Group();
-    hpBarGroup.position.set(0, isMecha ? 2.25 : isDrone ? 0.95 : 2.35, 0);
-    hpBarGroup.visible = false;
+    hpBarGroup.position.set(0, isBoss ? 2.45 : isMecha ? 2.25 : isDrone ? 0.95 : 2.35, 0);
+    hpBarGroup.visible = isBoss;
     const bgMat = new THREE.MeshBasicMaterial({ color: 0x090a0d, side: THREE.DoubleSide });
     const bgMesh = new THREE.Mesh(HP_BAR_BG_GEO, bgMat);
     const fillColor =
@@ -807,9 +1016,19 @@ export class LivingCityManager {
     visual.hpFillMesh = fillMesh;
     visual.hpFillMat = fillMat;
 
-    const maxHp = isMecha ? 260 : isDrone ? 75 : 65;
-    const radius = isMecha ? 1.55 : isDrone ? 1.05 : 0.85;
-    const height = isMecha ? 3.4 : isDrone ? 1.6 : 1.9;
+    const maxHp = isBoss
+      ? 1200
+      : isMecha
+        ? 260
+        : isTank
+          ? 165
+          : isMedic
+            ? 95
+            : isDrone
+              ? 75
+              : 65;
+    const radius = isBoss ? 2.15 : isMecha ? 1.55 : isTank ? 1.15 : isDrone ? 1.05 : 0.85;
+    const height = isBoss ? 4.4 : isMecha ? 3.4 : isTank ? 2.4 : isDrone ? 1.6 : 1.9;
 
     const debrisColors =
       sp.faction === 'cv'
@@ -820,9 +1039,11 @@ export class LivingCityManager {
             ? [0x475569, 0xa855f7, 0xd946ef]
             : [0x090a0d, 0xfacc15, 0x334155];
 
-    const studDrops = isMecha
-      ? { silver: 4, gold: 8, blue: 4, purple: 1 }
-      : { silver: 3, gold: 3, blue: 1, purple: 0 };
+    const studDrops = isBoss
+      ? { purple: 6, blue: 14, gold: 24, silver: 10 }
+      : isMecha
+        ? { silver: 4, gold: 8, blue: 4, purple: 1 }
+        : { silver: 3, gold: 3, blue: 1, purple: 0 };
 
     let destructibleObj = null;
     if (this.destructibles) {
@@ -843,12 +1064,24 @@ export class LivingCityManager {
       destructibleObj.faction = sp.faction;
     }
 
+    const bossNameMap = {
+      cv_boss: 'TROVÃO RUBRO (COLOSSO DO MORRO)',
+      pcc_boss: 'BLINDADO SUPREMO Z-15',
+      ares_boss: 'OVERLORD QUÂNTICO'
+    };
+
     const npc = {
       faction: sp.faction,
       role: sp.role,
+      name: sp.name || bossNameMap[sp.role] || sp.role,
+      isBoss,
       isMecha,
       isDrone,
-      isBigFig: isMecha,
+      isMedic,
+      isTank,
+      isBigFig: isBoss || isMecha,
+      isAlliedToPlayer: false,
+      isEscortingPlayer: Boolean(sp.isEscortingPlayer),
       visual,
       destructible: destructibleObj,
       destructibleObj,
@@ -856,15 +1089,17 @@ export class LivingCityManager {
       z: sp.z,
       homeX: sp.homeX,
       homeZ: sp.homeZ,
-      moveSpeed: isMecha ? 4.8 : isDrone ? 8.2 : 6.2,
-      fireCooldown: 0.4 + Math.random() * 1.1,
-      fireInterval:
-        sp.role === 'cv_rpg' || sp.role === 'pcc_c4'
-          ? 2.6
-          : isMecha
+      moveSpeed: isBoss ? 5.6 : isMecha ? 4.8 : isTank ? 5.2 : isDrone ? 8.2 : 6.4,
+      fireCooldown: 0.4 + Math.random() * 0.9,
+      fireInterval: isBoss
+        ? 0.45
+        : sp.role === 'cv_rpg' || sp.role === 'pcc_c4'
+          ? 2.4
+          : isMecha || isTank
             ? 0.55
             : 0.72,
-      attackRange: isMecha ? 54 : 46,
+      attackRange: isBoss ? 68 : isMecha ? 54 : 46,
+      healStationCooldown: 3.0 + Math.random() * 5.0,
       isRecruitedByPlayer: false,
       hitFlashTimer: 0,
       muzzleFlashTimer: 0,
@@ -873,23 +1108,21 @@ export class LivingCityManager {
       animTime: Math.random() * 10
     };
 
+    this._syncNpcAllegiance(npc);
+
     if (destructibleObj) {
-      // Ao sofrer dano: exibe barra de HP 3D + aplica Knockback físico e flash de impacto!
       destructibleObj.onDamaged = (amount, hitOrigin) => {
         npc.hitFlashTimer = 0.14;
         if (npc.visual.hpBarGroup && npc.visual.hpFillMesh) {
           npc.visual.hpBarGroup.visible = true;
           const ratio = Math.max(0.04, Math.min(1, destructibleObj.hp / destructibleObj.maxHp));
           npc.visual.hpFillMesh.scale.x = ratio;
-          if (!npc.isMecha) {
-            npc.visual.hpFillMat.color.setHex(ratio < 0.35 ? 0xef4444 : ratio < 0.65 ? 0xfacc15 : 0x22c55e);
-          }
         }
         if (hitOrigin) {
           const dx = visual.root.position.x - hitOrigin.x;
           const dz = visual.root.position.z - hitOrigin.z;
           const len = Math.max(0.1, Math.hypot(dx, dz));
-          const pushForce = npc.isMecha ? 4.5 : 9.5;
+          const pushForce = npc.isBoss ? 1.8 : npc.isMecha || npc.isTank ? 4.2 : 9.0;
           npc.knockbackVelX = (dx / len) * pushForce;
           npc.knockbackVelZ = (dz / len) * pushForce;
         }
@@ -900,20 +1133,66 @@ export class LivingCityManager {
         if (npc.visual.recruitRing) {
           npc.visual.recruitRing.visible = false;
         }
+        if (npc.visual.allyRing) {
+          npc.visual.allyRing.visible = false;
+        }
+        if (npc.visual.healBeamMesh) {
+          npc.visual.healBeamMesh.visible = false;
+        }
         if (npc.visual.hpBarGroup) {
           npc.visual.hpBarGroup.visible = false;
         }
+
+        // Dropa Cristal Verde de Vida (+50 HP) ao derrotar inimigos!
+        if (!npc.isAlliedToPlayer) {
+          const crystalCount = npc.isBoss ? 3 : 1;
+          for (let c = 0; c < crystalCount; c++) {
+            this._spawnHealthCrystal(
+              new THREE.Vector3(
+                visual.root.position.x + (c - (crystalCount - 1) * 0.5) * 1.4,
+                visual.root.position.y + 0.5,
+                visual.root.position.z
+              )
+            );
+          }
+        }
+
+        if (npc.isBoss) {
+          // Chefão Colossal derrotado: não dá respawn automático, solta chuva épica de Studs!
+          destructibleObj.respawnTimer = 999999;
+          this.activeBosses = this.activeBosses.filter((b) => b !== npc);
+          if (this.activeBosses.length === 0) {
+            this.bossWaveActive = false;
+            soundFX.setBossMusicIntensity(false);
+          }
+          if (!npc.isAlliedToPlayer && this.hud && typeof this.hud.showTacticalAlertToast === 'function') {
+            soundFX.playTrueHeroFanfare();
+            this.hud.showTacticalAlertToast(
+              'VITÓRIA NA GUERRA MUNDIAL // CHEFÃO ABATIDO!',
+              `${npc.name} DESTRUÍDO!`,
+              'Chuva de Studs Roxos + 3 Cristais de Vida (+150 HP) liberados!',
+              '#22c55e',
+              'bank',
+              4500
+            );
+          }
+          return;
+        }
+
         destructibleObj.respawnTimer = 14.0;
         destructibleObj.basePos.set(npc.homeX, baseY, npc.homeZ);
 
-        // Registra eliminação para o Sistema de Escalada / Reforços de Elite da Facção!
-        if (npc.faction === 'cv' || npc.faction === 'pcc' || npc.faction === 'ares') {
+        // Registra eliminação para o Sistema de Escalada / Guerra Mundial!
+        if (!npc.isAlliedToPlayer && (npc.faction === 'cv' || npc.faction === 'pcc' || npc.faction === 'ares')) {
           this._recordFactionKillForEscalation(npc.faction, visual.root.position);
         }
       };
     }
 
     this.combatNpcs.push(npc);
+    if (isBoss) {
+      this.activeBosses.push(npc);
+    }
     return npc;
   }
 
@@ -941,7 +1220,16 @@ export class LivingCityManager {
     muzzleFlashMesh.position.set(0, -0.18, 0.65);
     muzzleFlashMesh.visible = false;
 
-    root.add(hull, eyeCore, laserBarrel, muzzleFlashMesh);
+    const allyRingGeo = new THREE.TorusGeometry(0.65, 0.045, 8, 20);
+    allyRingGeo.rotateX(Math.PI / 2);
+    const allyRing = new THREE.Mesh(
+      allyRingGeo,
+      new THREE.MeshBasicMaterial({ color: 0x22c55e })
+    );
+    allyRing.position.y = -0.35;
+    allyRing.visible = false;
+
+    root.add(hull, eyeCore, laserBarrel, muzzleFlashMesh, allyRing);
 
     const rotors = [];
     for (const sx of [-0.58, 0.58]) {
@@ -961,14 +1249,22 @@ export class LivingCityManager {
       }
     }
 
-    return { root, rotors, muzzleFlashMesh, isDrone: true };
+    return { root, rotors, muzzleFlashMesh, allyRing, isDrone: true };
   }
 
   _buildLegoNpcMesh(cfg) {
     const root = new THREE.Group();
+    const isBoss = Boolean(cfg.isBoss);
     const isMecha = Boolean(cfg.isMecha);
-    if (isMecha) {
+    const isMedic = Boolean(cfg.isMedic);
+    const isTank = Boolean(cfg.isTank);
+
+    if (isBoss) {
+      root.scale.set(2.42, 2.38, 2.42);
+    } else if (isMecha) {
       root.scale.set(1.85, 1.75, 1.85);
+    } else if (isTank) {
+      root.scale.set(1.28, 1.24, 1.28);
     }
 
     const faction = cfg.faction || 'civilian';
@@ -1005,6 +1301,12 @@ export class LivingCityManager {
     const legMat = getLegoMaterial(legColor, { roughness: 0.26 });
     const blackMat = getLegoMaterial(0x090a0d, { roughness: 0.28 });
     const goldMat = getLegoMaterial(0xfacc15, { metalness: 0.65, roughness: 0.18 });
+    const whiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
+    const medicGreenMat = getLegoMaterial(0x22c55e, {
+      emissive: 0x16a34a,
+      emissiveIntensity: 1.8,
+      roughness: 0.15
+    });
 
     // Pernas Articuladas
     const leftLeg = new THREE.Mesh(NPC_LEG_GEO, legMat);
@@ -1027,7 +1329,6 @@ export class LivingCityManager {
         getLegoMaterial(0xef4444, { emissive: 0x991b1b, emissiveIntensity: 0.4 })
       );
       redBand.position.set(0, 1.12, 0);
-      // Corrente de Ouro Grossa 3D no Pescoço do Soldado do CV!
       const goldChain = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.032, 8, 16), goldMat);
       goldChain.rotation.x = Math.PI * 0.42;
       goldChain.position.set(0, 1.32, 0.06);
@@ -1046,7 +1347,7 @@ export class LivingCityManager {
       const chestCore = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.44), neonMat);
       chestCore.position.set(0, 1.02, 0);
       root.add(chestCore);
-      if (isMecha) {
+      if (isMecha || isBoss) {
         for (const side of [-1, 1]) {
           const shoulderPod = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.34, 0.48), torsoMat);
           shoulderPod.position.set(side * 0.52, 1.32, 0);
@@ -1056,20 +1357,101 @@ export class LivingCityManager {
     } else if (faction === 'police') {
       const bopeVest = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.52, 0.42), blackMat);
       bopeVest.position.set(0, 0.98, 0);
-      const goldBadge = new THREE.Mesh(
-        new THREE.BoxGeometry(0.22, 0.22, 0.45),
-        goldMat
-      );
+      const goldBadge = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.45), goldMat);
       goldBadge.position.set(0.14, 1.06, 0);
       root.add(bopeVest, goldBadge);
     } else if ((cfg.styleIdx || 0) % 2 === 0) {
-      // Mochila 3D nas costas de pedestres civis
       const backpack = new THREE.Mesh(
         new THREE.BoxGeometry(0.46, 0.5, 0.22),
         getLegoMaterial((cfg.styleIdx || 0) % 4 === 0 ? 0xd97706 : 0x1e293b)
       );
       backpack.position.set(0, 1.02, -0.28);
       root.add(backpack);
+    }
+
+    // ------------------------------------------------------------------------
+    // MOCHILA MÉDICA 3D COM CRUZ VERDE BRILHANTE (+) + RAIO DE CURA 3D (ESTILO CIENTISTA / GIRASSOL PVZ GW2!)
+    // ------------------------------------------------------------------------
+    let healBeamMesh = null;
+    if (isMedic) {
+      const medPack = new THREE.Group();
+      const packBox = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.58, 0.28), whiteMat);
+      const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.32), medicGreenMat);
+      const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.32), medicGreenMat);
+      const tankL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.56, 10), medicGreenMat);
+      tankL.position.set(-0.32, 0, 0);
+      const tankR = tankL.clone();
+      tankR.position.set(0.32, 0, 0);
+      medPack.add(packBox, crossV, crossH, tankL, tankR);
+      medPack.position.set(0, 1.04, -0.32);
+
+      // Emblema de Cruz Médica no Peito Frontal
+      const chestCrossV = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, 0.48), medicGreenMat);
+      chestCrossV.position.set(0, 1.02, 0);
+      const chestCrossH = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.48), medicGreenMat);
+      chestCrossH.position.set(0, 1.02, 0);
+      root.add(medPack, chestCrossV, chestCrossH);
+
+      // Raio de Cura Contínuo 3D (Ancorado na base para apontar e esticar até o Jogador ou Aliado!)
+      const beamGeo = new THREE.CylinderGeometry(0.11, 0.16, 1.0, 10);
+      beamGeo.rotateX(Math.PI / 2);
+      beamGeo.translate(0, 0, 0.5);
+      healBeamMesh = new THREE.Mesh(
+        beamGeo,
+        new THREE.MeshBasicMaterial({
+          color: 0x22c55e,
+          transparent: true,
+          opacity: 0.85
+        })
+      );
+      healBeamMesh.position.set(0, 1.15, 0);
+      healBeamMesh.visible = false;
+      root.add(healBeamMesh);
+    }
+
+    // ------------------------------------------------------------------------
+    // ARMADURA COLOSSAL EXCLUSIVA DOS 3 CHEFÕES DE GUERRA MUNDIAL (BIG-FIG 2.4x!)
+    // ------------------------------------------------------------------------
+    let bossShieldRing = null;
+    if (isBoss) {
+      if (faction === 'cv') {
+        // TROVÃO RUBRO: Ombreiras blindadas com morteiros de fogo + Coroa Dourada
+        const redGlowMat = getLegoMaterial(0xef4444, { emissive: 0xdc2626, emissiveIntensity: 1.6 });
+        for (const side of [-1, 1]) {
+          const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.52), goldMat);
+          pauldron.position.set(side * 0.56, 1.34, 0);
+          const mortarTube = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.55, 10), blackMat);
+          mortarTube.position.set(side * 0.48, 1.65, -0.18);
+          mortarTube.rotation.x = -0.35;
+          const flameTip = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.28, 8), redGlowMat);
+          flameTip.position.set(side * 0.48, 1.92, -0.08);
+          root.add(pauldron, mortarTube, flameTip);
+        }
+      } else if (faction === 'pcc') {
+        // BLINDADO SUPREMO Z-15: Cúpula blindada azul-neon + Pods duplos de mísseis nos ombros
+        const cyanGlowMat = getLegoMaterial(0x38bdf8, { emissive: 0x0284c7, emissiveIntensity: 1.8 });
+        for (const side of [-1, 1]) {
+          const missilePod = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.56), blackMat);
+          missilePod.position.set(side * 0.56, 1.42, -0.05);
+          const podFront = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.34, 0.6), cyanGlowMat);
+          podFront.position.set(side * 0.56, 1.42, -0.05);
+          root.add(missilePod, podFront);
+        }
+      } else if (faction === 'ares') {
+        // OVERLORD QUÂNTICO: Anel Eletromagnético Rotativo 3D + Ombreiras Douradas Quânticas
+        const purpleGlow = getLegoMaterial(0xd946ef, { emissive: 0xa855f7, emissiveIntensity: 2.4 });
+        for (const side of [-1, 1]) {
+          const wingPylon = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.52, 0.48), goldMat);
+          wingPylon.position.set(side * 0.58, 1.42, -0.08);
+          root.add(wingPylon);
+        }
+        bossShieldRing = new THREE.Mesh(
+          new THREE.TorusGeometry(0.95, 0.06, 10, 28),
+          purpleGlow
+        );
+        bossShieldRing.position.set(0, 1.08, 0);
+        root.add(bossShieldRing);
+      }
     }
 
     // Cabeça Cilíndrica LEGO + Rosto Texturizado em 100% dos NPCs!
@@ -1098,18 +1480,18 @@ export class LivingCityManager {
 
     // Capacete / Boina / Bandana / Cabelo / Boné por Facção e Estilo Civil
     if (faction === 'cv') {
-      const bandanaMat = getLegoMaterial(0xdc2626);
+      const bandanaMat = getLegoMaterial(isBoss ? 0xfacc15 : 0xdc2626);
       const redBandana = new THREE.Mesh(new THREE.CylinderGeometry(0.345, 0.345, 0.14, 14), bandanaMat);
       redBandana.position.set(0, 1.78, 0);
       const knot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.18), bandanaMat);
       knot.position.set(0, 1.74, -0.34);
       root.add(redBandana, knot);
     } else if (faction === 'pcc') {
-      const hoodCap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.14, 14), blackMat);
+      const hoodCap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.14, 14), isBoss ? goldMat : blackMat);
       hoodCap.position.set(0, 1.8, 0);
       root.add(hoodCap);
     } else if (faction === 'ares') {
-      const helmetTop = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.2, 0.68), torsoMat);
+      const helmetTop = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.2, 0.68), isBoss ? goldMat : torsoMat);
       helmetTop.position.set(0, 1.82, 0);
       const visor = new THREE.Mesh(
         new THREE.BoxGeometry(0.52, 0.12, 0.12),
@@ -1125,36 +1507,56 @@ export class LivingCityManager {
       beretBadge.position.set(0.1, 1.83, 0.33);
       root.add(beret, beretBadge);
     } else {
-      // Variedade de Cabelos e Bonés para os Pedestres Civis!
       const sIdx = (cfg.styleIdx || 0) % 4;
       const hairColors = [0x451a03, 0x090a0d, 0xd97706, 0x991b1b];
       const hMat = getLegoMaterial(cfg.hatColor || hairColors[sIdx]);
       if (sIdx === 0) {
-        // Boné com aba frontal
         const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.15, 14), hMat);
         capCrown.position.set(0, 1.8, 0);
         const capBrim = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.32), hMat);
         capBrim.position.set(0, 1.75, 0.26);
         root.add(capCrown, capBrim);
       } else if (sIdx === 1) {
-        // Cabelo esculpido com topete
         const hairTop = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.18, 0.66), hMat);
         hairTop.position.set(0, 1.82, 0.02);
         const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.34, 0.18), hMat);
         hairBack.position.set(0, 1.66, -0.28);
         root.add(hairTop, hairBack);
       } else if (sIdx === 2) {
-        // Fone de ouvido (Headset Urbano)
         const arc = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, 0.14), hMat);
         arc.position.set(0, 1.86, 0);
         root.add(arc);
       }
     }
 
-    // Braços Articulados + Arma 3D Detalhada + Clarão de Disparo (Muzzle Flash)
+    // Braços Articulados + Escudo Tático dos Tanques + Arma 3D Detalhada
     const leftArm = new THREE.Group();
     leftArm.position.set(-0.44, 1.26, 0);
     leftArm.add(new THREE.Mesh(NPC_ARM_GEO, torsoMat));
+
+    // Escudo de Energia Translúcido 3D para os Tanques Pesados (Estilo Citron / All-Star PvZ GW2!)
+    if (isTank) {
+      leftArm.rotation.x = -Math.PI * 0.35;
+      const shieldColor =
+        faction === 'cv' ? 0xef4444 : faction === 'pcc' ? 0x38bdf8 : 0xd946ef;
+      const shieldFrame = new THREE.Mesh(
+        new THREE.BoxGeometry(0.68, 1.18, 0.08),
+        blackMat
+      );
+      shieldFrame.position.set(-0.08, -0.34, 0.36);
+      shieldFrame.rotation.x = Math.PI * 0.35;
+      const shieldGlass = new THREE.Mesh(
+        new THREE.BoxGeometry(0.58, 1.06, 0.1),
+        new THREE.MeshBasicMaterial({
+          color: shieldColor,
+          transparent: true,
+          opacity: 0.65
+        })
+      );
+      shieldGlass.position.copy(shieldFrame.position);
+      shieldGlass.rotation.copy(shieldFrame.rotation);
+      leftArm.add(shieldFrame, shieldGlass);
+    }
 
     const rightArm = new THREE.Group();
     rightArm.position.set(0.44, 1.26, 0);
@@ -1164,21 +1566,27 @@ export class LivingCityManager {
     if (faction !== 'civilian') {
       rightArm.rotation.x = -Math.PI * 0.42;
       const isRpg = cfg.role === 'cv_rpg';
-      const gunLen = isRpg ? 1.2 : isMecha ? 0.98 : 0.76;
-      const gunColor =
-        faction === 'ares' ? 0xa855f7 : isRpg ? 0x3f6212 : 0x1e293b;
+      const gunLen = isBoss ? 1.32 : isRpg ? 1.2 : isMecha || isTank ? 0.98 : 0.76;
+      const gunColor = isMedic
+        ? 0x22c55e
+        : isBoss
+          ? 0xfacc15
+          : faction === 'ares'
+            ? 0xa855f7
+            : isRpg
+              ? 0x3f6212
+              : 0x1e293b;
       const gunGroup = new THREE.Group();
       gunGroup.position.set(0, -0.44, 0.28);
       gunGroup.rotation.x = Math.PI * 0.42;
 
       const receiver = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.15, gunLen),
+        new THREE.BoxGeometry(isBoss ? 0.2 : 0.12, isBoss ? 0.22 : 0.15, gunLen),
         getLegoMaterial(gunColor, { roughness: 0.25 })
       );
       gunGroup.add(receiver);
 
       if (isRpg) {
-        // Ogiva cônica explosiva na ponta da Bazuca RPG do CV!
         const warhead = new THREE.Mesh(
           new THREE.ConeGeometry(0.16, 0.38, 8),
           getLegoMaterial(0xdc2626, { roughness: 0.2 })
@@ -1187,7 +1595,6 @@ export class LivingCityManager {
         warhead.position.set(0, 0, gunLen * 0.55);
         gunGroup.add(warhead);
       } else {
-        // Carregador + Cano metálico do Fuzil AK/AR/SMG
         const mag = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.26, 0.14), blackMat);
         mag.position.set(0, -0.16, 0.1);
         mag.rotation.x = 0.25;
@@ -1208,6 +1615,20 @@ export class LivingCityManager {
     }
 
     root.add(leftArm, rightArm);
+
+    // Anel Verde Brilhante nos pés de todas as unidades da Facção Aliada do Jogador!
+    let allyRing = null;
+    if (faction !== 'civilian') {
+      const aRingGeo = new THREE.TorusGeometry(0.64, 0.05, 8, 22);
+      aRingGeo.rotateX(Math.PI / 2);
+      allyRing = new THREE.Mesh(
+        aRingGeo,
+        new THREE.MeshBasicMaterial({ color: 0x22c55e })
+      );
+      allyRing.position.y = 0.06;
+      allyRing.visible = false;
+      root.add(allyRing);
+    }
 
     let recruitRing = null;
     if (faction === 'police') {
@@ -1232,6 +1653,9 @@ export class LivingCityManager {
       leftArm,
       rightArm,
       muzzleFlashMesh,
+      healBeamMesh,
+      bossShieldRing,
+      allyRing,
       recruitRing
     };
   }
@@ -1379,15 +1803,25 @@ export class LivingCityManager {
   }
 
   /**
-   * Sistema de Escalada / Reforços de Facção (Nível de Procurado 1 a 5):
-   * Quando o jogador elimina 4 membros de uma facção, despacha um Esquadrão de Elite com alerta na HUD!
+   * Sistema de Escalada de Guerra Mundial (Estilo Bandeira de Poder / Invasão de Base do PvZ GW2):
+   * - Cada inimigo eliminado aumenta a Barra de Escalada de Guerra Mundial (+18%).
+   * - Ao chegar em 100% (ou a cada 4 abates na base inimiga), dispara uma ONDA DE CHEFÕES COLOSSAIS:
+   *   Spawna o CHEFÃO GIGANTE INIMIGO + O CHEFÃO GIGANTE DA SUA FACÇÃO ALIADA para travarem um duelo titânico!
    */
   _recordFactionKillForEscalation(faction, deathPos) {
+    if (faction === this.playerFaction) return;
     this.factionKills[faction] = (this.factionKills[faction] || 0) + 1;
+    this.worldWarEscalation = Math.min(1.0, this.worldWarEscalation + 0.22);
+
+    if (this.worldWarEscalation >= 1.0 && !this.bossWaveActive && this.bossWaveCooldown <= 0) {
+      this.spawnWorldWarBossWave(faction, deathPos);
+      return;
+    }
+
     if (this.reinforcementCooldown > 0) return;
 
-    if (this.factionKills[faction] % 4 === 0) {
-      this.reinforcementCooldown = 18.0;
+    if (this.factionKills[faction] % 3 === 0) {
+      this.reinforcementCooldown = 14.0;
       this.factionHeatLevel[faction] = Math.min(5, (this.factionHeatLevel[faction] || 0) + 1);
       const heat = this.factionHeatLevel[faction];
 
@@ -1404,26 +1838,25 @@ export class LivingCityManager {
       if (this.hud && typeof this.hud.showTacticalAlertToast === 'function') {
         this.hud.showTacticalAlertToast(
           `NÍVEL DE AMEAÇA ${'★'.repeat(heat)} // ${factionTitle}`,
-          '⚠️ ALERTA DE FACÇÃO: ESQUADRÃO DE ELITE DESPACHADO!',
-          `Tropas de choque e blindados da facção ${faction.toUpperCase()} cercaram sua posição!`,
+          '⚠️ ALERTA DE FACÇÃO: ESQUADRÃO DE ELITE + MÉDICO DESPACHADOS!',
+          `Tropas de escudo, cientista médico e reforços da facção ${faction.toUpperCase()} chegaram!`,
           accent,
           'emergency',
           4200
         );
       }
 
-      // Despacha 3 soldados de elite + 1 Mecha/Artilheiro pesado a ~24m do ponto de conflito!
       const roles =
         faction === 'cv'
-          ? ['cv_rifle', 'cv_rpg', 'cv_rifle', 'cv_rpg']
+          ? ['cv_tank', 'cv_medic', 'cv_rifle', 'cv_rpg']
           : faction === 'pcc'
-            ? ['pcc_smg', 'pcc_c4', 'pcc_smg', 'pcc_c4']
-            : ['ares_exo', 'ares_drone', 'ares_exo', 'ares_mecha'];
+            ? ['pcc_tank', 'pcc_medic', 'pcc_smg', 'pcc_c4']
+            : ['ares_tank', 'ares_medic', 'ares_exo', 'ares_mecha'];
 
       roles.forEach((role, idx) => {
         const ang = (idx / roles.length) * Math.PI * 2 + Math.random() * 0.4;
-        const sx = deathPos.x + Math.cos(ang) * 22.0;
-        const sz = deathPos.z + Math.sin(ang) * 22.0;
+        const sx = deathPos.x + Math.cos(ang) * 20.0;
+        const sz = deathPos.z + Math.sin(ang) * 20.0;
         this._spawnCombatNpc({
           faction,
           role,
@@ -1433,6 +1866,237 @@ export class LivingCityManager {
           homeZ: sz
         });
       });
+    }
+  }
+
+  /**
+   * Dispara uma Onda Épica de Chefões de Guerra Mundial (Chefão Inimigo vs Chefão Aliado + Médicos + Tanques)!
+   */
+  spawnWorldWarBossWave(enemyFaction, centerPos) {
+    if (!['cv', 'pcc', 'ares'].includes(enemyFaction) || enemyFaction === this.playerFaction) {
+      enemyFaction = this.playerFaction === 'cv' ? 'pcc' : 'cv';
+    }
+    this.bossWaveActive = true;
+    this.bossWaveCooldown = 28.0;
+    this.worldWarEscalation = 1.0;
+
+    soundFX.playRadioAlertSiren();
+    soundFX.setBossMusicIntensity(true);
+
+    // 1. Spawna o CHEFÃO COLOSSAL INIMIGO (1200 HP, escala 2.42x) + 1 Médico Inimigo + 1 Tanque Inimigo
+    const enemyBossRole = `${enemyFaction}_boss`;
+    const eX = centerPos.x + 18.0;
+    const eZ = centerPos.z - 8.0;
+    const enemyBoss = this._spawnCombatNpc({
+      faction: enemyFaction,
+      role: enemyBossRole,
+      x: eX,
+      z: eZ,
+      homeX: centerPos.x,
+      homeZ: centerPos.z
+    });
+    this._spawnCombatNpc({
+      faction: enemyFaction,
+      role: `${enemyFaction}_medic`,
+      x: eX + 4.5,
+      z: eZ + 3.5,
+      homeX: centerPos.x,
+      homeZ: centerPos.z
+    });
+    this._spawnCombatNpc({
+      faction: enemyFaction,
+      role: `${enemyFaction}_tank`,
+      x: eX - 4.5,
+      z: eZ + 3.5,
+      homeX: centerPos.x,
+      homeZ: centerPos.z
+    });
+
+    // 2. Spawna também o CHEFÃO COLOSSAL DA SUA FACÇÃO ALIADA + 1 Médico Aliado para lutar ao seu lado!
+    const allyFaction = this.playerFaction || 'cv';
+    const hasAliveAllyBoss = this.activeBosses.some(
+      (b) => b.faction === allyFaction && b.destructible && !b.destructible.destroyed
+    );
+    if (!hasAliveAllyBoss) {
+      const aX = centerPos.x - 16.0;
+      const aZ = centerPos.z + 8.0;
+      this._spawnCombatNpc({
+        faction: allyFaction,
+        role: `${allyFaction}_boss`,
+        x: aX,
+        z: aZ,
+        homeX: centerPos.x,
+        homeZ: centerPos.z
+      });
+      this._spawnCombatNpc({
+        faction: allyFaction,
+        role: `${allyFaction}_medic`,
+        x: aX - 3.5,
+        z: aZ - 3.5,
+        homeX: centerPos.x,
+        homeZ: centerPos.z
+      });
+    }
+
+    if (this.hud && typeof this.hud.showTacticalAlertToast === 'function') {
+      const accent =
+        enemyFaction === 'cv' ? '#ef4444' : enemyFaction === 'pcc' ? '#38bdf8' : '#d946ef';
+      this.hud.showTacticalAlertToast(
+        'GUERRA MUNDIAL // ONDA DE CHEFÕES COLOSSAIS!',
+        `⚠️ ${enemyBoss.name} ENTROU EM CAMPO!`,
+        `O Colosso da sua Facção Aliada (${allyFaction.toUpperCase()}) também avançou para o confronto!`,
+        accent,
+        'emergency',
+        5200
+      );
+    }
+  }
+
+  /**
+   * Cria uma Estação de Cura LEGO 3D no chão (Totem Médico com Cruz Verde + Anel Pulsante de Cura em Área de 6.8m)!
+   */
+  _spawnLegoHealStation(pos, faction = 'cv', permanent = false) {
+    const groundY = this.world.getTerrainHeightAt
+      ? this.world.getTerrainHeightAt(pos.x, pos.z)
+      : 0;
+    const group = new THREE.Group();
+    const whiteMat = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
+    const greenGlow = getLegoMaterial(0x22c55e, {
+      emissive: 0x16a34a,
+      emissiveIntensity: 2.0,
+      roughness: 0.15
+    });
+
+    const basePedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.9, 0.28, 12), whiteMat);
+    basePedestal.position.y = 0.14;
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 1.25, 10), whiteMat);
+    pillar.position.y = 0.85;
+
+    const crossGroup = new THREE.Group();
+    const cV = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.78, 0.24), greenGlow);
+    const cH = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.24, 0.24), greenGlow);
+    crossGroup.add(cV, cH);
+    crossGroup.position.y = 1.72;
+
+    const auraGeo = new THREE.TorusGeometry(5.8, 0.09, 8, 28);
+    auraGeo.rotateX(Math.PI / 2);
+    const auraRing = new THREE.Mesh(
+      auraGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0x22c55e,
+        transparent: true,
+        opacity: 0.75
+      })
+    );
+    auraRing.position.y = 0.1;
+
+    group.add(basePedestal, pillar, crossGroup, auraRing);
+    group.position.set(pos.x, Math.max(0.05, groundY), pos.z);
+    this.scene.add(group);
+
+    this.healStations.push({
+      group,
+      crossGroup,
+      auraRing,
+      faction,
+      permanent,
+      life: permanent ? 999999 : 16.0,
+      radius: 6.5
+    });
+  }
+
+  /**
+   * Cria um Cristal Verde de Vida 3D (+50 HP) quando um inimigo é derrotado!
+   */
+  _spawnHealthCrystal(pos) {
+    const groundY = this.world.getTerrainHeightAt
+      ? this.world.getTerrainHeightAt(pos.x, pos.z)
+      : 0;
+    const crystalGroup = new THREE.Group();
+    const crystalMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+    const coreMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.42, 0), crystalMat);
+    coreMesh.scale.set(0.85, 1.35, 0.85);
+    const ringGeo = new THREE.TorusGeometry(0.55, 0.04, 6, 16);
+    ringGeo.rotateX(Math.PI / 2);
+    const ringMesh = new THREE.Mesh(
+      ringGeo,
+      new THREE.MeshBasicMaterial({ color: 0x86efac })
+    );
+    crystalGroup.add(coreMesh, ringMesh);
+    crystalGroup.position.set(pos.x, Math.max(0.75, groundY + 0.75), pos.z);
+    this.scene.add(crystalGroup);
+
+    this.healthCrystals.push({
+      mesh: crystalGroup,
+      baseY: Math.max(0.75, groundY + 0.75),
+      healAmount: 50,
+      life: 24.0,
+      age: 0
+    });
+  }
+
+  _updateHealthCrystalsAndHealStations(dt, playerPos) {
+    // 1. Atualiza Cristais Verdes de Vida (+50 HP ao pegar!)
+    for (let i = this.healthCrystals.length - 1; i >= 0; i--) {
+      const c = this.healthCrystals[i];
+      c.age += dt;
+      c.life -= dt;
+      c.mesh.rotation.y += dt * 3.2;
+      c.mesh.position.y = c.baseY + Math.sin(c.age * 4.5) * 0.18;
+
+      if (playerPos) {
+        const dx = playerPos.x - c.mesh.position.x;
+        const dz = playerPos.z - c.mesh.position.z;
+        const dist = Math.hypot(dx, dz);
+        // Puxão magnético quando o jogador chega a 8.5m!
+        if (dist < 8.5 && dist > 1.2) {
+          c.mesh.position.x += (dx / dist) * 16.0 * dt;
+          c.mesh.position.z += (dz / dist) * 16.0 * dt;
+        }
+        if (dist <= 1.65) {
+          this.playerHp = Math.min(this.playerMaxHp, this.playerHp + c.healAmount);
+          soundFX.playHealTick();
+          if (this.hud) {
+            this.hud.setPlayerHealth(this.playerHp, this.playerMaxHp, true);
+          }
+          this.scene.remove(c.mesh);
+          this.healthCrystals.splice(i, 1);
+          continue;
+        }
+      }
+
+      if (c.life <= 0) {
+        this.scene.remove(c.mesh);
+        this.healthCrystals.splice(i, 1);
+      }
+    }
+
+    // 2. Atualiza Estações de Cura 3D no chão (Curam o jogador e aliados próximos!)
+    for (let i = this.healStations.length - 1; i >= 0; i--) {
+      const st = this.healStations[i];
+      if (!st.permanent) {
+        st.life -= dt;
+      }
+      st.crossGroup.rotation.y += dt * 2.4;
+      const pulse = 0.94 + Math.sin(performance.now() * 0.006) * 0.06;
+      st.auraRing.scale.set(pulse, pulse, 1);
+
+      const isAlliedStation = this._isFactionAlliedToPlayer(st.faction);
+      if (isAlliedStation && playerPos && this.playerHp < this.playerMaxHp) {
+        const dP = Math.hypot(
+          playerPos.x - st.group.position.x,
+          playerPos.z - st.group.position.z
+        );
+        if (dP <= st.radius) {
+          this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 18.0 * dt);
+          this.playerBeingHealed = true;
+        }
+      }
+
+      if (!st.permanent && st.life <= 0) {
+        this.scene.remove(st.group);
+        this.healStations.splice(i, 1);
+      }
     }
   }
 
@@ -1508,6 +2172,7 @@ export class LivingCityManager {
       );
       if (d <= 75.0) {
         npc.isRecruitedByPlayer = true;
+        this._syncNpcAllegiance(npc);
         if (npc.visual.recruitRing) {
           npc.visual.recruitRing.visible = true;
         }
@@ -1528,6 +2193,7 @@ export class LivingCityManager {
           homeZ: spawnZ
         });
         newCop.isRecruitedByPlayer = true;
+        this._syncNpcAllegiance(newCop);
         if (newCop.visual.recruitRing) {
           newCop.visual.recruitRing.visible = true;
         }
@@ -1600,11 +2266,12 @@ export class LivingCityManager {
   }
 
   // ============================================================================
-  // 7. IA DE GUERRA ENTRE FACÇÕES + BARRAS DE HP FLUTUANTES + CLARÃO E SOM!
+  // 7. IA DE GUERRA MUNDIAL + RAIO DE CURA 3D DOS MÉDICOS + CHEFÕES COLOSSAIS!
   // ============================================================================
   _updateCombatNpcs(dt, playerPos, controller) {
     if (this.pccHeli && this.pccHeli.destructible && !this.pccHeli.destructible.destroyed) {
       const h = this.pccHeli;
+      h.destructible.isAlliedToPlayer = this.playerFaction === 'pcc';
       if (!h.destructible.isDriven && !h.destructible.isGrabbed) {
         h.orbitAngle += dt * 0.32;
         const hx = h.centerX + Math.cos(h.orbitAngle) * h.radiusX;
@@ -1633,17 +2300,28 @@ export class LivingCityManager {
     for (let i = 0; i < this.combatNpcs.length; i++) {
       const npc = this.combatNpcs[i];
       const obj = npc.destructible;
-      if (!obj || obj.destroyed) continue;
+      if (!obj || obj.destroyed) {
+        if (npc.visual?.healBeamMesh) {
+          npc.visual.healBeamMesh.visible = false;
+        }
+        continue;
+      }
 
       const root = npc.visual.root;
       if (playerPos) {
         const dSq = (root.position.x - playerPos.x) ** 2 + (root.position.z - playerPos.z) ** 2;
-        root.visible = dSq <= 390 * 390;
+        root.visible = dSq <= 410 * 410;
         if (!root.visible) continue;
       }
 
       npc.animTime += dt;
       npc.fireCooldown = Math.max(0, npc.fireCooldown - dt);
+
+      // Gira o Anel de Escudo Eletromagnético do Overlord Quântico (A.R.E.S. Boss)
+      if (npc.visual.bossShieldRing) {
+        npc.visual.bossShieldRing.rotation.y += dt * 2.8;
+        npc.visual.bossShieldRing.rotation.x = Math.sin(npc.animTime * 2.2) * 0.35;
+      }
 
       // Atualiza Clarão de Disparo (Muzzle Flash)
       if (npc.muzzleFlashTimer > 0) {
@@ -1653,13 +2331,15 @@ export class LivingCityManager {
         }
       }
 
-      // Atualiza Piscar de Dano (Hit Flash) e Barra de HP Flutuante virada para o jogador
+      // Atualiza Escala e Piscar de Dano (Hit Flash) respeitando o tamanho de Chefão / Mecha / Tanque!
+      const baseScaleX = npc.isBoss ? 2.42 : npc.isMecha ? 1.85 : npc.isTank ? 1.28 : 1.0;
+      const baseScaleY = npc.isBoss ? 2.38 : npc.isMecha ? 1.75 : npc.isTank ? 1.24 : 1.0;
       if (npc.hitFlashTimer > 0) {
         npc.hitFlashTimer -= dt;
-        const s = 1.0 + Math.sin(npc.hitFlashTimer * 40) * 0.08;
-        if (!npc.isMecha) root.scale.set(s, s, s);
-      } else if (!npc.isMecha) {
-        root.scale.set(1, 1, 1);
+        const sMul = 1.0 + Math.sin(npc.hitFlashTimer * 40) * 0.06;
+        root.scale.set(baseScaleX * sMul, baseScaleY * sMul, baseScaleX * sMul);
+      } else {
+        root.scale.set(baseScaleX, baseScaleY, baseScaleX);
       }
 
       if (npc.visual.hpBarGroup && npc.visual.hpBarGroup.visible && playerPos) {
@@ -1680,23 +2360,109 @@ export class LivingCityManager {
         }
       }
 
+      // ----------------------------------------------------------------------
+      // LÓGICA DE CURA CONTÍNUA 3D DOS MÉDICOS / CIENTISTAS (ESTILO PVZ GW2!)
+      // ----------------------------------------------------------------------
+      let healingTargetPos = null;
+      if (npc.isMedic && npc.visual.healBeamMesh) {
+        npc.healStationCooldown -= dt;
+        if (npc.healStationCooldown <= 0 && this.healStations.length < 10) {
+          npc.healStationCooldown = 22.0;
+          this._spawnLegoHealStation(root.position, npc.faction, false);
+        }
+
+        // 1) Se for Médico da Facção Aliada do Jogador e o jogador estiver com menos de 250 HP (até 26m), CURA O JOGADOR!
+        if (npc.isAlliedToPlayer && playerPos && this.playerHp < this.playerMaxHp) {
+          const dP = Math.hypot(playerPos.x - root.position.x, playerPos.z - root.position.z);
+          if (dP <= 26.0) {
+            this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 20.0 * dt);
+            this.playerBeingHealed = true;
+            healingTargetPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.1, playerPos.z);
+          }
+        }
+
+        // 2) Se não estiver curando o jogador, procura um Chefão, Tanque ou Soldado da mesma facção ferido até 24m!
+        if (!healingTargetPos) {
+          let bestWounded = null;
+          let bestWoundedDist = 24.0;
+          for (const ally of this.combatNpcs) {
+            if (ally === npc || ally.faction !== npc.faction || !ally.destructible || ally.destructible.destroyed) {
+              continue;
+            }
+            if (ally.destructible.hp < ally.destructible.maxHp) {
+              const dA = Math.hypot(
+                ally.visual.root.position.x - root.position.x,
+                ally.visual.root.position.z - root.position.z
+              );
+              // Prioriza curar Chefões e Tanques!
+              const priorityBonus = ally.isBoss ? -8.0 : ally.isTank ? -4.0 : 0;
+              if (dA + priorityBonus < bestWoundedDist) {
+                bestWoundedDist = dA + priorityBonus;
+                bestWounded = ally;
+              }
+            }
+          }
+          if (bestWounded) {
+            bestWounded.destructible.hp = Math.min(
+              bestWounded.destructible.maxHp,
+              bestWounded.destructible.hp + 18.0 * dt
+            );
+            if (bestWounded.visual.hpFillMesh) {
+              bestWounded.visual.hpFillMesh.scale.x = Math.min(
+                1,
+                bestWounded.destructible.hp / bestWounded.destructible.maxHp
+              );
+            }
+            const aPos = bestWounded.visual.root.position;
+            healingTargetPos = new THREE.Vector3(
+              aPos.x,
+              aPos.y + (bestWounded.isBoss ? 2.4 : 1.15),
+              aPos.z
+            );
+          }
+        }
+
+        if (healingTargetPos) {
+          const beam = npc.visual.healBeamMesh;
+          beam.visible = true;
+          const beamWorldStart = new THREE.Vector3(
+            root.position.x,
+            root.position.y + 1.15 * baseScaleY,
+            root.position.z
+          );
+          const distBeam = Math.max(0.5, beamWorldStart.distanceTo(healingTargetPos));
+          root.rotation.y = Math.atan2(
+            healingTargetPos.x - root.position.x,
+            healingTargetPos.z - root.position.z
+          );
+          beam.scale.set(
+            0.85 + Math.sin(npc.animTime * 18.0) * 0.2,
+            0.85 + Math.sin(npc.animTime * 18.0) * 0.2,
+            distBeam / baseScaleX
+          );
+        } else {
+          npc.visual.healBeamMesh.visible = false;
+        }
+      }
+
       const target = this._findBestTargetForPosition(
         npc.faction,
         root.position,
         npc.attackRange,
         playerPos,
-        controller
+        controller,
+        npc.isAlliedToPlayer
       );
 
       let moveDirX = 0;
       let moveDirZ = 0;
       let isMoving = false;
 
-      if (npc.isRecruitedByPlayer && playerPos) {
+      if ((npc.isRecruitedByPlayer || npc.isEscortingPlayer || (npc.isMedic && npc.isAlliedToPlayer && this.playerHp < this.playerMaxHp)) && playerPos) {
         const dxP = playerPos.x - root.position.x;
         const dzP = playerPos.z - root.position.z;
         const distP = Math.hypot(dxP, dzP);
-        if (distP > 6.5) {
+        if (distP > 7.5 && distP < 85.0) {
           moveDirX = dxP / distP;
           moveDirZ = dzP / distP;
           isMoving = true;
@@ -1705,11 +2471,12 @@ export class LivingCityManager {
         const dxT = target.pos.x - root.position.x;
         const dzT = target.pos.z - root.position.z;
         const distT = Math.hypot(dxT, dzT);
-        if (distT > 16.0) {
+        const preferredDist = npc.isBoss || npc.isTank ? 11.0 : 16.0;
+        if (distT > preferredDist) {
           moveDirX = dxT / distT;
           moveDirZ = dzT / distT;
           isMoving = true;
-        } else if (distT < 8.5) {
+        } else if (distT < 7.0 && !npc.isBoss && !npc.isTank) {
           moveDirX = -dxT / Math.max(0.1, distT);
           moveDirZ = -dzT / Math.max(0.1, distT);
           isMoving = true;
@@ -1728,7 +2495,7 @@ export class LivingCityManager {
       }
 
       if (isMoving) {
-        const spd = npc.isRecruitedByPlayer ? 11.5 : npc.moveSpeed;
+        const spd = npc.isRecruitedByPlayer || npc.isEscortingPlayer ? 11.0 : npc.moveSpeed;
         root.position.x += moveDirX * spd * dt;
         root.position.z += moveDirZ * spd * dt;
       }
@@ -1745,23 +2512,31 @@ export class LivingCityManager {
       obj.basePos.copy(root.position);
       obj.groundY = groundY;
 
-      if (target) {
+      if (target && !healingTargetPos) {
         root.rotation.y = Math.atan2(target.pos.x - root.position.x, target.pos.z - root.position.z);
         if (npc.fireCooldown <= 0) {
           npc.fireCooldown = npc.fireInterval * (0.85 + Math.random() * 0.35);
           const muzzleOrigin = new THREE.Vector3(
-            root.position.x + Math.sin(root.rotation.y) * 0.85,
-            root.position.y + (npc.isMecha ? 2.1 : npc.isDrone ? 0.0 : 1.15),
-            root.position.z + Math.cos(root.rotation.y) * 0.85
+            root.position.x + Math.sin(root.rotation.y) * (npc.isBoss ? 1.8 : 0.85),
+            root.position.y + (npc.isBoss ? 2.6 : npc.isMecha ? 2.1 : npc.isDrone ? 0.0 : 1.15),
+            root.position.z + Math.cos(root.rotation.y) * (npc.isBoss ? 1.8 : 0.85)
           );
           if (npc.visual.muzzleFlashMesh) {
             npc.visual.muzzleFlashMesh.visible = true;
             npc.visual.muzzleFlashMesh.rotation.z = Math.random() * Math.PI;
             npc.muzzleFlashTimer = 0.065;
           }
-          this._fireNpcWeapon(npc.faction, npc.role, muzzleOrigin, target.pos, playerPos);
+          this._fireNpcWeapon(
+            npc.faction,
+            npc.role,
+            muzzleOrigin,
+            target.pos,
+            playerPos,
+            false,
+            npc.isAlliedToPlayer
+          );
         }
-      } else if (isMoving) {
+      } else if (isMoving && !healingTargetPos) {
         root.rotation.y = Math.atan2(moveDirX, moveDirZ);
       }
 
@@ -1773,25 +2548,34 @@ export class LivingCityManager {
     }
   }
 
-  _findBestTargetForPosition(myFaction, myPos, maxRange, playerPos, controller) {
+  _findBestTargetForPosition(myFaction, myPos, maxRange, playerPos, controller, isAlliedUnit = false) {
     let bestTarget = null;
     let bestScore = maxRange;
+    const iAmAllied = isAlliedUnit || this._isFactionAlliedToPlayer(myFaction);
 
     for (const other of this.combatNpcs) {
       if (other.faction === myFaction || !other.destructible || other.destructible.destroyed) continue;
+      if (iAmAllied && other.isAlliedToPlayer) continue;
       const oPos = other.visual.root.position;
       const d = Math.hypot(oPos.x - myPos.x, oPos.z - myPos.z);
-      if (d < bestScore) {
-        bestScore = d;
+      // Prioriza focar Chefões Rivais na Guerra Mundial!
+      const bossPriority = other.isBoss ? -12.0 : 0;
+      if (d + bossPriority < bestScore) {
+        bestScore = d + bossPriority;
         bestTarget = {
           type: 'npc',
           npc: other,
-          pos: new THREE.Vector3(oPos.x, oPos.y + (other.isMecha ? 1.8 : 1.0), oPos.z)
+          pos: new THREE.Vector3(
+            oPos.x,
+            oPos.y + (other.isBoss ? 2.4 : other.isMecha ? 1.8 : 1.0),
+            oPos.z
+          )
         };
       }
     }
 
-    if (myFaction !== 'police' && playerPos && (!controller || !(controller.stealthTimer > 0))) {
+    // Unidades da Facção Aliada do Jogador NUNCA miram no jogador!
+    if (!iAmAllied && playerPos && (!controller || !(controller.stealthTimer > 0))) {
       const dPlayer = Math.hypot(playerPos.x - myPos.x, playerPos.z - myPos.z);
       if (dPlayer < Math.min(maxRange, bestScore + 6.0)) {
         bestTarget = {
@@ -1804,10 +2588,12 @@ export class LivingCityManager {
     return bestTarget;
   }
 
-  _fireNpcWeapon(faction, role, origin, targetPos, playerPos = null, isConvoyFire = false) {
+  _fireNpcWeapon(faction, role, origin, targetPos, playerPos = null, isConvoyFire = false, isAlliedShot = false) {
     this.triggerPedestrianPanicNear(origin, 44.0);
 
-    const isRpg = role === 'cv_rpg' || role === 'pcc_c4';
+    const isBoss = ['cv_boss', 'pcc_boss', 'ares_boss'].includes(role);
+    const isRpg = role === 'cv_rpg' || role === 'pcc_c4' || isBoss;
+    const isTankOrExo = String(role || '').endsWith('_tank') || role === 'ares_exo' || role === 'ares_drone';
     const isLaser = faction === 'ares';
 
     // Som Espacial Atenuado pela Distância até o Jogador (até 95m)!
@@ -1837,20 +2623,30 @@ export class LivingCityManager {
 
     const projMat = new THREE.MeshBasicMaterial({ color: colorHex });
     const projMesh = new THREE.Mesh(NPC_BULLET_GEO, projMat);
-    projMesh.scale.set(isRpg ? 2.4 : 1.3, isRpg ? 2.4 : 1.3, isLaser ? 2.6 : 1.8);
+    const scaleXY = isBoss ? 3.1 : isRpg ? 2.4 : 1.3;
+    projMesh.scale.set(scaleXY, scaleXY, isLaser ? 2.8 : 1.8);
     projMesh.position.copy(origin);
     projMesh.lookAt(origin.clone().add(dir));
     this.scene.add(projMesh);
 
-    const speed = isRpg ? 36.0 : isLaser ? 68.0 : 58.0;
+    // Dano Específico Balanceado (para o Sistema de 250 HP do Jogador!):
+    // - Soldado Comum: 4 de dano
+    // - Tanque / Exoesqueleto / Drone: 8 de dano
+    // - RPG / Mecha / Chefão Colossal: 18 de dano
+    const playerSpecificDamage = isBoss || isRpg || role === 'ares_mecha' ? 18 : isTankOrExo ? 8 : 4;
+    const npcVsNpcDamage = isBoss ? 38 : isRpg ? 26 : role === 'ares_mecha' ? 18 : 12;
+
+    const speed = isRpg ? 38.0 : isLaser ? 68.0 : 58.0;
     this.npcProjectiles.push({
       mesh: projMesh,
       faction,
+      isAlliedShot,
       isRpg,
       isConvoyFire,
       vel: dir.multiplyScalar(speed),
       life: 1.35,
-      damage: isConvoyFire ? 4 : isRpg ? 28 : role === 'ares_mecha' ? 18 : 11
+      damage: npcVsNpcDamage,
+      playerDamage: playerSpecificDamage
     });
   }
 
@@ -1864,25 +2660,29 @@ export class LivingCityManager {
 
       for (const npc of this.combatNpcs) {
         if (npc.faction === p.faction || !npc.destructible || npc.destructible.destroyed) continue;
+        if (p.isAlliedShot && npc.isAlliedToPlayer) continue;
         const nPos = npc.visual.root.position;
         const dH = Math.hypot(p.mesh.position.x - nPos.x, p.mesh.position.z - nPos.z);
         const dV = Math.abs(p.mesh.position.y - (nPos.y + 1.0));
-        if (dH <= (npc.isMecha ? 1.6 : 0.95) && dV <= (npc.isMecha ? 2.2 : 1.3)) {
-          if (p.isRpg && this.destructibles) {
-            this.destructibles._triggerExplosion(p.mesh.position.clone(), 4.5, p.damage, false, false);
-          } else if (this.destructibles) {
-            this.destructibles.damageObject(npc.destructible, p.damage, p.mesh.position);
+        const hitRad = npc.isBoss ? 2.3 : npc.isMecha ? 1.6 : 0.95;
+        const hitHeight = npc.isBoss ? 3.4 : npc.isMecha ? 2.2 : 1.3;
+        if (dH <= hitRad && dV <= hitHeight) {
+          if (this.destructibles) {
+            this.destructibles.damageObject(npc.destructible, p.damage, p.mesh.position, false, {
+              fromEnemyNpc: true
+            });
           }
           hit = true;
           break;
         }
       }
 
-      if (!hit && p.faction !== 'police' && playerPos) {
+      // Tiros de facções inimigas acertam o jogador com Dano Específico Balanceado (Aliados nunca causam dano!)
+      if (!hit && !p.isAlliedShot && !this._isFactionAlliedToPlayer(p.faction) && playerPos) {
         const dH = Math.hypot(p.mesh.position.x - playerPos.x, p.mesh.position.z - playerPos.z);
         const dV = Math.abs(p.mesh.position.y - (playerPos.y + 1.0));
         if (dH <= 0.95 && dV <= 1.25) {
-          this._applyPlayerHitDamage(controller);
+          this._applyPlayerHitDamage(controller, p.playerDamage || 4);
           hit = true;
         }
       }
@@ -1894,7 +2694,7 @@ export class LivingCityManager {
     }
   }
 
-  _applyPlayerHitDamage(controller) {
+  _applyPlayerHitDamage(controller, rawDamage = 4) {
     if (!this.hud || this.playerHitInvulnTimer > 0) return;
     if (
       controller &&
@@ -1905,27 +2705,78 @@ export class LivingCityManager {
       return;
     }
 
-    this.playerHitInvulnTimer = 1.35;
-    this.playerRegenTimer = 5.5;
-    const nextHearts = Math.max(1, (this.hud.hearts || 4) - 1);
-    if (typeof this.hud.setHearts === 'function') {
-      this.hud.setHearts(nextHearts);
+    this.playerHitInvulnTimer = 0.28;
+    this.timeSinceLastHit = 0.0;
+    this.playerHp = Math.max(0, this.playerHp - rawDamage);
+
+    // Se o HP chegar a 0, aciona Resgate Médico Tático da sua Facção Aliada (sem Game Over frustrante!)
+    if (this.playerHp <= 0) {
+      this.playerHp = this.playerMaxHp;
+      this.playerHitInvulnTimer = 2.5;
+      if (controller?.position && this.destructibles) {
+        this.destructibles.spawnHeroSwapEffect(controller.position, 0x22c55e);
+      }
+      if (this.hud && typeof this.hud.showTacticalAlertToast === 'function') {
+        this.hud.showTacticalAlertToast(
+          'SUPORTE MÉDICO ALIADO // REANIMAÇÃO TÁTICA!',
+          'CIENTISTA ALIADO RESTAUROU 250 / 250 HP!',
+          'O Médico da sua Facção Aliada aplicou Desfibrilador Quântico de Emergência!',
+          '#22c55e',
+          'police',
+          3600
+        );
+      }
+    }
+
+    if (this.hud && typeof this.hud.setPlayerHealth === 'function') {
+      this.hud.setPlayerHealth(this.playerHp, this.playerMaxHp, this.playerBeingHealed);
     }
   }
 
   update(dt, playerPos, controller = null) {
     this.caveiraSupportCooldown = Math.max(0, this.caveiraSupportCooldown - dt);
     this.reinforcementCooldown = Math.max(0, this.reinforcementCooldown - dt);
+    this.bossWaveCooldown = Math.max(0, this.bossWaveCooldown - dt);
     this._npcGunSoundCooldown = Math.max(0, this._npcGunSoundCooldown - dt);
 
     if (this.playerHitInvulnTimer > 0) {
       this.playerHitInvulnTimer = Math.max(0, this.playerHitInvulnTimer - dt);
     }
-    if (this.playerRegenTimer > 0) {
-      this.playerRegenTimer -= dt;
-      if (this.playerRegenTimer <= 0 && this.hud && this.hud.hearts < this.hud.maxHearts) {
-        if (typeof this.hud.setHearts === 'function') {
-          this.hud.setHearts(this.hud.maxHearts);
+
+    this.playerBeingHealed = false;
+    this.timeSinceLastHit += dt;
+
+    // Auto-Regeneração Tática fora de combate (após 3.5s sem tomar tiro, regenera +25 HP/s até 250 HP!)
+    if (this.timeSinceLastHit >= 3.5 && this.playerHp < this.playerMaxHp) {
+      this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 25.0 * dt);
+      this.playerBeingHealed = true;
+    }
+
+    // Gira o cristal da Bandeira Central de Guerra Mundial
+    if (this.centralFlagBeacon) {
+      this.centralFlagBeacon.topCrown.rotation.y += dt * 1.8;
+    }
+
+    // Se o jogador estiver no Front Central ou invadindo a base de uma facção rival, sobe gradualmente a Escalada de Guerra Mundial!
+    if (playerPos && !this.bossWaveActive) {
+      const inCentralFront = Math.hypot(playerPos.x - 0, playerPos.z - -96) < 68.0;
+      const inEnemyCdd = this.playerFaction !== 'cv' && playerPos.x < -480;
+      const inEnemyPcc = this.playerFaction !== 'pcc' && playerPos.x > 550 && playerPos.z < 50;
+      const inEnemyAres = this.playerFaction !== 'ares' && ((playerPos.x > 740 && playerPos.z > 120) || playerPos.x < -1050);
+
+      if (inCentralFront || inEnemyCdd || inEnemyPcc || inEnemyAres) {
+        this.worldWarEscalation = Math.min(1.0, this.worldWarEscalation + dt * 0.018);
+        if (this.worldWarEscalation >= 1.0 && this.bossWaveCooldown <= 0) {
+          const invadedFaction = inEnemyCdd
+            ? 'cv'
+            : inEnemyPcc
+              ? 'pcc'
+              : inEnemyAres
+                ? 'ares'
+                : this.playerFaction === 'cv'
+                  ? 'pcc'
+                  : 'cv';
+          this.spawnWorldWarBossWave(invadedFaction, playerPos);
         }
       }
     }
@@ -1935,5 +2786,33 @@ export class LivingCityManager {
     this._updatePedestrians(dt, playerPos);
     this._updateCombatNpcs(dt, playerPos, controller);
     this._updateNpcProjectiles(dt, playerPos, controller);
+    this._updateHealthCrystalsAndHealStations(dt, playerPos);
+
+    if (this.playerBeingHealed) {
+      this._healChimeTimer -= dt;
+      if (this._healChimeTimer <= 0) {
+        this._healChimeTimer = 0.65;
+        soundFX.playHealTick();
+      }
+    }
+
+    if (this.hud) {
+      if (typeof this.hud.setPlayerHealth === 'function') {
+        this.hud.setPlayerHealth(this.playerHp, this.playerMaxHp, this.playerBeingHealed);
+      }
+      if (typeof this.hud.updateWorldWarHud === 'function') {
+        this.activeBosses = this.activeBosses.filter(
+          (b) => b.destructible && !b.destructible.destroyed
+        );
+        const bossHudData = this.activeBosses.map((b) => ({
+          name: b.name,
+          faction: b.faction,
+          hp: b.destructible.hp,
+          maxHp: b.destructible.maxHp,
+          isAlly: b.isAlliedToPlayer
+        }));
+        this.hud.updateWorldWarHud(this.worldWarEscalation, bossHudData, this.bossWaveActive);
+      }
+    }
   }
 }

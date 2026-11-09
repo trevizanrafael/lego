@@ -71,6 +71,9 @@ class LegoCityGame {
       this.hud
     );
     this.hud._lastController = this.controller;
+    this.hud.onSelectFaction = (factionKey) => {
+      this.world.livingCity?.setPlayerFaction(factionKey, this.controller);
+    };
 
     this.controller.onToggleFullMap = () => {
       this.hud.toggleFullMap(this.world, this.controller);
@@ -99,16 +102,37 @@ class LegoCityGame {
     this.lastTime = now;
     const baseDt = Math.min(rawDt, 0.05);
 
-    // Câmera Lenta Estilo GTA V (18% da velocidade normal) enquanto a Roda de Personagens [TAB] está aberta!
-    const timeScale = this.hud.isHeroWheelOpen ? 0.18 : 1.0;
+    // Câmera Lenta Estilo GTA V (18% da velocidade normal) enquanto a Roda de Personagens [TAB] está aberta,
+    // ou Pausa Total (0.0) enquanto o Menu de Pausa [ESC] estiver aberto durante a partida!
+    const isPausedInGame = this.hud.isPauseMenuOpen && !this.hud.isTitleScreenActive;
+    const timeScale = isPausedInGame ? 0.0 : this.hud.isHeroWheelOpen ? 0.18 : 1.0;
     const dt = baseDt * timeScale;
 
-    this.controller.update(dt);
-    const pos = this.controller.position;
-    this.destructibles.update(dt, pos);
-    this.hud.update(baseDt);
-    this.world.update(dt, pos, this.controller);
+    if (this.hud.isTitleScreenActive) {
+      // Na Tela Inicial, a câmera 3D orbita o Front Central de Guerra Mundial ao vivo!
+      const orbitAngle = now * 0.00022;
+      this.camera.position.set(
+        Math.sin(orbitAngle) * 78,
+        32 + Math.sin(orbitAngle * 2.0) * 4,
+        -105 + Math.cos(orbitAngle) * 78
+      );
+      this.camera.lookAt(0, 4.5, -105);
+      this.world.update(baseDt, this.controller.position, this.controller);
+      this.destructibles.update(baseDt, this.controller.position);
+      this.hud.update(baseDt);
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
 
+    if (dt > 0) {
+      this.controller.update(dt);
+      const pos = this.controller.position;
+      this.destructibles.update(dt, pos);
+      this.world.update(dt, pos, this.controller);
+    }
+    this.hud.update(baseDt);
+
+    const pos = this.controller.position;
     const currentRegion = this.world.getRegionAt(pos.x, pos.y, pos.z);
     const speed = this.controller.getHorizontalSpeed();
     this.hud.updateMinimap(pos, this.controller.facingAngle, this.controller.yaw, currentRegion, this.world, speed, baseDt);
