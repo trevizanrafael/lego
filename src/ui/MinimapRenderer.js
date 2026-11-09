@@ -187,6 +187,35 @@ export function renderMinimapRadar(
     const maxVisibleLocalR = Math.min(cx, cy) - 16;
 
     // 6. MARCOS DAS REGIOES: So aparecem quando estao REALMENTE dentro da area visivel do radar local!
+    // 5.5 BLIPS TÁTICOS DA CIDADE VIVA (Polícia/BOPE + Facções CV, PCC e A.R.E.S.)
+    if (world.livingCity?.combatNpcs) {
+      for (const npc of world.livingCity.combatNpcs) {
+        if (!npc.destructibleObj || npc.destructibleObj.destroyed) continue;
+        const dx = npc.x - playerPos.x;
+        const dz = npc.z - playerPos.z;
+        const rx = dx * cosCam - dz * sinCam;
+        const ry = dx * sinCam + dz * cosCam;
+        const screenDist = Math.hypot(rx * scale, ry * scale);
+        if (screenDist > maxVisibleLocalR) continue;
+
+        const px = cx + rx * scale;
+        const py = cy + ry * scale;
+        const blipColor =
+          npc.faction === 'police' ? '#38bdf8' :
+          npc.faction === 'cv' ? '#ef4444' :
+          npc.faction === 'pcc' ? '#60a5fa' : '#c084fc';
+        const blipR = npc.isBigFig ? 4.2 : 2.8;
+
+        ctx.fillStyle = blipColor;
+        ctx.strokeStyle = '#090a0d';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(px, py, blipR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
     for (const lm of world.landmarks || []) {
       const dx = lm.x - playerPos.x;
       const dz = lm.z - playerPos.z;

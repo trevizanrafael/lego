@@ -459,6 +459,7 @@ export class DestructibleManager {
    */
   spawnRifleBullet(origin, targetPoint) {
     soundFX.playRifleShot();
+    this.world?.livingCity?.triggerPedestrianPanicNear(origin, 32);
 
     const dir = targetPoint.clone().sub(origin).normalize();
     const mat = getLegoMaterial(LEGO_COLORS.yellow, {
@@ -487,6 +488,7 @@ export class DestructibleManager {
    */
   spawnFireball(origin, targetPoint) {
     soundFX.playFireballCast();
+    this.world?.livingCity?.triggerPedestrianPanicNear(origin, 34);
 
     const dir = targetPoint.clone().sub(origin).normalize();
     const group = new THREE.Group();
@@ -3010,6 +3012,7 @@ export class DestructibleManager {
   _triggerExplosion(center, radius, maxDamage, isFlashbang = false, isSupernova = false, damageOpts = {}) {
     const chargeRatio = damageOpts.chargeRatio ?? 0;
     soundFX.playExplosion(isSupernova ? 1.5 + chargeRatio * 1.1 : isFlashbang ? 1.25 : 0.9);
+    this.world?.livingCity?.triggerPedestrianPanicNear(center, Math.max(44, radius * 2.5));
 
     const sphereColor = isFlashbang ? 0xfef9c3 : 0xf97316;
     const sphereMat = new THREE.MeshBasicMaterial({
@@ -3263,6 +3266,7 @@ export class DestructibleManager {
 
     obj.hp -= amount;
     obj.shakeTimer = 0.2;
+    this.world?.livingCity?.triggerPedestrianPanicNear(obj.basePos, 28);
 
     if (obj.hp > 0) {
       if (amount >= 5) {
@@ -3277,8 +3281,11 @@ export class DestructibleManager {
   _shatterObject(obj) {
     obj.destroyed = true;
     obj.isGrabbed = false;
-    obj.respawnTimer = 28.0;
+    obj.respawnTimer = obj.isCombatNpc ? 14.0 : 28.0;
     obj.mesh.visible = false;
+    if (typeof obj.onShattered === 'function') {
+      obj.onShattered();
+    }
 
     for (const col of obj.colliders) {
       col.disabled = true;

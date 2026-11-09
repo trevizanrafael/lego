@@ -145,6 +145,15 @@ export class LegoHud {
     }
   }
 
+  setHearts(activeCount) {
+    this.hearts = Math.max(1, Math.min(this.maxHearts, Math.round(activeCount)));
+    if (!this.heartsContainer) return;
+    const nodes = this.heartsContainer.querySelectorAll('.lego-heart');
+    nodes.forEach((node, idx) => {
+      node.classList.toggle('active', idx < this.hearts);
+    });
+  }
+
   _initSpeedometerBars() {
     if (!this.speedoBarsEl) return;
     this.speedoBarsEl.innerHTML = '';

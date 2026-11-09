@@ -107,7 +107,7 @@ class LegoCityGame {
     const pos = this.controller.position;
     this.destructibles.update(dt, pos);
     this.hud.update(baseDt);
-    this.world.update(dt, pos);
+    this.world.update(dt, pos, this.controller);
 
     const currentRegion = this.world.getRegionAt(pos.x, pos.y, pos.z);
     const speed = this.controller.getHorizontalSpeed();

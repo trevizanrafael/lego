@@ -1782,7 +1782,9 @@ export class ThirdPersonController {
           if (hero === 'turbo') {
             this._summonAndMountTurboGhostBike();
           } else if (!this.currentVehicle) {
-            if (hero === 'tita') {
+            if (hero === 'caveira') {
+              this.world?.livingCity?.triggerCaveiraRadioCommand(this.position, this.facingAngle);
+            } else if (hero === 'tita') {
               this._toggleTitaCarGrabOrThrow();
             } else if (hero === 'sombra') {
               this._triggerSombraMagneticPull();

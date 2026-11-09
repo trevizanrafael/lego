@@ -1134,41 +1134,8 @@ function _attachTurboFlames(group, xOffsets, y, z) {
 export function buildParkedLegoCars(world) {
   const cars = [
     // ==========================================================================
-    // SHOWROOM EM FRENTE AO SUPER BANCO CENTRAL (SEPARADOS PELOS 4 GRUPOS!)
-    // ==========================================================================
-
-    // GRUPO 1 — ESPORTIVOS & SUPERCARROS (Na rua em frente ao Super Banco, lado esquerdo: Z = -123)
-    { x: -6.5,  z: -123.0, rotY: 0, color: 0xfacc15, roofColor: LEGO_COLORS.black, type: 'apex_gtx' },
-    { x: -16.0, z: -123.0, rotY: 0, color: 0xec4899, roofColor: LEGO_COLORS.white, type: 'vortex_roadster' },
-    { x: -25.5, z: -123.0, rotY: 0, color: 0xf97316, roofColor: LEGO_COLORS.black, type: 'trovao_v8' },
-    { x: -35.0, z: -123.0, rotY: 0, color: 0xcbd5e1, roofColor: 0x06b6d4, type: 'cyber_blade' },
-
-    // GRUPO 2 — POLÍCIA & BOPE (Na rua em frente ao Super Banco, lado direito: Z = -123)
-    { x: 1.5,  z: -123.0, rotY: 0, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },
-    { x: 7.5,  z: -123.0, rotY: 0, color: 0x111827, roofColor: 0x111827, type: 'caveirao_bope' },
-    { x: 17.5, z: -123.0, rotY: 0, color: LEGO_COLORS.black, roofColor: LEGO_COLORS.white, type: 'interceptor_v8' },
-    { x: 27.5, z: -123.0, rotY: 0, color: 0x334155, roofColor: LEGO_COLORS.black, type: 'choque_pickup' },
-    // Carros-Fortes de Escolta do Banco Central estacionados na frente do Banco!
-    { x: 38.5, z: -123.0, rotY: 0, color: 0x1e3a8a, roofColor: LEGO_COLORS.gold, type: 'carro_forte' },
-    { x: -45.5, z: -123.0, rotY: 0, color: 0x1e3a8a, roofColor: LEGO_COLORS.gold, type: 'carro_forte' },
-
-    // GRUPO 3 — VEÍCULOS DAS 3 FACÇÕES: CV, PCC & A.R.E.S. (Na rua em frente ao Banco, faixa sul-esquerda: Z = -111)
-    { x: -12.5, z: -111.0, rotY: Math.PI, color: 0xdc2626, roofColor: LEGO_COLORS.black, type: 'moto_cv' },
-    { x: -19.5, z: -111.0, rotY: Math.PI, color: 0x991b1b, roofColor: 0x1c1917, type: 'picape_cv' },
-    { x: -26.5, z: -111.0, rotY: Math.PI, color: 0x090a0d, roofColor: 0x1e3a8a, type: 'moto_pcc' },
-    { x: -33.5, z: -111.0, rotY: Math.PI, color: 0x090a0d, roofColor: 0x090a0d, type: 'suv_pcc' },
-    { x: -41.5, z: -111.0, rotY: Math.PI, color: 0x1e293b, roofColor: 0x0f172a, type: 'van_pcc' },
-    { x: -50.5, z: -111.0, rotY: Math.PI, color: 0x475569, roofColor: 0x9333ea, type: 'hover_apc_ares' },
-
-    // GRUPO 4 — CIVIS & PESADOS (Na rua em frente ao Banco, faixa sul-direita: Z = -111)
-    { x: 12.5, z: -111.0, rotY: Math.PI, color: LEGO_COLORS.yellow, roofColor: LEGO_COLORS.yellow, type: 'taxi_metro' },
-    { x: 21.0, z: -111.0, rotY: Math.PI, color: 0x3b82f6, roofColor: LEGO_COLORS.white, type: 'sedan_familiar' },
-    { x: 30.0, z: -111.0, rotY: Math.PI, color: 0xf97316, roofColor: 0x84cc16, type: 'buggy_praia' },
-    { x: 39.5, z: -111.0, rotY: Math.PI, color: 0x1e3a8a, roofColor: LEGO_COLORS.gold, type: 'carro_forte' },
-    { x: 50.5, z: -111.0, rotY: Math.PI, color: 0x3f6212, roofColor: 0x365314, type: 'tanque_titan' },
-
-    // ==========================================================================
     // FROTA DISTRIBUÍDA PELAS 10 REGIÕES DA CIDADE
+    // (Os veículos que antes ficavam estáticos na frente do Super Banco agora circulam vivos no Trânsito Urbano e Patrulhas!)
     // ==========================================================================
     // Motos Táticas da Polícia / ROCAM / BOPE no Centro (Praça da Torre dos Heróis e Avenida Central)
     { x: 18.0, z: -48.0, rotY: 0, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },

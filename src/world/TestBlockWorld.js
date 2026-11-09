@@ -41,6 +41,7 @@ import { buildWestHighwayAndAirport } from './regions/WestAirportBuilder.js';
 import { buildFavelaCidadeDeDeus, getFavelaElevation } from './regions/FavelaCDDBuilder.js';
 import { buildSoutheastPrisonIsland } from './regions/PrisonIslandBuilder.js';
 import { buildSkyHelicarrier, buildLegoClouds } from './regions/HelicarrierBuilder.js';
+import { LivingCityManager } from './LivingCityManager.js';
 
 export { MAP_REGIONS, MAP_LANDMARKS, BUILDING_STYLES, BUILDING_STYLE_KEYS };
 
@@ -48,6 +49,9 @@ export class TestBlockWorld {
   constructor(scene, destructibleManager = null) {
     this.scene = scene;
     this.destructibles = destructibleManager;
+    if (this.destructibles) {
+      this.destructibles.world = this;
+    }
     this.colliders = []; // AABBs: { minX, maxX, minZ, maxZ, minY, maxY, disabled }
     this.clouds = [];
     this.rotatingElements = [];
@@ -118,6 +122,9 @@ export class TestBlockWorld {
     // 9. Finaliza os lotes instanciados/mesclados (Calçadas e Árvores da Cidade Inteira em 5 Draw Calls!)
     this._finalizeMergedSidewalks();
     this._finalizeInstancedTrees();
+
+    // 10. Cidade Viva (PASSO 7): Trânsito em Movimento, Pedestres com Pânico, Patrulhas do BOPE e Guerra das 3 Facções (CV, PCC e A.R.E.S.)
+    this.livingCity = new LivingCityManager(this, this.destructibles, this.destructibles?.hud);
   }
 
   addCollider(x, z, width, depth, height = 10, minY = 0) {
@@ -536,7 +543,11 @@ export class TestBlockWorld {
     this.sunLight = sunLight;
   }
 
-  update(dt, playerPos = null) {
+  update(dt, playerPos = null, controller = null) {
+    if (this.livingCity) {
+      this.livingCity.update(dt, playerPos, controller);
+    }
+
     for (const c of this.clouds) {
       c.position.x += dt * 1.8;
       if (c.position.x > 1600) c.position.x = -1600;
