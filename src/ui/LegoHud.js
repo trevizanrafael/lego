@@ -45,8 +45,10 @@ export class LegoHud {
     this.activeSaveSlot = 0;
     this.pendingSlotIndex = 0;
     this.isTitleScreenActive = true;
+    this.isLoadingActive = false;
     this.isPauseMenuOpen = false;
     this.settings = loadGameSettings();
+    document.body.classList.add('title-or-loading-active');
 
     this.studCountEl = document.getElementById('hud-stud-count');
     this.studGainEl = document.getElementById('hud-stud-gain');
@@ -592,6 +594,9 @@ export class LegoHud {
   }
 
   update(dt) {
+    if (this.isTitleScreenActive) {
+      this._renderFavelaBackgroundCanvas(dt);
+    }
     if (this.displayedStuds < this.totalStuds) {
       const diff = this.totalStuds - this.displayedStuds;
       const step = Math.max(1, Math.ceil(diff * Math.min(1, dt * 16)));
@@ -603,7 +608,7 @@ export class LegoHud {
   }
 
   /**
-   * Atualiza a Barra Numérica de 250 HP + 4 Corações LEGO + Indicador de Feixe Médico Aliado
+   * Atualiza a Barra Numérica de 250 HP + 4 Corações LEGO + Indicador Compacto de Cura Médica Aliada
    */
   setPlayerHealth(hp, maxHp = 250, isBeingHealed = false) {
     this.playerMaxHp = Math.max(1, maxHp);
@@ -631,8 +636,7 @@ export class LegoHud {
       this.hpBarTextEl.textContent = `${this.playerHp} / ${this.playerMaxHp} HP`;
     }
     if (this.medicHealTagEl) {
-      const lang = this.settings?.language || 'pt-BR';
-      this.medicHealTagEl.textContent = UI_TEXTS[lang]?.medicHealing || UI_TEXTS['pt-BR'].medicHealing;
+      this.medicHealTagEl.textContent = '✚ +20 HP/s';
       this.medicHealTagEl.classList.toggle('hidden', !isBeingHealed);
     }
   }
@@ -643,7 +647,8 @@ export class LegoHud {
     const lang = this.settings?.language || 'pt-BR';
     if (this.factionBadgeEl) {
       this.factionBadgeEl.dataset.faction = fData.id;
-      this.factionBadgeEl.textContent = fData.shortName[lang] || fData.shortName['pt-BR'];
+      const dot = fData.id === 'cv' ? '🔴 ' : fData.id === 'pcc' ? '🔵 ' : '🟣 ';
+      this.factionBadgeEl.textContent = dot + (fData.shortName[lang] || fData.shortName['pt-BR']);
     }
     if (typeof this.onSelectFaction === 'function') {
       this.onSelectFaction(fData.id);
@@ -678,12 +683,12 @@ export class LegoHud {
       this.wwBossBarsContainerEl.classList.remove('hidden');
       this.wwBossBarsContainerEl.innerHTML = activeBosses
         .map((b) => {
-          const isAllied = b.faction === this.playerFaction;
+          const isAllied = b.isAlly ?? b.faction === this.playerFaction;
           const fInfo = FACTION_DATA[b.faction] || FACTION_DATA.cv;
-          const bossTitle = fInfo.bossName[lang] || fInfo.bossName['pt-BR'];
+          const bossTitle = b.name || fInfo.bossName[lang] || fInfo.bossName['pt-BR'];
           const tag = isAllied ? (lang === 'en-US' ? '[ALLIED BOSS]' : '[BOSS ALIADO]') : '[BOSS INIMIGO]';
-          const hp = Math.max(0, Math.round(b.destructible?.hp || 0));
-          const maxHp = Math.max(1, Math.round(b.destructible?.maxHp || 1200));
+          const hp = Math.max(0, Math.round(b.hp ?? b.destructible?.hp ?? 0));
+          const maxHp = Math.max(1, Math.round(b.maxHp ?? b.destructible?.maxHp ?? 1200));
           const pct = Math.max(2, Math.min(100, Math.round((hp / maxHp) * 100)));
           return `
             <div class="ww-boss-bar-row ${isAllied ? 'allied-boss' : ''}">
@@ -702,15 +707,34 @@ export class LegoHud {
   }
 
   /**
-   * Inicializa a Tela Inicial Oficial na IDV do Jogo, Slots de Save, Seleção de Facção e Menu de Pausa [ESC]
+   * Inicializa a Tela Inicial Oficial na IDV do Jogo, Panorama da Favela 2D, Tela de Loading, Slots de Save e Pausa [ESC]
    */
   _initTitleScreenAndPauseMenu() {
     this.titleOverlayEl = document.getElementById('title-screen-overlay');
+    this.favelaCanvasEl = document.getElementById('title-favela-bg-canvas');
     this.titleMainPanelEl = document.getElementById('title-main-panel');
     this.titleSlotsPanelEl = document.getElementById('title-slots-panel');
     this.titleFactionPanelEl = document.getElementById('title-faction-panel');
     this.saveSlotsGridEl = document.getElementById('save-slots-grid');
     this.factionCardsGridEl = document.getElementById('faction-cards-grid');
+
+    this.loadingScreenEl = document.getElementById('tactical-loading-screen');
+    this.loadingFactionLogoEl = document.getElementById('loading-faction-logo');
+    this.loadingFactionTitleEl = document.getElementById('loading-faction-title');
+    this.loadingStageTextEl = document.getElementById('loading-stage-text');
+    this.loadingPctTextEl = document.getElementById('loading-pct-text');
+    this.loadingLegoBarEl = document.getElementById('loading-lego-bar');
+    this.loadingTipTextEl = document.getElementById('loading-tip-text');
+    this._loadingBarSegs = [];
+    if (this.loadingLegoBarEl) {
+      this.loadingLegoBarEl.innerHTML = '';
+      for (let i = 0; i < 20; i++) {
+        const seg = document.createElement('div');
+        seg.className = 'loading-lego-seg';
+        this.loadingLegoBarEl.appendChild(seg);
+        this._loadingBarSegs.push(seg);
+      }
+    }
 
     this.pauseModalEl = document.getElementById('pause-options-modal');
     this.pauseIngameActionsEl = document.getElementById('pause-ingame-actions');
@@ -724,6 +748,14 @@ export class LegoHud {
     this.valSfxEl = document.getElementById('val-sfx-vol');
     this.btnToggleRegionToastEl = document.getElementById('btn-toggle-region-toast');
     this.btnPauseLangEl = document.getElementById('btn-pause-language');
+
+    document.getElementById('hud-esc-hint-pill')?.addEventListener('click', () => {
+      if (!this.isTitleScreenActive && !this.isLoadingActive) {
+        this.setPauseMenuOpen(true, this._lastController);
+      }
+    });
+
+    this._initFavelaBackgroundCanvas();
 
     // Aplica configurações salvas de áudio imediatamente
     soundFX.setVolumes({
@@ -824,6 +856,7 @@ export class LegoHud {
 
     document.getElementById('btn-pause-switch-faction')?.addEventListener('click', () => {
       this.setPauseMenuOpen(false, this._lastController, true);
+      document.body.classList.add('title-or-loading-active');
       this.titleOverlayEl?.classList.remove('hidden');
       this.titleMainPanelEl?.classList.add('hidden');
       this.titleSlotsPanelEl?.classList.add('hidden');
@@ -834,6 +867,7 @@ export class LegoHud {
       this.saveCurrentProgress();
       this.setPauseMenuOpen(false, this._lastController, true);
       this.isTitleScreenActive = true;
+      document.body.classList.add('title-or-loading-active');
       this.titleOverlayEl?.classList.remove('hidden');
       this.titleMainPanelEl?.classList.remove('hidden');
       this.titleSlotsPanelEl?.classList.add('hidden');
@@ -844,6 +878,274 @@ export class LegoHud {
     });
 
     this._refreshLanguageAndOptionsUI();
+  }
+
+  /**
+   * Constrói o Cenário Panorâmico Ilustrado da Favela LEGO (Cidade de Deus) em 3 Camadas Parallax
+   * para rodar leve a 60 FPS no fundo da Tela Inicial sem usar o motor 3D no fundo!
+   */
+  _initFavelaBackgroundCanvas() {
+    this._favelaTime = 0;
+    this._titleMouseX = 0;
+    this._titleMouseY = 0;
+
+    window.addEventListener('mousemove', (e) => {
+      if (!this.isTitleScreenActive) return;
+      this._titleMouseX = (e.clientX / Math.max(1, window.innerWidth) - 0.5) * 2;
+      this._titleMouseY = (e.clientY / Math.max(1, window.innerHeight) - 0.5) * 2;
+    });
+
+    // Estrelas cintilantes no céu noturno
+    this._favelaStars = Array.from({ length: 75 }, (_, i) => ({
+      x: ((i * 73) % 100) / 100,
+      y: ((i * 41) % 48) / 100,
+      r: 1.0 + (i % 3) * 0.7,
+      phase: i * 0.8
+    }));
+
+    // 3 Camadas de Barracos e Predinhos LEGO subindo o Morro da Cidade de Deus
+    const brickPalette = [
+      '#9a3412', // Tijolo baiano escuro
+      '#b45309', // Tijolo ocre quente
+      '#7f1d1d', // Vermelho favela
+      '#1e3a8a', // Azul fachada
+      '#ca8a04', // Amarelo ocre
+      '#14532d', // Verde musgo
+      '#334155', // Concreto aparente
+      '#7c2d12'  // Terracota
+    ];
+
+    this._favelaLayers = [0, 1, 2].map((layerIdx) => {
+      const count = layerIdx === 0 ? 38 : layerIdx === 1 ? 48 : 42;
+      const houses = [];
+      for (let i = 0; i < count; i++) {
+        const u = i / count;
+        // Formato de morro (mais alto nas laterais e centro-esquerda)
+        const hillCurve =
+          Math.sin(u * Math.PI) * 0.22 +
+          Math.cos((u - 0.28) * Math.PI * 2.2) * 0.09 +
+          (layerIdx === 0 ? 0.36 : layerIdx === 1 ? 0.24 : 0.12);
+        const w = 0.032 + ((i * 17) % 5) * 0.008;
+        const h = 0.065 + ((i * 23) % 6) * 0.022;
+        const color =
+          layerIdx === 0
+            ? '#131629'
+            : brickPalette[(i * 7 + layerIdx * 3) % brickPalette.length];
+        const hasWaterTank = layerIdx > 0 && (i * 11) % 4 === 0;
+        const hasAntenna = layerIdx > 0 && (i * 5) % 3 === 0;
+        const winRows = 2 + (i % 3);
+        const winCols = 2 + ((i + 1) % 2);
+        houses.push({
+          u: u - 0.04 + ((i * 13) % 7) * 0.003,
+          hillCurve,
+          w,
+          h,
+          color,
+          hasWaterTank,
+          hasAntenna,
+          winRows,
+          winCols,
+          seed: i * 19 + layerIdx * 101
+        });
+      }
+      return {
+        parallax: (layerIdx + 1) * 14,
+        houses
+      };
+    });
+
+    // Fagulhas/Brasas douradas subindo na frente da favela
+    this._favelaEmbers = Array.from({ length: 34 }, (_, i) => ({
+      x: ((i * 53) % 100) / 100,
+      y: ((i * 29) % 100) / 100,
+      spdY: 0.03 + (i % 5) * 0.012,
+      spdX: ((i % 3) - 1) * 0.01,
+      size: 2 + (i % 3),
+      color: i % 2 === 0 ? '#facc15' : '#ef4444'
+    }));
+
+    this._renderFavelaBackgroundCanvas(0.016);
+  }
+
+  _renderFavelaBackgroundCanvas(dt = 0.016) {
+    const canvas = this.favelaCanvasEl;
+    if (!canvas) return;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    if (canvas.width !== W || canvas.height !== H) {
+      canvas.width = W;
+      canvas.height = H;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    this._favelaTime += dt;
+    const t = this._favelaTime;
+    const px = this._titleMouseX;
+    const py = this._titleMouseY;
+
+    // 1. Céu Crepúsculo / Noturno Tático
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    skyGrad.addColorStop(0.0, '#05070f');
+    skyGrad.addColorStop(0.38, '#131636');
+    skyGrad.addColorStop(0.72, '#3b1528');
+    skyGrad.addColorStop(1.0, '#5c1f19');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // 2. Estrelas cintilantes
+    for (const st of this._favelaStars) {
+      const alpha = 0.35 + 0.65 * Math.abs(Math.sin(t * 1.8 + st.phase));
+      ctx.fillStyle = `rgba(248, 250, 252, ${alpha.toFixed(2)})`;
+      ctx.fillRect(st.x * W + px * 4, st.y * H + py * 3, st.r * 2, st.r * 2);
+    }
+
+    // 3. Dois Feixes de Holofote Policial varrendo o céu atrás do Morro
+    for (let b = 0; b < 2; b++) {
+      const baseX = W * (b === 0 ? 0.24 : 0.76);
+      const baseY = H * 0.85;
+      const sway = Math.sin(t * (b === 0 ? 0.65 : 0.52) + b * 2.1) * 0.45;
+      const topX = baseX + Math.sin(sway) * W * 0.42;
+      const topY = -40;
+
+      const beamGrad = ctx.createLinearGradient(baseX, baseY, topX, topY);
+      beamGrad.addColorStop(0, 'rgba(250, 204, 21, 0.16)');
+      beamGrad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+      ctx.fillStyle = beamGrad;
+      ctx.beginPath();
+      ctx.moveTo(baseX - 18, baseY);
+      ctx.lineTo(topX - 135, topY);
+      ctx.lineTo(topX + 135, topY);
+      ctx.lineTo(baseX + 18, baseY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 4. As 3 Camadas do Morro da Favela LEGO (Cidade de Deus)
+    this._favelaLayers.forEach((layer, lIdx) => {
+      const offX = px * layer.parallax;
+      const offY = py * (layer.parallax * 0.45);
+
+      // Silhueta escura de terra do morro por baixo dos barracos
+      ctx.fillStyle = lIdx === 0 ? '#0c0f1d' : lIdx === 1 ? '#111320' : '#090a0f';
+      ctx.beginPath();
+      ctx.moveTo(-60, H + 40);
+      for (let step = 0; step <= 24; step++) {
+        const u = step / 24;
+        const hillY =
+          H *
+          (1.0 -
+            (Math.sin(u * Math.PI) * 0.22 +
+              (lIdx === 0 ? 0.36 : lIdx === 1 ? 0.24 : 0.12)));
+        ctx.lineTo(u * (W + 120) - 60 + offX, hillY + offY);
+      }
+      ctx.lineTo(W + 60, H + 40);
+      ctx.closePath();
+      ctx.fill();
+
+      // Desenha cada casinha/barraco LEGO empilhado no morro
+      for (const h of layer.houses) {
+        const bx = h.u * (W + 140) - 40 + offX;
+        const bw = h.w * W;
+        const bh = h.h * H;
+        const by = H * (1.0 - h.hillCurve) - bh * 0.65 + offY;
+
+        // Corpo do barraco LEGO + borda preta chanfrada
+        ctx.fillStyle = h.color;
+        ctx.fillRect(bx, by, bw, bh + 90);
+        ctx.strokeStyle = '#090a0d';
+        ctx.lineWidth = lIdx === 0 ? 1 : 2;
+        ctx.strokeRect(bx, by, bw, bh + 90);
+
+        // Pinos de LEGO (Studs) no topo da laje!
+        const studCount = Math.max(2, Math.min(5, Math.floor(bw / 14)));
+        const studW = Math.max(6, (bw / studCount) * 0.52);
+        for (let s = 0; s < studCount; s++) {
+          const sx = bx + (s + 0.24) * (bw / studCount);
+          ctx.fillStyle = h.color;
+          ctx.fillRect(sx, by - 5, studW, 5);
+          ctx.strokeRect(sx, by - 5, studW, 5);
+        }
+
+        // Caixa d'água azul LEGO na laje
+        if (h.hasWaterTank) {
+          ctx.fillStyle = '#0284c7';
+          ctx.fillRect(bx + bw * 0.2, by - 14, bw * 0.42, 11);
+          ctx.strokeRect(bx + bw * 0.2, by - 14, bw * 0.42, 11);
+        }
+
+        // Antena de TV na laje
+        if (h.hasAntenna) {
+          ctx.strokeStyle = '#64748b';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(bx + bw * 0.75, by);
+          ctx.lineTo(bx + bw * 0.75, by - 22);
+          ctx.moveTo(bx + bw * 0.75 - 7, by - 17);
+          ctx.lineTo(bx + bw * 0.75 + 7, by - 17);
+          ctx.stroke();
+        }
+
+        // Janelinhas amarelas/laranjas acesas no morro!
+        const winW = Math.max(4, bw / (h.winCols * 2.4));
+        const winH = 6;
+        for (let r = 0; r < h.winRows; r++) {
+          for (let c = 0; c < h.winCols; c++) {
+            const flicker = Math.sin(t * 1.4 + h.seed + r * 7 + c * 13);
+            if (flicker < -0.35) continue;
+            const wx = bx + ((c + 0.5) / h.winCols) * bw - winW * 0.5;
+            const wy = by + 12 + r * 16;
+            ctx.fillStyle = (h.seed + r + c) % 3 === 0 ? '#f97316' : '#facc15';
+            ctx.fillRect(wx, wy, winW, winH);
+          }
+        }
+      }
+    });
+
+    // 5. Postes e Fios Elétricos de Quebrada no 1º Plano + Lâmpadas de Rua com Halo
+    const polePositions = [W * 0.11 + px * 26, W * 0.89 + px * 26];
+    ctx.strokeStyle = '#050608';
+    ctx.lineWidth = 2.2;
+    for (let wire = 0; wire < 3; wire++) {
+      const yStart = H * (0.26 + wire * 0.035) + py * 12;
+      ctx.beginPath();
+      ctx.moveTo(0, yStart - 15);
+      ctx.quadraticCurveTo(W * 0.5, yStart + 42, W, yStart - 10);
+      ctx.stroke();
+    }
+
+    for (const poleX of polePositions) {
+      ctx.fillStyle = '#07090e';
+      ctx.fillRect(poleX - 6, H * 0.2, 12, H * 0.85);
+      ctx.fillRect(poleX - 28, H * 0.23, 56, 7);
+
+      // Lâmpada de rua amarela acesa
+      const lampGlow = ctx.createRadialGradient(poleX, H * 0.24, 2, poleX, H * 0.24, 54);
+      lampGlow.addColorStop(0, 'rgba(250, 204, 21, 0.85)');
+      lampGlow.addColorStop(1, 'rgba(250, 204, 21, 0)');
+      ctx.fillStyle = lampGlow;
+      ctx.beginPath();
+      ctx.arc(poleX, H * 0.24, 54, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 6. Fagulhas / Brasas Douradas Subindo
+    for (const emb of this._favelaEmbers) {
+      emb.y -= emb.spdY * dt;
+      emb.x += emb.spdX * dt;
+      if (emb.y < -0.05) emb.y = 1.05;
+      if (emb.x < 0) emb.x = 1;
+      if (emb.x > 1) emb.x = 0;
+      ctx.fillStyle = emb.color;
+      ctx.fillRect(emb.x * W, emb.y * H, emb.size, emb.size);
+    }
+
+    // Vinheta tática nas bordas para destacar a Logo e os Botões
+    const vig = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.22, W * 0.5, H * 0.5, W * 0.72);
+    vig.addColorStop(0, 'rgba(7, 9, 19, 0.18)');
+    vig.addColorStop(1, 'rgba(5, 7, 14, 0.84)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
   }
 
   _toggleLanguage() {
@@ -886,6 +1188,7 @@ export class LegoHud {
     setTxt('btn-pause-switch-faction', t.switchFactionBtn);
     setTxt('btn-pause-save-quit', t.saveQuitBtn);
     setTxt('pause-save-feedback', t.savedFeedback);
+    setTxt('hud-esc-hint-text', lang === 'en-US' ? 'OPTIONS / SAVE' : 'OPÇÕES / SALVAR');
 
     if (this.sliderMasterEl) this.sliderMasterEl.value = Math.round((this.settings.masterVolume ?? 0.85) * 100);
     if (this.sliderMusicEl) this.sliderMusicEl.value = Math.round((this.settings.musicVolume ?? 0.55) * 100);
@@ -990,7 +1293,7 @@ export class LegoHud {
           const saved = currentSlots[idx];
           if (saved) {
             this.activeSaveSlot = idx;
-            this._startCampaignWithSlotData(saved, false);
+            this.startLoadingSequence(saved, false);
           }
         } else {
           this.pendingSlotIndex = idx;
@@ -1045,48 +1348,185 @@ export class LegoHud {
           studs: this.isTitleScreenActive ? 0 : this.totalStuds,
           heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
         });
-        this._startCampaignWithSlotData(slotData, true);
+        this.startLoadingSequence(slotData, true);
       });
     });
   }
 
-  _startCampaignWithSlotData(slotData, isNewOrSwitch = false) {
+  _setLoadingProgressUI(pct, stageText) {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+    if (this.loadingPctTextEl) {
+      this.loadingPctTextEl.textContent = `${clamped}%`;
+    }
+    if (this.loadingStageTextEl && stageText) {
+      this.loadingStageTextEl.textContent = stageText;
+    }
+    if (this._loadingBarSegs && this._loadingBarSegs.length > 0) {
+      const litCount = Math.round((clamped / 100) * this._loadingBarSegs.length);
+      this._loadingBarSegs.forEach((seg, idx) => {
+        seg.classList.toggle('lit', idx < litCount);
+      });
+    }
+  }
+
+  /**
+   * Executa a Tela de Loading Real (0% -> 100%) com Compilação de Shaders WebGL e Warm-Up 360° Anti-Lag!
+   */
+  startLoadingSequence(slotData, isNewOrSwitch = false) {
     this.isTitleScreenActive = false;
+    this.isLoadingActive = true;
+    document.body.classList.add('title-or-loading-active');
+
     this.titleOverlayEl?.classList.add('hidden');
     this.setPauseMenuOpen(false, this._lastController, true);
 
-    this.totalStuds = Number(slotData.studs || 0);
-    this.displayedStuds = this.totalStuds;
-    if (this.studCountEl) {
-      this.studCountEl.textContent = this.totalStuds.toLocaleString('pt-BR');
+    const factionKey = slotData?.faction || 'cv';
+    const fInfo = FACTION_DATA[factionKey] || FACTION_DATA.cv;
+    const lang = this.settings?.language || 'pt-BR';
+
+    if (this.loadingFactionLogoEl) {
+      this.loadingFactionLogoEl.innerHTML = getFactionLogoSvg(fInfo.id, 78);
+    }
+    if (this.loadingFactionTitleEl) {
+      this.loadingFactionTitleEl.textContent = fInfo.name[lang] || fInfo.name['pt-BR'];
+      this.loadingFactionTitleEl.style.color = fInfo.color;
+    }
+    if (this.loadingTipTextEl) {
+      const tips =
+        lang === 'en-US'
+          ? [
+              'Allied Combat Medics connect a 3D Heal Beam (+20 HP/s) and deploy Medical Stations on the ground!',
+              'Defeating enemies in the Central Front escalates the World War and summons Colossal Bosses (Allied vs Enemy)!',
+              'Press [TAB] at any time to open the Tactical Hero Wheel in slow-motion and switch between all 8 Operators!'
+            ]
+          : [
+              'Cientistas/Médicos da sua Facção Aliada conectam um Raio de Cura 3D (+20 HP/s) e plantam Estações Médicas no chão!',
+              'Combater no Front Central enche a Escalada de Guerra Mundial e invoca Bosses Colossais (Aliado vs Inimigo)!',
+              'Segure [TAB] a qualquer momento para abrir a Roda de Heróis em Câmera Lenta e alternar entre os 8 Operadores!'
+            ];
+      this.loadingTipTextEl.textContent = tips[Math.floor(Math.random() * tips.length)];
     }
 
-    if (this._lastController && slotData.heroKey) {
-      this._lastController.switchToHero(slotData.heroKey);
+    if (this.loadingScreenEl) {
+      this.loadingScreenEl.classList.remove('hidden');
+      this.loadingScreenEl.style.opacity = '1';
     }
 
-    this.setPlayerFaction(slotData.faction || 'cv');
-    this.setPlayerHealth(250, 250, false);
+    this._setLoadingProgressUI(
+      8,
+      lang === 'en-US'
+        ? 'POSITIONING OPERATOR & SYNCING SECTORS...'
+        : 'POSICIONANDO OPERADOR & SINCRONIZANDO SETORES...'
+    );
 
-    soundFX.playTrueHeroFanfare();
-    soundFX.startWarMusic();
+    const nextFrame = (fn, delay = 28) => setTimeout(() => requestAnimationFrame(fn), delay);
 
-    if (this._lastController && typeof this._lastController.relockPointer === 'function') {
-      this._lastController.relockPointer();
-    }
+    // ETAPA 1 (0% -> 20%): Configura dados do Save, Herói, Facção Aliada e Matrizes
+    nextFrame(() => {
+      this.totalStuds = Number(slotData?.studs || 0);
+      this.displayedStuds = this.totalStuds;
+      if (this.studCountEl) {
+        this.studCountEl.textContent = this.totalStuds.toLocaleString('pt-BR');
+      }
+      if (this._lastController && slotData?.heroKey) {
+        this._lastController.switchToHero(slotData.heroKey);
+      }
+      this.setPlayerFaction(factionKey);
+      this.setPlayerHealth(250, 250, false);
 
-    if (isNewOrSwitch) {
-      const fInfo = FACTION_DATA[this.playerFaction] || FACTION_DATA.cv;
-      const lang = this.settings?.language || 'pt-BR';
-      this.showTacticalAlertToast(
-        'GUERRA MUNDIAL DE FACÇÕES // ALIANÇA ATIVA',
-        `${fInfo.name[lang] || fInfo.name['pt-BR']}`,
-        'Exército, Médicos de Combate e Boss Colossal da sua facção agora lutam ao seu lado!',
-        fInfo.color,
-        'emergency',
-        4500
+      if (typeof this.onWarmupStep === 'function') {
+        this.onWarmupStep('matrices', 0);
+      }
+      this._setLoadingProgressUI(
+        24,
+        lang === 'en-US'
+          ? 'MOBILIZING ARMIES, MEDICS & WORLD WAR BOSSES...'
+          : 'MOBILIZANDO EXÉRCITOS, MÉDICOS & BOSSES DA GUERRA MUNDIAL...'
       );
-    }
+
+      // ETAPA 2 (24% -> 46%): Aquecimento da simulação das facções, carros e partículas
+      nextFrame(() => {
+        if (typeof this.onWarmupStep === 'function') {
+          this.onWarmupStep('simulate_entities', 0);
+        }
+        this._setLoadingProgressUI(
+          48,
+          lang === 'en-US'
+            ? 'COMPILING 3D WEBGL SHADERS & GPU TEXTURES...'
+            : 'COMPILANDO SHADERS 3D & TEXTURAS NA PLACA DE VÍDEO...'
+        );
+
+        // ETAPA 3 (48% -> 68%): Compilação explícita de Shaders WebGL na GPU
+        nextFrame(() => {
+          if (typeof this.onWarmupStep === 'function') {
+            this.onWarmupStep('compile_shaders', 0);
+          }
+          this._setLoadingProgressUI(
+            68,
+            lang === 'en-US'
+              ? 'RENDERING 360° ANTI-STUTTER WARM-UP FRAMES (1/8)...'
+              : 'RENDERIZANDO FRAMES DE AQUECIMENTO 360° ANTI-LAG (1/8)...'
+          );
+
+          // ETAPA 4 (68% -> 96%): Renderiza 8 direções (0°..315°) para carregar toda a geometria na VRAM!
+          const runAngleStep = (angleIdx) => {
+            if (angleIdx < 8) {
+              if (typeof this.onWarmupStep === 'function') {
+                this.onWarmupStep('render_360', angleIdx);
+              }
+              const pct = 68 + Math.round(((angleIdx + 1) / 8) * 28);
+              this._setLoadingProgressUI(
+                pct,
+                lang === 'en-US'
+                  ? `RENDERING 360° ANTI-STUTTER WARM-UP FRAMES (${angleIdx + 1}/8)...`
+                  : `RENDERIZANDO FRAMES DE AQUECIMENTO 360° ANTI-LAG (${angleIdx + 1}/8)...`
+              );
+              nextFrame(() => runAngleStep(angleIdx + 1), 22);
+              return;
+            }
+
+            // ETAPA 5 (100%): Restaura câmera, zera dt e libera o jogo a 60 FPS!
+            if (typeof this.onWarmupStep === 'function') {
+              this.onWarmupStep('finish', 0);
+            }
+            this._setLoadingProgressUI(
+              100,
+              lang === 'en-US'
+                ? 'ALL SYSTEMS READY! LAUNCHING WORLD WAR...'
+                : 'TUDO PRONTO! INICIANDO GUERRA MUNDIAL...'
+            );
+
+            nextFrame(() => {
+              this.isLoadingActive = false;
+              document.body.classList.remove('title-or-loading-active');
+              if (this.loadingScreenEl) {
+                this.loadingScreenEl.classList.add('hidden');
+              }
+
+              soundFX.playTrueHeroFanfare();
+              soundFX.startWarMusic();
+
+              if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+                this._lastController.relockPointer();
+              }
+
+              if (isNewOrSwitch) {
+                this.showTacticalAlertToast(
+                  'GUERRA MUNDIAL DE FACÇÕES // ALIANÇA ATIVA',
+                  `${fInfo.name[lang] || fInfo.name['pt-BR']}`,
+                  'Exército, Médicos de Combate e Boss Colossal da sua facção agora lutam ao seu lado!',
+                  fInfo.color,
+                  'emergency',
+                  4500
+                );
+              }
+            }, 140);
+          };
+
+          nextFrame(() => runAngleStep(0), 25);
+        });
+      });
+    });
   }
 
   saveCurrentProgress() {
@@ -1117,7 +1557,7 @@ export class LegoHud {
       if (document.pointerLockElement && document.exitPointerLock) {
         document.exitPointerLock();
       }
-    } else if (!this.isTitleScreenActive && !keepTitleState) {
+    } else if (!this.isTitleScreenActive && !this.isLoadingActive && !keepTitleState) {
       if (this._lastController && typeof this._lastController.relockPointer === 'function') {
         this._lastController.relockPointer();
       }
@@ -1125,7 +1565,7 @@ export class LegoHud {
   }
 
   togglePauseMenu(controller = null) {
-    if (this.isTitleScreenActive) return;
+    if (this.isTitleScreenActive || this.isLoadingActive) return;
     this.setPauseMenuOpen(!this.isPauseMenuOpen, controller);
   }
 }

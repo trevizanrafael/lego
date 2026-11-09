@@ -19,7 +19,7 @@
     }
   </script>
 </head>
-<body>
+<body class="title-or-loading-active">
   <div id="game-container"></div>
 
   <!-- Overlay de Câmera de Satélite Estilo GTA V durante a Viagem Rápida -->
@@ -92,23 +92,27 @@
             </div>
           </div>
 
-          <!-- Indicador de Feixe de Cura Médico Aliado -->
-          <div id="hud-medic-heal-tag" class="hud-medic-heal-tag hidden">✚ MÉDICO ALIADO CURANDO VOCÊ (+20 HP/s)</div>
-
-          <!-- Contador de Studs Solto (Alto Contraste Tático) -->
+          <!-- Linha 3: Moeda Stud 3D + Contador de Studs + Tag Inline de Cura Médica -->
           <div class="stud-counter-row">
             <div id="hud-stud-coin" class="hud-stud-3d" data-tier="gold"></div>
             <span id="hud-stud-count">0</span>
             <span id="hud-stud-gain"></span>
+            <span id="hud-medic-heal-tag" class="hud-medic-heal-tag hidden">✚ +20 HP/s</span>
           </div>
         </div>
       </div>
 
       <!-- Painel Central Superior da Guerra Mundial de Facções (Backyard Battleground + Barra de Bosses) -->
       <div id="world-war-hud-panel" class="world-war-hud-panel">
+        <div class="ww-factions-strip">
+          <span class="ww-fac-chip ww-fac-cv">🔴 CV</span>
+          <span class="ww-fac-sep">⚔️ FRONT CENTRAL</span>
+          <span class="ww-fac-chip ww-fac-pcc">🔵 PCC</span>
+          <span class="ww-fac-chip ww-fac-ares">🟣 A.R.E.S.</span>
+        </div>
         <div class="ww-front-header">
           <span id="ww-front-title" class="ww-front-title">FRENTE CENTRAL DA GUERRA MUNDIAL</span>
-          <span id="ww-escalation-pct" class="ww-escalation-pct">DOMÍNIO TÁTICO</span>
+          <span id="ww-escalation-pct" class="ww-escalation-pct">35%</span>
         </div>
         <div class="ww-escalation-track">
           <div id="ww-escalation-fill" class="ww-escalation-fill"></div>
@@ -116,6 +120,13 @@
         <!-- Barras de Vida dos Bosses Colossais (Aliado vs Inimigo) -->
         <div id="ww-boss-bars-container" class="ww-boss-bars-container hidden"></div>
       </div>
+
+      <!-- Coluna Direita do Topo: Pill [ESC] Opções/Salvar + Armas CS + Velocímetro -->
+      <div id="top-right-cluster" class="top-right-cluster">
+        <div id="hud-esc-hint-pill" class="hud-esc-hint-pill">
+          <span class="esc-key-badge">ESC</span>
+          <span id="hud-esc-hint-text">OPÇÕES / SALVAR</span>
+        </div>
 
       <!-- Canto Superior Direito: Scroll de Silhuetas Estilo CS (Exclusivo do Vingador de Chumbo a pé — ZERO TEXTO) -->
       <div id="vingador-weapon-hud" class="hidden" aria-hidden="true">
@@ -199,6 +210,7 @@
         </div>
         <div id="speedo-rpm-bars" class="speedo-rpm-bars"></div>
       </div>
+      </div>
     </div>
 
     <!-- Banner/Toast de Transição de Região no Topo da Tela -->
@@ -220,9 +232,10 @@
     </div>
 
     <!-- =======================================================================
-         TELA INICIAL OFICIAL NA IDV DO JOGO + SISTEMA DE SAVES + 3 FACÇÕES
+         TELA INICIAL OFICIAL NA IDV DO JOGO + FUNDO PANORÂMICO DA FAVELA LEGO
          ======================================================================= -->
     <div id="title-screen-overlay" class="title-screen-overlay">
+      <canvas id="title-favela-bg-canvas"></canvas>
       <div class="title-scanlines"></div>
       <div class="title-content-wrap">
         <!-- Logo Oficial Monumental em SVG + Tipografia 3D LEGO -->
@@ -288,6 +301,35 @@
             <button id="btn-faction-back" class="tactical-btn">VOLTAR</button>
           </div>
           <div id="faction-cards-grid" class="faction-cards-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =======================================================================
+         TELA DE LOADING TÁTICA (0% -> 100%) COM WARM-UP 360° ANTI-LAG!
+         ======================================================================= -->
+    <div id="tactical-loading-screen" class="tactical-loading-screen hidden">
+      <div class="title-scanlines"></div>
+      <div class="loading-card">
+        <div class="loading-top-row">
+          <div id="loading-faction-logo" class="loading-faction-logo"></div>
+          <div class="loading-title-col">
+            <div id="loading-op-tag" class="dossier-tag">SISTEMA DE PRÉ-COMPILAÇÃO GPU // ANTI-STUTTER 360°</div>
+            <div id="loading-faction-title" class="loading-faction-title">PREPARANDO ZONA DE GUERRA MUNDIAL</div>
+            <div id="loading-stage-text" class="loading-stage-text">POSICIONANDO OPERADOR & SINCRONIZANDO SETORES...</div>
+          </div>
+          <div id="loading-pct-text" class="loading-pct-text">0%</div>
+        </div>
+
+        <!-- Barra de Progresso LEGO Segmentada (20 Blocos Chanfrados) -->
+        <div id="loading-lego-bar" class="loading-lego-bar"></div>
+
+        <!-- Card de Dica Tática de Combate -->
+        <div class="loading-tip-box">
+          <span class="loading-tip-badge">DICA TÁTICA</span>
+          <span id="loading-tip-text" class="loading-tip-text">
+            Cientistas/Médicos da sua Facção Aliada conectam um Raio de Cura 3D contínuo (+20 HP/s) e plantam Estações Médicas no chão!
+          </span>
         </div>
       </div>
     </div>

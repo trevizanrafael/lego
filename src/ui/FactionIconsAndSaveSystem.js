@@ -335,3 +335,4 @@ export function saveGameSettings(settings) {
     // Ignora erro de storage
   }
 }
+

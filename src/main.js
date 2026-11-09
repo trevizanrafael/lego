@@ -74,6 +74,9 @@ class LegoCityGame {
     this.hud.onSelectFaction = (factionKey) => {
       this.world.livingCity?.setPlayerFaction(factionKey, this.controller);
     };
+    this.hud.onWarmupStep = (stage, stepIdx) => {
+      this._executeWarmupStep(stage, stepIdx);
+    };
 
     this.controller.onToggleFullMap = () => {
       this.hud.toggleFullMap(this.world, this.controller);
@@ -95,6 +98,45 @@ class LegoCityGame {
     });
   }
 
+  _executeWarmupStep(stage, stepIdx = 0) {
+    if (!this.scene || !this.camera || !this.renderer || !this.controller) return;
+    if (stage === 'matrices') {
+      this.controller.update(0.001);
+      this.scene.updateMatrixWorld(true);
+    } else if (stage === 'simulate_entities') {
+      const lc = this.world?.livingCity;
+      if (lc) {
+        for (const npc of lc.combatNpcs || []) {
+          if (npc.root) npc.root.visible = true;
+        }
+        for (const ped of lc.pedestrians || []) {
+          if (ped.root) ped.root.visible = true;
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        this.world.update(0.016, this.controller.position, this.controller);
+        this.destructibles.update(0.016, this.controller.position);
+      }
+      this.scene.updateMatrixWorld(true);
+    } else if (stage === 'compile_shaders') {
+      this.renderer.compile(this.scene, this.camera);
+    } else if (stage === 'render_360') {
+      const p = this.controller.position;
+      const ang = (stepIdx / 8) * Math.PI * 2;
+      this.camera.position.set(p.x, p.y + 8, p.z);
+      this.camera.lookAt(p.x + Math.sin(ang) * 90, p.y + 4, p.z + Math.cos(ang) * 90);
+      this.camera.updateMatrixWorld(true);
+      this.renderer.render(this.scene, this.camera);
+    } else if (stage === 'finish') {
+      this.controller.update(0.001);
+      const pos = this.controller.position;
+      const currentRegion = this.world.getRegionAt(pos.x, pos.y, pos.z);
+      this.hud.updateMinimap(pos, this.controller.facingAngle, this.controller.yaw, currentRegion, this.world, 0, 0.016);
+      this.renderer.render(this.scene, this.camera);
+      this.lastTime = performance.now();
+    }
+  }
+
   _animate(now) {
     requestAnimationFrame(this._animate);
 
@@ -102,27 +144,18 @@ class LegoCityGame {
     this.lastTime = now;
     const baseDt = Math.min(rawDt, 0.05);
 
+    // Na Tela Inicial ou na Tela de Loading, NÃO roda nem renderiza o mundo 3D em tempo real
+    // (apenas anima o Canvas 2D panorâmico da Favela LEGO no menu inicial!)
+    if (this.hud.isTitleScreenActive || this.hud.isLoadingActive) {
+      this.hud.update(baseDt);
+      return;
+    }
+
     // Câmera Lenta Estilo GTA V (18% da velocidade normal) enquanto a Roda de Personagens [TAB] está aberta,
     // ou Pausa Total (0.0) enquanto o Menu de Pausa [ESC] estiver aberto durante a partida!
     const isPausedInGame = this.hud.isPauseMenuOpen && !this.hud.isTitleScreenActive;
     const timeScale = isPausedInGame ? 0.0 : this.hud.isHeroWheelOpen ? 0.18 : 1.0;
     const dt = baseDt * timeScale;
-
-    if (this.hud.isTitleScreenActive) {
-      // Na Tela Inicial, a câmera 3D orbita o Front Central de Guerra Mundial ao vivo!
-      const orbitAngle = now * 0.00022;
-      this.camera.position.set(
-        Math.sin(orbitAngle) * 78,
-        32 + Math.sin(orbitAngle * 2.0) * 4,
-        -105 + Math.cos(orbitAngle) * 78
-      );
-      this.camera.lookAt(0, 4.5, -105);
-      this.world.update(baseDt, this.controller.position, this.controller);
-      this.destructibles.update(baseDt, this.controller.position);
-      this.hud.update(baseDt);
-      this.renderer.render(this.scene, this.camera);
-      return;
-    }
 
     if (dt > 0) {
       this.controller.update(dt);

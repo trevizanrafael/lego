@@ -50,6 +50,18 @@ body.satellite-transition #crosshair {
   pointer-events: none !important;
 }
 
+/* Enquanto estiver na Tela Inicial ou na Tela de Loading, oculta 100% da HUD da partida! */
+body.title-or-loading-active #top-bar,
+body.title-or-loading-active #minimap-container,
+body.title-or-loading-active #crosshair,
+body.title-or-loading-active #pointer-prompt,
+body.title-or-loading-active #region-toast,
+body.title-or-loading-active #hero-wheel-overlay,
+body.title-or-loading-active #bottom-bar,
+body.title-or-loading-active #vehicle-prompt {
+  display: none !important;
+}
+
 #satellite-fx-overlay {
   position: fixed;
   inset: 0;
@@ -217,8 +229,14 @@ body.satellite-transition #crosshair {
    =================================================== */
 #lego-classic-hud {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  align-items: center;
+  gap: 12px;
+  background: rgba(9, 10, 13, 0.86);
+  border: 2px solid var(--idv-steel);
+  border-left: 5px solid var(--idv-alert);
+  padding: 8px 14px 8px 8px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  box-shadow: 6px 6px 0 #000;
 }
 
 .tactical-portrait-frame {
@@ -285,13 +303,15 @@ body.satellite-transition #crosshair {
 .hud-right-col {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding-top: 1px;
+  gap: 4px;
 }
 
 .hud-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-display);
-  font-size: 1.45rem;
+  font-size: 1.4rem;
   font-weight: 700;
   line-height: 0.95;
   text-transform: uppercase;
@@ -932,10 +952,12 @@ body.hero-wheel-active #crosshair {
 
 /* ===================================================
    BANNER / TOAST DE TRANSIÇÃO DE REGIÃO NO TOPO
+   Posicionado abaixo do Painel da Guerra Mundial (top: 98px) para NUNCA sobrepor!
    =================================================== */
 #region-toast {
-  align-self: center;
-  margin-top: 8px;
+  position: fixed;
+  top: 98px;
+  left: 50%;
   background: var(--idv-black);
   border: 2px solid var(--idv-alert);
   border-left-width: 6px;
@@ -945,12 +967,13 @@ body.hero-wheel-active #crosshair {
   text-align: center;
   transition: opacity 0.22s ease, transform 0.22s ease;
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
+  z-index: 15;
 }
 
 #region-toast.hidden {
   opacity: 0;
-  transform: translateY(-12px);
+  transform: translate(-50%, -12px);
   pointer-events: none;
 }
 
@@ -1759,10 +1782,61 @@ body.hero-wheel-active #crosshair {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  min-width: 340px;
-  max-width: 460px;
+  gap: 4px;
+  min-width: 360px;
+  max-width: 470px;
   pointer-events: none;
+}
+
+.ww-factions-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  background: rgba(9, 10, 13, 0.9);
+  border: 1.5px solid var(--idv-steel);
+  padding: 2px 10px;
+  box-shadow: 3px 3px 0 #000;
+}
+
+.ww-fac-cv { color: #ef4444; }
+.ww-fac-pcc { color: #38bdf8; }
+.ww-fac-ares { color: #d946ef; }
+.ww-fac-sep { color: var(--idv-alert); letter-spacing: 0.06em; }
+
+.top-right-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.hud-esc-hint-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(9, 10, 13, 0.9);
+  border: 1.5px solid var(--idv-steel);
+  border-right: 4px solid var(--idv-alert);
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--idv-white);
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%);
+  box-shadow: 4px 4px 0 #000;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.esc-key-badge {
+  background: var(--idv-alert);
+  color: var(--idv-black);
+  padding: 1px 5px;
+  font-weight: 800;
 }
 
 .ww-front-header {
@@ -1856,22 +1930,162 @@ body.hero-wheel-active #crosshair {
 }
 
 /* =========================================================================
-   TELA INICIAL OFICIAL NA IDV DO JOGO + SAVES + SELEÇÃO DE FACÇÃO
+   TELA INICIAL OFICIAL NA IDV DO JOGO + FUNDO PANORÂMICO DA FAVELA LEGO
    ========================================================================= */
 .title-screen-overlay {
   position: fixed;
   inset: 0;
   z-index: 60;
   pointer-events: auto;
-  background: radial-gradient(circle at center, rgba(9, 10, 13, 0.45) 0%, rgba(9, 10, 13, 0.92) 100%);
+  background: #070913;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow: hidden;
+}
+
+#title-favela-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
 }
 
 .title-screen-overlay.hidden {
   display: none !important;
+}
+
+/* =========================================================================
+   TELA DE LOADING TÁTICA (0% -> 100%) COM WARM-UP 360° ANTI-LAG!
+   ========================================================================= */
+.tactical-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: auto;
+  background: radial-gradient(circle at 50% 35%, #16192b 0%, #070911 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  transition: opacity 0.28s ease;
+}
+
+.tactical-loading-screen.hidden {
+  display: none !important;
+}
+
+.loading-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 780px;
+  background: var(--idv-black);
+  border: 2.5px solid var(--idv-alert);
+  border-left: 8px solid var(--idv-alert);
+  padding: 26px 30px;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+  box-shadow: 12px 12px 0 #000;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.loading-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.loading-faction-logo {
+  flex-shrink: 0;
+}
+
+.loading-title-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.loading-faction-title {
+  font-family: var(--font-display);
+  font-size: 2.3rem;
+  font-weight: 700;
+  line-height: 0.96;
+  color: var(--idv-white);
+  letter-spacing: 0.04em;
+}
+
+.loading-stage-text {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.08em;
+}
+
+.loading-pct-text {
+  font-family: var(--font-display);
+  font-size: 3.6rem;
+  font-weight: 700;
+  line-height: 0.85;
+  color: var(--idv-alert);
+  text-shadow: 3px 3px 0 #000;
+  min-width: 90px;
+  text-align: right;
+}
+
+.loading-lego-bar {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 5px;
+  background: #12151e;
+  border: 2px solid var(--idv-steel);
+  padding: 6px;
+}
+
+.loading-lego-seg {
+  height: 18px;
+  background: #1e2433;
+  transform: skewX(-18deg);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.loading-lego-seg.lit {
+  background: var(--idv-alert);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.55);
+}
+
+.loading-tip-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--idv-carbon);
+  border: 1.5px solid var(--idv-steel);
+  border-left: 4px solid #22c55e;
+  padding: 10px 14px;
+}
+
+.loading-tip-badge {
+  background: #22c55e;
+  color: var(--idv-black);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
+.loading-tip-text {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #e2e8f0;
+  line-height: 1.38;
 }
 
 .title-scanlines {
