@@ -1,6 +1,8 @@
 // Ponto de entrada do Metrô LEGO. O código fica separado em `src/world/metro/`:
 //   MetroRouteData.js           — estações, pontos da rota e recortes no piso
 //   MetroSpline.js              — curva fechada do anel
+//   MetroVerticalProfile.js     — altura da linha elevada (vão livre mínimo sobre a rua)
+//   MetroTrackWalkway.js        — piso andável e muretas com colisão no trilho elevado
 //   MetroBatcher.js             — merge de geometrias estáticas
 //   MetroStationProps.js        — placas, catracas, máquinas de bilhete e totens
 //   MetroUndergroundStations.js — estações subterrâneas e túnel
@@ -21,6 +23,7 @@ import {
   buildElevatedSupports
 } from './metro/MetroTrackAndViaduct.js';
 import { MetroSystemRuntime } from './metro/MetroRuntime.js';
+import { buildTrackWalkway } from './metro/MetroTrackWalkway.js';
 
 export {
   METRO_ISLAND_CUTOUTS,
@@ -39,12 +42,13 @@ export function buildMetroSystem(world) {
   if (!world.undergroundFloors) world.undergroundFloors = [];
 
   const batcher = createMetroBatcher();
-  const spline = buildClosedMetroLoopSpline();
+  const spline = buildClosedMetroLoopSpline(world);
 
   buildUndergroundStationsAndTunnel(world, batcher);
   buildTrackBedAndElevatedManhattanStructure(world, batcher, spline);
   buildThreeElevatedMetroStations(world, batcher);
   buildElevatedSupports(world, batcher, spline);
+  buildTrackWalkway(world, spline);
 
   const totems = [];
   for (let i = 0; i < METRO_STATIONS.length; i++) {

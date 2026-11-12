@@ -166,7 +166,7 @@ export function planElevatedSupports(spline, roads, opts = {}) {
       // Deck por CIMA da viga (plataforma apoiada) é ok; na altura da cabeça de quem passa, não.
       if (isDeckInRange(bx, bz, 0.8, beamBottomY - cfg.headroom, beamTopY + 0.3)) return null;
     }
-    return { kind, s, trackY: pos.y, beamY, alongZ, cols, beam };
+    return { kind, s, trackY: pos.y, beamY, alongZ, corridor, cols, beam };
   };
 
   // 1) Trechos contínuos (resolução de 1m) onde um apoio é possível

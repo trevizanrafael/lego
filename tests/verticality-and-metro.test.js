@@ -245,30 +245,22 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     ]);
     assert.ok(Math.abs(controller.position.y - -10.5) < 0.08, 'Plataforma da Estação 02 em -10.5m');
 
-    // (B) Sobe a pé da calçada até o centro das 3 Estações Elevadas (+14.85m) pelo vão aberto de 6.0m!
-    simulateControllerWalk([
-      { x: -368.0, y: world.getTerrainHeightAt(-368.0, 9.0) + 0.35, z: 9.0 },
-      { x: -368.0, y: 14.85, z: -35.0 },
-      { x: -379.87, y: 14.85, z: -35.0 },
-      { x: -379.87, y: 14.85, z: -60.0 }
-    ]);
-    assert.ok(Math.abs(controller.position.y - 14.85) < 0.08, 'Plataforma Elevada da Estação 03 em +14.85m');
-
-    simulateControllerWalk([
-      { x: -105.5, y: world.getTerrainHeightAt(-105.5, 701.0) + 0.35, z: 701.0 },
-      { x: -105.5, y: 14.85, z: 668.0 },
-      { x: -116.87, y: 14.85, z: 668.0 },
-      { x: -116.87, y: 14.85, z: 650.0 }
-    ]);
-    assert.ok(Math.abs(controller.position.y - 14.85) < 0.08, 'Plataforma Elevada da Estação 04 em +14.85m');
-
-    simulateControllerWalk([
-      { x: 499.8, y: world.getTerrainHeightAt(499.8, -115.0) + 0.35, z: -115.0 },
-      { x: 499.8, y: 14.85, z: -155.0 },
-      { x: 509.37, y: 14.85, z: -155.0 },
-      { x: 509.37, y: 14.85, z: -180.0 }
-    ]);
-    assert.ok(Math.abs(controller.position.y - 14.85) < 0.08, 'Plataforma Elevada da Estação 05 em +14.85m');
+    // (B) Sobe a pé da calçada (pé da escada, fora da rua) até o centro das 3 Estações Elevadas
+    for (const stair of world.metroStationStairs) {
+      const st = METRO_STATIONS.find((x) => x.id === stair.stationId);
+      const dir = Math.sign(stair.stairZBot - stair.stairZTop);
+      const startZ = stair.stairZBot + dir * 1.5;
+      simulateControllerWalk([
+        { x: stair.stairX, y: world.getTerrainHeightAt(stair.stairX, startZ) + 0.35, z: startZ },
+        { x: stair.stairX, y: stair.platY, z: stair.stairZTop },
+        { x: st.platformSpawn.x, y: stair.platY, z: stair.stairZTop },
+        { x: st.platformSpawn.x, y: stair.platY, z: st.platformSpawn.z }
+      ]);
+      assert.ok(
+        Math.abs(controller.position.y - stair.platY) < 0.08,
+        `Plataforma Elevada da ${st.code} em +${stair.platY.toFixed(2)}m (y=${controller.position.y.toFixed(2)})`
+      );
+    }
 
     // (C) Embarque SENTADO com [E] (Estação 03) -> Viagem -> Desembarque na plataforma (Estação 04)
     const metro = world.metroSystem;
@@ -289,13 +281,13 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     const doorOut = metro._carLocalToWorld(car1, car1.halfW + 1.0, 2.85);
     controller.activeRide = null;
     controller.currentVehicle = null;
-    controller.position.set(doorOut.wx, 14.85, doorOut.wz);
+    controller.position.set(doorOut.wx, st03.platformSpawn.y, doorOut.wz);
     assert.ok(metro.findBoardableCar(controller.position), 'Porta aberta ao alcance do [E] na plataforma');
 
     // Portas fechadas: não embarca e o vagão é sólido (não entra andando)
     metro._setTrainDoors(train, 0, 'both');
     assert.equal(metro.findBoardableCar(controller.position), null, 'Sem embarque com portas fechadas');
-    controller.position.set(doorOut.wx, 14.85, doorOut.wz);
+    controller.position.set(doorOut.wx, st03.platformSpawn.y, doorOut.wz);
     controller.velocity.set(0, 0, 0);
     for (let step = 0; step < 60; step++) {
       const dx = car1.pos.x - controller.position.x;
@@ -307,9 +299,9 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       controller._moveAndCollide(0.04);
     }
     assert.ok(Math.abs(toLocal(car1, controller.position).lx) >= car1.halfW, 'Vagão é sólido: não entra andando');
-    assert.ok(controller.position.y >= 14.8, 'Continua na plataforma');
+    assert.ok(controller.position.y >= st03.platformSpawn.y - 0.05, 'Continua na plataforma');
     metro._setTrainDoors(train, 1.0, st03.doorSide);
-    controller.position.set(doorOut.wx, 14.85, doorOut.wz);
+    controller.position.set(doorOut.wx, st03.platformSpawn.y, doorOut.wz);
     controller.velocity.set(0, 0, 0);
 
     assert.equal(controller.toggleVehicleInteraction(), true);
@@ -339,20 +331,21 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     controller.toggleVehicleInteraction();
     assert.equal(controller.activeRide?.type, 'metro', '[E] com o trem andando não desembarca');
 
-    // Chega na Estação 04 e desembarca com [E] direto na plataforma (+14.85m), fora do vagão
+    // Chega na Estação 04 e desembarca com [E] direto na plataforma, fora do vagão
     const st04 = metro.spline.stationStops[3];
     stopTrainAt(st04);
     world.update(0.0, controller.position, controller);
     controller.toggleVehicleInteraction();
     assert.equal(controller.activeRide, null, 'Desembarcou');
-    assert.ok(Math.abs(controller.position.y - 14.85) < 0.05, `Desembarque na plataforma (y=${controller.position.y.toFixed(2)})`);
+    const plat04 = st04.platformSpawn.y;
+    assert.ok(Math.abs(controller.position.y - plat04) < 0.05, `Desembarque na plataforma (y=${controller.position.y.toFixed(2)})`);
     const outLocal = toLocal(car1, controller.position);
     assert.ok(Math.abs(outLocal.lx) > car1.halfW, 'Desembarque fora do vagão, do lado da porta');
     const minAfterExit = simulateControllerWalk([
       { x: controller.position.x, y: controller.position.y, z: controller.position.z },
-      { x: controller.position.x, y: 14.85, z: controller.position.z + 4.0 }
+      { x: controller.position.x, y: plat04, z: controller.position.z + 4.0 }
     ]);
-    assert.ok(minAfterExit >= 14.8, `Anda na plataforma depois de desembarcar (minY=${minAfterExit.toFixed(3)})`);
+    assert.ok(minAfterExit >= plat04 - 0.05, `Anda na plataforma depois de desembarcar (minY=${minAfterExit.toFixed(3)})`);
   });
 
   it('5b. Metrô não "gruda" quem está na rua: teto só é apoio bem acima do chão e vagão é sólido', () => {
@@ -414,6 +407,118 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       const under = bents.filter((b) => Math.abs(b.s - st.stopS) <= 31);
       assert.ok(under.length >= 2, `Estação ${st.code} apoiada por ${under.length} pórticos`);
     }
+  });
+
+  it('5d. Rua livre: trilho alto sobre a rua, escadas e bocas do metrô fora da pista, trilho elevado andável', async () => {
+    const { isInsideAnyRoad } = await import('../src/world/metro/MetroSupportPlanner.js');
+    const { PROFILE_CONFIG } = await import('../src/world/metro/MetroVerticalProfile.js');
+    const { METRO_ISLAND_CUTOUTS } = await import('../src/world/MetroSystemBuilder.js');
+    const metro = world.metroSystem;
+    const sp = metro.spline;
+    const p = new THREE.Vector3();
+    const t = new THREE.Vector3();
+
+    // (A) Vão livre: fundo da viga >= 9m acima do chão (pista + calçadas) em toda a linha elevada
+    let minClear = Infinity;
+    let worstAt = '';
+    for (let s = 0; s < sp.totalLength; s += 5) {
+      sp.sampleAtS(s, p, t);
+      if (p.y < PROFILE_CONFIG.elevatedBaseY) continue;
+      const L = Math.hypot(t.x, t.z) || 1;
+      let g = 0;
+      for (let o = -14; o <= 14; o += 2) {
+        g = Math.max(g, world.getTerrainHeightAt(p.x - (t.z / L) * o, p.z + (t.x / L) * o));
+      }
+      const clear = p.y - PROFILE_CONFIG.structureDepth - g;
+      if (clear < minClear) {
+        minClear = clear;
+        worstAt = `(${p.x.toFixed(0)}, ${p.z.toFixed(0)})`;
+      }
+    }
+    assert.ok(minClear >= 8.95, `Vão livre mínimo sob a linha elevada ${minClear.toFixed(2)}m em ${worstAt}`);
+
+    // Rampas suaves criadas pelo relevo na linha elevada principal (as rampas dos portais do túnel ficam de fora)
+    let maxGrade = 0;
+    const q = new THREE.Vector3();
+    for (let s = 0; s < sp.totalLength; s += 2) {
+      sp.sampleAtS(s, p);
+      sp.sampleAtS(s + 2, q);
+      if (p.y < 14 || q.y < 14) continue;
+      maxGrade = Math.max(maxGrade, Math.abs(q.y - p.y) / Math.max(0.5, Math.hypot(q.x - p.x, q.z - p.z)));
+    }
+    assert.ok(maxGrade <= 0.045, `Inclinação máxima da linha elevada ${(maxGrade * 100).toFixed(1)}%`);
+
+    // (B) Escadas das estações elevadas e bocas do metrô subterrâneo: nada encosta na pista
+    assert.equal(world.metroStationStairs.length, 3, 'As 3 estações elevadas têm escada');
+    for (const st of world.metroStationStairs) {
+      const z0 = Math.min(st.stairZTop, st.stairZBot);
+      const z1 = Math.max(st.stairZTop, st.stairZBot);
+      for (let z = z0; z <= z1; z += 1) {
+        for (const x of [st.stairX - st.stairHalfW, st.stairX + st.stairHalfW]) {
+          assert.ok(!isInsideAnyRoad(world.mapRoads, x, z, 0), `Escada da ${st.code} invade a pista em (${x.toFixed(1)}, ${z.toFixed(1)})`);
+        }
+      }
+    }
+    for (const c of METRO_ISLAND_CUTOUTS) {
+      for (const [x, z] of [[c.minX, c.minZ], [c.maxX, c.maxZ], [c.minX, c.maxZ], [c.maxX, c.minZ]]) {
+        assert.ok(!isInsideAnyRoad(world.mapRoads, x, z, -0.01), `Boca do metrô ${c.id} invade a pista`);
+      }
+    }
+
+    // Pilares e pé das escadas sempre em cima de calçada (a base da ilha fora das calçadas é asfalto)
+    const onSidewalk = (x, z) =>
+      world.mapSidewalks.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
+    for (const b of world.metroSupports) {
+      for (const c of b.cols) {
+        assert.ok(onSidewalk(c.x, c.z), `Pilar em (${c.x.toFixed(1)}, ${c.z.toFixed(1)}) precisa estar sobre calçada`);
+      }
+    }
+    for (const st of world.metroStationStairs) {
+      assert.ok(onSidewalk(st.stairX, st.stairZBot), `Pé da escada da ${st.code} sobre calçada`);
+    }
+
+    // (C) Plataformas sobem junto com o trilho (piso do vagão alinhado com a plataforma)
+    for (const st of metro.stations.filter((x) => x.kind === 'elevated')) {
+      sp.sampleAtS(st.stopS, p);
+      assert.ok(Math.abs(st.platformSpawn.y - (p.y + 0.65)) < 0.02, `Plataforma da ${st.code} alinhada com o vagão`);
+    }
+
+    // (D) Trilho elevado andável: piso em cima do trilho e muretas com colisão
+    for (const [x, z] of [[-388.5, -150], [-516, 300], [-300, 556], [200, 710], [518, 100]]) {
+      const s = (() => {
+        let best = 0;
+        let bd = Infinity;
+        for (let k = 0; k < sp.totalLength; k += 1) {
+          sp.sampleAtS(k, p);
+          const d = (p.x - x) ** 2 + (p.z - z) ** 2;
+          if (d < bd) {
+            bd = d;
+            best = k;
+          }
+        }
+        return best;
+      })();
+      sp.sampleAtS(s, p);
+      const deckY = world.getSurfaceHeightAt(p.x, p.z, p.y + 1.0);
+      assert.ok(Math.abs(deckY - (p.y + 0.18)) < 0.1, `Piso andável no trilho em (${x}, ${z}): ${deckY.toFixed(2)} vs ${(p.y + 0.18).toFixed(2)}`);
+      assert.ok(world.getSurfaceHeightAt(p.x, p.z, 0.3) < p.y - 5, 'Quem está na rua embaixo continua no chão');
+    }
+
+    // Anda em cima do trilho na Av. X = -384 e não atravessa a mureta lateral
+    controller.activeRide = null;
+    sp.sampleAtS(0, p);
+    const walkS = metro.stations[2].stopS - 120;
+    sp.sampleAtS(walkS, p);
+    controller.position.set(p.x, p.y + 0.3, p.z);
+    controller.velocity.set(0, 0, 0);
+    for (let step = 0; step < 50; step++) {
+      controller.velocity.x = 7.5; // anda de lado, contra a mureta
+      controller.velocity.z = 0;
+      controller.velocity.y = Math.max(controller.velocity.y - 28 * 0.04, -18);
+      controller._moveAndCollide(0.04);
+    }
+    assert.ok(Math.abs(controller.position.y - (p.y + 0.18)) < 0.1, `Continua em pé no trilho (y=${controller.position.y.toFixed(2)})`);
+    assert.ok(Math.abs(controller.position.x - p.x) < 3.6, 'Mureta lateral segura o jogador no trilho');
   });
 
   it('6. SignBoardHelper gera placas com proporção real (aspect = W/H) e array de 6 materiais sem esticar bordas', () => {
