@@ -9,6 +9,14 @@ import {
   makeTranslatedBox
 } from './BuildingGenerator.js';
 import { createSignBoardMesh } from '../utils/SignBoardHelper.js';
+import { buildProfileRibbon, buildGradedProfile, sampleProfile } from './ViaductGeometry.js';
+import {
+  findPortalColumns,
+  makeFootingLookup,
+  isBuildingAt,
+  isInsideAnyRoad,
+  onCrossRoad
+} from './StreetPortalPlanner.js';
 
 function smoothstep01(t) {
   const c = THREE.MathUtils.clamp(t, 0, 1);
@@ -368,6 +376,9 @@ function createReliefAndViaductBatcher() {
     addTiltedBox(key, w, h, d, x, y, z, rotX = 0, rotY = 0, rotZ = 0) {
       const geo = new THREE.BoxGeometry(w, h, d);
       pushMatrixTransformedGeo(key, geo, x, y, z, rotX, rotY, rotZ);
+    },
+    addGeometry(key, geo) {
+      if (geo) buckets.get(key).push(geo);
     },
     addCylinder(key, rTop, rBot, h, x, y, z, segs = 12, rotX = 0, rotY = 0, rotZ = 0) {
       const geo = new THREE.CylinderGeometry(rTop, rBot, h, segs);
@@ -781,6 +792,175 @@ function buildCDDCanyonPassRetainingWalls(batcher) {
 // 4. CONSTRUTOR DE VIADUTO EXPRESSO SUSPENSO (+12.4m ACIMA DA RUA LOCAL & 100% VAZADO!)
 // ============================================================================
 
+// ============================================================================
+// PISTA CONTÍNUA + APOIOS FORA DA RUA (compartilhados pelos viadutos e rampas de acesso)
+// ============================================================================
+function interpolateSamplesY(samples, c) {
+  if (c <= samples[0].c) return samples[0].y;
+  const last = samples[samples.length - 1];
+  if (c >= last.c) return last.y;
+  let lo = 0;
+  let hi = samples.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (samples[mid].c <= c) lo = mid;
+    else hi = mid;
+  }
+  const a = samples[lo];
+  const b = samples[hi];
+  return a.y + ((b.y - a.y) * (c - a.c)) / Math.max(1e-6, b.c - a.c);
+}
+
+function addContinuousDeck(batcher, samples, axis, fixedCoord, deckWidth, opts = {}) {
+  if (!samples || samples.length < 2) return;
+  const { deckThickness = 0.95, railW = 0.68, railH = 1.15, railGaps = [], girders = true } = opts;
+  const halfW = deckWidth * 0.5;
+  const rib = (key, c0, c1, top, thick, faces, sub = samples) =>
+    batcher.addGeometry(key, buildProfileRibbon(sub, axis, fixedCoord, c0, c1, top, thick, faces));
+  const topOnly = { top: true, bottom: false, sides: false };
+
+  // Laje + vigas longitudinais inferiores
+  rib('viaduct_concrete', -halfW, halfW, 0, deckThickness);
+  if (girders) {
+    for (const side of [-1, 1]) {
+      const g = side * (halfW - 2.1);
+      rib('viaduct_dark_concrete', g - 0.475, g + 0.475, -deckThickness + 0.03, 0.78);
+    }
+  }
+  // Asfalto, faixa dupla amarela central e linhas de acostamento
+  rib('viaduct_asphalt', -(halfW - railW), halfW - railW, 0.07, 0.1, { top: true, bottom: false, sides: true });
+  for (const d of [-0.28, 0.28]) rib('lane_yellow', d - 0.11, d + 0.11, 0.095, 0.02, topOnly);
+  for (const side of [-1, 1]) {
+    const o = side * (halfW - railW - 0.45);
+    rib('viaduct_shoulder', o - 0.17, o + 0.17, 0.09, 0.02, topOnly);
+  }
+  // Linhas brancas tracejadas das faixas (cada traço também segue o perfil)
+  const cStart = samples[0].c;
+  const cEnd = samples[samples.length - 1].c;
+  for (let c = cStart + 3; c + 3.3 <= cEnd - 3; c += 6) {
+    const dash = [0, 1.1, 2.2, 3.3].map((k) => ({ c: c + k, y: interpolateSamplesY(samples, c + k) }));
+    for (const side of [-1, 1]) {
+      const o = side * deckWidth * 0.24;
+      rib('lane_white', o - 0.11, o + 0.11, 0.095, 0.02, topOnly, dash);
+    }
+  }
+  // Muretas laterais (com aberturas opcionais) e friso amarelo na face externa da laje
+  for (const side of [-1, 1]) {
+    const inner = side * (halfW - railW);
+    const outer = side * halfW;
+    const gaps = railGaps.filter((g) => g.side === side);
+    let runs = [samples];
+    for (const g of gaps) {
+      runs = runs.flatMap((run) => {
+        const before = run.filter((p) => p.c <= g.c0);
+        const after = run.filter((p) => p.c >= g.c1);
+        return [before, after].filter((r) => r.length >= 2);
+      });
+    }
+    for (const run of runs) {
+      rib('viaduct_concrete', Math.min(inner, outer), Math.max(inner, outer), railH, railH + 0.3, undefined, run);
+    }
+    const band0 = side > 0 ? halfW : -halfW - 0.05;
+    rib('safety_yellow', band0, band0 + 0.05, -0.1, 0.38);
+  }
+}
+
+/** Collider de objeto/prédio no lugar do pilar (ignora coisas no alto, como tabuleiros). */
+function isColumnSpotBlocked(world, x, z, half) {
+  const r = half + 0.3;
+  const cols = world.getCollidersNear ? world.getCollidersNear(x, z, r + 1) : world.colliders || [];
+  for (const col of cols) {
+    if (col.disabled) continue;
+    if ((col.minY ?? 0) > 6.0 || col.maxY < 0.8) continue;
+    if (x + r > col.minX && x - r < col.maxX && z + r > col.minZ && z - r < col.maxZ) return true;
+  }
+  return false;
+}
+
+/**
+ * Apoios de um viaduto reto (ao longo de X ou Z), sem nada no meio da rua:
+ *  - tabuleiro alto (vão livre >= 5m): PÓRTICO com um pilar em cada calçada de verdade e viga atravessando a rua;
+ *  - rampa baixa (onde carro não passa por baixo): pilar central compacto sob a própria rampa;
+ *  - em cima de rua transversal: nenhum apoio.
+ */
+function addViaductSupports(world, batcher, cfg) {
+  const { axis, fixedCoord, startC, endC, deckWidth, getHeightAlong, getGroundAlong, underside, spacing = 22 } = cfg;
+  const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
+  const alongZ = axis === 'x_const';
+  const isFooting = makeFootingLookup(world, { ignoreBlock: (b) => b.isViaductDeck });
+  const groundAt = (x, z) => (world.getTerrainHeightAt ? Math.max(0, world.getTerrainHeightAt(x, z)) : 0);
+  const beamH = 1.2;
+  const colW = 1.4;
+  const placed = [];
+
+  for (let pc0 = startC + 14; pc0 <= endC - 14; pc0 += spacing) {
+    for (const sh of [0, 3, -3, 6, -6, 9, -9]) {
+      const pc = pc0 + sh;
+      if (pc < startC + 8 || pc > endC - 8) continue;
+      const deckY = getHeightAlong(pc);
+      if (deckY === null) continue;
+      const undersideY = deckY - underside;
+      const groundC = getGroundAlong(pc);
+      const clear = undersideY - groundC;
+      if (clear < 1.2) break; // rampa encostando no chão (aterro): sem pilar
+      const x = alongZ ? fixedCoord : pc;
+      const z = alongZ ? pc : fixedCoord;
+      if (onCrossRoad(roads, x, z, alongZ, 3.0)) continue;
+
+      if (clear >= 5.0) {
+        const beamTop = undersideY;
+        const beamBottom = beamTop - beamH;
+        const cols = findPortalColumns({
+          x,
+          z,
+          alongZ,
+          roads,
+          isFooting,
+          isBuilding: (px, pz) => isBuildingAt(world, px, pz),
+          fits: (c) => {
+            if (isColumnSpotBlocked(world, c.x, c.z, colW * 0.5)) return false;
+            c.groundY = groundAt(c.x, c.z);
+            return beamBottom - c.groundY >= 3.0;
+          }
+        });
+        if (!cols) continue;
+        for (const c of cols) {
+          const h = beamBottom - c.groundY;
+          batcher.addBox('viaduct_pillar', colW, h + 0.8, colW, c.x, c.groundY + h * 0.5 - 0.4, c.z);
+          batcher.addBox('safety_yellow', colW + 0.24, 0.9, colW + 0.24, c.x, c.groundY + 0.45, c.z);
+          batcher.addBox('hazard_black', colW + 0.26, 0.26, colW + 0.26, c.x, c.groundY + 0.98, c.z);
+          world.addCollider(c.x, c.z, colW + 0.1, colW + 0.1, beamBottom, c.groundY);
+        }
+        const a = cols[0];
+        const b = cols[1];
+        const span = Math.hypot(b.x - a.x, b.z - a.z) + colW;
+        const sx = alongZ ? span : 1.8;
+        const sz = alongZ ? 1.8 : span;
+        const bx = (a.x + b.x) * 0.5;
+        const bz = (a.z + b.z) * 0.5;
+        batcher.addBox('viaduct_concrete', sx, beamH, sz, bx, beamTop - beamH * 0.5, bz);
+        world.addCollider(bx, bz, sx, sz, beamTop, beamBottom);
+        placed.push({ kind: 'portal', c: pc, cols, beamBottom });
+      } else {
+        // Rampa baixa: pilar central sob a rampa (ali embaixo já não passa carro)
+        if (isColumnSpotBlocked(world, x, z, 1.1)) continue;
+        const g = groundAt(x, z);
+        const h = undersideY - g;
+        batcher.addBox('viaduct_pillar', 2.2, h + 0.6, 2.2, x, g + h * 0.5 - 0.3, z);
+        batcher.addBox('safety_yellow', 2.44, 0.8, 2.44, x, g + 0.4, z);
+        const capW = deckWidth - 3.0;
+        batcher.addBox('viaduct_dark_concrete', alongZ ? capW : 1.8, 0.7, alongZ ? 1.8 : capW, x, undersideY - 0.35, z);
+        world.addCollider(x, z, 2.3, 2.3, undersideY, g);
+        placed.push({ kind: 'central', c: pc });
+      }
+      break;
+    }
+  }
+  if (!world.viaductSupports) world.viaductSupports = [];
+  world.viaductSupports.push(...placed.map((p) => ({ ...p, axis, fixedCoord })));
+  return placed;
+}
+
 function buildSegmentedExpressViaduct(world, batcher, cfg) {
   const {
     id,
@@ -814,8 +994,14 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
 
   const flatStart = startC + rampStartLen;
   const flatEnd = endC - rampEndLen;
-  const flatStartDeckY = sampleSmoothedGround(flatStart) + clearanceTarget;
-  const flatEndDeckY = sampleSmoothedGround(flatEnd) + clearanceTarget;
+  // Trecho elevado com perfil "de projeto": rampas retas (até 5%) e concordâncias suaves, sempre com o vão livre
+  // exigido sobre a rua — sem copiar cada ondulação do relevo (antes o tabuleiro ficava torto no meio).
+  const middleProfile = buildGradedProfile((c) => sampleSmoothedGround(c) + clearanceTarget, flatStart, flatEnd, {
+    maxGrade: 0.05,
+    smoothHalf: 24
+  });
+  const flatStartDeckY = middleProfile(flatStart);
+  const flatEndDeckY = middleProfile(flatEnd);
 
   const getHeightAlong = (c) => {
     if (c < startC || c > endC) return null;
@@ -827,12 +1013,7 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
       const t = cosineStep01((endC - c) / Math.max(1, rampEndLen));
       return THREE.MathUtils.lerp(endGroundY, flatEndDeckY, t);
     }
-    // No trecho elevado central, interpola suavemente acompanhando o relevo local + clearanceTarget (~12.4m)!
-    const localTarget = sampleSmoothedGround(c) + clearanceTarget;
-    const uEnd = Math.min(1, (c - flatStart) / 36.0);
-    const vEnd = Math.min(1, (flatEnd - c) / 36.0);
-    const blendedStart = THREE.MathUtils.lerp(flatStartDeckY, localTarget, smoothstep01(uEnd));
-    return THREE.MathUtils.lerp(flatEndDeckY, blendedStart, smoothstep01(vEnd));
+    return middleProfile(c);
   };
 
   const halfW = deckWidth * 0.5;
@@ -866,7 +1047,8 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
       z: fixedCoord,
       w: endC - startC,
       d: deckWidth,
-      color: '#475569'
+      color: '#475569',
+      isViaductDeck: true
     });
   } else {
     world.mapBlocks.push({
@@ -874,7 +1056,8 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
       z: (startC + endC) * 0.5,
       w: deckWidth,
       d: endC - startC,
-      color: '#475569'
+      color: '#475569',
+      isViaductDeck: true
     });
   }
 
@@ -893,77 +1076,13 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
     const y0 = getHeightAlong(c0);
     const y1 = getHeightAlong(c1);
     const ym = (y0 + y1) * 0.5;
-    const dy = y1 - y0;
-    const segLen = Math.hypot(realStep, dy) + 0.16;
-    const slopeAngle = Math.atan2(dy, realStep);
 
     const cx = axis === 'z_const' ? cm : fixedCoord;
     const cz = axis === 'z_const' ? fixedCoord : cm;
-    const rotX = axis === 'x_const' ? -slopeAngle : 0;
-    const rotZ = axis === 'z_const' ? slopeAngle : 0;
     const localGroundY = sampleGroundAlong(cm);
     const clearanceAboveGround = ym - localGroundY;
 
-    // 1) Laje Estrutural Branca/Cinza-Claro + Vigas Longitudinais Grossas Inferiores (projeta sombra nítida!)
-    const slabW = axis === 'z_const' ? segLen : deckWidth;
-    const slabD = axis === 'z_const' ? deckWidth : segLen;
-    batcher.addTiltedBox(
-      'viaduct_concrete',
-      slabW,
-      deckThickness,
-      slabD,
-      cx,
-      ym - deckThickness * 0.5,
-      cz,
-      rotX,
-      0,
-      rotZ
-    );
-
-    // Duas vigas inferiores longitudinais grossas em concreto claro p/ silhueta de viaduto real vista de baixo
-    if (clearanceAboveGround >= 1.35) {
-      for (const gSide of [-1, 1]) {
-        const gOff = gSide * (halfW - 2.1);
-        const gx = axis === 'z_const' ? cx : cx + gOff;
-        const gz = axis === 'z_const' ? cz + gOff : cz;
-        const gw = axis === 'z_const' ? segLen : 0.95;
-        const gd = axis === 'z_const' ? 0.95 : segLen;
-        batcher.addTiltedBox('viaduct_dark_concrete', gw, 0.78, gd, gx, ym - deckThickness - 0.36, gz, rotX, 0, rotZ);
-      }
-    }
-
-    // 2) Pista Elevada Cinza-Rodovia Claro (0x334155) + Acostamentos Claros (0xe2e8f0) + Faixa Dupla Amarela!
-    const roadW = axis === 'z_const' ? segLen : deckWidth - railW * 2;
-    const roadD = axis === 'z_const' ? deckWidth - railW * 2 : segLen;
-    batcher.addTiltedBox('viaduct_asphalt', roadW, 0.1, roadD, cx, ym + 0.02, cz, rotX, 0, rotZ);
-
-    for (const dSign of [-0.28, 0.28]) {
-      const dx = axis === 'z_const' ? cx : cx + dSign;
-      const dz = axis === 'z_const' ? cz + dSign : cz;
-      const dw = axis === 'z_const' ? segLen * 0.98 : 0.22;
-      const dd = axis === 'z_const' ? 0.22 : segLen * 0.98;
-      batcher.addTiltedBox('lane_yellow', dw, 0.05, dd, dx, ym + 0.065, dz, rotX, 0, rotZ);
-    }
-
-    for (const shSide of [-1, 1]) {
-      const shOff = shSide * (halfW - railW - 0.45);
-      const sx = axis === 'z_const' ? cx : cx + shOff;
-      const sz = axis === 'z_const' ? cz + shOff : cz;
-      const sw = axis === 'z_const' ? segLen * 0.98 : 0.34;
-      const sd = axis === 'z_const' ? 0.34 : segLen * 0.98;
-      batcher.addTiltedBox('viaduct_shoulder', sw, 0.055, sd, sx, ym + 0.06, sz, rotX, 0, rotZ);
-    }
-
-    if (i % 2 === 0) {
-      for (const laneSide of [-1, 1]) {
-        const lOff = laneSide * (deckWidth * 0.24);
-        const lx = axis === 'z_const' ? cx : cx + lOff;
-        const lz = axis === 'z_const' ? cz + lOff : cz;
-        const dashW = axis === 'z_const' ? segLen * 0.55 : 0.22;
-        const dashD = axis === 'z_const' ? 0.22 : segLen * 0.55;
-        batcher.addTiltedBox('lane_white', dashW, 0.05, dashD, lx, ym + 0.065, lz, rotX, 0, rotZ);
-      }
-    }
+    // (Laje, vigas, asfalto e faixas são fitas contínuas geradas depois do laço — sem emendas na pista.)
 
     // REGRA CRÍTICA: Aterro fechado APENAS no comecinho da rampa (< 1.35m, primeiros ~10-12m)!
     // Todo o restante da rampa (1.35m até 12.8m+) é 100% VAZADO E SUSPENSO sobre colunas!
@@ -977,22 +1096,6 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
       const edgeOff = side * (halfW - railW * 0.5);
       const rx = axis === 'z_const' ? cx : cx + edgeOff;
       const rz = axis === 'z_const' ? cz + edgeOff : cz;
-      const rw = axis === 'z_const' ? segLen : railW;
-      const rd = axis === 'z_const' ? railW : segLen;
-
-      batcher.addTiltedBox('viaduct_concrete', rw, railH, rd, rx, ym + railH * 0.5, rz, rotX, 0, rotZ);
-      batcher.addTiltedBox(
-        i % 2 === 0 ? 'safety_yellow' : 'hazard_black',
-        rw,
-        0.38,
-        rd + (axis === 'z_const' ? 0.16 : 0),
-        rx,
-        ym - 0.28,
-        rz,
-        rotX,
-        0,
-        rotZ
-      );
 
       batcher.studPositionsYellow.push([rx, ym + railH + 0.06, rz]);
 
@@ -1063,44 +1166,28 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
     }
   }
 
-  // 4) PARES DE COLUNAS CILÍNDRICAS + VIGA TRANSVERSAL EM "T" A CADA 22m (INCLUINDO AS RAMPAS SUSPENSAS >= 1.6m!)
-  const isCrossBlocked = (val) => blockedPillarCoords.some((bc) => Math.abs(val - bc) < 16.5);
-  for (let pc = startC + 16; pc <= endC - 16; pc += 22) {
-    let chosenC = pc;
-    if (isCrossBlocked(chosenC)) {
-      continue;
-    }
+  // 4) PISTA CONTÍNUA (fitas extrudadas ao longo do perfil — zero emendas/degraus na inclinação)
+  const samples = sampleProfile(getHeightAlong, startC, endC, 2);
+  addContinuousDeck(batcher, samples, axis, fixedCoord, deckWidth, {
+    deckThickness,
+    railW,
+    railH,
+    // Junção com as rampas centrais do Viaduto 1: mureta do lado +Z aberta em |x| < 9.2
+    railGaps: id === 'viaduct_ew_north' ? [{ side: 1, c0: -9.2, c1: 9.2 }] : []
+  });
 
-    const deckYAtPillar = getHeightAlong(chosenC);
-    if (deckYAtPillar === null) continue;
-    const pyTop = deckYAtPillar - deckThickness;
-    const baseGround = sampleGroundAlong(chosenC);
-    const colH = pyTop - baseGround;
-    if (colH < 1.55) continue;
-
-    const pxCenter = axis === 'z_const' ? chosenC : fixedCoord;
-    const pzCenter = axis === 'z_const' ? fixedCoord : chosenC;
-
-    // Viga transversal de topo ("Hammerhead / Portal T-Cap") sustentando as 2 vigas laterais
-    const capW = axis === 'z_const' ? 2.4 : deckWidth - 1.2;
-    const capD = axis === 'z_const' ? deckWidth - 1.2 : 2.4;
-    batcher.addBox('viaduct_concrete', capW, 1.05, capD, pxCenter, pyTop - 0.52, pzCenter);
-
-    // Par de colunas cilíndricas nas bordas laterais da pista elevada (deixa o vão central da avenida 100% desimpedido!)
-    const colLatOffset = halfW - 1.85;
-    for (const cSide of [-1, 1]) {
-      const colX = axis === 'z_const' ? pxCenter : pxCenter + cSide * colLatOffset;
-      const colZ = axis === 'z_const' ? pzCenter + cSide * colLatOffset : pzCenter;
-      const colG = world.getTerrainHeightAt ? Math.max(0, world.getTerrainHeightAt(colX, colZ)) : baseGround;
-      const hCyl = pyTop - 0.85 - colG;
-      if (hCyl < 1.0) continue;
-
-      batcher.addCylinder('viaduct_pillar', 0.82, 0.92, hCyl + 1.4, colX, colG + hCyl * 0.5 - 0.7, colZ, 12);
-      batcher.addCylinder('safety_yellow', 1.04, 1.08, 0.95, colX, colG + 0.48, colZ, 12);
-      batcher.addCylinder('hazard_black', 1.06, 1.06, 0.28, colX, colG + 1.02, colZ, 12);
-      world.addCollider(colX, colZ, 1.75, 1.75, pyTop, colG);
-    }
-  }
+  // 5) APOIOS FORA DA RUA: onde o tabuleiro está alto, PÓRTICO com um pilar em cada calçada de verdade e
+  //    viga atravessando a avenida; na rampa baixa (onde não passa carro por baixo), pilar central sob a rampa.
+  addViaductSupports(world, batcher, {
+    axis,
+    fixedCoord,
+    startC,
+    endC,
+    deckWidth,
+    getHeightAlong,
+    getGroundAlong: sampleGroundAlong,
+    underside: deckThickness + 0.78
+  });
 
   for (const g of gantries) {
     const gy = getHeightAlong(g.c) ?? (sampleGroundAlong(g.c) + clearanceTarget);
@@ -1142,7 +1229,8 @@ function buildViaduct1CentralAccessRamps(world, batcher, junctionDeckTopY) {
     z: (zTop + zBot) * 0.5,
     w: totalW,
     d: zBot - zTop,
-    color: '#64748b'
+    color: '#64748b',
+    isViaductDeck: true
   });
 
   const numSteps = 16;
@@ -1155,31 +1243,11 @@ function buildViaduct1CentralAccessRamps(world, batcher, junctionDeckTopY) {
     const y0 = getRampY(z0);
     const y1 = getRampY(z1);
     const ym = (y0 + y1) * 0.5;
-    const dy = y1 - y0;
-    const segLen = Math.hypot(dzStep, dy) + 0.14;
-    const rotX = -Math.atan2(dy, dzStep);
     const gY = getUrbanCityReliefY(0, zm);
     const clr = ym - gY;
 
-    batcher.addTiltedBox('viaduct_concrete', totalW, 0.86, segLen, 0, ym - 0.43, zm, rotX, 0, 0);
-    batcher.addTiltedBox('viaduct_asphalt', totalW - 1.3, 0.1, segLen, 0, ym + 0.02, zm, rotX, 0, 0);
-    batcher.addTiltedBox('safety_yellow', 0.55, 0.45, segLen, 0, ym + 0.22, zm, rotX, 0, 0);
-
     for (const side of [-1, 1]) {
       const rx = side * (halfW - 0.35);
-      batcher.addTiltedBox('viaduct_concrete', 0.68, 1.12, segLen, rx, ym + 0.56, zm, rotX, 0, 0);
-      batcher.addTiltedBox(
-        i % 2 === 0 ? 'safety_yellow' : 'hazard_black',
-        0.72,
-        0.34,
-        segLen,
-        rx,
-        ym - 0.24,
-        zm,
-        rotX,
-        0,
-        0
-      );
       batcher.studPositionsYellow.push([rx, ym + 1.16, zm]);
 
       // Apenas os últimos metros de toque no chão (< 1.35m) são fechados; o resto é 100% suspenso!
@@ -1193,20 +1261,28 @@ function buildViaduct1CentralAccessRamps(world, batcher, junctionDeckTopY) {
     }
   }
 
-  for (const pZ of [-356, -334, -312]) {
-    const pGround = getUrbanCityReliefY(0, pZ);
-    const pTop = getRampY(pZ) - 0.86;
-    const pH = pTop - pGround;
-    if (pH < 1.6) continue;
+  // Pista contínua (sem emendas) com divisória amarela central e muretas
+  const rampSamples = sampleProfile(getRampY, zTop, zBot, 2);
+  addContinuousDeck(batcher, rampSamples, 'x_const', 0, totalW, {
+    deckThickness: 0.86,
+    railW: 0.68,
+    railH: 1.12,
+    girders: false
+  });
+  batcher.addGeometry('safety_yellow', buildProfileRibbon(rampSamples, 'x_const', 0, -0.275, 0.275, 0.45, 0.45));
 
-    batcher.addBox('viaduct_concrete', totalW - 1.2, 0.95, 2.2, 0, pTop - 0.48, pZ);
-    for (const cSide of [-1, 1]) {
-      const colX = cSide * (halfW - 1.8);
-      batcher.addCylinder('viaduct_pillar', 0.75, 0.85, pH + 1.2, colX, pGround + pH * 0.5 - 0.6, pZ, 12);
-      batcher.addCylinder('safety_yellow', 0.96, 1.0, 0.85, colX, pGround + 0.42, pZ, 12);
-      world.addCollider(colX, pZ, 1.6, 1.6, pTop, pGround);
-    }
-  }
+  // Apoios fora da rua (pórtico nas calçadas da Av. X = 0 onde está alto; pilar central onde a rampa é baixa)
+  addViaductSupports(world, batcher, {
+    axis: 'x_const',
+    fixedCoord: 0,
+    startC: zTop,
+    endC: zBot,
+    deckWidth: totalW,
+    getHeightAlong: getRampY,
+    getGroundAlong: (z) => getUrbanCityReliefY(0, z),
+    underside: 0.86,
+    spacing: 20
+  });
 
   addOverheadHighwayGantry(
     world,

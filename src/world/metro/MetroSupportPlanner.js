@@ -12,6 +12,12 @@
 //
 // Função pura: recebe a curva do anel, a lista de ruas (`world.mapRoads`) e callbacks do mundo.
 import * as THREE from 'three';
+import {
+  isInsideAnyRoad,
+  parallelCorridorAt,
+  onCrossRoad,
+  findPortalColumns
+} from '../StreetPortalPlanner.js';
 
 export const SUPPORT_CONFIG = {
   spacing: 30,          // Distância alvo entre apoios ao longo da linha (m)
@@ -30,59 +36,7 @@ export const SUPPORT_CONFIG = {
   headroom: 2.2         // Vão livre de uma pessoa sob a viga
 };
 
-function roadAlongZ(r) {
-  return r.d >= r.w;
-}
-
-function pointInRoad(r, x, z, margin = 0) {
-  return Math.abs(x - r.x) <= r.w * 0.5 + margin && Math.abs(z - r.z) <= r.d * 0.5 + margin;
-}
-
-export function isInsideAnyRoad(roads, x, z, margin = 0) {
-  for (let i = 0; i < roads.length; i++) {
-    if (pointInRoad(roads[i], x, z, margin)) return true;
-  }
-  return false;
-}
-
-/** Faixa transversal (união das ruas paralelas à linha que contêm o ponto), ou null. */
-function parallelCorridorAt(roads, x, z, alongZ) {
-  let lo = Infinity;
-  let hi = -Infinity;
-  let found = false;
-  let grew = true;
-  // Expande pela união de ruas paralelas sobrepostas (algumas regiões registram ruas duplicadas).
-  while (grew) {
-    grew = false;
-    for (const r of roads) {
-      if (roadAlongZ(r) !== alongZ) continue;
-      const along = alongZ ? z : x;
-      const rAlongC = alongZ ? r.z : r.x;
-      const rAlongHalf = (alongZ ? r.d : r.w) * 0.5;
-      if (Math.abs(along - rAlongC) > rAlongHalf) continue;
-      const rc = alongZ ? r.x : r.z;
-      const rh = (alongZ ? r.w : r.d) * 0.5;
-      const cross = alongZ ? x : z;
-      const touches = found ? rc + rh >= lo - 0.01 && rc - rh <= hi + 0.01 : Math.abs(cross - rc) <= rh;
-      if (!touches) continue;
-      if (rc - rh < lo - 0.01 || rc + rh > hi + 0.01 || !found) {
-        lo = Math.min(lo, rc - rh);
-        hi = Math.max(hi, rc + rh);
-        found = true;
-        grew = true;
-      }
-    }
-  }
-  return found ? { lo, hi } : null;
-}
-
-function onCrossRoad(roads, x, z, alongZ, margin) {
-  for (const r of roads) {
-    if (roadAlongZ(r) === alongZ) continue;
-    if (pointInRoad(r, x, z, margin)) return true;
-  }
-  return false;
-}
+export { isInsideAnyRoad };
 
 /**
  * @param spline   curva do anel (`sampleAtS`, `totalLength`)
@@ -144,43 +98,17 @@ export function planElevatedSupports(spline, roads, opts = {}) {
     let kind;
     if (corridor) {
       kind = 'portal';
-      cols = [];
-      const cross0 = alongZ ? x : z;
-      const pt = (c) => (alongZ ? { x: c, z } : { x, z: c });
-      const footOnSidewalk = (c) => {
-        const h = cfg.colHalf;
-        const corners = alongZ
-          ? [[c - h, z - h], [c + h, z - h], [c - h, z + h], [c + h, z + h], [c, z]]
-          : [[x - h, c - h], [x + h, c - h], [x - h, c + h], [x + h, c + h], [x, c]];
-        return corners.every(([px, pz]) => isSidewalk(px, pz) && !isInsideAnyRoad(roads, px, pz, cfg.roadMargin));
-      };
-      for (const dir of [-1, 1]) {
-        // 1) Varre o asfalto até a calçada de verdade (prédio antes = sem apoio aqui)
-        let curb = null;
-        for (let d = cfg.scanStep; d <= cfg.maxScan; d += cfg.scanStep) {
-          const c = cross0 + dir * d;
-          const p = pt(c);
-          if (isSidewalk(p.x, p.z) && !isInsideAnyRoad(roads, p.x, p.z, 0)) {
-            curb = c;
-            break;
-          }
-          if (isBuildingAt(p.x, p.z)) break;
-        }
-        if (curb === null) return null;
-        // 2) Pilar inteiro em cima da calçada, livre de objetos/escadas
-        let placed = null;
-        for (let k = cfg.colHalf + cfg.sidewalkInset; k <= cfg.colHalf + cfg.sidewalkInset + cfg.sidewalkSlide; k += 0.25) {
-          const cc = curb + dir * k;
-          if (!footOnSidewalk(cc)) continue;
-          const c = pt(cc);
-          if (fits(c)) {
-            placed = c;
-            break;
-          }
-        }
-        if (!placed) return null;
-        cols.push(placed);
-      }
+      cols = findPortalColumns({
+        x,
+        z,
+        alongZ,
+        roads,
+        isFooting: isSidewalk,
+        isBuilding: isBuildingAt,
+        fits,
+        config: cfg
+      });
+      if (!cols) return null;
     } else {
       kind = 'single';
       const c = { x, z };

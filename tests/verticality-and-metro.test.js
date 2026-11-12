@@ -143,23 +143,23 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     assert.ok(livingCity.pedestrians.length > 0);
   });
 
-  it('3. Viadutos realmente suspensos (vão livre >= 9.5m acima da rua local), sombra projetada e rampas vazadas', () => {
+  it('3. Viadutos realmente suspensos (vão livre >= 9.5m acima da rua local), sombra projetada e rampas vazadas', async () => {
     assert.equal(getMetroCutoutFloorY(-140, 134), null);
     assert.equal(getMetroCutoutFloorY(384, -150), null);
 
     // Verifica folga livre >= 9.5m (deck a +12.4m acima da rua local) nos 3 Viadutos!
     const v1Ground = world.getTerrainHeightAt(120, -382);
-    const v1Deck = world.getSurfaceHeightAt(120, -382, v1Ground + 12.4);
+    const v1Deck = world.getSurfaceHeightAt(120, -382, v1Ground + 60);
     assert.ok(v1Deck - v1Ground >= 11.5, `Viaduto 01 deve ter >= 11.5m sobre a rua (atual: ${(v1Deck - v1Ground).toFixed(2)}m)`);
     assert.ok(v1Deck - 1.15 - v1Ground >= 9.5, 'Vão livre sob as vigas do Viaduto 01 deve ser >= 9.5m');
 
     const v2Ground = world.getTerrainHeightAt(252, 134);
-    const v2Deck = world.getSurfaceHeightAt(252, 134, v2Ground + 12.4);
+    const v2Deck = world.getSurfaceHeightAt(252, 134, v2Ground + 60);
     assert.ok(v2Deck - v2Ground >= 11.5, `Viaduto 02 deve ter >= 11.5m sobre a rua (atual: ${(v2Deck - v2Ground).toFixed(2)}m)`);
     assert.ok(v2Deck - 1.15 - v2Ground >= 9.5, 'Vão livre sob as vigas do Viaduto 02 deve ser >= 9.5m');
 
     const v3Ground = world.getTerrainHeightAt(-516, 0);
-    const v3Deck = world.getSurfaceHeightAt(-516, 0, v3Ground + 12.4);
+    const v3Deck = world.getSurfaceHeightAt(-516, 0, v3Ground + 60);
     assert.ok(v3Deck - v3Ground >= 11.5, `Viaduto 03 deve ter >= 11.5m sobre a rua (atual: ${(v3Deck - v3Ground).toFixed(2)}m)`);
     assert.ok(v3Deck - 1.15 - v3Ground >= 9.5, 'Vão livre sob as vigas do Viaduto 03 deve ser >= 9.5m');
 
@@ -182,6 +182,36 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       world.elevatedDecks.filter((d) => String(d.id || '').includes('viaduct')).length >= 3,
       'Os 3 viadutos expressos devem estar registrados em world.elevatedDecks'
     );
+
+    // Pilares dos viadutos fora da pista: pórticos com pilar em calçada de verdade
+    const { isInsideAnyRoad, makeFootingLookup } = await import('../src/world/StreetPortalPlanner.js');
+    const footing = makeFootingLookup(world, { ignoreBlock: (b) => b.isViaductDeck });
+    const portals = world.viaductSupports.filter((v) => v.kind === 'portal');
+    assert.ok(portals.length >= 60, `Viadutos apoiados em pórticos (${portals.length})`);
+    for (const v of portals) {
+      for (const c of v.cols) {
+        assert.ok(!isInsideAnyRoad(world.mapRoads, c.x, c.z, 0.7), `Pilar de viaduto na pista em (${c.x.toFixed(1)}, ${c.z.toFixed(1)})`);
+        assert.ok(footing(c.x, c.z), `Pilar de viaduto fora da calçada em (${c.x.toFixed(1)}, ${c.z.toFixed(1)})`);
+      }
+    }
+
+    // Perfil "de projeto": no trecho elevado, inclinação <= 5% e sem degraus entre amostras
+    for (const d of world.elevatedDecks.filter((e) => ['viaduct_ew_north', 'viaduct_ns_panoramic', 'viaduct_west_airport'].includes(e.id))) {
+      const alongX = d.maxX - d.minX > d.maxZ - d.minZ;
+      const c0 = alongX ? d.minX : d.minZ;
+      const c1 = alongX ? d.maxX : d.maxZ;
+      const f = alongX ? (d.minZ + d.maxZ) * 0.5 : (d.minX + d.maxX) * 0.5;
+      const yAt = (c) => (alongX ? d.getDeckY(c, f) : d.getDeckY(f, c));
+      let prevGrade = null;
+      for (let c = c0 + 75; c < c1 - 75; c += 2) {
+        const g = (yAt(c + 2) - yAt(c)) / 2;
+        assert.ok(Math.abs(g) <= 0.052, `${d.id}: inclinação ${(g * 100).toFixed(1)}% em ${c.toFixed(0)}`);
+        if (prevGrade !== null) {
+          assert.ok(Math.abs(g - prevGrade) < 0.01, `${d.id}: quebra de inclinação em ${c.toFixed(0)}`);
+        }
+        prevGrade = g;
+      }
+    }
   });
 
   it('4. Relevo Urbano Visível nas Avenidas (NW/NE +12.5..15m, Leste +9.5m, Norte +12m->+22m, Sul +10.5m) + Pisos Sensíveis Planos', () => {
