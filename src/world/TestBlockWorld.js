@@ -364,6 +364,9 @@ export class TestBlockWorld {
     const maxX = x + w * 0.5;
     const minZ = z - d * 0.5;
     const maxZ = z + d * 0.5;
+    // Registro das calçadas (o resto da ilha é base de asfalto): usado para pilares/escadas do metrô
+    if (!this.mapSidewalks) this.mapSidewalks = [];
+    this.mapSidewalks.push({ minX, maxX, minZ, maxZ });
 
     const hitsCutout = METRO_ISLAND_CUTOUTS.some(
       (c) => c.maxX > minX && c.minX < maxX && c.maxZ > minZ && c.minZ < maxZ

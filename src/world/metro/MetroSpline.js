@@ -1,13 +1,18 @@
 // Curva fechada do anel, parametrizada por comprimento de arco.
 import * as THREE from 'three';
 import { METRO_STATIONS, METRO_LOOP_WAYPOINTS } from './MetroRouteData.js';
+import { adjustMetroVerticalProfile } from './MetroVerticalProfile.js';
 
 // ============================================================================
 // 2. CURVA FECHADA PARAMETRIZADA POR COMPRIMENTO DE ARCO PARA OS 2 TRENS LEGO
 // ============================================================================
-export function buildClosedMetroLoopSpline() {
+/**
+ * @param world (opcional) com `getTerrainHeightAt`: quando informado, a linha elevada sobe onde o relevo
+ *              exigir (vão livre sobre a rua) e as estações elevadas herdam a altura real do trilho.
+ */
+export function buildClosedMetroLoopSpline(world = null) {
   const pts = METRO_LOOP_WAYPOINTS.map((w) => new THREE.Vector3(w.x, w.y, w.z));
-  const smoothPts = [];
+  let smoothPts = [];
   const n = pts.length;
   for (let i = 0; i < n; i++) {
     const prev = pts[(i - 1 + n) % n];
@@ -38,6 +43,10 @@ export function buildClosedMetroLoopSpline() {
     } else {
       smoothPts.push(curr.clone());
     }
+  }
+
+  if (world?.getTerrainHeightAt) {
+    smoothPts = adjustMetroVerticalProfile(smoothPts, (x, z) => world.getTerrainHeightAt(x, z), METRO_STATIONS);
   }
 
   const cumLengths = [0];
@@ -73,13 +82,14 @@ export function buildClosedMetroLoopSpline() {
     return { pos: outPos, tangent: outTan };
   };
 
-  const findClosestS = (tx, ty, tz) => {
-    const target = new THREE.Vector3(tx, ty, tz);
+  // Busca só no plano (x, z): a altura do trilho pode ter sido ajustada pelo relevo
+  const findClosestS = (tx, tz) => {
     let bestS = 0;
     let bestDistSq = Infinity;
+    const pos = new THREE.Vector3();
     for (let s = 0; s < totalLen; s += 1.0) {
-      const { pos } = sampleAtS(s);
-      const dSq = pos.distanceToSquared(target);
+      sampleAtS(s, pos);
+      const dSq = (pos.x - tx) ** 2 + (pos.z - tz) ** 2;
       if (dSq < bestDistSq) {
         bestDistSq = dSq;
         bestS = s;
@@ -88,10 +98,18 @@ export function buildClosedMetroLoopSpline() {
     return bestS;
   };
 
-  const stationStops = METRO_STATIONS.map((st) => ({
-    ...st,
-    stopS: findClosestS(st.trackPos.x, st.trackPos.y, st.trackPos.z)
-  }));
+  const tmpPos = new THREE.Vector3();
+  const stationStops = METRO_STATIONS.map((st) => {
+    const stopS = findClosestS(st.trackPos.x, st.trackPos.z);
+    if (st.kind === 'elevated') {
+      // A plataforma fica sempre 0.65m acima do topo do trilho (piso do vagão), na altura real da linha
+      const trackY = sampleAtS(stopS, tmpPos).pos.y;
+      st.trackPos.y = trackY;
+      st.y = trackY + 0.65;
+      st.platformSpawn.y = trackY + 0.65;
+    }
+    return { ...st, stopS };
+  });
 
   return {
     points: smoothPts,
