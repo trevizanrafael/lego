@@ -143,7 +143,7 @@ export const MAP_LANDMARKS = [
   { id: 'lm_customs', code: 'CUS', icon: 'customs', label: 'LEGO CUSTOMS (OFICINA)', x: 60, y: 0.5, z: -448, labelPos: 'right', color: '#facc15', spawn: { x: 24, y: 0.5, z: -416 } },
   // 5 Estações da Linha 01 Circular do Metrô LEGO (2 Subterrâneas em Y = -10.5m + 3 Elevadas em Y = +14.85m)
   { id: 'lm_metro_01', code: 'M01', icon: 'metro', label: 'METRÔ CENTRAL (SUBSOLO)', x: 0, y: -10.5, z: -104, labelPos: 'bottom', color: '#06b6d4', spawn: { x: 0, y: -10.4, z: -101.5 } },
-  { id: 'lm_metro_02', code: 'M02', icon: 'metro', label: 'METRÔ TIMES SQ. (SUBSOLO)', x: -77, y: -10.5, z: 20, labelPos: 'left', color: '#06b6d4', spawn: { x: -77.5, y: -10.4, z: 20 } },
+  { id: 'lm_metro_02', code: 'M02', icon: 'metro', label: 'METRÔ TIMES SQ. (SUBSOLO)', x: -77, y: -10.5, z: 20, labelPos: 'left', color: '#06b6d4', spawn: { x: -77.5, y: -10.4, z: 32 } },
   { id: 'lm_metro_03', code: 'M03', icon: 'metro', label: 'METRÔ TORRE (+14.9m)', x: -380, y: 14.85, z: -60, labelPos: 'left', color: '#22d3ee', spawn: { x: -379.6, y: 14.95, z: -60 } },
   { id: 'lm_metro_04', code: 'M04', icon: 'metro', label: 'METRÔ PRAIA SUL (+14.9m)', x: -117, y: 14.85, z: 650, labelPos: 'left', color: '#22d3ee', spawn: { x: -116.6, y: 14.95, z: 650 } },
   { id: 'lm_metro_05', code: 'M05', icon: 'metro', label: 'METRÔ RIO LESTE (+14.9m)', x: 509, y: 14.85, z: -180, labelPos: 'right', color: '#22d3ee', spawn: { x: 509.1, y: 14.95, z: -180 } }

@@ -38,12 +38,12 @@ test('Minifigura 3D deve construir hierarquia articulada completa para Comandant
   assert.ok(minifig.rifleGroup, 'Comandante Caveira deve segurar o Fuzil Tático 3D na mão direita');
   assert.ok(minifig.muzzleFlashMesh, 'Fuzil Tático deve possuir malha de muzzle flash');
 
-  // Troca para o Solaris e verifica capa + partículas de fogo
+  // Troca para o Solaris e verifica partículas de fogo (a capa saiu no overhaul 'Rei do Sol')
   const solarisPreset = minifig.setHero('solaris');
   assert.equal(solarisPreset, MINIFIG_PRESETS.solaris);
   assert.equal(minifig.currentHeroKey, 'solaris');
-  assert.ok(minifig.capeMesh, 'Solaris deve possuir capa 3D articulada');
-  assert.equal(minifig.flameParticles.length, 10, 'Solaris deve possuir 10 partículas 3D de aura de fogo');
+  assert.equal(minifig.capeMesh, null, 'Solaris (Rei do Sol) não usa mais capa');
+  assert.ok(minifig.flameParticles.length >= 10, `Solaris deve possuir aura de fogo 3D (atual: ${minifig.flameParticles.length} partículas)`);
 });
 
 test('Animações procedurais de Idle, Walk, Run, Jump e Fall devem transicionar corretamente', () => {

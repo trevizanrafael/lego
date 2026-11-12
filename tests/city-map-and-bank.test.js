@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { setupTestEnvironment } from './setup-env.js';
+import { setupTestEnvironment, resetTestListeners } from './setup-env.js';
 
 setupTestEnvironment();
 
@@ -13,9 +13,12 @@ const { LegoHud } = await import('../src/ui/LegoHud.js');
 const { getSvgIcon } = await import('../src/ui/TacticalIcons.js');
 
 function createFullCityHarness() {
+  resetTestListeners();
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1, 2600);
   const hud = new LegoHud(35000);
+  // Simula o jogador já dentro do jogo (tela de título fechada), senão o controle zera os inputs
+  hud.isTitleScreenActive = false;
   const destructibles = new DestructibleManager(scene, hud);
   const world = new TestBlockWorld(scene, destructibles);
   const minifig = new Minifigure('caveira');
@@ -263,21 +266,21 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     controller.position.set(0, 2.2, 250); // No Parque Central
     controller._onKey({ code: 'KeyE', repeat: false }, true);
     assert.equal(destructibles.grenades.length, 0, 'Tecla E não deve mais lançar granada (exclusivo do Mouse 2)');
-    assert.equal(controller.currentVehicle, null, 'Longe de carros, E não deve entrar em veículo');
+    assert.ok(controller.currentVehicle === null, 'Longe de carros, E não deve entrar em veículo');
 
-    // 1.5) Verifica se todos os 19 veículos da frota terrestre estão posicionados em frente ao Super Banco Central separados em seus 4 grupos
-    const bankFrontCars = destructibles.objects.filter(
-      (o) => o.type === 'car' && o.mesh.position.z >= -130 && o.mesh.position.z <= -105
+    // 1.5) Verifica se todos os modelos de veículos terrestres existem na cidade
+    //      (desde o reset do mundo livre eles ficam distribuídos pelas regiões, não mais enfileirados na frente do Banco)
+    const landFleetCars = destructibles.objects.filter(
+      (o) => o.type === 'car' && !o.mesh.userData?.vehicleSpec?.category
     );
-    const uniqueFleetTypes = new Set(bankFrontCars.map((o) => o.mesh.userData.carType));
-    assert.equal(
-      uniqueFleetTypes.size,
-      19,
-      `Todos os 19 modelos de veículos terrestres (incluindo moto_cv, moto_pcc e moto_policia) devem estar posicionados na frente do Super Banco Central (encontrados: ${uniqueFleetTypes.size})`
+    const uniqueFleetTypes = new Set(landFleetCars.map((o) => o.mesh.userData.carType));
+    assert.ok(
+      uniqueFleetTypes.size >= 19,
+      `Todos os modelos de veículos terrestres (incluindo moto_cv, moto_pcc e moto_policia) devem existir na cidade (encontrados: ${uniqueFleetTypes.size})`
     );
-    assert.ok(uniqueFleetTypes.has('moto_cv'), 'Showroom deve ter a Moto de Assalto 600cc do CV');
-    assert.ok(uniqueFleetTypes.has('moto_pcc'), 'Showroom deve ter a Superbike Blindada 1000cc do PCC');
-    assert.ok(uniqueFleetTypes.has('moto_policia'), 'Showroom deve ter a Moto Tática ROCAM / BOPE da Polícia');
+    assert.ok(uniqueFleetTypes.has('moto_cv'), 'Cidade deve ter a Moto de Assalto 600cc do CV');
+    assert.ok(uniqueFleetTypes.has('moto_pcc'), 'Cidade deve ter a Superbike Blindada 1000cc do PCC');
+    assert.ok(uniqueFleetTypes.has('moto_policia'), 'Cidade deve ter a Moto Tática ROCAM / BOPE da Polícia');
 
     // 1.6) Verifica as 3 Motos Maiores e Detalhadas (CV, PCC e Polícia) e a Física de Empinada (Pivô na Roda Traseira sem afundar no chão + Personagem Inclinando Junto!)
     for (const motoType of ['moto_cv', 'moto_pcc', 'moto_policia']) {
@@ -329,11 +332,11 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     // 2) Posiciona o jogador ao lado de um carro estacionado e aperta E
     const targetCar = destructibles.objects.find((o) => o.type === 'car' && !o.destroyed);
     assert.ok(targetCar, 'Deve existir um carro estacionado na cidade');
-    const initialCarZ = targetCar.mesh.position.z;
+    const initialCarPos = targetCar.mesh.position.clone();
 
     controller.position.set(targetCar.mesh.position.x + 1.8, 0, targetCar.mesh.position.z);
     controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(controller.currentVehicle, targetCar, 'Apertar E perto do carro deve entrar nele');
+    assert.ok(controller.currentVehicle === targetCar, 'Apertar E perto do carro deve entrar nele');
 
     // 3) Acelera o carro com W por 1 segundo (simulando o loop real: controller.update + destructibles.update)
     controller.keys.forward = true;
@@ -352,9 +355,8 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       minifig.root.scale.y < 0.5,
       'Minifigura deve diminuir visualmente (root.scale < 0.5) e sentar 100% dentro da cabine sem a cabeça sair pelo teto'
     );
-    assert.notEqual(
-      targetCar.mesh.position.z,
-      initialCarZ,
+    assert.ok(
+      targetCar.mesh.position.distanceTo(initialCarPos) > 1.0,
       'Carro dirigido deve se deslocar pela avenida ao acelerar com W (sem ser resetado pelo DestructibleManager)'
     );
     assert.equal(
@@ -389,7 +391,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
 
     // 5) Aperta E novamente para sair do carro
     controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(controller.currentVehicle, null, 'Apertar E dirigindo deve sair do veículo');
+    assert.ok(controller.currentVehicle === null, 'Apertar E dirigindo deve sair do veículo');
     assert.equal(minifig.root.scale.y, 1.0, 'Ao sair do carro, a minifigura volta à escala em pé normal (1.0)');
     assert.equal(minifig.root.scale.y, 1.0, 'Ao sair do carro, a minifigura volta à escala em pé normal (1.0)');
     assert.equal(targetCar.colliders[0].disabled, false, 'Colisores do carro devem ser reativados na nova posição ao sair');
@@ -663,7 +665,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const startBoatX = swanBoat.mesh.position.x;
     controller.position.set(swanBoat.mesh.position.x - 3.5, 0.65, swanBoat.mesh.position.z);
     controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(controller.currentVehicle, swanBoat, 'Deve conseguir subir no Pedalinho Cisne direto do Píer com [E]');
+    assert.ok(controller.currentVehicle === swanBoat, 'Deve conseguir subir no Pedalinho Cisne direto do Píer com [E]');
     controller.keys.forward = true;
     for (let i = 0; i < 30; i++) {
       controller.update(1 / 30);
@@ -891,16 +893,24 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(portSemiTrucks.length >= 24, `Todos os Caminhões-Carreta do Porto devem ser pilotáveis (atual: ${portSemiTrucks.length})`);
 
     const semiTruck = portSemiTrucks.find((t) => Math.abs(t.mesh.position.x - 825) < 5 && Math.abs(t.mesh.position.z - 362) < 5) || portSemiTrucks[0];
-    const startTruckZ = semiTruck.mesh.position.z;
-    controller.position.set(semiTruck.mesh.position.x + 2.8, 0.35, semiTruck.mesh.position.z + 8.0);
+    const startTruckPos = semiTruck.mesh.position.clone();
+    // Posiciona o jogador ao lado da cabine no referencial local do caminhão (funciona com qualquer rotação no pátio)
+    const truckYaw = semiTruck.mesh.rotation.y || 0;
+    const sideX = 4.0;
+    const alongZ = 8.0;
+    controller.position.set(
+      semiTruck.mesh.position.x + sideX * Math.cos(truckYaw) + alongZ * Math.sin(truckYaw),
+      0.35,
+      semiTruck.mesh.position.z - sideX * Math.sin(truckYaw) + alongZ * Math.cos(truckYaw)
+    );
     controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(controller.currentVehicle, semiTruck, 'Jogador deve conseguir entrar no Caminhão-Carreta Portuário com [E]');
+    assert.ok(controller.currentVehicle === semiTruck, 'Jogador deve conseguir entrar no Caminhão-Carreta Portuário com [E]');
     controller.keys.forward = true;
     for (let i = 0; i < 25; i++) controller.update(1 / 30);
     controller.keys.forward = false;
-    assert.ok(semiTruck.mesh.position.z > startTruckZ + 3.0, 'Caminhão-Carreta Portuário deve acelerar e andar pelas vias do Porto com [W]');
+    assert.ok(semiTruck.mesh.position.distanceTo(startTruckPos) > 3.0, 'Caminhão-Carreta Portuário deve acelerar e andar pelas vias do Porto com [W]');
     controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(controller.currentVehicle, null, 'Jogador deve conseguir sair do Caminhão-Carreta com [E]');
+    assert.ok(controller.currentVehicle === null, 'Jogador deve conseguir sair do Caminhão-Carreta com [E]');
 
     const cargoShips = destructibles.objects.filter(
       (o) => o.mesh.userData?.carType === 'navio_cargueiro' || o.mesh.userData?.carType === 'navio_ares'
@@ -911,7 +921,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const startShipZ = eastCargoShip.mesh.position.z;
     controller.position.set(eastCargoShip.mesh.position.x, 9.45, eastCargoShip.mesh.position.z);
     controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(controller.currentVehicle, eastCargoShip, 'Jogador no convés/rampa deve conseguir assumir o comando do Navio Cargueiro com [E]');
+    assert.ok(controller.currentVehicle === eastCargoShip, 'Jogador no convés/rampa deve conseguir assumir o comando do Navio Cargueiro com [E]');
     controller.keys.forward = true;
     for (let i = 0; i < 30; i++) controller.update(1 / 30);
     controller.keys.forward = false;
@@ -920,7 +930,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       `Navio Cargueiro deve navegar pelo oceano ao acelerar com [W] (z=${eastCargoShip.mesh.position.z.toFixed(2)})`
     );
     controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(controller.currentVehicle, null, 'Apertar [E] deve sair do comando do Navio Cargueiro');
+    assert.ok(controller.currentVehicle === null, 'Apertar [E] deve sair do comando do Navio Cargueiro');
     for (let i = 0; i < 15; i++) controller.update(1 / 30);
     assert.ok(
       controller.position.y >= 9.0 && controller.position.y <= 10.2,
@@ -1093,7 +1103,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(riverJetSki, 'Deve existir Jet-Ski atracado no Píer Fluvial da Foz da Praia Sul (Y = -3.5)');
     controller.position.set(546.5, -2.9, 846.0); // Em cima do Deck de Madeira (Y = -2.9)
     controller._onKey({ code: 'KeyF', repeat: false }, true);
-    assert.equal(controller.currentVehicle, riverJetSki, 'Jogador no Píer Fluvial deve conseguir embarcar no Jet-Ski apertando [F] (ou [E])');
+    assert.ok(controller.currentVehicle === riverJetSki, 'Jogador no Píer Fluvial deve conseguir embarcar no Jet-Ski apertando [F] (ou [E])');
 
     // Posiciona o Jet-Ski antes da Ponte Costeira (X=560, Z=680) e navega por baixo da ponte até o Oceano Sul (Z > 1070)!
     riverJetSki.mesh.position.set(560, -3.5, 680);

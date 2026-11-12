@@ -16,6 +16,8 @@ function createFullGameContext() {
   const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1, 450);
   const domEl = globalThis.document.createElement('canvas');
   const hud = new LegoHud(35000);
+  // Simula o jogador já dentro do jogo (tela de título fechada), senão o controle zera os inputs
+  hud.isTitleScreenActive = false;
   const destructibles = new DestructibleManager(scene, hud);
   const world = new TestBlockWorld(scene, destructibles);
   const minifig = new Minifigure('caveira');

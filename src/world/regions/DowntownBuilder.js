@@ -122,7 +122,9 @@ export function buildHeroTowerComplex(world) {
       const rx = (r.minX + r.maxX) * 0.5;
       const rz = (r.minZ + r.maxZ) * 0.5;
       darkGeos.push(makeTranslatedBox(rw, floorY, rd, rx, floorY * 0.5, rz));
-      world.addCollider(rx, rz, rw, rd, floorY, -0.05);
+      // Topo do colisor 3cm abaixo do piso visual (0.36m): o boneco sobe degraus de até 0.34m,
+      // então com 0.36m a entrada da Torre virava uma parede invisível nos portais Sul/Leste.
+      world.addCollider(rx, rz, rw, rd, floorY - 0.03, -0.05);
     }
   }
 
