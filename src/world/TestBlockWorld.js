@@ -41,7 +41,19 @@ import { buildWestHighwayAndAirport } from './regions/WestAirportBuilder.js';
 import { buildFavelaCidadeDeDeus, getFavelaElevation } from './regions/FavelaCDDBuilder.js';
 import { buildSoutheastPrisonIsland } from './regions/PrisonIslandBuilder.js';
 import { buildSkyHelicarrier, buildLegoClouds } from './regions/HelicarrierBuilder.js';
+import {
+  buildViaductsAndNaturalRelief,
+  getUrbanCityReliefY
+} from './ViaductAndReliefBuilder.js';
+import {
+  buildMetroSystem,
+  METRO_ISLAND_CUTOUTS,
+  sliceRectAroundCutouts,
+  getMetroCutoutFloorY
+} from './MetroSystemBuilder.js';
 import { LivingCityManager } from './LivingCityManager.js';
+import { DayNightAtmosphereManager } from './DayNightAtmosphereManager.js';
+import { InteractiveAttractionsManager } from './InteractiveAttractionsAndEmotes.js';
 
 export { MAP_REGIONS, MAP_LANDMARKS, BUILDING_STYLES, BUILDING_STYLE_KEYS };
 
@@ -53,6 +65,16 @@ export class TestBlockWorld {
       this.destructibles.world = this;
     }
     this.colliders = []; // AABBs: { minX, maxX, minZ, maxZ, minY, maxY, disabled }
+    this._colliderGrid = new Map();
+    this._dynamicColliders = [];
+    this.colliderCellSize = 32;
+    this._colliderQueryId = 0;
+    this.elevatedDecks = [];     // Tabuleiros/rampas de viadutos e estações elevadas para getSurfaceHeightAt
+    this.undergroundFloors = []; // Pisos e túneis subterrâneos do Metrô (Y = -6.8m / -7.35m)
+    this.metroTotems = [];       // Totens interativos [E] nas 5 estações do Metrô
+    this.metroStations = [];
+    this.metroLoopWaypoints = [];
+    this.metroSystem = null;
     this.clouds = [];
     this.rotatingElements = [];
     this.cargoShips = [];
@@ -105,6 +127,10 @@ export class TestBlockWorld {
     // 7. CÉU (Y = 410m): Aeroporta-Aviões Monumental de Casco Espesso nas Nuvens
     buildSkyHelicarrier(this);
 
+    // 7.5 VERTICALIDADE METROPOLITANA: Relevo Natural Escalonado + 3 Grandes Viadutos Expressos + Sistema Completo de Metrô LEGO
+    buildViaductsAndNaturalRelief(this);
+    buildMetroSystem(this);
+
     // 8. Objetos Quebráveis de Rua, Carros Dirigíveis, Embarcações, Aeronaves e Nuvens LEGO
     buildParkedLegoCars(this);
     buildBoatsAndAircraftFleet(this);
@@ -125,9 +151,17 @@ export class TestBlockWorld {
 
     // 10. Cidade Viva (PASSO 7): Trânsito em Movimento, Pedestres com Pânico, Patrulhas do BOPE e Guerra das 3 Facções (CV, PCC e A.R.E.S.)
     this.livingCity = new LivingCityManager(this, this.destructibles, this.destructibles?.hud);
+
+    // 11. Ciclo Cinematográfico Dia / Pôr do Sol Dourado / Noite Neon + Iluminação Artificial 60 FPS!
+    const savedTimeMode = this.destructibles?.hud?.settings?.timeMode || 'auto';
+    this.atmosphere = new DayNightAtmosphereManager(this, savedTimeMode);
+
+    // 12. Atrações Interativas Vivas: Baile Funk da CDD + Parque de Diversões Embarcável no Mega Píer!
+    this.attractions = new InteractiveAttractionsManager(this);
   }
 
-  addCollider(x, z, width, depth, height = 10, minY = 0) {
+  addCollider(x, z, width, depth, height = 10, minY = 0, opts = {}) {
+    const isDynamic = Boolean(opts.isDynamic);
     const col = {
       minX: x - width * 0.5,
       maxX: x + width * 0.5,
@@ -135,25 +169,162 @@ export class TestBlockWorld {
       maxZ: z + depth * 0.5,
       minY,
       maxY: height,
-      disabled: false
+      disabled: false,
+      isDynamic,
+      _qid: 0,
+      _gridKeys: null
     };
     this.colliders.push(col);
+
+    if (isDynamic) {
+      this._dynamicColliders.push(col);
+    } else {
+      const cs = this.colliderCellSize;
+      const minCX = Math.floor(col.minX / cs);
+      const maxCX = Math.floor(col.maxX / cs);
+      const minCZ = Math.floor(col.minZ / cs);
+      const maxCZ = Math.floor(col.maxZ / cs);
+      const keys = [];
+      for (let cx = minCX; cx <= maxCX; cx++) {
+        for (let cz = minCZ; cz <= maxCZ; cz++) {
+          const k = `${cx},${cz}`;
+          keys.push(k);
+          let bucket = this._colliderGrid.get(k);
+          if (!bucket) {
+            bucket = [];
+            this._colliderGrid.set(k, bucket);
+          }
+          bucket.push(col);
+        }
+      }
+      col._gridKeys = keys;
+    }
+
     return col;
   }
 
+  /**
+   * Move um colisor de veículo/portão para a lista dinâmica rápida para que atualizações de minX..maxZ funcionem em tempo real!
+   */
+  promoteDynamicCollider(col) {
+    if (!col || col.isDynamic) return;
+    if (Array.isArray(col._gridKeys)) {
+      for (let i = 0; i < col._gridKeys.length; i++) {
+        const bucket = this._colliderGrid.get(col._gridKeys[i]);
+        if (bucket) {
+          const idx = bucket.indexOf(col);
+          if (idx !== -1) bucket.splice(idx, 1);
+        }
+      }
+      col._gridKeys = null;
+    }
+    col.isDynamic = true;
+    this._dynamicColliders.push(col);
+  }
+
+  /**
+   * Consulta espacial O(1) em células 32m x 32m (~25 colisores em vez de ~9.000 por frame!)
+   */
+  getCollidersNear(x, z, radius = 2.5) {
+    const out = [];
+    const qid = ++this._colliderQueryId;
+    const cs = this.colliderCellSize;
+    const minCX = Math.floor((x - radius) / cs);
+    const maxCX = Math.floor((x + radius) / cs);
+    const minCZ = Math.floor((z - radius) / cs);
+    const maxCZ = Math.floor((z + radius) / cs);
+
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cz = minCZ; cz <= maxCZ; cz++) {
+        const bucket = this._colliderGrid.get(`${cx},${cz}`);
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i++) {
+          const col = bucket[i];
+          if (col.disabled || col._qid === qid) continue;
+          col._qid = qid;
+          out.push(col);
+        }
+      }
+    }
+
+    for (let i = 0; i < this._dynamicColliders.length; i++) {
+      const col = this._dynamicColliders[i];
+      if (col.disabled || col._qid === qid) continue;
+      if (
+        x + radius >= col.minX &&
+        x - radius <= col.maxX &&
+        z + radius >= col.minZ &&
+        z - radius <= col.maxZ
+      ) {
+        col._qid = qid;
+        out.push(col);
+      }
+    }
+
+    return out;
+  }
+
+  /**
+   * Consulta espacial ao longo de um segmento 2D (câmera em 3ª pessoa, gancho e mira)
+   */
+  getCollidersAlongRay2D(x0, z0, x1, z1, pad = 1.5) {
+    const minX = Math.min(x0, x1) - pad;
+    const maxX = Math.max(x0, x1) + pad;
+    const minZ = Math.min(z0, z1) - pad;
+    const maxZ = Math.max(z0, z1) + pad;
+    const out = [];
+    const qid = ++this._colliderQueryId;
+    const cs = this.colliderCellSize;
+    const minCX = Math.floor(minX / cs);
+    const maxCX = Math.floor(maxX / cs);
+    const minCZ = Math.floor(minZ / cs);
+    const maxCZ = Math.floor(maxZ / cs);
+
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cz = minCZ; cz <= maxCZ; cz++) {
+        const bucket = this._colliderGrid.get(`${cx},${cz}`);
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i++) {
+          const col = bucket[i];
+          if (col.disabled || col._qid === qid) continue;
+          col._qid = qid;
+          out.push(col);
+        }
+      }
+    }
+
+    for (let i = 0; i < this._dynamicColliders.length; i++) {
+      const col = this._dynamicColliders[i];
+      if (col.disabled || col._qid === qid) continue;
+      if (col.maxX >= minX && col.minX <= maxX && col.maxZ >= minZ && col.minZ <= maxZ) {
+        col._qid = qid;
+        out.push(col);
+      }
+    }
+    return out;
+  }
+
   addBuildingBox(x, z, w, h, d, colorHex, opts = {}) {
-    const yBase = opts.yBase ?? 0.28;
-    const mesh = createLegoBrick(w, h, d, colorHex, {
+    const terrainY = this.getTerrainHeightAt ? this.getTerrainHeightAt(x, z) : 0;
+    const yBase = opts.yBase ?? (terrainY + 0.28);
+    const overUnderground =
+      (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
+      (x >= -375 && x <= -260 && z >= -235 && z <= -125);
+    const skirtDepth = overUnderground && terrainY < 0.2 ? 0.28 : 8.5;
+    const addSkirt = opts.yBase === undefined && opts.foundation !== false && skirtDepth > 0.5;
+    const totalH = addSkirt ? h + skirtDepth : h;
+    const centerY = addSkirt ? yBase + h * 0.5 - skirtDepth * 0.5 : yBase + h * 0.5;
+    const mesh = createLegoBrick(w, totalH, d, colorHex, {
       studs: opts.studs ?? false,
       studStep: opts.studStep ?? 3.5,
       roughness: opts.roughness ?? 0.24,
       metalness: opts.metalness ?? 0.08
     });
-    mesh.position.set(x, yBase + h * 0.5, z);
+    mesh.position.set(x, centerY, z);
     this.scene.add(mesh);
 
     if (opts.collide !== false) {
-      this.addCollider(x, z, w, d, yBase + h, yBase);
+      this.addCollider(x, z, w, d, yBase + h, addSkirt ? Math.max(0, yBase - skirtDepth) : yBase);
     }
 
     if (opts.registerMap !== false) {
@@ -183,13 +354,94 @@ export class TestBlockWorld {
     return createLegoCarMesh(cfg);
   }
 
-  _addCityBlockSidewalk(x, z, w, d, colorHex = LEGO_COLORS.sidewalk) {
+  _addCityBlockSidewalk(x, z, w, d, colorHex = LEGO_COLORS.sidewalk, explicitYBase = undefined) {
     if (!this._sidewalkGeosByColor.has(colorHex)) {
       this._sidewalkGeosByColor.set(colorHex, []);
     }
-    this._sidewalkGeosByColor.get(colorHex).push(
-      makeTranslatedBox(w, 0.28, d, x, 0.14, z)
+    const geoBucket = this._sidewalkGeosByColor.get(colorHex);
+
+    const minX = x - w * 0.5;
+    const maxX = x + w * 0.5;
+    const minZ = z - d * 0.5;
+    const maxZ = z + d * 0.5;
+
+    const hitsCutout = METRO_ISLAND_CUTOUTS.some(
+      (c) => c.maxX > minX && c.minX < maxX && c.maxZ > minZ && c.minZ < maxZ
     );
+
+    if (hitsCutout) {
+      const yBase = explicitYBase ?? 0;
+      const pieces = sliceRectAroundCutouts({ minX, maxX, minZ, maxZ }, METRO_ISLAND_CUTOUTS);
+      for (const r of pieces) {
+        const pw = r.maxX - r.minX;
+        const pd = r.maxZ - r.minZ;
+        if (pw <= 0.02 || pd <= 0.02) continue;
+        geoBucket.push(
+          makeTranslatedBox(pw, 0.28, pd, (r.minX + r.maxX) * 0.5, yBase + 0.14, (r.minZ + r.maxZ) * 0.5)
+        );
+      }
+    } else if (explicitYBase !== undefined) {
+      // Saia profunda de concreto (8.2m em ladeiras, 0.28m sobre subsolo plano) — nunca flutua em ladeiras!
+      const overUnder =
+        (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
+        (x >= -375 && x <= -260 && z >= -235 && z <= -125);
+      const slabH = overUnder && explicitYBase <= 0.2 ? 0.28 : 8.2;
+      geoBucket.push(makeTranslatedBox(w, slabH, d, x, explicitYBase + 0.28 - slabH * 0.5, z));
+    } else {
+      const yC = this.getTerrainHeightAt(x, z);
+      const yNW = this.getTerrainHeightAt(minX, minZ);
+      const yNE = this.getTerrainHeightAt(maxX, minZ);
+      const ySW = this.getTerrainHeightAt(minX, maxZ);
+      const ySE = this.getTerrainHeightAt(maxX, maxZ);
+      const minCorner = Math.min(yC, yNW, yNE, ySW, ySE);
+      const maxCorner = Math.max(yC, yNW, yNE, ySW, ySE);
+      const overUnder =
+        (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
+        (x >= -375 && x <= -260 && z >= -235 && z <= -125);
+
+      if (maxCorner - minCorner <= 0.16) {
+        const slabH = overUnder && yC <= 0.2 ? 0.28 : 4.2;
+        geoBucket.push(makeTranslatedBox(w, slabH, d, x, yC + 0.28 - slabH * 0.5, z));
+      } else {
+        // Calçada orgânica subdividida acompanhando a ladeira + saia perimetral de 8.5m de profundidade!
+        const segX = Math.max(3, Math.min(10, Math.round(w / 14)));
+        const segZ = Math.max(3, Math.min(10, Math.round(d / 14)));
+        const topGeo = new THREE.PlaneGeometry(w, d, segX, segZ);
+        topGeo.rotateX(-Math.PI / 2);
+        topGeo.translate(x, 0, z);
+        const pos = topGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const vx = pos.getX(i);
+          const vz = pos.getZ(i);
+          pos.setY(i, this.getTerrainHeightAt(vx, vz) + 0.28);
+        }
+        topGeo.computeVertexNormals();
+        geoBucket.push(topGeo);
+
+        // 4 saias perimetrais de alicerce (8.5m para baixo) acompanhando cada borda do quarteirão!
+        const skirtH = 8.5;
+        const stepX = w / segX;
+        for (let ix = 0; ix < segX; ix++) {
+          const sx = minX + (ix + 0.5) * stepX;
+          const yn = this.getTerrainHeightAt(sx, minZ) + 0.28;
+          const ys = this.getTerrainHeightAt(sx, maxZ) + 0.28;
+          geoBucket.push(
+            makeTranslatedBox(stepX + 0.08, skirtH, 1.2, sx, yn - skirtH * 0.5, minZ + 0.6),
+            makeTranslatedBox(stepX + 0.08, skirtH, 1.2, sx, ys - skirtH * 0.5, maxZ - 0.6)
+          );
+        }
+        const stepZ = d / segZ;
+        for (let iz = 0; iz < segZ; iz++) {
+          const sz = minZ + (iz + 0.5) * stepZ;
+          const yw = this.getTerrainHeightAt(minX, sz) + 0.28;
+          const ye = this.getTerrainHeightAt(maxX, sz) + 0.28;
+          geoBucket.push(
+            makeTranslatedBox(1.2, skirtH, stepZ + 0.08, minX + 0.6, yw - skirtH * 0.5, sz),
+            makeTranslatedBox(1.2, skirtH, stepZ + 0.08, maxX - 0.6, ye - skirtH * 0.5, sz)
+          );
+        }
+      }
+    }
 
     this.mapBlocks.push({
       x,
@@ -207,6 +459,7 @@ export class TestBlockWorld {
         mergeBufferGeometries(geos),
         new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45 })
       );
+      for (let i = 0; i < geos.length; i++) geos[i].dispose();
       mergedSlab.receiveShadow = true;
       this.scene.add(mergedSlab);
     }
@@ -214,7 +467,12 @@ export class TestBlockWorld {
   }
 
   _addLegoTree(x, y, z, scale = 1.0) {
-    this._treeInstances.push({ x, y, z, scale });
+    let finalY = y;
+    if (y <= 0.42 && this.getTerrainHeightAt) {
+      const tY = this.getTerrainHeightAt(x, z);
+      if (tY > 0.08) finalY = tY + y;
+    }
+    this._treeInstances.push({ x, y: finalY, z, scale });
   }
 
   _finalizeInstancedTrees() {
@@ -290,7 +548,8 @@ export class TestBlockWorld {
 
   setWaypoint(x, z, label = 'DESTINO MARCADO') {
     this.waypoint = { x, z, label };
-    this.beaconGroup.position.set(x, 0, z);
+    const wy = Math.max(0, this.getTerrainHeightAt(x, z));
+    this.beaconGroup.position.set(x, wy, z);
     this.beaconGroup.visible = true;
     soundFX.playStudCollect(100);
   }
@@ -356,15 +615,74 @@ export class TestBlockWorld {
   }
 
   /**
-   * Retorna a elevação contínua do terreno em (x, z):
-   * - Nas 9 Pontes em Arco e nos 3 Píeres Fluviais do Rio Urbano, segue a curva contínua getRoadElevation(x, z)!
-   * - Na Favela Cidade de Deus, sobe suavemente de Y = 0 na rua até Y ≈ 43m no cume do morro!
-   * - No restante da ilha, retorna 0.
+   * Retorna a elevação contínua do solo base em (x, z):
+   * - Recortes de escadarias subterrâneas e trincheiras portais do Metrô (até Y = -6.8m / -7.35m)
+   * - 9 Pontes em Arco e 3 Píeres Fluviais do Rio Urbano (`getRoadElevation`)
+   * - Platô Panorâmico & Ladeiras do Subúrbio Norte (`0m -> +11.5m`), Colinas do Parque Central (`0m -> +10.5m`),
+   *   Dunas & Costão Sudoeste da Praia (`+2.5m -> +8.5m`) e Morro da Cidade de Deus (`0m -> +43m`, com passagem em Z = 0).
    */
   getTerrainHeightAt(x, z) {
+    const metroCutY = getMetroCutoutFloorY(x, z);
+    if (metroCutY !== null) return metroCutY;
+
     const roadY = this.getRoadElevation(x, z);
     if (roadY !== 0) return roadY;
-    return getFavelaElevation(x, z);
+
+    return Math.max(
+      getFavelaElevation(x, z),
+      getUrbanCityReliefY(x, z)
+    );
+  }
+
+  /**
+   * Suporte físico real a múltiplos níveis empilhados (`elevatedDecks` + `undergroundFloors`) — ZERO bug de teleporte:
+   * - Viadutos, Rampas e Estações Elevadas (`deckY` entre `0m` e `+12.75m`): retorna `deckY` SOMENTE se `currentY >= deckY - thresholdBelow`,
+   *   permitindo dirigir e caminhar livremente POR BAIXO dos 3 viadutos (`0m`)!
+   * - Subsolo do Metrô (`floorY = -6.8m` / `-7.35m`): se o jogador desceu as escadas (`currentY < -0.6`), retorna a plataforma/túnel
+   *   subterrâneo, enquanto quem está na rua acima (`currentY >= -0.4`) continua normalmente sobre o asfalto (`0m`)!
+   */
+  getSurfaceHeightAt(x, z, currentY = 0) {
+    // 1. Subsolo do Metrô (quando já desceu abaixo da rua: currentY < -0.6)
+    if (currentY < -0.6) {
+      const cutY = getMetroCutoutFloorY(x, z);
+      if (cutY !== null) return cutY;
+
+      if (this.undergroundFloors && this.undergroundFloors.length > 0) {
+        let bestUnderY = -Infinity;
+        for (let i = 0; i < this.undergroundFloors.length; i++) {
+          const uf = this.undergroundFloors[i];
+          if (x >= uf.minX && x <= uf.maxX && z >= uf.minZ && z <= uf.maxZ) {
+            const ceilY = uf.ceilingY ?? -1.0;
+            if (currentY <= ceilY + 0.5 && uf.floorY > bestUnderY) {
+              bestUnderY = uf.floorY;
+            }
+          }
+        }
+        if (bestUnderY > -Infinity) {
+          return bestUnderY;
+        }
+      }
+    }
+
+    // 2. Tabuleiros e Rampas Elevadas (Viadutos 1, 2, 3 + Plataformas/Escadas Elevadas do Metrô)
+    if (this.elevatedDecks && this.elevatedDecks.length > 0) {
+      let bestDeckY = -Infinity;
+      for (let i = 0; i < this.elevatedDecks.length; i++) {
+        const d = this.elevatedDecks[i];
+        if (x >= d.minX && x <= d.maxX && z >= d.minZ && z <= d.maxZ) {
+          const deckY = d.getDeckY(x, z);
+          if (deckY !== null && currentY >= deckY - (d.thresholdBelow ?? 2.4)) {
+            if (deckY > bestDeckY) bestDeckY = deckY;
+          }
+        }
+      }
+      if (bestDeckY > -Infinity) {
+        return bestDeckY;
+      }
+    }
+
+    // 3. Solo base contínuo (ruas térreas sob viadutos, colinas, platô norte, dunas, pontes e escadarias abertas)
+    return this.getTerrainHeightAt(x, z);
   }
 
   /**
@@ -442,8 +760,8 @@ export class TestBlockWorld {
     if (!forBoat && x >= 1351 && x <= 1399 && z >= 735 && z <= 1126) return false;
 
     if (!forBoat) {
-      if (Math.abs(x) <= 30 && z >= 1030 && z <= 1410) return false;
-      if (Math.abs(x) <= 69 && z >= 1405 && z <= 1565) return false;
+      if (Math.abs(x) <= 48 && z >= 1020 && z <= 1422) return false;
+      if (Math.abs(x) <= 69 && z >= 1405 && z <= 1572) return false;
       if (x >= 43 && x <= 108 && z >= 1076 && z <= 1094) return false;
       if (x >= 95 && x <= 109 && z >= 1062 && z <= 1228) return false;
       for (const dz of [1095, 1135, 1175, 1215]) {
@@ -469,6 +787,44 @@ export class TestBlockWorld {
       z <= skyRegion.bounds.maxZ
     ) {
       return skyRegion;
+    }
+
+    if (y < -2.2) {
+      if (x >= -360 && x <= -280 && z >= -202 && z <= -135) {
+        return {
+          ...this.regions[1],
+          id: 'porao_torre_herois',
+          num: 'LAB',
+          name: 'PORÃO DA TORRE — LABORATÓRIO OP-09',
+          shortName: 'PORÃO DOS HERÓIS (OP-09)',
+          sub: 'Laboratório Bio-Genético Subterrâneo • Criação de Personagem [E]',
+          color: '#00f0ff',
+          icon: 'tower'
+        };
+      }
+      return {
+        ...this.regions[0],
+        id: 'metro_subterraneo',
+        num: 'M1',
+        name: 'METRÔ METROPOLITANO (SUBSOLO)',
+        shortName: 'METRÔ SUBSOLO',
+        sub: 'Linha 01 Circular • Estações Subterrâneas & Túnel Iluminado',
+        color: '#06b6d4',
+        icon: 'metro'
+      };
+    }
+
+    if (y < 24.0 && x >= 14 && x <= 106 && z >= -496 && z <= -400) {
+      return {
+        ...this.regions[0],
+        id: 'lego_customs',
+        num: 'CUS',
+        name: 'LEGO CUSTOMS — OFICINA DE TUNING',
+        shortName: 'LEGO CUSTOMS',
+        sub: 'Tuning 0–10 • Pintura • Decals • Monster Truck & Rampa Cunha [E]',
+        color: '#facc15',
+        icon: 'customs'
+      };
     }
 
     if (y < 38.0 && x >= -54 && x <= 54 && z >= -228 && z <= -130) {
@@ -522,6 +878,7 @@ export class TestBlockWorld {
     const hemiLight = new THREE.HemisphereLight(0xf0f9ff, 0x334155, 0.94);
     hemiLight.position.set(0, 480, 0);
     this.scene.add(hemiLight);
+    this.hemiLight = hemiLight;
 
     const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.25);
     sunLight.position.set(140, 260, 120);
@@ -545,6 +902,15 @@ export class TestBlockWorld {
   }
 
   update(dt, playerPos = null, controller = null) {
+    if (this.metroSystem) {
+      this.metroSystem.update(dt, playerPos);
+    }
+    if (this.customsRuntime) {
+      this.customsRuntime.update(dt);
+    }
+    if (this.attractions) {
+      this.attractions.update(dt, playerPos, controller);
+    }
     if (this.livingCity) {
       this.livingCity.update(dt, playerPos, controller);
     }
@@ -558,7 +924,9 @@ export class TestBlockWorld {
       rot.mesh.rotation[rot.axis] += rot.speed * dt;
     }
 
-    if (playerPos && this.sunLight) {
+    if (this.atmosphere) {
+      this.atmosphere.update(dt, playerPos, controller);
+    } else if (playerPos && this.sunLight) {
       if (playerPos.distanceToSquared(this._lastSunUpdatePos) > 9.0) {
         this._lastSunUpdatePos.copy(playerPos);
         this.sunLight.position.set(playerPos.x + 120, playerPos.y + 200, playerPos.z + 100);

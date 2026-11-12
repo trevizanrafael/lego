@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import { soundFX } from '../audio/SoundFX.js';
+import { ensureVehicleNightLights } from '../world/DayNightAtmosphereManager.js';
+import { CustomHeroPowerRuntime } from '../entities/CustomHeroSystem.js';
+import {
+  updateVehicleDynamicTuningFX,
+  getVehicleCustomFlameHex
+} from '../world/StreetCustomGarage.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -87,6 +93,11 @@ export class ThirdPersonController {
     this.vehicleSteerAngle = 0;
     this.vehicleDriftAngle = 0;
     this.vehicleWheelSpin = 0;
+    this.vehicleAirVelY = 0;
+    this.vehicleAirborne = false;
+    this.lastCarSpaceTapTime = 0;
+    this._customsExitCooldown = 0;
+    this.activeRide = null;
     this.isDrifting = false;
     this.isTurboActive = false;
     this.driftParticleTimer = 0;
@@ -124,7 +135,9 @@ export class ThirdPersonController {
     this.cameraShakeTimer = 0;
     this.grappleState = null; // { anchor: Vector3, timer: number }
     this.stealthTimer = 0;
+    this.energyNetSlowTimer = 0;
     this._initGrappleCableMesh();
+    this.customHeroPowers = new CustomHeroPowerRuntime(this);
 
     this._bindEvents();
   }
@@ -217,7 +230,15 @@ export class ThirdPersonController {
     this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 
     this.domElement.addEventListener('mousedown', (e) => {
-      if (this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen) return;
+      if (
+        this.hud?.isTitleScreenActive ||
+        this.hud?.isPauseMenuOpen ||
+        this.hud?.isCreatorOpen ||
+        this.hud?.isCustomsOpen ||
+        this.hud?.isTikTokRadioOpen
+      ) {
+        return;
+      }
       this.hasEnteredGame = true;
       const promptEl = document.getElementById('pointer-prompt');
       if (promptEl) {
@@ -242,6 +263,8 @@ export class ThirdPersonController {
       if (e.button === 0) {
         this.isDraggingMouse = true;
         this.mouseButtons.left = true;
+        this.minifigure?.stopEmote?.();
+        if (this.activeRide) return;
         if (this.currentVehicle) {
           this._fireVehicleWeapon();
         } else {
@@ -249,6 +272,8 @@ export class ThirdPersonController {
         }
       } else if (e.button === 2) {
         this.mouseButtons.right = true;
+        this.minifigure?.stopEmote?.();
+        if (this.activeRide) return;
         const hero = this.minifigure.currentHeroKey;
         if (this.currentVehicle) {
           if (hero === 'turbo') {
@@ -269,6 +294,8 @@ export class ThirdPersonController {
             this._triggerVoltaicoLightningBlink();
           } else if (hero === 'vortex') {
             this._triggerVortexAbyssalLasso();
+          } else if (hero === 'op09') {
+            this.customHeroPowers?.triggerMobilityKey();
           }
         }
       }
@@ -283,8 +310,21 @@ export class ThirdPersonController {
       }
     });
 
+    window.addEventListener('blur', () => {
+      this.resetHeldInputs();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.resetHeldInputs();
+      }
+    });
+
     document.addEventListener('pointerlockchange', () => {
       this.isPointerLocked = document.pointerLockElement === this.domElement;
+      if (!this.isPointerLocked) {
+        this.resetHeldInputs();
+      }
       if (this.isPointerLocked) {
         this.hasEnteredGame = true;
       } else if (
@@ -294,6 +334,9 @@ export class ThirdPersonController {
         !this.hud?.isFullMapOpen &&
         !this.hud?.isDossierOpen &&
         !this.hud?.isHeroWheelOpen &&
+        !this.hud?.isCreatorOpen &&
+        !this.hud?.isCustomsOpen &&
+        !this.hud?.isTikTokRadioOpen &&
         !this.fastTravelState?.active
       ) {
         // Quando o jogador aperta [ESC] durante o jogo e o navegador solta o PointerLock, abre o Menu de Pausa & Opções!
@@ -308,7 +351,10 @@ export class ThirdPersonController {
           !this.hud?.isPauseMenuOpen &&
           !this.hud?.isFullMapOpen &&
           !this.hud?.isDossierOpen &&
-          !this.hud?.isHeroWheelOpen;
+          !this.hud?.isHeroWheelOpen &&
+          !this.hud?.isCreatorOpen &&
+          !this.hud?.isCustomsOpen &&
+          !this.hud?.isTikTokRadioOpen;
         promptEl.classList.toggle('visible', shouldShowPrompt);
       }
     });
@@ -319,6 +365,9 @@ export class ThirdPersonController {
         this.hud?.isPauseMenuOpen ||
         this.hud?.isFullMapOpen ||
         this.hud?.isDossierOpen ||
+        this.hud?.isCreatorOpen ||
+        this.hud?.isCustomsOpen ||
+        this.hud?.isTikTokRadioOpen ||
         this.fastTravelState?.active
       ) {
         return;
@@ -343,8 +392,16 @@ export class ThirdPersonController {
     window.addEventListener(
       'wheel',
       (e) => {
-        // O scroll no Mapa [M] ou na lista lateral NUNCA deve alterar o zoom da câmera do personagem!
-        if (this.hud?.isFullMapOpen || this.fastTravelState?.active) return;
+        // O scroll no Mapa [M], Criador de Personagens, LEGO Customs, Rádio TikTok ou lista lateral NUNCA deve alterar o zoom da câmera!
+        if (
+          this.hud?.isFullMapOpen ||
+          this.hud?.isCreatorOpen ||
+          this.hud?.isCustomsOpen ||
+          this.hud?.isTikTokRadioOpen ||
+          this.fastTravelState?.active
+        ) {
+          return;
+        }
         if (e.target && typeof e.target.closest === 'function' && e.target.closest('#fullmap-modal')) {
           return;
         }
@@ -369,6 +426,41 @@ export class ThirdPersonController {
   }
 
   /**
+   * Limpa imediatamente todas as teclas de locomoção e botões do mouse segurados
+   * (impede o bug de continuar andando sozinho ao abrir [P], [ESC], [M], [H] ou Salvar e Sair!)
+   */
+  resetHeldInputs() {
+    this.keys.forward = false;
+    this.keys.backward = false;
+    this.keys.left = false;
+    this.keys.right = false;
+    this.keys.sprint = false;
+    this.keys.turbo = false;
+    this.keys.jump = false;
+    this.keys.descend = false;
+    this.mouseButtons.left = false;
+    this.mouseButtons.right = false;
+    this.isDraggingMouse = false;
+    this.isDrifting = false;
+    this.isTurboActive = false;
+    this.turboOverdriveActive = false;
+    if (this.titaJumpCharging) {
+      this.titaJumpCharging = false;
+      this.titaJumpChargeTime = 0;
+    }
+    if (this.supernovaCharging) {
+      this.supernovaCharging = false;
+      this.supernovaChargeTime = 0;
+      this.destructibles?.updateSupernovaChargeVisual?.(false, this.position);
+    }
+    if (this.minifigure) {
+      this.minifigure.isBeaming = false;
+      this.minifigure.titaJumpChargeRatio = 0;
+    }
+    this.destructibles?.updateSolarBeam?.(false);
+  }
+
+  /**
    * Retrava a mira automaticamente ao fechar o Mapa [M] ou dar Viagem Rápida, sem exibir aviso na tela
    */
   relockPointer() {
@@ -381,7 +473,7 @@ export class ThirdPersonController {
       try {
         const res = this.domElement.requestPointerLock();
         if (res && typeof res.catch === 'function') {
-          res.catch(() => {});
+          res.catch(() => { });
         }
       } catch (_) {
         // Ignora erro caso chamado em ambiente de teste sem gesto de usuário
@@ -393,13 +485,14 @@ export class ThirdPersonController {
    * Troca instantaneamente entre os 5 Heróis Jogáveis (Caveira, Solaris, Titã Blindado, Vingador de Chumbo e Sombra Escarlate)
    */
   switchToHero(heroKey) {
-    if (this.minifigure.currentHeroKey === heroKey) return;
+    if (this.minifigure.currentHeroKey === heroKey && heroKey !== 'op09') return;
 
     // Limpa estados especiais do herói anterior
     if (this.grabbedCar) {
       this._releaseGrabbedCarOnGround();
     }
     this._stopGrapple();
+    this.minifigure?.stopEmote?.();
     this.stealthTimer = 0;
     this.vingadorDiveTimer = 0;
     this.vingadorFurorTimer = 0;
@@ -416,9 +509,10 @@ export class ThirdPersonController {
     }
 
     const preset = this.minifigure.setHero(heroKey);
+    this.customHeroPowers?.onHeroSwitched(heroKey);
 
-    if (this.currentVehicle && this.minifigure.setSeatedInVehicle) {
-      this.minifigure.setSeatedInVehicle(true, this.vehicleSteerAngle);
+    if ((this.currentVehicle || this.activeRide) && this.minifigure.setSeatedInVehicle) {
+      this.minifigure.setSeatedInVehicle(true, this.vehicleSteerAngle, Boolean(this.activeRide));
     }
 
     // Se trocou para qualquer herói terrestre no meio do voo, desativa voo e entra em queda livre imediata!
@@ -443,7 +537,8 @@ export class ThirdPersonController {
       sombra: 0xff1e42,
       turbo: 0x22d3ee,
       voltaico: 0x38bdf8,
-      vortex: 0xa855f7
+      vortex: 0xa855f7,
+      op09: 0x00f0ff
     };
 
     if (this.destructibles) {
@@ -463,7 +558,7 @@ export class ThirdPersonController {
   }
 
   toggleHero() {
-    const heroOrder = ['caveira', 'solaris', 'tita', 'vingador', 'sombra', 'turbo', 'voltaico', 'vortex'];
+    const heroOrder = ['caveira', 'solaris', 'tita', 'vingador', 'sombra', 'turbo', 'voltaico', 'vortex', 'op09'];
     const idx = heroOrder.indexOf(this.minifigure.currentHeroKey);
     const next = heroOrder[(idx + 1) % heroOrder.length];
     this.switchToHero(next);
@@ -621,6 +716,8 @@ export class ThirdPersonController {
         this.minifigure.isVortexMonster,
         aimData.point
       );
+    } else if (hero === 'op09') {
+      this.customHeroPowers?.firePrimary(aimData.point);
     }
   }
 
@@ -987,7 +1084,9 @@ export class ThirdPersonController {
     this.minifigure.isCarryingCar = false;
     const dropX = this.position.x + Math.sin(this.facingAngle) * 3.2;
     const dropZ = this.position.z + Math.cos(this.facingAngle) * 3.2;
-    const dropY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(dropX, dropZ) : 0;
+    const dropY = this.world?.getSurfaceHeightAt
+      ? this.world.getSurfaceHeightAt(dropX, dropZ, this.position.y)
+      : (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(dropX, dropZ) : 0);
     car.mesh.position.set(dropX, dropY, dropZ);
     car.mesh.rotation.set(0, this.facingAngle, 0);
     car.basePos.copy(car.mesh.position);
@@ -1120,9 +1219,14 @@ export class ThirdPersonController {
     let bestT = maxGrappleDist;
     let bestAnchor = null;
 
-    // 1. Interseção 3D exata (Ray-AABB Slab) contra qualquer prédio, muro, ponte ou estrutura em 360° (sem restrição de altura!)
+    // 1. Interseção 3D exata (Ray-AABB Slab) usando índice espacial 2D ao longo do raio!
     if (this.world?.colliders) {
-      for (const col of this.world.colliders) {
+      const endRayX = rayOrigin.x + aimDir.x * maxGrappleDist;
+      const endRayZ = rayOrigin.z + aimDir.z * maxGrappleDist;
+      const grappleCols = this.world.getCollidersAlongRay2D
+        ? this.world.getCollidersAlongRay2D(rayOrigin.x, rayOrigin.z, endRayX, endRayZ, 2.0)
+        : this.world.colliders;
+      for (const col of grappleCols) {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
         let tMin = 0.0;
@@ -1377,9 +1481,14 @@ export class ThirdPersonController {
       }
     }
 
-    // 2. Interseção 3D exata com prédios, tetos, pontes e muros (world.colliders)
+    // 2. Interseção 3D exata com prédios, tetos, pontes e muros (índice espacial ao longo do raio)
     if (this.world?.colliders) {
-      for (const col of this.world.colliders) {
+      const endRayX = rayOrigin.x + aimDir.x * bestT;
+      const endRayZ = rayOrigin.z + aimDir.z * bestT;
+      const rayCols = this.world.getCollidersAlongRay2D
+        ? this.world.getCollidersAlongRay2D(rayOrigin.x, rayOrigin.z, endRayX, endRayZ, 2.0)
+        : this.world.colliders;
+      for (const col of rayCols) {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
         let tMin = 0.0;
@@ -1544,6 +1653,91 @@ export class ThirdPersonController {
   }
 
   _onKey(e, isDown) {
+    // REGRA CRÍTICA ANTI-TECLA PRESA:
+    // Sempre processa soltura de teclas (!isDown) ANTES de qualquer return de modal/menu,
+    // garantindo que W/A/S/D/Shift/Espaço/Q nunca fiquem travados em true ao abrir [P], [ESC], [M] ou Salvar e Sair!
+    if (!isDown) {
+      switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+          this.keys.forward = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          this.keys.backward = false;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          this.keys.left = false;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          this.keys.right = false;
+          break;
+        case 'ShiftLeft':
+        case 'ShiftRight':
+          this.keys.sprint = false;
+          break;
+        case 'ControlLeft':
+        case 'ControlRight':
+        case 'KeyC':
+          this.keys.descend = false;
+          break;
+        case 'Space':
+          this.keys.jump = false;
+          break;
+        case 'KeyQ':
+          this.keys.turbo = false;
+          if (this.minifigure?.currentHeroKey === 'turbo') {
+            this._triggerTurboOverdrive(false);
+          }
+          break;
+      }
+    }
+
+    const targetTag = e.target?.tagName;
+    const isTypingInInput =
+      (targetTag === 'INPUT' && e.target?.type !== 'range') ||
+      targetTag === 'TEXTAREA' ||
+      Boolean(e.target?.isContentEditable);
+
+    if (this.hud?.isCreatorOpen) {
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud.creatorStudio?.close(false);
+      }
+      return;
+    }
+
+    if (this.hud?.isCustomsOpen) {
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud.customsStudio?.close(false);
+      }
+      return;
+    }
+
+    if (this.hud?.isTikTokRadioOpen) {
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud.setTikTokRadioOpen(false, this);
+        return;
+      }
+      if (!isTypingInInput && isDown && !e.repeat) {
+        if (e.code === 'KeyP') {
+          this.hud.setTikTokRadioOpen(false, this);
+        } else if (e.code === 'KeyK') {
+          this.hud.tiktokRadio?.togglePlayPause?.();
+        } else if (e.code === 'KeyL') {
+          this.hud.tiktokRadio?.nextTrack?.(false);
+        } else if (e.code === 'KeyJ') {
+          this.hud.tiktokRadio?.prevTrack?.(false);
+        }
+      }
+      return;
+    }
+
+    if (isTypingInInput) {
+      return;
+    }
+
     if (this.hud?.isTitleScreenActive) {
       if (e.code === 'Escape' && isDown && !e.repeat && this.hud?.isPauseMenuOpen) {
         this.hud.setPauseMenuOpen(false, this);
@@ -1605,18 +1799,22 @@ export class ThirdPersonController {
       case 'KeyW':
       case 'ArrowUp':
         this.keys.forward = isDown;
+        if (isDown) this.minifigure?.stopEmote?.();
         break;
       case 'KeyS':
       case 'ArrowDown':
         this.keys.backward = isDown;
+        if (isDown) this.minifigure?.stopEmote?.();
         break;
       case 'KeyA':
       case 'ArrowLeft':
         this.keys.left = isDown;
+        if (isDown) this.minifigure?.stopEmote?.();
         break;
       case 'KeyD':
       case 'ArrowRight':
         this.keys.right = isDown;
+        if (isDown) this.minifigure?.stopEmote?.();
         break;
       case 'ShiftLeft':
       case 'ShiftRight':
@@ -1646,7 +1844,13 @@ export class ThirdPersonController {
           const deltaTap = now - this.lastSpacePressTime;
           this.lastSpacePressTime = now;
 
-          if (this.grappleState) {
+          if (this.currentVehicle) {
+            const carTapDelta = now - this.lastCarSpaceTapTime;
+            this.lastCarSpaceTapTime = now;
+            if (carTapDelta < 380) {
+              this._triggerVehicleHydraulicJump();
+            }
+          } else if (this.grappleState) {
             // Pular durante o Gancho Magnético solta o cabo transferindo todo o embalo em sling aéreo livre!
             this._stopGrapple(true);
             this.velocity.y = Math.max(this.velocity.y, 17.5);
@@ -1662,6 +1866,8 @@ export class ThirdPersonController {
               this.velocity.y = this.jumpForce;
               this.isGrounded = false;
             }
+          } else if (this.minifigure.currentHeroKey === 'op09' && !this.currentVehicle) {
+            this.customHeroPowers?.handleSpacePress(deltaTap);
           } else if (this.isGrounded && !this.isFlying) {
             if (this.minifigure.currentHeroKey === 'tita') {
               // Inicia o carregamento do Super-Pulo Hidráulico do Titã Blindado!
@@ -1733,8 +1939,13 @@ export class ThirdPersonController {
           this.switchToHero('vortex');
         }
         break;
+      case 'Digit9':
+        if (isDown && !e.repeat) {
+          this.switchToHero('op09');
+        }
+        break;
       case 'KeyE':
-        // [E] é dedicado a Entrar / Sair do Carro quando próximo!
+        // [E] é dedicado a Entrar / Sair do Carro ou interagir com terminais quando próximo!
         if (isDown && !e.repeat) {
           this.toggleVehicleInteraction();
         }
@@ -1775,6 +1986,8 @@ export class ThirdPersonController {
             this._triggerVoltaicoEmp();
           } else if (hero === 'vortex') {
             this._triggerVortexEruption();
+          } else if (hero === 'op09') {
+            this.customHeroPowers?.triggerSuperAbility();
           }
         }
         break;
@@ -1809,6 +2022,8 @@ export class ThirdPersonController {
               this._cycleVingadorWeapon();
             } else if (hero === 'sombra') {
               this._triggerSombraGrapple();
+            } else if (hero === 'op09') {
+              this.customHeroPowers?.triggerMobilityKey();
             }
           }
         }
@@ -1831,6 +2046,8 @@ export class ThirdPersonController {
               this._triggerVoltaicoLightningBlink();
             } else if (hero === 'vortex') {
               this._triggerVortexAbyssalLasso();
+            } else if (hero === 'op09') {
+              this.customHeroPowers?.triggerMobilityKey();
             }
           }
         }
@@ -1877,6 +2094,25 @@ export class ThirdPersonController {
           }
         }
         break;
+      case 'KeyB':
+        if (
+          isDown &&
+          !e.repeat &&
+          !this.currentVehicle &&
+          !this.activeRide &&
+          this.isGrounded &&
+          !this.isFlying
+        ) {
+          this.velocity.set(0, 0, 0);
+          this.currentSpeed = 0;
+          this.minifigure?.triggerNextEmote?.();
+        }
+        break;
+      case 'KeyX':
+        if (isDown && !e.repeat && this.currentVehicle) {
+          this._triggerVehicleHydraulicJump();
+        }
+        break;
       case 'KeyH':
         if (isDown && !e.repeat && this.hud) {
           this.hud.toggleHeroDossier(this);
@@ -1885,6 +2121,41 @@ export class ThirdPersonController {
       case 'KeyM':
         if (isDown && !e.repeat && this.onToggleFullMap) {
           this.onToggleFullMap();
+        }
+        break;
+      case 'KeyP':
+        if (isDown && !e.repeat && this.hud) {
+          if (e.shiftKey) {
+            this.hud.tiktokRadio?.nextTrack?.(true);
+          } else {
+            this.resetHeldInputs();
+            this.hud.toggleTikTokRadioModal?.(this);
+          }
+        }
+        break;
+      case 'KeyK':
+        if (isDown && !e.repeat && this.hud?.tiktokRadio) {
+          this.hud.tiktokRadio.togglePlayPause();
+        }
+        break;
+      case 'KeyL':
+        if (isDown && !e.repeat && this.hud?.tiktokRadio) {
+          this.hud.tiktokRadio.nextTrack(true);
+        }
+        break;
+      case 'KeyJ':
+        if (isDown && !e.repeat && this.hud?.tiktokRadio) {
+          this.hud.tiktokRadio.prevTrack(true);
+        }
+        break;
+      case 'BracketRight':
+        if (isDown && !e.repeat && this.hud?.tiktokRadio?.isPlaying) {
+          this.hud.tiktokRadio.nextTrack(true);
+        }
+        break;
+      case 'BracketLeft':
+        if (isDown && !e.repeat && this.hud?.tiktokRadio?.isPlaying) {
+          this.hud.tiktokRadio.prevTrack(true);
         }
         break;
     }
@@ -1978,12 +2249,181 @@ export class ThirdPersonController {
   }
 
   /**
-   * Alterna entre entrar no veículo mais próximo, usar o Elevador Quântico da Torre dos Heróis ou sair do veículo atual ao apertar [E]
+   * Suspensão Hidráulica de Salto da Oficina LEGO Customs (Nv.1 = 3m até Nv.10 = 16m no ar!):
+   * Acionada com 2x [Espaço] ou [X] enquanto dirige carro/moto tunado.
    */
+  _triggerVehicleHydraulicJump() {
+    const carObj = this.currentVehicle;
+    if (!carObj || carObj.destroyed || this.vehicleAirborne) return false;
+    const spec = carObj.mesh?.userData?.vehicleSpec;
+    if (!spec || spec.category || spec.isColossalShip) return false;
+    if (!(spec.hydraulicsLevel >= 1 && spec.jumpVelY > 0)) return false;
+
+    this.vehicleAirborne = true;
+    this.vehicleAirVelY = spec.jumpVelY;
+    carObj.mesh.position.y += 0.25;
+    soundFX.playTacticalRoll();
+    if (this.destructibles) {
+      this.destructibles.spawnFlameTrailParticle(
+        new THREE.Vector3(carObj.mesh.position.x, carObj.mesh.position.y + 0.2, carObj.mesh.position.z),
+        1.15
+      );
+    }
+    return true;
+  }
+
+  _findNearbyLegoCustoms() {
+    const data = this.world?.legoCustomsData;
+    if (!data) return null;
+
+    if (this.currentVehicle) {
+      const spec = this.currentVehicle.mesh?.userData?.vehicleSpec;
+      if (spec?.category || spec?.isColossalShip) return null;
+      const distLift = Math.hypot(
+        this.currentVehicle.mesh.position.x - data.liftPos.x,
+        this.currentVehicle.mesh.position.z - data.liftPos.z
+      );
+      const dyLift = Math.abs(this.currentVehicle.mesh.position.y - data.liftPos.y);
+      if (distLift <= 9.2 && dyLift <= 3.8) {
+        return { mode: 'lift_drive', dist: distLift, label: 'TUNAR VEÍCULO NA LEGO CUSTOMS' };
+      }
+      return null;
+    }
+
+    // A pé perto do Console do Elevador Hidráulico ou do Terminal de Retirada da Garagem Pessoal
+    const distConsole = Math.hypot(this.position.x - data.consolePos.x, this.position.z - data.consolePos.z);
+    if (distConsole <= 5.2 && Math.abs(this.position.y - data.consolePos.y) <= 3.5) {
+      return { mode: 'console_foot', dist: distConsole, label: 'ACESSAR OFICINA LEGO CUSTOMS' };
+    }
+    const distTerm = Math.hypot(
+      this.position.x - data.retrievalTerminalPos.x,
+      this.position.z - data.retrievalTerminalPos.z
+    );
+    if (distTerm <= 5.2 && Math.abs(this.position.y - data.retrievalTerminalPos.y) <= 3.5) {
+      return {
+        mode: 'garage_terminal',
+        dist: distTerm,
+        label: 'RETIRAR CARRO SALVO // GARAGEM LEGO CUSTOMS'
+      };
+    }
+    return null;
+  }
+
+  _findNearbyCustomizerPedestal() {
+    const lab = this.world?.customizerLabPedestal;
+    if (!lab) return null;
+    const cPos = lab.consolePos || lab.pedestalPos;
+    const pPos = lab.pedestalPos || cPos;
+    const distConsole = Math.hypot(this.position.x - cPos.x, this.position.z - cPos.z);
+    const distPedestal = Math.hypot(this.position.x - pPos.x, this.position.z - pPos.z);
+    const minDist = Math.min(distConsole, distPedestal);
+    const dy = Math.abs(this.position.y - cPos.y);
+    if (minDist <= 5.4 && dy <= 3.5) {
+      return lab;
+    }
+    return null;
+  }
+
+  _findNearbyMetroTotem() {
+    const totems = this.world?.metroTotems;
+    if (!Array.isArray(totems)) return null;
+    for (const totem of totems) {
+      const dist = Math.hypot(this.position.x - totem.position.x, this.position.z - totem.position.z);
+      if (dist <= 4.2 && Math.abs(this.position.y - totem.position.y) <= 2.8) {
+        return {
+          target: totem.nextSpawn,
+          label: `EMBARCAR METRÔ -> ${totem.nextStationName}`
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Alterna entre entrar no veículo mais próximo, usar o Elevador Quântico, embarcar no Totem do Metrô ou sair do veículo atual ao apertar [E]
+   */
+  enterAmusementRide(attrHit) {
+    if (!attrHit || !this.world?.attractions) return false;
+    this.minifigure?.stopEmote?.();
+    this._stopGrapple();
+    this.isFlying = false;
+    this.isSupersonic = false;
+    this.ridingMetroCar = null;
+    this.velocity.set(0, 0, 0);
+    this.currentSpeed = 0;
+
+    const cabinIdx =
+      attrHit.type === 'ferris_wheel'
+        ? this.world.attractions.getLowestFerrisCabinIndex()
+        : 0;
+
+    this.activeRide = {
+      type: attrHit.type,
+      cabinIdx,
+      exitPos: attrHit.exitPos ? attrHit.exitPos.clone() : this.position.clone()
+    };
+
+    if (this.minifigure?.setSeatedInVehicle) {
+      this.minifigure.setSeatedInVehicle(true, 0, true, false, 0);
+    }
+    soundFX.playStudCollect(1000);
+    return true;
+  }
+
+  exitAmusementRide() {
+    if (!this.activeRide) return false;
+    const ex = this.activeRide.exitPos;
+    this.activeRide = null;
+    this.camera.up.set(0, 1, 0);
+
+    if (this.minifigure?.setSeatedInVehicle) {
+      this.minifigure.setSeatedInVehicle(false);
+    }
+    this.minifigure.root.rotation.order = 'YXZ';
+    this.minifigure.root.rotation.set(0, this.facingAngle, 0);
+
+    if (ex) {
+      this.position.set(ex.x, ex.y, ex.z);
+      this.minifigure.root.position.copy(this.position);
+    }
+    this.velocity.set(0, 0, 0);
+    this.currentSpeed = 0;
+    this.isGrounded = true;
+    soundFX.playPlasticHit();
+    return true;
+  }
+
   toggleVehicleInteraction() {
+    if (this.activeRide) {
+      return this.exitAmusementRide();
+    }
+    const customsHit = this._findNearbyLegoCustoms();
+    if (customsHit && this.hud?.customsStudio) {
+      if (customsHit.mode === 'lift_drive') {
+        this.hud.customsStudio.open(this, this.world, this.currentVehicle, 'performance');
+        return true;
+      }
+      if (customsHit.mode === 'garage_terminal') {
+        this.hud.customsStudio.open(this, this.world, null, 'garage');
+        return true;
+      }
+      if (customsHit.mode === 'console_foot') {
+        this.hud.customsStudio.open(this, this.world, null, 'performance');
+        return true;
+      }
+    }
     if (this.currentVehicle) {
       this.exitVehicle();
       return true;
+    }
+    const customizerLab = this._findNearbyCustomizerPedestal();
+    if (customizerLab && this.hud?.creatorStudio) {
+      this.hud.creatorStudio.open(this, this.world);
+      return true;
+    }
+    const attrHit = this.world?.attractions?.findNearbyAttraction(this.position);
+    if (attrHit) {
+      return this.enterAmusementRide(attrHit);
     }
     const car = this.findNearbyVehicle();
     if (car) {
@@ -1992,12 +2432,28 @@ export class ThirdPersonController {
     }
     const elev = this._findNearbyHeroElevator();
     if (elev) {
+      this.ridingMetroCar = null;
       this.position.set(elev.target.x, elev.target.y, elev.target.z);
       this.velocity.set(0, 0, 0);
       this.currentSpeed = 0;
       this.isGrounded = true;
       this.minifigure.root.position.copy(this.position);
       soundFX.playStudCollect(1000);
+      return true;
+    }
+    const metroTotem = this._findNearbyMetroTotem();
+    if (metroTotem) {
+      this.ridingMetroCar = null;
+      this.position.set(metroTotem.target.x, metroTotem.target.y + 0.08, metroTotem.target.z);
+      this.velocity.set(0, 0, 0);
+      this.currentSpeed = 0;
+      this.isGrounded = true;
+      this.minifigure.root.position.copy(this.position);
+      if (typeof soundFX.playMetroDingDong === 'function') {
+        soundFX.playMetroDingDong(0.85);
+      } else {
+        soundFX.playStudCollect(100);
+      }
       return true;
     }
     return false;
@@ -2012,6 +2468,8 @@ export class ThirdPersonController {
     this.minifigure.root.rotation.order = 'YXZ';
     this.vehicleSpeed = 0;
     this.vehicleVerticalSpeed = 0;
+    this.vehicleAirVelY = 0;
+    this.vehicleAirborne = false;
     this.vehiclePitch = 0;
     this.vehicleWheeliePitch = 0;
     this.vehicleBank = 0;
@@ -2073,9 +2531,11 @@ export class ThirdPersonController {
     carObj.mesh.rotation.x = 0;
     carObj.mesh.rotation.z = 0;
     if (category === 'car') {
-      const restedY = this.world?.getTerrainHeightAt
-        ? this.world.getTerrainHeightAt(carObj.mesh.position.x, carObj.mesh.position.z)
-        : (carObj.groundY ?? 0);
+      const restedY = this.world?.getSurfaceHeightAt
+        ? this.world.getSurfaceHeightAt(carObj.mesh.position.x, carObj.mesh.position.z, carObj.mesh.position.y)
+        : (this.world?.getTerrainHeightAt
+          ? this.world.getTerrainHeightAt(carObj.mesh.position.x, carObj.mesh.position.z)
+          : (carObj.groundY ?? 0));
       carObj.mesh.position.y = restedY;
     }
     const turboFlames = carObj.mesh.userData?.turboFlames;
@@ -2162,7 +2622,10 @@ export class ThirdPersonController {
     const exitDist = spec?.isHeavyTruck ? 3.8 : category === 'plane' ? 5.2 : category === 'helicopter' ? 3.4 : 2.25;
     let exitX = carPos.x + Math.cos(heading) * exitDist;
     let exitZ = carPos.z - Math.sin(heading) * exitDist;
-    let exitY = Math.max(carPos.y, this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(exitX, exitZ) : 0);
+    const exitSurfaceY = this.world?.getSurfaceHeightAt
+      ? this.world.getSurfaceHeightAt(exitX, exitZ, carPos.y)
+      : (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(exitX, exitZ) : 0);
+    let exitY = Math.max(carPos.y, exitSurfaceY);
 
     if (category === 'boat' && this.world?.isDeepWaterAt) {
       // Se houver píer, deck da marina ou margem seca num raio de 7m do barco, desembarca no seco!
@@ -2212,9 +2675,42 @@ export class ThirdPersonController {
 
     if (!this.vehiclePromptEl || !this.vehiclePromptTextEl) return;
 
-    // Quando estiver dirigindo, oculta a linha de texto inferior (o Velocímetro Tático fica no canto superior direito!)
+    if (this.activeRide) {
+      this.vehiclePromptTextEl.textContent = 'SAIR DA ATRAÇÃO';
+      this.vehiclePromptEl.classList.remove('hidden');
+      return;
+    }
+
+    const customsHit = this._findNearbyLegoCustoms();
+
+    // Quando estiver dirigindo, oculta a linha inferior EXCETO sobre o Elevador Hidráulico da LEGO Customs!
     if (this.currentVehicle) {
-      this.vehiclePromptEl.classList.add('hidden');
+      if (customsHit?.mode === 'lift_drive') {
+        this.vehiclePromptTextEl.textContent = customsHit.label;
+        this.vehiclePromptEl.classList.remove('hidden');
+      } else {
+        this.vehiclePromptEl.classList.add('hidden');
+      }
+      return;
+    }
+
+    if (customsHit) {
+      this.vehiclePromptTextEl.textContent = customsHit.label;
+      this.vehiclePromptEl.classList.remove('hidden');
+      return;
+    }
+
+    const customizerLab = this._findNearbyCustomizerPedestal();
+    if (customizerLab) {
+      this.vehiclePromptTextEl.textContent = 'ACESSAR CRIADOR DE PERSONAGEM (OP-09)';
+      this.vehiclePromptEl.classList.remove('hidden');
+      return;
+    }
+
+    const attrHit = this.world?.attractions?.findNearbyAttraction(this.position);
+    if (attrHit) {
+      this.vehiclePromptTextEl.textContent = attrHit.label;
+      this.vehiclePromptEl.classList.remove('hidden');
       return;
     }
 
@@ -2224,7 +2720,7 @@ export class ThirdPersonController {
       const spec = this.nearbyVehicle.mesh.userData?.vehicleSpec;
       const actionVerb =
         spec?.category === 'boat' ? 'NAVEGAR EM' :
-        spec?.category === 'helicopter' || spec?.category === 'plane' ? 'PILOTAR' : 'ENTRAR EM';
+          spec?.category === 'helicopter' || spec?.category === 'plane' ? 'PILOTAR' : 'ENTRAR EM';
       this.vehiclePromptTextEl.textContent = `${actionVerb} ${carName}`;
       this.vehiclePromptEl.classList.remove('hidden');
     } else {
@@ -2233,7 +2729,13 @@ export class ThirdPersonController {
         this.vehiclePromptTextEl.textContent = `USAR ${elev.label}`;
         this.vehiclePromptEl.classList.remove('hidden');
       } else {
-        this.vehiclePromptEl.classList.add('hidden');
+        const metroTotem = this._findNearbyMetroTotem();
+        if (metroTotem) {
+          this.vehiclePromptTextEl.textContent = metroTotem.label;
+          this.vehiclePromptEl.classList.remove('hidden');
+        } else {
+          this.vehiclePromptEl.classList.add('hidden');
+        }
       }
     }
   }
@@ -2257,6 +2759,14 @@ export class ThirdPersonController {
     // Disparo contínuo de armas veiculares no Clique Esquerdo!
     if (this.mouseButtons.left && this.primaryCooldown <= 0) {
       this._fireVehicleWeapon();
+    }
+
+    // Ativa os 2 Cones de Farol Branco-Quente + Lanternas Traseiras Vermelhas quando nightFactor > 0.15!
+    if (!spec.category) {
+      const nightRig = ensureVehicleNightLights(carObj.mesh, spec);
+      if (nightRig) {
+        nightRig.visible = Boolean((this.world?.atmosphere?.nightFactor || 0) > 0.15);
+      }
     }
 
     // Delega física específica para Embarcações (Barcos/Pedalinhos/Jet-Skis/Lanchas), Helicópteros e Aviões!
@@ -2354,8 +2864,9 @@ export class ThirdPersonController {
     const forwardX = Math.sin(this.vehicleHeading);
     const forwardZ = Math.cos(this.vehicleHeading);
 
-    this.velocity.x = forwardX * this.vehicleSpeed;
-    this.velocity.z = forwardZ * this.vehicleSpeed;
+    const netVehMult = this.energyNetSlowTimer > 0 ? 0.58 : 1.0;
+    this.velocity.x = forwardX * this.vehicleSpeed * netVehMult;
+    this.velocity.z = forwardZ * this.vehicleSpeed * netVehMult;
     this.velocity.y = 0;
 
     // Move e verifica colisão com prédios/paredes
@@ -2365,27 +2876,58 @@ export class ThirdPersonController {
     const nextX = THREE.MathUtils.clamp(curX + this.velocity.x * dt, -2200, 2200);
     const nextZ = THREE.MathUtils.clamp(curZ + this.velocity.z * dt, -1500, 1700);
 
-    // Atropelamento de objetos quebráveis de rua e colisão com outros carros!
+    // Atropelamento O(1) de objetos quebráveis de rua (~460 props a 60 FPS!), Impacto de Ariete e RAMPA CUNHA!
     const isUnstoppable = spec.rammingPower === 'unstoppable';
+    const hasWedgeRam = Boolean(spec.hasWedgeRam);
     if (this.destructibles && Math.abs(this.vehicleSpeed) > 3.5) {
-      for (const obj of this.destructibles.objects) {
-        if (obj.destroyed || obj === carObj) continue;
-        // Só atropela objetos no nível da rua
-        if ((obj.groundY ?? 0) > 2.5) continue;
+      const midX = (curX + nextX) * 0.5;
+      const midZ = (curZ + nextZ) * 0.5;
+      const stepSpan = Math.hypot(nextX - curX, nextZ - curZ);
+      const nearCandidates = this.destructibles.getObjectsNear
+        ? this.destructibles.getObjectsNear(midX, midZ, stepSpan * 0.5 + 5.5)
+        : this.destructibles.objects;
+
+      for (const obj of nearCandidates) {
+        if (obj.destroyed || obj === carObj || obj._wedgeActive) continue;
+        // Só atropela objetos/carros que estão no mesmo nível vertical (rua vs viaduto/platô)!
+        const objY = obj.mesh?.position?.y ?? obj.groundY ?? 0;
+        if (Math.abs(objY - carObj.mesh.position.y) > 2.8) continue;
         // Não atropela portas de cofre, cofres de ouro maciços ou navios cargueiros colossais
         if (obj.type === 'bank_vault_door' || obj.type === 'gold_vault') continue;
         if (obj.mesh?.userData?.vehicleSpec?.isColossalShip) continue;
 
-        const dx = obj.mesh.position.x - nextX;
-        const dz = obj.mesh.position.z - nextZ;
-        const dist = Math.hypot(dx, dz);
-        if (dist < obj.radius + 1.85) {
+        const ox = obj.mesh.position.x;
+        const oz = obj.mesh.position.z;
+        const dx = ox - nextX;
+        const dz = oz - nextZ;
+        const distEnd = Math.hypot(dx, dz);
+        const distMid = Math.hypot(ox - midX, oz - midZ);
+        const dist = Math.min(distEnd, distMid);
+        const hitMargin = hasWedgeRam ? 2.45 : 1.92;
+        if (dist < obj.radius + hitMargin) {
           if (obj.type === 'car') {
-            if (isUnstoppable) {
-              // Caveirão do BOPE e Tanque Titan-M1 arremessam/destroem outros carros sem perder velocidade!
+            const dotFront = (dx * forwardX + dz * forwardZ) / Math.max(0.01, dist);
+            if (hasWedgeRam && this.vehicleSpeed > 6.5 && dotFront > -0.25 && this.world?.customsRuntime) {
+              // RAMPA CUNHA FRONTAL (Wedge Ram): levanta e joga o outro carro voando por cima do seu teto!
+              this.world.customsRuntime.launchVehicleOverRoof(
+                obj,
+                carObj.mesh.position,
+                forwardX,
+                forwardZ,
+                this.vehicleSpeed
+              );
+            } else if (isUnstoppable) {
+              // Caveirão, Tanque ou Impacto de Ariete (Nv.1..10) arremessa/destrói outros carros sem perder velocidade!
+              const dmg = spec.ramLevel ? spec.ramDamage : 9999;
+              if (spec.ramLevel && obj.hp > dmg) {
+                const knockDist = Math.min(4.5, (spec.ramKnockSpeed || 18) * dt * 3.5);
+                obj.mesh.position.x += forwardX * knockDist;
+                obj.mesh.position.z += forwardZ * knockDist;
+                obj.basePos.copy(obj.mesh.position);
+              }
               this.destructibles.damageObject(
                 obj,
-                9999,
+                dmg,
                 new THREE.Vector3(forwardX, 0.55, forwardZ)
               );
             } else if (Math.abs(this.vehicleSpeed) > 16.0) {
@@ -2406,11 +2948,22 @@ export class ThirdPersonController {
       }
     }
 
-    // CARROS E VEÍCULOS TERRESTRES NÃO ANDAM NA ÁGUA PROFUNDA (Lago, Canais e Oceano)!
-    const candTerrainYX = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(nextX, curZ) : 0;
+    // CARROS E VEÍCULOS TERRESTRES NÃO ANDAM NA ÁGUA PROFUNDA E RESPEITAM MÚLTIPLOS NÍVEIS (VIADUTOS vs RUA ABAIXO)!
+    const curCarY = carObj.mesh.position.y;
+    const sampleSurface = (sx, sz, refY) =>
+      this.world?.getSurfaceHeightAt
+        ? this.world.getSurfaceHeightAt(sx, sz, refY)
+        : (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(sx, sz) : 0);
+
+    const driveQueryR = Math.hypot(nextX - curX, nextZ - curZ) + carRadius + 2.5;
+    const driveNearCols = this.world?.getCollidersNear
+      ? this.world.getCollidersNear((curX + nextX) * 0.5, (curZ + nextZ) * 0.5, driveQueryR)
+      : (this.world?.colliders || []);
+
+    const candTerrainYX = sampleSurface(nextX, curZ, curCarY);
     let blockedX = Boolean(this.world?.isDeepWaterAt?.(nextX, curZ, { forCar: true }));
     if (!blockedX) {
-      for (const col of this.world.colliders) {
+      for (const col of driveNearCols) {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
         if (col.maxY <= candTerrainYX + 0.38 || colMinY > candTerrainYX + 2.2) continue;
@@ -2428,10 +2981,10 @@ export class ThirdPersonController {
 
     const finalX = blockedX ? curX : nextX;
 
-    const candTerrainYZ = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(finalX, nextZ) : 0;
+    const candTerrainYZ = sampleSurface(finalX, nextZ, curCarY);
     let blockedZ = Boolean(this.world?.isDeepWaterAt?.(finalX, nextZ, { forCar: true }));
     if (!blockedZ) {
-      for (const col of this.world.colliders) {
+      for (const col of driveNearCols) {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
         if (col.maxY <= candTerrainYZ + 0.38 || colMinY > candTerrainYZ + 2.2) continue;
@@ -2450,28 +3003,45 @@ export class ThirdPersonController {
     const finalZ = blockedZ ? curZ : nextZ;
 
     if (blockedX || blockedZ) {
-      this.vehicleSpeed *= -0.25;
+      this.vehicleSpeed *= spec.collisionRecoilFactor ?? -0.25;
     }
 
-    // Elevação contínua das 9 Pontes em Arco (bridgeY = 5.0 * sin(t * PI)) e inclinação suave do chassi
-    const groundY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(finalX, finalZ) : 0;
-    const aheadY = this.world?.getTerrainHeightAt
-      ? this.world.getTerrainHeightAt(finalX + forwardX * 2.0, finalZ + forwardZ * 2.0)
-      : groundY;
-    const roadSlopePitch = -Math.atan2(aheadY - groundY, 2.0);
+    // Elevação multi-nível contínua + Física Real de Salto Hidráulico [2x Espaço / X] (3m no Nv.1 até 16m no Nv.10!)
+    let groundY = sampleSurface(finalX, finalZ, curCarY);
+    let finalCarY = groundY;
+
+    if (this.vehicleAirborne || curCarY > groundY + 0.55) {
+      this.vehicleAirborne = true;
+      finalCarY = curCarY + this.vehicleAirVelY * dt;
+      this.vehicleAirVelY += this.gravity * dt;
+      const airGroundY = sampleSurface(finalX, finalZ, finalCarY);
+      groundY = airGroundY;
+      if (finalCarY <= airGroundY) {
+        finalCarY = airGroundY;
+        this.vehicleAirVelY = 0;
+        this.vehicleAirborne = false;
+      }
+    } else {
+      this.vehicleAirVelY = 0;
+      this.vehicleAirborne = false;
+    }
+    this.vehicleVerticalSpeed = this.vehicleAirVelY;
+
+    const aheadY = sampleSurface(finalX + forwardX * 2.0, finalZ + forwardZ * 2.0, groundY);
+    const roadSlopePitch = this.vehicleAirborne
+      ? THREE.MathUtils.clamp(-this.vehicleAirVelY * 0.018, -0.38, 0.38)
+      : -Math.atan2(aheadY - groundY, 2.0);
 
     const isMoto = Boolean(
       spec.isMotorcycle || spec.id === 'moto_cv' || spec.id === 'moto_pcc' || spec.id === 'moto_policia'
     );
-    const targetWheeliePitch = isDoingWheelie ? -0.52 : 0;
+    const targetWheeliePitch = isDoingWheelie && !this.vehicleAirborne ? -0.52 : 0;
     this.vehicleWheeliePitch = THREE.MathUtils.lerp(
       this.vehicleWheeliePitch || 0,
       targetWheeliePitch,
       Math.min(1, dt * 12)
     );
 
-    // Quando a moto empina (wheeliePitch < 0), o pivô é o contato do pneu traseiro (z = -rearAxleZ):
-    // Elevamos o centro da moto em rearAxleZ * sin(|wheeliePitch|) para que a roda de trás fique 100% colada no asfalto (nunca afunde no chão!)
     const rearAxleZ = spec.rearAxleZ ?? 1.38;
     const wheelieAngle = Math.max(0, -this.vehicleWheeliePitch);
     const wheelieLiftY = isMoto ? rearAxleZ * Math.sin(wheelieAngle) : 0;
@@ -2479,7 +3049,7 @@ export class ThirdPersonController {
     const visualCarYaw = this.vehicleHeading + this.vehicleDriftAngle;
     const targetPitch = roadSlopePitch + this.vehicleWheeliePitch;
     carObj.mesh.rotation.order = 'YXZ';
-    carObj.mesh.position.set(finalX, groundY + wheelieLiftY, finalZ);
+    carObj.mesh.position.set(finalX, finalCarY + wheelieLiftY, finalZ);
     carObj.mesh.rotation.y = visualCarYaw;
     carObj.mesh.rotation.x = THREE.MathUtils.lerp(carObj.mesh.rotation.x || 0, targetPitch, Math.min(1, dt * 12));
     carObj.mesh.rotation.z = isMoto
@@ -2495,14 +3065,18 @@ export class ThirdPersonController {
       turretGroup.rotation.y = (this.yaw + Math.PI) - visualCarYaw;
     }
 
-    // Chamas de Nitro / Turbo nos escapamentos traseiros e faíscas de Drift nas rodas!
+    // Atualiza Underglow RGB e Chamas Gigantes do Nitro [Q] (escaladas pelo Nível de Nitro 0–10!)
+    const nowSec = performance.now() * 0.001;
+    updateVehicleDynamicTuningFX(carObj, nowSec);
+
     const turboFlames = carObj.mesh.userData?.turboFlames;
     if (turboFlames) {
-      const pulse = 0.85 + Math.sin(performance.now() * 0.05) * 0.3;
+      const nitroScale = spec.nitroFlameScale || 1.0;
+      const pulse = (0.85 + Math.sin(nowSec * 50.0) * 0.3) * nitroScale;
       for (const f of turboFlames) {
         f.visible = this.isTurboActive;
         if (this.isTurboActive) {
-          f.scale.set(1, 1, pulse);
+          f.scale.set(Math.min(1.65, nitroScale * 0.78), Math.min(1.65, nitroScale * 0.78), pulse);
         }
       }
     }
@@ -2513,9 +3087,11 @@ export class ThirdPersonController {
         this.driftParticleTimer = 0.032;
         const rearX = finalX - Math.sin(visualCarYaw) * 2.2;
         const rearZ = finalZ - Math.cos(visualCarYaw) * 2.2;
+        const customHex = getVehicleCustomFlameHex(carObj, nowSec);
         this.destructibles.spawnFlameTrailParticle(
-          new THREE.Vector3(rearX, 0.35, rearZ),
-          this.isTurboActive ? 1.25 : 0.85
+          new THREE.Vector3(rearX, finalCarY + 0.35, rearZ),
+          (this.isTurboActive ? 1.25 : 0.85) * Math.min(1.6, spec.nitroFlameScale || 1.0),
+          customHex
         );
       }
     }
@@ -2532,9 +3108,10 @@ export class ThirdPersonController {
       }
     }
 
-    // Posiciona e inclina a minifigura junto com o veículo (em especial ao empinar a moto ou inclinar na curva!)
+    // Posiciona e inclina a minifigura junto com o veículo (incluindo elevação Monster Truck!)
     const isOpenTop = Boolean(spec.openTop);
-    const seatedY = spec.seatedYOffset ?? (isMoto ? 0.78 : isOpenTop ? 0.56 : 0.48);
+    const seatedY =
+      (spec.seatedYOffset ?? (isMoto ? 0.78 : isOpenTop ? 0.56 : 0.48)) + (spec.chassisLiftY || 0);
     const seatZOffset = spec.seatZOffset ?? (isMoto ? -0.26 : 0);
 
     const carPitch = carObj.mesh.rotation.x || 0;
@@ -2555,10 +3132,10 @@ export class ThirdPersonController {
     const z2 = y1 * sinPitch + z1 * cosPitch;
 
     const riderWorldX = finalX + x2 * cosYaw + z2 * sinYaw;
-    const riderWorldY = groundY + wheelieLiftY + y2;
+    const riderWorldY = finalCarY + wheelieLiftY + y2;
     const riderWorldZ = finalZ - x2 * sinYaw + z2 * cosYaw;
 
-    this.position.set(finalX, groundY + 0.25, finalZ);
+    this.position.set(finalX, finalCarY + 0.25, finalZ);
     this.facingAngle = visualCarYaw;
     this.minifigure.root.rotation.order = 'YXZ';
     this.minifigure.root.position.set(riderWorldX, riderWorldY, riderWorldZ);
@@ -2576,6 +3153,15 @@ export class ThirdPersonController {
     }
 
     this._updateCamera(dt, camRight, false);
+
+    // Entrada Drive-Thru automática ao estacionar o carro devagar bem em cima do Elevador Hidráulico!
+    if (this._customsExitCooldown <= 0 && this.world?.legoCustomsData && this.hud?.customsStudio) {
+      const lift = this.world.legoCustomsData.liftPos;
+      const dLift = Math.hypot(finalX - lift.x, finalZ - lift.z);
+      if (dLift <= 4.6 && Math.abs(this.vehicleSpeed) < 2.2 && !this.vehicleAirborne) {
+        this.hud.customsStudio.open(this, this.world, carObj, 'performance');
+      }
+    }
   }
 
   /**
@@ -2626,9 +3212,13 @@ export class ThirdPersonController {
       : (this.world?.getWaterSurfaceY ? this.world.getWaterSurfaceY(curX, curZ) : 0);
     const boatRadius = isColossal ? 18.0 : 1.4;
 
+    const boatNearCols = this.world?.getCollidersNear
+      ? this.world.getCollidersNear((curX + nextX) * 0.5, (curZ + nextZ) * 0.5, boatRadius + 6.0)
+      : (this.world?.colliders || []);
+
     let blockedX = this.world?.isDeepWaterAt ? !this.world.isDeepWaterAt(nextX, curZ, { forBoat: true }) : false;
     if (!blockedX) {
-      for (const col of this.world.colliders) {
+      for (const col of boatNearCols) {
         if (col.disabled || (isColossal && (col.isGangway || col.maxY <= 12.0))) continue;
         const colMinY = col.minY ?? 0;
         // Permite passar livremente por baixo da Ponte Arqueada do Lago (colMinY > waterY + 1.8)
@@ -2648,7 +3238,7 @@ export class ThirdPersonController {
 
     let blockedZ = this.world?.isDeepWaterAt ? !this.world.isDeepWaterAt(finalX, nextZ, { forBoat: true }) : false;
     if (!blockedZ) {
-      for (const col of this.world.colliders) {
+      for (const col of boatNearCols) {
         if (col.disabled || (isColossal && (col.isGangway || col.maxY <= 12.0))) continue;
         const colMinY = col.minY ?? 0;
         if (!isColossal && (col.maxY <= waterY + 0.15 || colMinY > waterY + 1.8)) continue;
@@ -2717,8 +3307,17 @@ export class ThirdPersonController {
   _findGroundSupportAt(x, z, currentY) {
     let supportY = this.world?.isDeepWaterAt?.(x, z, { forCar: true })
       ? (this.world.getWaterSurfaceY(x, z))
-      : (this.world?.getTerrainHeightAt?.(x, z) ?? 0);
-    for (const col of this.world.colliders) {
+      : (this.world?.getSurfaceHeightAt
+        ? this.world.getSurfaceHeightAt(x, z, currentY)
+        : (this.world?.getTerrainHeightAt?.(x, z) ?? 0));
+    const metroHit = this.world?.metroSystem?.findSupportingCarAt?.(x, z, currentY);
+    if (metroHit && metroHit.supportY > supportY) {
+      supportY = metroHit.supportY;
+    }
+    const supportCols = this.world?.getCollidersNear
+      ? this.world.getCollidersNear(x, z, 2.0)
+      : (this.world?.colliders || []);
+    for (const col of supportCols) {
       if (col.disabled) continue;
       if (x >= col.minX && x <= col.maxX && z >= col.minZ && z <= col.maxZ) {
         if (currentY + 2.5 >= col.maxY && col.maxY > supportY) {
@@ -2928,7 +3527,10 @@ export class ThirdPersonController {
       const stepUpHeight = 0.34;
       const playerHeight = 2.05;
       const isBlockedAt = (tx, ty, tz) => {
-        for (const col of this.world.colliders) {
+        const candCols = this.world.getCollidersNear
+          ? this.world.getCollidersNear(tx, tz, r + 1.0)
+          : this.world.colliders;
+        for (const col of candCols) {
           if (col.disabled) continue;
           if (tx + r > col.minX && tx - r < col.maxX && tz + r > col.minZ && tz - r < col.maxZ) {
             const colMinY = col.minY ?? 0;
@@ -3141,9 +3743,46 @@ export class ThirdPersonController {
   }
 
   update(dt) {
+    if (this.hud?.isCreatorOpen) {
+      this.hud.creatorStudio?.updateStudioCamera(dt);
+      return;
+    }
+    if (this.hud?.isCustomsOpen) {
+      this.hud.customsStudio?.updateStudioCamera(dt);
+      return;
+    }
+    if (this._customsExitCooldown > 0) {
+      this._customsExitCooldown = Math.max(0, this._customsExitCooldown - dt);
+    }
+
+    // Se qualquer janela modal / menu / tela inicial estiver aberta, zera inputs de movimento para o boneco parar suavemente!
+    if (
+      this.hud?.isTikTokRadioOpen ||
+      this.hud?.isPauseMenuOpen ||
+      this.hud?.isFullMapOpen ||
+      this.hud?.isDossierOpen ||
+      this.hud?.isTitleScreenActive ||
+      this.hud?.isLoadingActive
+    ) {
+      if (
+        this.keys.forward ||
+        this.keys.backward ||
+        this.keys.left ||
+        this.keys.right ||
+        this.keys.jump ||
+        this.keys.sprint ||
+        this.keys.turbo ||
+        this.mouseButtons.left ||
+        this.mouseButtons.right
+      ) {
+        this.resetHeldInputs();
+      }
+    }
+
     this.primaryCooldown = Math.max(0, this.primaryCooldown - dt);
     this.secondaryCooldown = Math.max(0, this.secondaryCooldown - dt);
     this.supernovaCooldown = Math.max(0, this.supernovaCooldown - dt);
+    this.customHeroPowers?.update(dt);
 
     const camForward = new THREE.Vector3(
       -Math.sin(this.yaw),
@@ -3160,6 +3799,45 @@ export class ThirdPersonController {
     }
 
     this._updateVehiclePrompt();
+
+    // Se estiver embarcado em uma das 3 Atrações do Mega Píer (Montanha-Russa, Roda-Gigante 73m ou Big Drop 58m)!
+    if (this.activeRide && this.world?.attractions) {
+      const seat = this.world.attractions.getRideSeatTransform(this.activeRide);
+      if (seat) {
+        this.position.copy(seat.pos);
+        this.facingAngle = seat.yaw;
+        this.minifigure.root.position.copy(seat.pos);
+        if (seat.quat) {
+          this.minifigure.root.quaternion.copy(seat.quat);
+          // Transfere a inclinação (bank) real do trilho da Montanha-Russa para o vetor UP da câmera, mantendo visão 360° no mouse!
+          const trackUp = new THREE.Vector3(0, 1, 0).applyQuaternion(seat.quat).normalize();
+          this.camera.up.lerp(trackUp, Math.min(1, dt * 8));
+        } else {
+          this.camera.up.set(0, 1, 0);
+          this.minifigure.root.rotation.set(0, seat.yaw, 0);
+        }
+
+        const camDist = seat.camDist || 9.0;
+        const horiz = camDist * Math.cos(this.pitch);
+        const vert = camDist * Math.sin(this.pitch);
+        const shakeX = this.cameraShakeTimer > 0 ? (Math.random() - 0.5) * 0.45 : 0;
+        const shakeY = this.cameraShakeTimer > 0 ? (Math.random() - 0.5) * 0.45 : 0;
+        if (this.cameraShakeTimer > 0) this.cameraShakeTimer = Math.max(0, this.cameraShakeTimer - dt);
+
+        const targetFocus = new THREE.Vector3(seat.pos.x, seat.pos.y + 1.35, seat.pos.z);
+        this.camera.position.set(
+          targetFocus.x + Math.sin(this.yaw) * horiz + shakeX,
+          Math.max(1.2, targetFocus.y + vert + (seat.camHeight || 2.2) * 0.35 + shakeY),
+          targetFocus.z + Math.cos(this.yaw) * horiz
+        );
+        this.camera.lookAt(targetFocus);
+        return;
+      }
+    }
+
+    if (this.energyNetSlowTimer > 0) {
+      this.energyNetSlowTimer = Math.max(0, this.energyNetSlowTimer - dt);
+    }
 
     // Se estiver dirigindo um carro, processa a física veicular e retorna!
     if (this.currentVehicle) {
@@ -3187,6 +3865,26 @@ export class ThirdPersonController {
         }
       }
       return;
+    }
+
+    // Transporte físico frame-a-frame quando apoiado no piso interno ou no teto de um vagão do Metrô LEGO!
+    if (this.ridingMetroCar && !this.isFlying && !this.grappleState) {
+      const mc = this.ridingMetroCar;
+      if (mc.deltaPos) {
+        this.position.x += mc.deltaPos.x;
+        this.position.y += mc.deltaPos.y;
+        this.position.z += mc.deltaPos.z;
+      }
+      if (mc.deltaRotY && Math.abs(mc.deltaRotY) > 1e-6) {
+        const relX = this.position.x - mc.pos.x;
+        const relZ = this.position.z - mc.pos.z;
+        const c = Math.cos(mc.deltaRotY);
+        const s = Math.sin(mc.deltaRotY);
+        this.position.x = mc.pos.x + relX * c + relZ * s;
+        this.position.z = mc.pos.z - relX * s + relZ * c;
+        this.facingAngle += mc.deltaRotY;
+        this.yaw += mc.deltaRotY;
+      }
     }
 
     // Tiro automático enquanto segura o Clique Esquerdo
@@ -3289,10 +3987,18 @@ export class ThirdPersonController {
       moveInput.normalize();
     }
 
-    // Lógica de Voo 3D (Solaris) vs Locomoção Terrestre
-    if (this.isFlying && this.minifigure.currentHeroKey === 'solaris') {
-      this.isSupersonic = (hasInput || this.keys.jump || this.keys.descend) && this.keys.sprint;
-      const targetFlySpeed = this.isSupersonic ? this.flyCometSpeed : this.flyHoverSpeed;
+    // Lógica de Voo 3D (Solaris ou Propulsão Jetpack do OP-09) vs Locomoção Terrestre
+    if (
+      this.isFlying &&
+      (this.minifigure.currentHeroKey === 'solaris' || this.minifigure.currentHeroKey === 'op09')
+    ) {
+      const isSolarisFly = this.minifigure.currentHeroKey === 'solaris';
+      this.isSupersonic = isSolarisFly && (hasInput || this.keys.jump || this.keys.descend) && this.keys.sprint;
+      const op09JetSpeed =
+        (this.keys.sprint ? 38.0 : 25.0) * (this.customHeroPowers?.getSpeedMultiplier() || 1.0);
+      const targetFlySpeed = isSolarisFly
+        ? (this.isSupersonic ? this.flyCometSpeed : this.flyHoverSpeed)
+        : op09JetSpeed;
       const targetSpeed = hasInput ? targetFlySpeed : 0;
 
       this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, targetSpeed, Math.min(1, dt * 14));
@@ -3471,7 +4177,7 @@ export class ThirdPersonController {
           if (isDive) {
             this._stopGrapple(false);
             this._triggerTacticalRoll(moveInput);
-            if (this.destructibles) {
+            if (this.destructibles && this.minifigure.currentHeroKey === 'sombra') {
               this.destructibles.performKatanaSlash(this.position, this.facingAngle);
             }
           } else {
@@ -3508,7 +4214,12 @@ export class ThirdPersonController {
 
           if (this.grappleCableMesh && this.grappleAnchorMesh) {
             if (this.grappleCableCoreMat) {
-              this.grappleCableCoreMat.color.setHex(isSymbiote ? 0xa855f7 : 0xff1e42);
+              const cableHex = isSymbiote
+                ? 0xa855f7
+                : this.minifigure.currentHeroKey === 'op09'
+                  ? 0xe2e8f0
+                  : 0xff1e42;
+              this.grappleCableCoreMat.color.setHex(cableHex);
             }
             if (this.grappleKunaiGroup) {
               this.grappleKunaiGroup.visible = !isSymbiote;
@@ -3551,31 +4262,45 @@ export class ThirdPersonController {
         const isTurbo = hero === 'turbo';
         const isVoltaico = hero === 'voltaico';
         const isVortex = hero === 'vortex';
+        const isOp09 = hero === 'op09';
         const isVoltaicoGliding = isVoltaico && !this.isGrounded && this.keys.jump;
         const isTurboHoldingQ = isTurbo && Boolean(this.keys.turbo);
+        const isOp09Hoverboard = Boolean(isOp09 && this.customHeroPowers?.hoverboardActive);
         this.turboOverdriveActive = isTurboHoldingQ;
 
         const heroWalkSpeed =
           isSombra ? 15.5 :
-          isTurbo ? 16.0 :
-          isVoltaico ? (isVoltaicoGliding ? 28.0 : 15.5) :
-          isVortex ? (this.minifigure.isVortexMonster ? 14.5 : 16.5) :
-          isVingador ? 13.5 :
-          isCaveira ? 13.0 :
-          this.walkSpeed;
+            isTurbo ? 16.0 :
+              isVoltaico ? (isVoltaicoGliding ? 28.0 : 15.5) :
+                isVortex ? (this.minifigure.isVortexMonster ? 14.5 : 16.5) :
+                  isVingador ? 13.5 :
+                    isCaveira ? 13.0 :
+                      isOp09 ? 9.5 :
+                        this.walkSpeed;
 
         const heroRunSpeed =
           isSombra ? 32.0 :
-          isTurbo ? (isTurboHoldingQ ? 54.0 : 32.0) :
-          isVoltaico ? (isVoltaicoGliding ? 38.0 : 30.0) :
-          isVortex ? (this.minifigure.isVortexMonster ? 28.0 : 33.0) :
-          isVingador ? (this.vingadorFurorTimer > 0 ? 32.0 : 26.0) :
-          isCaveira ? 27.5 :
-          this.runSpeed;
+            isTurbo ? (isTurboHoldingQ ? 54.0 : 32.0) :
+              isVoltaico ? (isVoltaicoGliding ? 38.0 : 30.0) :
+                isVortex ? (this.minifigure.isVortexMonster ? 28.0 : 33.0) :
+                  isVingador ? (this.vingadorFurorTimer > 0 ? 32.0 : 26.0) :
+                    isCaveira ? 27.5 :
+                      isOp09 ? 14.2 :
+                        this.runSpeed;
 
         const stealthMult = this.stealthTimer > 0 ? (38.0 / 32.0) : 1.0;
-        const forceRun = (isVingador && this.vingadorFurorTimer > 0) || isTurboHoldingQ || isVoltaicoGliding;
-        const targetMaxSpeed = (this.keys.sprint || forceRun ? heroRunSpeed : heroWalkSpeed) * stealthMult;
+        const netSlowMult = this.energyNetSlowTimer > 0 ? 0.55 : 1.0;
+        const op09SpeedMult = isOp09 && this.customHeroPowers ? this.customHeroPowers.getSpeedMultiplier() : 1.0;
+        const forceRun =
+          (isVingador && this.vingadorFurorTimer > 0) ||
+          isTurboHoldingQ ||
+          isVoltaicoGliding ||
+          isOp09Hoverboard;
+        const targetMaxSpeed =
+          (this.keys.sprint || forceRun ? heroRunSpeed : heroWalkSpeed) *
+          stealthMult *
+          netSlowMult *
+          op09SpeedMult;
         const targetSpeed = hasInput || isTurboHoldingQ ? targetMaxSpeed : 0;
 
         const accelRate = 22.0;
@@ -3747,7 +4472,7 @@ export class ThirdPersonController {
 
     this.position.x = THREE.MathUtils.clamp(this.position.x, -2200, 2200);
     this.position.z = THREE.MathUtils.clamp(this.position.z, -1500, 1700);
-    this.position.y = THREE.MathUtils.clamp(this.position.y, -4.5, 560);
+    this.position.y = THREE.MathUtils.clamp(this.position.y, -15.5, 560);
 
     this.minifigure.root.position.copy(this.position);
 
@@ -3779,9 +4504,14 @@ export class ThirdPersonController {
     const stepUpHeight = 0.34;
     const playerHeight = 2.05;
 
+    const moveQueryR = Math.hypot(this.velocity.x * dt, this.velocity.z * dt) + r + 1.8;
+    const nearCols = this.world?.getCollidersNear
+      ? this.world.getCollidersNear(this.position.x, this.position.z, moveQueryR)
+      : (this.world?.colliders || []);
+
     const nextX = this.position.x + this.velocity.x * dt;
     let blockedX = false;
-    for (const col of this.world.colliders) {
+    for (const col of nearCols) {
       if (col.disabled) continue;
       if (
         nextX + r > col.minX &&
@@ -3808,7 +4538,7 @@ export class ThirdPersonController {
 
     const nextZ = this.position.z + this.velocity.z * dt;
     let blockedZ = false;
-    for (const col of this.world.colliders) {
+    for (const col of nearCols) {
       if (col.disabled) continue;
       if (
         this.position.x + r > col.minX &&
@@ -3832,12 +4562,53 @@ export class ThirdPersonController {
       this.velocity.z = 0;
     }
 
+    // Colisão horizontal dinâmica com as paredes/portas deslizantes dos vagões do Metrô LEGO
+    if (this.world?.metroSystem?.resolveHorizontalCarCollision) {
+      this.world.metroSystem.resolveHorizontalCarCollision(this.position, r);
+    }
+
+    const isHoverboarding = Boolean(
+      this.minifigure.currentHeroKey === 'op09' &&
+      this.customHeroPowers?.hoverboardActive &&
+      !this.currentVehicle
+    );
     const inDeepWater = Boolean(this.world?.isDeepWaterAt?.(this.position.x, this.position.z, { forCar: true }));
     let supportY = inDeepWater
-      ? (this.world.getWaterSurfaceY(this.position.x, this.position.z) - 0.65)
-      : (this.world?.getTerrainHeightAt?.(this.position.x, this.position.z) ?? 0);
+      ? (this.world.getWaterSurfaceY(this.position.x, this.position.z) + (isHoverboarding ? 0.38 : -0.65))
+      : (this.world?.getSurfaceHeightAt
+        ? this.world.getSurfaceHeightAt(this.position.x, this.position.z, this.position.y)
+        : (this.world?.getTerrainHeightAt?.(this.position.x, this.position.z) ?? 0));
     let ceilingY = Infinity;
-    for (const col of this.world.colliders) {
+    let activeMetroCar = null;
+
+    const metroHit = this.world?.metroSystem?.findSupportingCarAt?.(
+      this.position.x,
+      this.position.z,
+      this.position.y
+    );
+    if (metroHit && metroHit.supportY >= supportY - 0.02) {
+      supportY = metroHit.supportY;
+      activeMetroCar = metroHit.car;
+      if (metroHit.zone === 'interior') {
+        ceilingY = Math.min(ceilingY, metroHit.car.pos.y + metroHit.car.roofOffsetY - 0.2);
+      }
+    }
+
+    // Teto das Estações e Túneis Subterrâneos do Metrô (Y = -1.1m / -1.2m)
+    if (this.position.y < -1.6 && Array.isArray(this.world?.undergroundFloors)) {
+      for (const uf of this.world.undergroundFloors) {
+        if (
+          this.position.x >= uf.minX &&
+          this.position.x <= uf.maxX &&
+          this.position.z >= uf.minZ &&
+          this.position.z <= uf.maxZ
+        ) {
+          ceilingY = Math.min(ceilingY, uf.ceilingY ?? -1.1);
+        }
+      }
+    }
+
+    for (const col of nearCols) {
       if (col.disabled) continue;
       if (
         this.position.x + r * 0.85 > col.minX &&
@@ -3846,8 +4617,9 @@ export class ThirdPersonController {
         this.position.z - r * 0.85 < col.maxZ
       ) {
         const colMinY = col.minY ?? 0;
-        if (this.position.y + stepUpHeight >= col.maxY && col.maxY > supportY) {
+        if (this.position.y + stepUpHeight >= col.maxY && col.maxY >= supportY) {
           supportY = col.maxY;
+          activeMetroCar = null;
         } else if (this.position.y + playerHeight <= colMinY + 0.4 && colMinY < ceilingY) {
           ceilingY = colMinY;
         }
@@ -3876,13 +4648,15 @@ export class ThirdPersonController {
       this.position.y = supportY;
       this.velocity.y = 0;
       this.isGrounded = true;
-      this.isSwimming = inDeepWater && supportY < 0;
+      this.ridingMetroCar = activeMetroCar;
+      this.isSwimming = inDeepWater && !isHoverboarding && supportY < 0 && !activeMetroCar;
       if (this.isFlying && this.keys.descend) {
         this.isFlying = false;
         this.isSupersonic = false;
       }
     } else {
       this.isGrounded = false;
+      this.ridingMetroCar = null;
       this.isSwimming = false;
     }
   }
@@ -3967,6 +4741,17 @@ export class ThirdPersonController {
     let camX = this.cameraLookTarget.x - viewDir.x * usedDist;
     let camZ = this.cameraLookTarget.z - viewDir.z * usedDist;
     let camY = Math.max(minCamY, this.cameraLookTarget.y - viewDir.y * usedDist);
+
+    // Dentro das Estações e Túneis Subterrâneos do Metrô (pé-direito livre de 9.6m entre -10.5m e -0.9m),
+    // mantém a câmera abaixo da laje do teto (-1.18m) sem limitar nas escadarias abertas para o céu!
+    if (this.position.y < -3.8 && Array.isArray(this.world?.undergroundFloors)) {
+      for (const uf of this.world.undergroundFloors) {
+        if (camX >= uf.minX && camX <= uf.maxX && camZ >= uf.minZ && camZ <= uf.maxZ) {
+          camY = Math.min(camY, (uf.ceilingY ?? -0.9) - 0.28);
+          break;
+        }
+      }
+    }
 
     if (this.cameraShakeTimer > 0) {
       this.cameraShakeTimer = Math.max(0, this.cameraShakeTimer - dt);

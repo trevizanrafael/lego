@@ -244,7 +244,12 @@ export function buildDetailedHouse(world, batcher, cfg) {
     seed = 1
   } = cfg;
 
-  const yBase = 0.30;
+  const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
+  const yBase = baseY + 0.30;
+  if (baseY > 0.15) {
+    batcher.addBox('stone_grey', lotW - 0.3, 2.4, lotD - 0.3, x, baseY - 0.92, z);
+    batcher.addBox('lawn_green', lotW - 0.2, 0.1, lotD - 0.2, x, baseY + 0.28, z);
+  }
   const wallEntry = HOUSE_WALL_PALETTE[Math.floor(Math.random() * HOUSE_WALL_PALETTE.length)];
   const roofEntry = HOUSE_ROOF_PALETTE[Math.floor(Math.random() * HOUSE_ROOF_PALETTE.length)];
   const shutterKey = Math.random() < 0.5 ? 'shutter_blue' : 'shutter_green';
@@ -526,7 +531,8 @@ const SHARED_MAILBOX_MATS = [
  * Cria uma Cerca Branca de LEGO quebrável em 1 único Mesh otimizado
  */
 export function spawnBreakableWhiteFence(world, x, z, width = 5.2) {
-  const yBase = 0.28;
+  const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
+  const yBase = baseY + 0.28;
   const geos = [
     makeTranslatedBox(width, 0.18, 0.22, 0, 0.85, 0),
     makeTranslatedBox(width, 0.18, 0.22, 0, 0.42, 0)
@@ -561,7 +567,8 @@ export function spawnBreakableWhiteFence(world, x, z, width = 5.2) {
  * Cria uma Caixa de Correio colorida quebrável na calçada da casa em 1 único Mesh
  */
 export function spawnBreakableMailbox(world, x, z, seed = 0) {
-  const yBase = 0.28;
+  const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
+  const yBase = baseY + 0.28;
   const geos = [
     makeTranslatedBox(0.22, 1.15, 0.22, 0, 0.58, 0),
     makeTranslatedBox(0.58, 0.48, 0.78, 0, 1.25, 0)

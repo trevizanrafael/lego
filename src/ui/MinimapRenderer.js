@@ -1,4 +1,5 @@
 import { getSvgIcon, drawCanvasVectorIcon } from './TacticalIcons.js';
+import { TERRITORY_ZONES, FACTION_THEME } from '../world/FactionWarSystem.js';
 
 function normalizeAngleDiff(a, b) {
   let d = (a - b) % (Math.PI * 2);
@@ -44,16 +45,17 @@ export function renderMinimapRadar(
     }
   }
 
-  // Barra de Status Tatica no Rodape: Coordenadas (X, Z) e Altitude (Y) ou Velocidade (KM/H)
+  // Barra de Status Tatica no Rodape: Relogio Urbano + Coordenadas (X, Z) + Altitude / Velocidade
   if (hud.minimapSubEl && playerPos) {
     const rx = Math.round(playerPos.x);
     const rz = Math.round(playerPos.z);
-    const alt = Math.max(0, Math.round(playerPos.y));
+    const alt = Math.round(playerPos.y);
     const kmh = Math.round(playerSpeed * 3.6);
+    const clockTag = world?.atmosphere ? `${world.atmosphere.getFormattedClock().display} // ` : '';
     if (kmh >= 25) {
-      hud.minimapSubEl.textContent = `X:${rx} Z:${rz} // ALT:${alt}m // ${kmh} KM/H`;
+      hud.minimapSubEl.textContent = `${clockTag}X:${rx} Z:${rz} // ${kmh} KM/H`;
     } else {
-      hud.minimapSubEl.textContent = `X: ${rx}  Z: ${rz} // ALT: ${alt}m`;
+      hud.minimapSubEl.textContent = `${clockTag}X:${rx} Z:${rz} // ALT:${alt}m`;
     }
   }
 
@@ -162,6 +164,80 @@ export function renderMinimapRadar(
       ctx.fillRect(bx, by, bld.w * scale, bld.d * scale);
       ctx.strokeRect(bx, by, bld.w * scale, bld.d * scale);
     }
+
+    // 5.2 LINHA CIRCULAR DO METRÔ LEGO (Tracejada Ciano no Subsolo + Contínua Ciano/Amarela no Trecho Elevado!)
+    if (Array.isArray(world.metroLoopWaypoints) && world.metroLoopWaypoints.length > 2) {
+      const wps = world.metroLoopWaypoints;
+      for (let i = 0; i < wps.length; i++) {
+        const a = wps[i];
+        const b = wps[(i + 1) % wps.length];
+        const isUnderground = a.y < -0.5 && b.y < -0.5;
+        ctx.save();
+        if (isUnderground && typeof ctx.setLineDash === 'function') {
+          ctx.setLineDash([4, 3]);
+        }
+        ctx.strokeStyle = isUnderground ? 'rgba(6, 182, 212, 0.85)' : '#22d3ee';
+        ctx.lineWidth = isUnderground ? 2.0 : 2.6;
+        ctx.beginPath();
+        ctx.moveTo(relX(a.x), relY(a.z));
+        ctx.lineTo(relX(b.x), relY(b.z));
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // 5.3 COMPOSIÇÕES EM MOVIMENTO DO METRÔ LEGO NO RADAR LOCAL
+    if (world.metroSystem && Array.isArray(world.metroSystem.trains)) {
+      for (const tr of world.metroSystem.trains) {
+        const leadCar = tr.cars?.[1] || tr.cars?.[0];
+        if (!leadCar) continue;
+        const tx = relX(leadCar.pos.x);
+        const ty = relY(leadCar.pos.z);
+        ctx.fillStyle = tr.state === 'STOPPED' ? '#facc15' : '#06b6d4';
+        ctx.strokeStyle = '#090a0d';
+        ctx.lineWidth = 1.4;
+        ctx.fillRect(tx - 3.6, ty - 3.6, 7.2, 7.2);
+        ctx.strokeRect(tx - 3.6, ty - 3.6, 7.2, 7.2);
+      }
+    }
+
+    // 5.4 CONTORNOS PONTILHADOS DOS 3 TERRITÓRIOS DE FACÇÃO (CV, PCC e A.R.E.S.) + 3 OUTPOSTS
+    const liveTerritories = world.livingCity?.factionWar?.territories;
+    for (const [zKey, zSpec] of Object.entries(TERRITORY_ZONES)) {
+      const liveState = liveTerritories?.[zKey];
+      const ownerKey = liveState?.ownerFaction || zSpec.defaultOwner;
+      const theme = FACTION_THEME[ownerKey] || FACTION_THEME.cv;
+      const b = zSpec.bounds;
+      const rx = relX(b.minX);
+      const ry = relY(b.minZ);
+      const rw = (b.maxX - b.minX) * scale;
+      const rh = (b.maxZ - b.minZ) * scale;
+
+      ctx.save();
+      ctx.fillStyle = `${theme.color}18`;
+      ctx.fillRect(rx, ry, rw, rh);
+      if (typeof ctx.setLineDash === 'function') {
+        ctx.setLineDash([5, 4]);
+      }
+      ctx.strokeStyle = theme.color;
+      ctx.lineWidth = 2.0;
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.restore();
+
+      const outposts = liveState?.outposts || zSpec.outposts;
+      for (const op of outposts) {
+        const opTheme = FACTION_THEME[op.ownerFaction || ownerKey] || theme;
+        const ox = relX(op.x);
+        const oy = relY(op.z);
+        ctx.fillStyle = '#090a0d';
+        ctx.strokeStyle = opTheme.color;
+        ctx.lineWidth = 1.7;
+        ctx.beginPath();
+        ctx.arc(ox, oy, 4.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
   }
 
   ctx.restore();
@@ -191,6 +267,30 @@ export function renderMinimapRadar(
     const policeBlinkGold = Math.sin(nowTime * 9.0) > 0;
 
     if (world.livingCity) {
+      // A.0) Ícone Vetorial da Facção Dona nos Portões dos 3 Territórios quando no alcance local
+      const liveTerritories = world.livingCity.factionWar?.territories;
+      for (const [zKey, zSpec] of Object.entries(TERRITORY_ZONES)) {
+        const ownerKey = liveTerritories?.[zKey]?.ownerFaction || zSpec.defaultOwner;
+        const theme = FACTION_THEME[ownerKey] || FACTION_THEME.cv;
+        const mainGate = zSpec.gates[0];
+        if (!mainGate) continue;
+        const dx = mainGate.x - playerPos.x;
+        const dz = mainGate.z - playerPos.z;
+        const rx = dx * cosCam - dz * sinCam;
+        const ry = dx * sinCam + dz * cosCam;
+        if (Math.hypot(rx * scale, ry * scale) > maxVisibleLocalR) continue;
+        const px = cx + rx * scale;
+        const py = cy + ry * scale;
+        ctx.fillStyle = '#090a0d';
+        ctx.strokeStyle = theme.color;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(px, py, 7.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        drawCanvasVectorIcon(ctx, theme.icon, px, py, 6.2, theme.color);
+      }
+
       // A) Zonas de Guerra Pulsantes (Ícone de Mira / Conflito)
       if (Array.isArray(world.livingCity.activeWarzones)) {
         for (const wz of world.livingCity.activeWarzones) {
@@ -221,7 +321,65 @@ export function renderMinimapRadar(
         }
       }
 
-      // B) Viaturas do BOPE e Veículos de Facção no Trânsito
+      // B) Viaturas Policiais de Perseguição Ativa (1★ a 5★), Bloqueios e Helicóptero Águia!
+      const wantedSys = world.livingCity.wantedSystem;
+      if (wantedSys && wantedSys.stars > 0) {
+        const strobeRedPhase = Math.sin(nowTime * 14.0) > 0;
+        for (const pv of wantedSys.pursuitVehicles) {
+          if (pv.retreating || !pv.carObj || pv.carObj.destroyed) continue;
+          const pos = pv.carObj.mesh.position;
+          const dx = pos.x - playerPos.x;
+          const dz = pos.z - playerPos.z;
+          const rx = dx * cosCam - dz * sinCam;
+          const ry = dx * sinCam + dz * cosCam;
+          if (Math.hypot(rx * scale, ry * scale) > maxVisibleLocalR) continue;
+          const px = cx + rx * scale;
+          const py = cy + ry * scale;
+          ctx.fillStyle = strobeRedPhase ? '#ef4444' : '#3b82f6';
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 1.4;
+          ctx.fillRect(px - 3.6, py - 3.6, 7.2, 7.2);
+          ctx.strokeRect(px - 3.6, py - 3.6, 7.2, 7.2);
+        }
+
+        for (const rb of wantedSys.roadblocks) {
+          const dx = rb.x - playerPos.x;
+          const dz = rb.z - playerPos.z;
+          const rx = dx * cosCam - dz * sinCam;
+          const ry = dx * sinCam + dz * cosCam;
+          if (Math.hypot(rx * scale, ry * scale) > maxVisibleLocalR) continue;
+          const px = cx + rx * scale;
+          const py = cy + ry * scale;
+          ctx.fillStyle = '#f97316';
+          ctx.strokeStyle = '#090a0d';
+          ctx.lineWidth = 1.3;
+          ctx.fillRect(px - 5.5, py - 2.2, 11.0, 4.4);
+          ctx.strokeRect(px - 5.5, py - 2.2, 11.0, 4.4);
+        }
+
+        if (wantedSys.eagleHeli && !wantedSys.eagleHeli.obj?.destroyed) {
+          const hPos = wantedSys.eagleHeli.mesh.position;
+          const dx = hPos.x - playerPos.x;
+          const dz = hPos.z - playerPos.z;
+          const rx = dx * cosCam - dz * sinCam;
+          const ry = dx * sinCam + dz * cosCam;
+          if (Math.hypot(rx * scale, ry * scale) <= maxVisibleLocalR) {
+            const px = cx + rx * scale;
+            const py = cy + ry * scale;
+            ctx.strokeStyle = strobeRedPhase ? '#f8fafc' : '#38bdf8';
+            ctx.lineWidth = 2.0;
+            ctx.beginPath();
+            ctx.arc(px, py, 5.2, 0, Math.PI * 2);
+            ctx.moveTo(px - 7, py);
+            ctx.lineTo(px + 7, py);
+            ctx.moveTo(px, py - 7);
+            ctx.lineTo(px, py + 7);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // B2) Viaturas do BOPE e Veículos de Facção no Trânsito
       if (Array.isArray(world.livingCity.trafficVehicles)) {
         for (const tv of world.livingCity.trafficVehicles) {
           if (!tv.destructible || tv.destructible.destroyed || tv.destructible.isDriven) continue;
@@ -282,8 +440,8 @@ export function renderMinimapRadar(
           const blipR = npc.isMecha ? 4.4 : 2.9;
 
           ctx.fillStyle = blipColor;
-          ctx.strokeStyle = '#090a0d';
-          ctx.lineWidth = 1.25;
+          ctx.strokeStyle = npc.isAllied ? '#4ade80' : '#090a0d';
+          ctx.lineWidth = npc.isAllied ? 1.6 : 1.25;
           ctx.beginPath();
           ctx.arc(px, py, blipR, 0, Math.PI * 2);
           ctx.fill();

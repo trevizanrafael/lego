@@ -46,7 +46,7 @@ export const MAP_REGIONS = [
     shortName: 'SUBÚRBIO (NORTE)',
     sub: 'Quarteirões de Casas, Mansões Costeiras, Praça, Pizzaria & Posto de Gasolina',
     bounds: { minX: -640, maxX: 550, minZ: -1320, maxZ: -440, minY: 0, maxY: 90 },
-    spawn: { x: 120, y: 0.5, z: -646 },
+    spawn: { x: 120, y: 2.2, z: -646 },
     color: '#fb923c',
     icon: 'suburb'
   },
@@ -70,7 +70,7 @@ export const MAP_REGIONS = [
     shortName: 'DISTRITO INDUSTRIAL (PCC)',
     sub: 'Cidadela 112m, Torres de Lavagem, Silos Gigantes, Chaminés 85m & Frotas 100% PCC',
     bounds: { minX: 520, maxX: 1628, minZ: -1320, maxZ: 120, minY: 0, maxY: 140 },
-    spawn: { x: 820, y: 0.5, z: -340 },
+    spawn: { x: 820, y: 7.2, z: -340 },
     color: '#3b82f6',
     icon: 'pcc'
   },
@@ -131,13 +131,21 @@ export const MAP_LANDMARKS = [
   { id: 'lm_banco', code: 'BNC', icon: 'bank', label: 'SUPER BANCO', x: 0, y: 0.5, z: -175, labelPos: 'top', color: '#facc15', spawn: { x: 0, y: 0.5, z: -115 } },
   { id: 'lm_torre', code: 'TRR', icon: 'tower', label: 'TORRE HERÓIS', x: -318, y: 310.8, z: -180, labelPos: 'bottom', color: '#38bdf8', spawn: { x: -324, y: 310.85, z: -168 } },
   { id: 'lm_parque', code: 'PRQ', icon: 'park', label: 'PARQUE CENTRAL', x: 0, y: 2.2, z: 268, labelPos: 'bottom', color: '#4ade80', spawn: { x: 0, y: 0.6, z: 242 } },
-  { id: 'lm_posto', code: 'PST', icon: 'suburb', label: 'SUBÚRBIO / POSTO', x: 204, y: 0.5, z: -740, labelPos: 'top', color: '#fb923c', spawn: { x: 120, y: 0.5, z: -646 } },
+  { id: 'lm_posto', code: 'PST', icon: 'suburb', label: 'SUBÚRBIO / POSTO', x: 204, y: 3.5, z: -740, labelPos: 'top', color: '#fb923c', spawn: { x: 120, y: 2.2, z: -646 } },
   { id: 'lm_praia', code: 'PRA', icon: 'beach', label: 'PÍER & RODA-GIGANTE', x: 0, y: 1.5, z: 1140, labelPos: 'bottom', color: '#fde047', spawn: { x: 0, y: 1.5, z: 1080 } },
   { id: 'lm_cdd', code: 'CDD', icon: 'cdd', label: 'CIDADE DE DEUS (CV)', x: -715, y: 26.2, z: -135, labelPos: 'left', color: '#dc2626', spawn: { x: -702, y: 26.2, z: -135 } },
-  { id: 'lm_ind', code: 'PCC', icon: 'pcc', label: 'BUNKER INDUSTRIAL (PCC)', x: 820, y: 0.5, z: -340, labelPos: 'right', color: '#3b82f6', spawn: { x: 820, y: 0.5, z: -340 } },
+  { id: 'lm_ind', code: 'PCC', icon: 'pcc', label: 'BUNKER INDUSTRIAL (PCC)', x: 820, y: 6.8, z: -340, labelPos: 'right', color: '#3b82f6', spawn: { x: 820, y: 7.2, z: -340 } },
   { id: 'lm_porto', code: 'PRT', icon: 'port', label: 'PORTO LESTE', x: 1020, y: 0.5, z: 380, labelPos: 'right', color: '#f59e0b', spawn: { x: 825, y: 0.5, z: 380 } },
   { id: 'lm_aero', code: 'AER', icon: 'airport', label: 'AEROPORTO OESTE', x: -1340, y: 0.5, z: 0, labelPos: 'left', color: '#94a3b8', spawn: { x: -1060, y: 0.5, z: 0 } },
   { id: 'lm_prisao', code: 'PRI', icon: 'prison', label: 'ILHA DA PRISÃO', x: 1375, y: 0.8, z: 1540, labelPos: 'bottom', color: '#f87171', spawn: { x: 1375, y: 0.5, z: 1175 } },
-  { id: 'lm_sky', code: 'SKY', icon: 'sky', label: 'AEROPORTA-AVIÕES', x: 0, y: 411.5, z: -50, displayX: 295, displayZ: -255, altitudeLabel: 'ALTITUDE: 410m', labelPos: 'right', color: '#60a5fa', spawn: { x: 0, y: 411.5, z: -50 } }
+  { id: 'lm_sky', code: 'SKY', icon: 'sky', label: 'AEROPORTA-AVIÕES', x: 0, y: 411.5, z: -50, displayX: 295, displayZ: -255, altitudeLabel: 'ALTITUDE: 410m', labelPos: 'right', color: '#60a5fa', spawn: { x: 0, y: 411.5, z: -50 } },
+  // Oficina de Rua LEGO Customs (Cidade Neutra: X = 60, Z = -448)
+  { id: 'lm_customs', code: 'CUS', icon: 'customs', label: 'LEGO CUSTOMS (OFICINA)', x: 60, y: 0.5, z: -448, labelPos: 'right', color: '#facc15', spawn: { x: 24, y: 0.5, z: -416 } },
+  // 5 Estações da Linha 01 Circular do Metrô LEGO (2 Subterrâneas em Y = -10.5m + 3 Elevadas em Y = +14.85m)
+  { id: 'lm_metro_01', code: 'M01', icon: 'metro', label: 'METRÔ CENTRAL (SUBSOLO)', x: 0, y: -10.5, z: -104, labelPos: 'bottom', color: '#06b6d4', spawn: { x: 0, y: -10.4, z: -101.5 } },
+  { id: 'lm_metro_02', code: 'M02', icon: 'metro', label: 'METRÔ TIMES SQ. (SUBSOLO)', x: -77, y: -10.5, z: 20, labelPos: 'left', color: '#06b6d4', spawn: { x: -77.5, y: -10.4, z: 20 } },
+  { id: 'lm_metro_03', code: 'M03', icon: 'metro', label: 'METRÔ TORRE (+14.9m)', x: -380, y: 14.85, z: -60, labelPos: 'left', color: '#22d3ee', spawn: { x: -379.6, y: 14.95, z: -60 } },
+  { id: 'lm_metro_04', code: 'M04', icon: 'metro', label: 'METRÔ PRAIA SUL (+14.9m)', x: -117, y: 14.85, z: 650, labelPos: 'left', color: '#22d3ee', spawn: { x: -116.6, y: 14.95, z: 650 } },
+  { id: 'lm_metro_05', code: 'M05', icon: 'metro', label: 'METRÔ RIO LESTE (+14.9m)', x: 509, y: 14.85, z: -180, labelPos: 'right', color: '#22d3ee', spawn: { x: 509.1, y: 14.95, z: -180 } }
 ];
 

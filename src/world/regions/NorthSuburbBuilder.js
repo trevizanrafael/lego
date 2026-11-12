@@ -69,12 +69,14 @@ export function buildNorthSuburbAndGasStation(world) {
     }
   }
 
-  // Parque Linear & Alameda Arborizada na Borda Extrema Norte (Z = -1315, de X = -643 até a margem Oeste do Rio em X = +536!)
-  world._addCityBlockSidewalk(-53.5, -1315, 1179, 10, LEGO_COLORS.sidewalk);
-  batcher.addBox('lawn_green', 1173, 0.1, 8, -53.5, 0.28, -1315);
+  // Parque Linear & Alameda Arborizada na Borda Extrema Norte (Z = -1315, no Platô Costeiro Elevado Y = +11.5m!)
+  const northPromenadeY = world.getTerrainHeightAt ? world.getTerrainHeightAt(0, -1315) : 0;
+  world._addCityBlockSidewalk(-53.5, -1315, 1179, 10, LEGO_COLORS.sidewalk, northPromenadeY);
+  batcher.addBox('lawn_green', 1173, 0.1, 8, -53.5, northPromenadeY + 0.28, -1315);
   world.mapBlocks.push({ x: -53.5, z: -1315, w: 1173, d: 8, color: '#22c55e' });
   for (let tx = -610; tx <= 515; tx += 32) {
-    world._addLegoTree(tx, 0.32, -1315, 1.05);
+    const ty = (world.getTerrainHeightAt ? world.getTerrainHeightAt(tx, -1315) : 0) + 0.32;
+    world._addLegoTree(tx, ty, -1315, 1.05);
   }
 
   // Também adiciona Townhouses elegantes nos cantos da faixa de transição (Z = -448)
@@ -92,10 +94,14 @@ function buildResidentialSuburbBlock(world, batcher, bx, bz, bw, bd, seed, isSou
   const S = 3;
   const innerW = bw - S * 2;
   const innerD = bd - S * 2;
+  const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(bx, bz) : 0;
 
-  // 1. Calçada de concreto externa (largura 5 nos 4 lados) + Gramado Verde Vivo em todo o interior!
-  world._addCityBlockSidewalk(bx, bz, bw, bd, LEGO_COLORS.sidewalk);
-  batcher.addBox('lawn_green', innerW, 0.08, innerD, bx, 0.28, bz);
+  // 1. Calçada de concreto externa + Alicerce de Arrimo em Ladeira + Gramado Verde Vivo em todo o interior!
+  world._addCityBlockSidewalk(bx, bz, bw, bd, LEGO_COLORS.sidewalk, baseY);
+  if (baseY > 0.15) {
+    batcher.addBox('stone_grey', bw + 0.3, 8.5, bd + 0.3, bx, baseY - 4.25, bz);
+  }
+  batcher.addBox('lawn_green', innerW, 0.08, innerD, bx, baseY + 0.28, bz);
   world.mapBlocks.push({
     x: bx,
     z: bz,
@@ -167,8 +173,9 @@ function buildResidentialSuburbBlock(world, batcher, bx, bz, bw, bd, seed, isSou
   // Postes residenciais aconchegantes mais baixos nas esquinas da calçada
   for (const cx of [bx - innerW * 0.46, bx + innerW * 0.46]) {
     for (const cz of [bz - innerD * 0.5 - 2.2, bz + innerD * 0.5 + 2.2]) {
-      batcher.addBox('charcoal_metal', 0.24, 3.6, 0.24, cx, 0.28 + 1.8, cz);
-      batcher.addBox('window_warm', 0.52, 0.48, 0.52, cx, 0.28 + 3.7, cz);
+      const lampBaseY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(cx, cz) : 0) + 0.28;
+      batcher.addBox('charcoal_metal', 0.24, 3.6, 0.24, cx, lampBaseY + 1.8, cz);
+      batcher.addBox('window_warm', 0.52, 0.48, 0.52, cx, lampBaseY + 3.7, cz);
     }
   }
 }
@@ -178,8 +185,10 @@ function buildResidentialSuburbBlock(world, batcher, bx, bz, bw, bd, seed, isSou
  * Posto de Gasolina Explosivo, Loja de Conveniência, Lava-Rápido e 6 Bombas em Reação em Cadeia!
  */
 function buildExplosiveGasStationBlock(world, batcher, gx, gz, bw, bd) {
-  const yBase = 0.28;
-  world._addCityBlockSidewalk(gx, gz, bw, bd, LEGO_COLORS.sidewalk);
+  const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(gx, gz) : 0;
+  const yBase = terrainY + 0.28;
+  world._addCityBlockSidewalk(gx, gz, bw, bd, LEGO_COLORS.sidewalk, terrainY);
+  batcher.addBox('stone_grey', bw + 0.4, 3.8, bd + 0.4, gx, terrainY - 1.9, gz);
 
   // Pátio amplo asfaltado de esquina fácil de entrar dirigindo + Canteiro gramado nas bordas traseiras
   batcher.addBox('lawn_green', bw - 10, 0.06, bd - 10, gx, yBase + 0.01, gz);
@@ -232,7 +241,7 @@ function buildExplosiveGasStationBlock(world, batcher, gx, gz, bw, bd) {
   const canZ = gz + 12;
   const canW = 54;
   const canD = 30;
-  const canY = 9.2;
+  const canY = yBase + 8.92;
 
   batcher.addBox('trim_white', canW, 0.9, canD, canX, canY, canZ);
   batcher.addBox('roof_red', canW + 0.8, 1.1, canD + 0.8, canX, canY + 0.9, canZ);
@@ -330,8 +339,10 @@ function buildExplosiveGasStationBlock(world, batcher, gx, gz, bw, bd) {
  * Lanchonete Diner Retrô (Neon) & Mercadinho + Estacionamento Frontal Pintado!
  */
 function buildSuburbCommercialPizzeriaBlock(world, batcher, cx, cz, bw, bd) {
-  const yBase = 0.28;
-  world._addCityBlockSidewalk(cx, cz, bw, bd, LEGO_COLORS.sidewalk);
+  const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(cx, cz) : 0;
+  const yBase = terrainY + 0.28;
+  world._addCityBlockSidewalk(cx, cz, bw, bd, LEGO_COLORS.sidewalk, terrainY);
+  batcher.addBox('stone_grey', bw + 0.4, 3.8, bd + 0.4, cx, terrainY - 1.9, cz);
 
   // Piso de estacionamento frontal com faixas brancas pintadas
   batcher.addBox('asphalt_lot', bw - 10, 0.08, bd - 10, cx, yBase + 0.02, cz);
@@ -451,8 +462,12 @@ function buildSuburbCommercialPizzeriaBlock(world, batcher, cx, cz, bw, bd) {
  * Praça Residencial & Quadra de Basquete de Rua (com 2 Tabelas/Cestas 3D, Coreto/Chafariz e Árvores Floridas)
  */
 function buildSuburbParkAndBasketballBlock(world, batcher, px, pz, bw, bd) {
-  const yBase = 0.28;
-  world._addCityBlockSidewalk(px, pz, bw, bd, LEGO_COLORS.sidewalk);
+  const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : 0;
+  const yBase = terrainY + 0.28;
+  world._addCityBlockSidewalk(px, pz, bw, bd, LEGO_COLORS.sidewalk, terrainY);
+  if (terrainY > 0.15) {
+    batcher.addBox('stone_grey', bw + 0.3, 2.4, bd + 0.3, px, terrainY - 1.2, pz);
+  }
 
   const innerW = bw - 10;
   const innerD = bd - 10;
@@ -539,8 +554,9 @@ function buildTransitionTownhouseAccents(world, batcher) {
   for (const tx of [-582]) {
     const bw = 104;
     const bd = 96;
+    const transTY = world.getTerrainHeightAt ? world.getTerrainHeightAt(tx, -448) : 0;
     world._addCityBlockSidewalk(tx, -448, bw, bd, LEGO_COLORS.sidewalk);
-    batcher.addBox('lawn_green', bw - 10, 0.08, bd - 10, tx, 0.28, -448);
+    batcher.addBox('lawn_green', bw - 10, 0.08, bd - 10, tx, transTY + 0.28, -448);
 
     buildDetailedHouse(world, batcher, {
       x: tx - 22,

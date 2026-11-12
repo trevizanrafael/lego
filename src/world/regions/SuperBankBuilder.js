@@ -8,6 +8,7 @@ import {
   mergeBufferGeometries,
   makeTranslatedBox
 } from '../BuildingGenerator.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 /**
  * SUPER BANCO CENTRAL MONUMENTAL (Quarteirão Nobre Exclusivo no Coração do Centro Financeiro)
@@ -426,35 +427,28 @@ function buildMonumentalExteriorAndFacade(
   // ============================================================================
   // LETREIRO LUMINOSO 3D EM OURO NO TOPO DA FACHADA: "BANCO CENTRAL"
   // ============================================================================
-  const signCanvas = document.createElement('canvas');
-  signCanvas.width = 1024;
-  signCanvas.height = 192;
-  const sctx = signCanvas.getContext('2d');
-  sctx.fillStyle = '#090a0d';
-  sctx.fillRect(0, 0, 1024, 192);
-  sctx.strokeStyle = '#facc15';
-  sctx.lineWidth = 14;
-  sctx.strokeRect(10, 10, 1004, 172);
-  sctx.fillStyle = '#facc15';
-  sctx.font = '900 86px "Chakra Petch", Arial, sans-serif';
-  sctx.textAlign = 'center';
-  sctx.fillText('BANCO CENTRAL ', 512, 124);
-  const signTex = new THREE.CanvasTexture(signCanvas);
-
   const signY = floorY + wallH + 6.2;
   const signZ = colZ + 0.6;
-  // Caixa 3D de Ouro Brilhante + Placa Luminosa Frontal "BANCO CENTRAL"
+  // Caixa 3D de Ouro Brilhante + Placa Luminosa Frontal "BANCO CENTRAL" (Zero distorção de aspecto!)
   const signFrame = createLegoBrick(48.0, 6.6, 1.8, LEGO_COLORS.gold, {
     metalness: 0.75,
     roughness: 0.14,
     studStep: 2.0
   });
   signFrame.position.set(bx, signY, signZ - 0.5);
-  const signBoard = new THREE.Mesh(
-    new THREE.BoxGeometry(46.4, 5.6, 0.5),
-    new THREE.MeshBasicMaterial({ map: signTex })
-  );
-  signBoard.position.set(bx, signY, signZ + 0.5);
+  const signBoard = createSignBoardMesh({
+    x: bx,
+    y: signY,
+    z: signZ + 0.5,
+    width: 46.4,
+    height: 5.6,
+    depth: 0.5,
+    title: 'SUPER BANCO CENTRAL',
+    bgColor: '#090a0d',
+    borderColor: '#facc15',
+    textColor: '#facc15',
+    doubleSided: false
+  });
   world.scene.add(signFrame, signBoard);
 
   // Registra o Super Banco Central no Mapa 2D [M] e Radar

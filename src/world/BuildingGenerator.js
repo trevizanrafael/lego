@@ -306,6 +306,10 @@ function getFastStandardMaterial(colorHex, roughness = 0.28, metalness = 0.15) {
   return mat;
 }
 
+export function getCachedFacadeMaterials() {
+  return Array.from(FACADE_MATERIAL_CACHE.values());
+}
+
 export function getFacadeMaterial(styleKey, seedVariant = 0) {
   const style = BUILDING_STYLES[styleKey] || BUILDING_STYLES.sapphire_glass;
   const cacheKey = `${styleKey}_${seedVariant % 3}`;
@@ -318,8 +322,16 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
   canvas.height = 512;
   const ctx = canvas.getContext('2d');
 
+  // Segundo canvas exclusivo para emissiveMap (apenas retângulos de janelas acesas isLit sobre #000000!)
+  const emissiveCanvas = document.createElement('canvas');
+  emissiveCanvas.width = 256;
+  emissiveCanvas.height = 512;
+  const ectx = emissiveCanvas.getContext('2d');
+
   ctx.fillStyle = style.bgColor;
   ctx.fillRect(0, 0, 256, 512);
+  ectx.fillStyle = '#000000';
+  ectx.fillRect(0, 0, 256, 512);
 
   const cols = 4;
   const rows = 8;
@@ -352,6 +364,11 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
         ctx.fillRect(winX, winY, winW, winH);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(winX + 2, winY + 2, winW - 4, 6);
+
+        ectx.fillStyle = litColor;
+        ectx.fillRect(winX, winY, winW, winH);
+        ectx.fillStyle = '#ffffff';
+        ectx.fillRect(winX + 2, winY + 2, winW - 4, 6);
       } else {
         ctx.fillStyle = style.darkWinColor;
         ctx.fillRect(winX, winY, winW, winH);
@@ -368,9 +385,18 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
   tex.magFilter = THREE.LinearFilter;
   tex.anisotropy = 4;
 
-  // MeshStandardMaterial garante 60 FPS sem o custo duplo do shader de Clearcoat em 135 arranha-céus!
+  const emissiveTex = new THREE.CanvasTexture(emissiveCanvas);
+  emissiveTex.wrapS = THREE.RepeatWrapping;
+  emissiveTex.wrapT = THREE.RepeatWrapping;
+  emissiveTex.minFilter = THREE.LinearMipmapLinearFilter;
+  emissiveTex.magFilter = THREE.LinearFilter;
+
+  // MeshStandardMaterial com emissiveMap real garante milhares de janelas iluminadas à noite a 60 FPS!
   const mat = new THREE.MeshStandardMaterial({
     map: tex,
+    emissive: new THREE.Color(0xffffff),
+    emissiveMap: emissiveTex,
+    emissiveIntensity: 0.0,
     roughness: style.roughness,
     metalness: style.metalness
   });
@@ -385,7 +411,8 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
  */
 export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire_glass', opts = {}) {
   const style = BUILDING_STYLES[styleKey] || BUILDING_STYLES.sapphire_glass;
-  const yBase = opts.yBase ?? 0.28;
+  const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
+  const yBase = opts.yBase ?? (terrainY + 0.28);
   const seed = opts.seed ?? Math.abs(Math.round(x * 7 + z * 13 + h * 3));
   const group = new THREE.Group();
   group.position.set(x, yBase, z);
@@ -399,8 +426,15 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   bodyMesh.receiveShadow = true;
   group.add(bodyMesh);
 
-  // 2. Geometria Mesclada de Acabamento Arquitetônico (Pilares + Cornijas + Muretas do Topo + Casa de Máquinas + Antena)
+  // 2. Geometria Mesclada de Acabamento Arquitetônico + Alicerce/Saia de Concreto (Zero canto flutuando e Zero invasão do Metrô Subsolo!)
+  const overUndergroundZone =
+    (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
+    (x >= -375 && x <= -260 && z >= -235 && z <= -125);
+  const skirtDepth = overUndergroundZone && terrainY < 0.2 ? 0.3 : 8.5;
   const trimGeos = [];
+  if (opts.groundFloor !== false && opts.foundation !== false) {
+    trimGeos.push(makeTranslatedBox(w + 0.65, skirtDepth, d + 0.65, 0, -skirtDepth * 0.5 + 0.08, 0));
+  }
   const pSize = 1.35;
   const cornerOffsets = [
     [-w * 0.5 + 0.3, -d * 0.5 + 0.3],
@@ -443,6 +477,7 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   }
 
   const mergedTrimGeo = mergeBufferGeometries(trimGeos);
+  for (let i = 0; i < trimGeos.length; i++) trimGeos[i].dispose();
   const trimMat = getFastStandardMaterial(style.pillarHex, 0.28, 0.18);
   const trimMesh = new THREE.Mesh(mergedTrimGeo, trimMat);
   trimMesh.castShadow = false;
@@ -450,7 +485,7 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   group.add(trimMesh);
 
   // 3. Térreo Vivo na Altura da Rua (Base + Marquises mescladas em 1 único Mesh!)
-  if (yBase < 1.5 && opts.groundFloor !== false) {
+  if ((opts.yBase === undefined || yBase < 1.5) && opts.groundFloor !== false) {
     const baseH = Math.min(6.8, h * 0.35);
     const vitW = Math.max(4, w * 0.58);
     const groundGeos = [
@@ -460,8 +495,10 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
       makeTranslatedBox(vitW, 3.4, 0.4, 0, 2.5, -(d * 0.5 + 0.52)),
       makeTranslatedBox(vitW, 3.4, 0.4, 0, 2.5, d * 0.5 + 0.52)
     ];
+    const mergedGroundGeo = mergeBufferGeometries(groundGeos);
+    for (let i = 0; i < groundGeos.length; i++) groundGeos[i].dispose();
     const groundMesh = new THREE.Mesh(
-      mergeBufferGeometries(groundGeos),
+      mergedGroundGeo,
       getFastStandardMaterial(style.baseHex, 0.32, 0.1)
     );
     groundMesh.castShadow = false;
@@ -472,7 +509,7 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   world.scene.add(group);
 
   if (opts.collide !== false) {
-    world.addCollider(x, z, w, d, yBase + h, yBase);
+    world.addCollider(x, z, w, d, yBase + h, Math.max(0, yBase - skirtDepth));
   }
 
   if (opts.registerMap !== false) {

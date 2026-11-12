@@ -1,4 +1,5 @@
 import { soundFX } from '../audio/SoundFX.js';
+import { TikTokRadioSystem, getTrackCoverUrl } from '../audio/TikTokRadioSystem.js';
 import { renderMinimapRadar } from './MinimapRenderer.js';
 import { getSvgIcon } from './TacticalIcons.js';
 import {
@@ -9,10 +10,23 @@ import {
 import {
   HERO_CATALOG,
   getHeroInfo,
+  syncOp09CatalogSlot,
   drawHeroLegoPortrait,
   renderHeroDossierModal,
   renderHeroWheelCanvas
 } from './HeroWheelAndDossier.js';
+import {
+  CustomHeroCreatorStudio,
+  createDefaultCustomHeroState,
+  getActiveCustomHero,
+  setActiveCustomHero
+} from '../entities/CustomHeroSystem.js';
+import {
+  LegoCustomsStudio,
+  createDefaultGarageSaveData,
+  getActiveGarageSaveData,
+  setActiveGarageSaveData
+} from '../world/StreetCustomGarage.js';
 import {
   FACTION_DATA,
   UI_TEXTS,
@@ -79,6 +93,24 @@ export class LegoHud {
     this.speedoModeEl = document.getElementById('speedo-mode-tag');
     this.speedoBarsEl = document.getElementById('speedo-rpm-bars');
     this._speedoBarNodes = [];
+
+    // Estrelas de Procurado LEGO Estilo GTA (1 a 5 Estrelas — 100% Ocultas em 0 Estrelas!)
+    this.wantedPanelEl = document.getElementById('hud-wanted-panel');
+    this.wantedStatusTagEl = document.getElementById('wanted-status-tag');
+    this.wantedStarsRowEl = document.getElementById('wanted-stars-row');
+    this.wantedStarNodes =
+      typeof this.wantedStarsRowEl?.querySelectorAll === 'function'
+        ? Array.from(this.wantedStarsRowEl.querySelectorAll('.wanted-lego-star'))
+        : [];
+    this.wantedEscapeWrapEl = document.getElementById('wanted-escape-bar-wrap');
+    this.wantedEscapeFillEl = document.getElementById('wanted-escape-bar-fill');
+    this.wantedEscapeSecEl = document.getElementById('wanted-escape-sec');
+    this.wantedBannerEl = document.getElementById('wanted-event-banner');
+    this.wantedBannerTitleEl = document.getElementById('wanted-banner-title');
+    this.wantedBannerSubEl = document.getElementById('wanted-banner-sub');
+    this._wantedBannerTimeout = null;
+    this.wantedStars = 0;
+    this.wantedIsEscaping = false;
 
     // Visor de Arsenal Estilo CS:GO no Canto Superior Direito (Exclusivo do Vingador de Chumbo a pé)
     this.vingadorWeaponHudEl = document.getElementById('vingador-weapon-hud');
@@ -156,12 +188,33 @@ export class LegoHud {
     }
 
     this._gainTimeout = null;
+    this.creatorStudio = new CustomHeroCreatorStudio(this);
+    this.customsStudio = new LegoCustomsStudio(this);
+    this.tiktokRadio = new TikTokRadioSystem(this);
+    this.isTikTokRadioOpen = false;
+    this._tiktokToastTimeout = null;
     this._initHearts();
     this._initSpeedometerBars();
+    this._initTikTokRadioModal();
     this._initTitleScreenAndPauseMenu();
     this.setCharacterPortrait('caveira', 'COMANDANTE CAVEIRA');
     this.setPlayerHealth(250, 250, false);
     this.setPlayerFaction(this.playerFaction);
+  }
+
+  get isCreatorOpen() {
+    return Boolean(this.creatorStudio?.isOpen);
+  }
+
+  get isCustomsOpen() {
+    return Boolean(this.customsStudio?.isOpen);
+  }
+
+  syncOp09UI() {
+    const info = syncOp09CatalogSlot();
+    if (this.currentHeroKey === 'op09') {
+      this.setCharacterPortrait('op09', info.name);
+    }
   }
 
   _initHearts() {
@@ -358,6 +411,7 @@ export class LegoHud {
    * Abre/Fecha a Ficha Tática Individual [H] do personagem que o jogador está usando
    */
   setHeroDossierOpen(open, controller = null) {
+    if (open && (this.isCreatorOpen || this.isCustomsOpen)) return;
     if (controller) {
       this._lastController = controller;
     }
@@ -366,8 +420,10 @@ export class LegoHud {
       this.dossierModalEl.classList.toggle('hidden', !this.isDossierOpen);
     }
     if (this.isDossierOpen) {
+      this._lastController?.resetHeldInputs?.();
       if (this.isFullMapOpen) this.setFullMapOpen(false);
       if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+      if (this.isTikTokRadioOpen) this.setTikTokRadioOpen(false);
       const activeKey = this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira';
       renderHeroDossierModal(this, activeKey);
       if (document.pointerLockElement && document.exitPointerLock) {
@@ -386,6 +442,7 @@ export class LegoHud {
    * Abre/Fecha a Roda de Seleção de Personagem Estilo GTA V [TAB] com câmera lenta e filtro tático
    */
   setHeroWheelOpen(open, controller = null, confirmSelection = true) {
+    if (open && (this.isCreatorOpen || this.isCustomsOpen)) return;
     if (controller) {
       this._lastController = controller;
     }
@@ -402,6 +459,7 @@ export class LegoHud {
     if (this.isHeroWheelOpen) {
       if (this.isFullMapOpen) this.setFullMapOpen(false);
       if (this.isDossierOpen) this.setHeroDossierOpen(false);
+      if (this.isTikTokRadioOpen) this.setTikTokRadioOpen(false);
       const activeKey = this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira';
       this.wheelSelectedHeroKey = activeKey;
       this._refreshHeroWheelDisplay();
@@ -421,6 +479,7 @@ export class LegoHud {
    */
   stepHeroWheelSelection(stepDelta = 1) {
     if (!this.isHeroWheelOpen) return;
+    syncOp09CatalogSlot();
     const idx = HERO_CATALOG.findIndex((h) => h.key === this.wheelSelectedHeroKey);
     const nextIdx = (idx + stepDelta + HERO_CATALOG.length) % HERO_CATALOG.length;
     const nextHero = HERO_CATALOG[nextIdx];
@@ -440,6 +499,7 @@ export class LegoHud {
   setHeroWheelDirection(dx, dy) {
     if (!this.isHeroWheelOpen) return;
     if (Math.hypot(dx, dy) < 0.2) return;
+    syncOp09CatalogSlot();
     // Ângulo a partir do Topo (0 rad no topo, crescendo em sentido horário)
     let angleFromTop = Math.atan2(dy, dx) + Math.PI / 2;
     if (angleFromTop < 0) angleFromTop += Math.PI * 2;
@@ -493,6 +553,77 @@ export class LegoHud {
   }
 
   /**
+   * Atualiza o Painel de Estrelas de Procurado LEGO (0★ = 100% oculto; 1–5★ = Dourado/Piscante; Fuga = Piscando Azul/Cinza)
+   */
+  updateWantedHud(stars = 0, isEscaping = false, escapeTimer = 0, escapeDuration = 18.0, tierInfo = null) {
+    this.wantedStars = Math.max(0, Math.min(5, Math.floor(stars)));
+    this.wantedIsEscaping = Boolean(isEscaping && this.wantedStars > 0);
+
+    if (!this.wantedPanelEl) return;
+
+    if (this.wantedStars <= 0) {
+      this.wantedPanelEl.classList.add('hidden');
+      this.wantedPanelEl.classList.remove('escaping-mode', 'antihero-mode');
+      return;
+    }
+
+    this.wantedPanelEl.classList.remove('hidden');
+    this.wantedPanelEl.classList.toggle('escaping-mode', this.wantedIsEscaping);
+    this.wantedPanelEl.classList.toggle(
+      'antihero-mode',
+      this.wantedStars >= 5 && !this.wantedIsEscaping
+    );
+
+    if (this.wantedStarNodes.length > 0) {
+      this.wantedStarNodes.forEach((node, idx) => {
+        node.classList.toggle('active', idx < this.wantedStars);
+      });
+    }
+
+    if (this.wantedStatusTagEl) {
+      if (this.wantedIsEscaping) {
+        this.wantedStatusTagEl.textContent = 'DESPISTANDO... // SEM VISÃO';
+      } else if (this.wantedStars >= 5) {
+        this.wantedStatusTagEl.textContent = '5★ // CAÇADORES ANTI-HERÓI';
+      } else {
+        this.wantedStatusTagEl.textContent = `PROCURADO // ${tierInfo?.label || 'CERCO POLICIAL'}`;
+      }
+    }
+
+    if (this.wantedEscapeWrapEl) {
+      this.wantedEscapeWrapEl.classList.toggle('hidden', !this.wantedIsEscaping);
+      if (this.wantedIsEscaping) {
+        const pct = Math.max(0, Math.min(100, (escapeTimer / Math.max(1, escapeDuration)) * 100));
+        const remSec = Math.max(1, Math.ceil(escapeDuration - escapeTimer));
+        if (this.wantedEscapeFillEl) {
+          this.wantedEscapeFillEl.style.width = `${pct.toFixed(1)}%`;
+        }
+        if (this.wantedEscapeSecEl) {
+          this.wantedEscapeSecEl.textContent = `${remSec}s`;
+        }
+      }
+    }
+  }
+
+  showWantedBanner(title, subtitle = '', variant = 'pursuit', durationMs = 3100) {
+    if (!this.wantedBannerEl) return;
+    if (this.isTitleScreenActive || this.isLoadingActive) return;
+
+    this.wantedBannerEl.dataset.variant = variant;
+    if (this.wantedBannerTitleEl) this.wantedBannerTitleEl.textContent = title || '';
+    if (this.wantedBannerSubEl) this.wantedBannerSubEl.textContent = subtitle || '';
+    this.wantedBannerEl.classList.remove('hidden');
+
+    if (this._wantedBannerTimeout) clearTimeout(this._wantedBannerTimeout);
+    this._wantedBannerTimeout = setTimeout(() => {
+      this.wantedBannerEl?.classList.add('hidden');
+    }, durationMs);
+    if (typeof this._wantedBannerTimeout?.unref === 'function') {
+      this._wantedBannerTimeout.unref();
+    }
+  }
+
+  /**
    * Desativado no Modo Livre para manter a tela limpa sem alertas de guerra.
    */
   showTacticalAlertToast(_code, _title, _subtitle = '', _accentColor = '#facc15', _icon = 'emergency', _durationMs = 3800) {
@@ -500,6 +631,7 @@ export class LegoHud {
   }
 
   setFullMapOpen(open, world = null, controller = null) {
+    if (open && (this.isCreatorOpen || this.isCustomsOpen)) return;
     if (controller) {
       this._lastController = controller;
     }
@@ -508,8 +640,10 @@ export class LegoHud {
       this.fullmapModalEl.classList.toggle('hidden', !this.isFullMapOpen);
     }
     if (this.isFullMapOpen) {
+      this._lastController?.resetHeldInputs?.();
       if (this.isDossierOpen) this.setHeroDossierOpen(false);
       if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+      if (this.isTikTokRadioOpen) this.setTikTokRadioOpen(false);
       const promptEl = document.getElementById('pointer-prompt');
       if (promptEl) {
         promptEl.classList.remove('visible');
@@ -569,9 +703,527 @@ export class LegoHud {
     renderFullMapCanvas(this, world, playerPos, playerFacingYaw);
   }
 
+  _formatRadioTime(sec) {
+    const s = Math.max(0, Math.floor(Number(sec) || 0));
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return `${m}:${String(rem).padStart(2, '0')}`;
+  }
+
+  _getSpotifySvgs() {
+    if (!this._spotifySvgsCache) {
+      this._spotifySvgsCache = {
+        musicNote: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+        musicNoteSmall: `<svg class="spotify-inline-svg" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+        heartOutline: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+        heartFilled: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="#1ed760" stroke="#1ed760" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+        camera: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+        trash: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+        plus: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+        refresh: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
+        play: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="7 4 20 12 7 20 7 4"/></svg>`,
+        pause: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`,
+        pauseSmall: `<svg class="spotify-inline-svg" viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`,
+        speakerSmall: `<svg class="spotify-inline-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`,
+        bassWave: `<svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`
+      };
+    }
+    return this._spotifySvgsCache;
+  }
+
+  _initTikTokRadioModal() {
+    this.spotifyFilterMode = 'all'; // 'all' | 'liked' | 'custom'
+    this.spotifySearchQuery = '';
+    this._pendingCoverTrackId = null;
+
+    this.tiktokModalEl = document.getElementById('tiktok-radio-modal');
+    this.tiktokCloseBtn = document.getElementById('btn-tiktok-close');
+    this.tiktokPrevBtn = document.getElementById('btn-tiktok-prev');
+    this.tiktokPlayPauseBtn = document.getElementById('btn-tiktok-play-pause');
+    this.tiktokNextBtn = document.getElementById('btn-tiktok-next');
+    this.tiktokShuffleBtn = document.getElementById('btn-tiktok-shuffle');
+    this.spotifyRepeatBtn = document.getElementById('btn-spotify-repeat');
+    this.tiktokBassBoostBtn = document.getElementById('btn-tiktok-bass-boost');
+    this.tiktokVolSlider = document.getElementById('slider-tiktok-vol');
+    this.tiktokVolValEl = document.getElementById('val-tiktok-vol');
+    this.tiktokTrackListEl = document.getElementById('tiktok-track-list');
+    this.tiktokNowTitleEl = document.getElementById('tiktok-now-playing-title');
+    this.tiktokNowMetaEl = document.getElementById('tiktok-now-playing-meta');
+    this.tiktokNowStatusEl = document.getElementById('tiktok-now-status-badge');
+    this.tiktokImportBtn = document.getElementById('btn-tiktok-import-mp3');
+    this.tiktokFileInput = document.getElementById('input-tiktok-mp3-file');
+    this.spotifyCoverInput = document.getElementById('input-spotify-cover-file');
+    this.tiktokHudPillEl = document.getElementById('hud-tiktok-radio-pill');
+    this.hudSpotifyDiscImg = document.getElementById('hud-spotify-disc-img');
+    this.hudSpotifyMarqueeTitleEl = document.getElementById('hud-spotify-marquee-title');
+    this.tiktokToastEl = document.getElementById('tiktok-radio-toast');
+    this.tiktokToastTitleEl = document.getElementById('tiktok-toast-title');
+
+    // Elementos exclusivos da interface Spotify Desktop
+    this.spotifyFilterAllBtn = document.getElementById('btn-spotify-filter-all');
+    this.spotifyFilterLikedBtn = document.getElementById('btn-spotify-filter-liked');
+    this.spotifyFilterCustomBtn = document.getElementById('btn-spotify-filter-custom');
+    this.spotifyFeaturedCoverImg = document.getElementById('spotify-featured-cover-img');
+    this.spotifyHeroCoverImg = document.getElementById('spotify-hero-cover-img');
+    this.spotifyBottomCoverImg = document.getElementById('spotify-bottom-cover-img');
+    this.spotifyChangeCurrentCoverBtn = document.getElementById('btn-spotify-change-current-cover');
+    this.spotifyClearAllBtn = document.getElementById('btn-spotify-clear-all');
+    this.spotifyRestoreDefaultsBtn = document.getElementById('btn-spotify-restore-defaults');
+    this.spotifyHeroBannerEl = document.getElementById('spotify-playlist-hero');
+    this.spotifyCountBadgeEl = document.getElementById('spotify-playlist-count-badge');
+    this.spotifySearchInput = document.getElementById('input-spotify-search');
+    this.spotifyBottomTitleEl = document.getElementById('spotify-bottom-title');
+    this.spotifyBottomArtistEl = document.getElementById('spotify-bottom-artist');
+    this.spotifyLikeCurrentBtn = document.getElementById('btn-spotify-like-current');
+    this.spotifyCoverCurrentBtn = document.getElementById('btn-spotify-cover-current');
+    this.spotifySeekSlider = document.getElementById('spotify-seek-slider');
+    this.spotifyTimeCurEl = document.getElementById('spotify-time-cur');
+    this.spotifyTimeDurEl = document.getElementById('spotify-time-dur');
+
+    const setFilter = (mode) => {
+      this.spotifyFilterMode = mode;
+      this.refreshTikTokRadioUI();
+    };
+    this.spotifyFilterAllBtn?.addEventListener('click', () => setFilter('all'));
+    this.spotifyFilterLikedBtn?.addEventListener('click', () => setFilter('liked'));
+    this.spotifyFilterCustomBtn?.addEventListener('click', () => setFilter('custom'));
+
+    this.spotifySearchInput?.addEventListener('input', (e) => {
+      this.spotifySearchQuery = String(e.target?.value || '').trim().toLowerCase();
+      this.refreshTikTokRadioUI();
+    });
+
+    const openCoverPickerForTrack = (trackId) => {
+      const targetId = trackId || this.tiktokRadio?.currentTrack?.id;
+      if (!targetId) return;
+      this._pendingCoverTrackId = targetId;
+      if (this.spotifyCoverInput) {
+        this.spotifyCoverInput.value = '';
+        this.spotifyCoverInput.click?.();
+      }
+    };
+
+    this.spotifyChangeCurrentCoverBtn?.addEventListener('click', () => {
+      openCoverPickerForTrack(this.tiktokRadio?.currentTrack?.id);
+    });
+    this.spotifyCoverCurrentBtn?.addEventListener('click', () => {
+      openCoverPickerForTrack(this.tiktokRadio?.currentTrack?.id);
+    });
+
+    this.spotifyCoverInput?.addEventListener('change', (e) => {
+      const file = e.target?.files?.[0];
+      const targetId = this._pendingCoverTrackId || this.tiktokRadio?.currentTrack?.id;
+      if (file && targetId) {
+        this.tiktokRadio.setTrackCoverFromFile(targetId, file);
+      }
+    });
+
+    this.spotifyClearAllBtn?.addEventListener('click', () => {
+      this.tiktokRadio.clearAllTracks();
+    });
+
+    this.spotifyRestoreDefaultsBtn?.addEventListener('click', () => {
+      this.tiktokRadio.restoreDefaultTracks();
+    });
+
+    this.spotifyLikeCurrentBtn?.addEventListener('click', () => {
+      if (this.tiktokRadio?.currentTrack) {
+        this.tiktokRadio.toggleLikeTrack(this.tiktokRadio.currentTrack.id);
+      }
+    });
+
+    this.tiktokCloseBtn?.addEventListener('click', () => {
+      this.setTikTokRadioOpen(false, this._lastController);
+    });
+    this.tiktokHudPillEl?.addEventListener('click', () => {
+      this.toggleTikTokRadioModal(this._lastController);
+    });
+    this.tiktokPrevBtn?.addEventListener('click', () => {
+      this.tiktokRadio.prevTrack(false);
+    });
+    this.tiktokPlayPauseBtn?.addEventListener('click', () => {
+      this.tiktokRadio.togglePlayPause();
+    });
+    this.tiktokNextBtn?.addEventListener('click', () => {
+      this.tiktokRadio.nextTrack(false);
+    });
+    this.tiktokShuffleBtn?.addEventListener('click', () => {
+      this.tiktokRadio.toggleShuffle();
+    });
+    this.spotifyRepeatBtn?.addEventListener('click', () => {
+      this.tiktokRadio.toggleRepeatOne();
+    });
+    this.tiktokBassBoostBtn?.addEventListener('click', () => {
+      this.tiktokRadio.toggleBassBoost();
+    });
+
+    if (this.spotifySeekSlider) {
+      this.spotifySeekSlider.addEventListener('input', (e) => {
+        const val = Math.max(0, Math.min(1000, Number(e.target.value) || 0));
+        this.tiktokRadio.seekToRatio(val / 1000);
+        this._syncSpotifyTimeBar();
+      });
+    }
+
+    if (this.tiktokVolSlider) {
+      this.tiktokVolSlider.addEventListener('input', (e) => {
+        const pct = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+        this.tiktokRadio.setVolume(pct / 100);
+      });
+    }
+
+    this.tiktokImportBtn?.addEventListener('click', () => {
+      if (this.tiktokFileInput) {
+        this.tiktokFileInput.value = '';
+        this.tiktokFileInput.click?.();
+      }
+    });
+
+    this.tiktokFileInput?.addEventListener('change', (e) => {
+      const files = e.target?.files;
+      if (files && files.length > 0) {
+        this.tiktokRadio.importLocalAudioFiles(files);
+      }
+    });
+
+    this.refreshTikTokRadioUI();
+  }
+
+  _syncSpotifyTimeBar() {
+    if (!this.tiktokRadio) return;
+    const info = this.tiktokRadio.getPlaybackTimeInfo();
+    if (this.spotifyTimeCurEl) {
+      this.spotifyTimeCurEl.textContent = this._formatRadioTime(info.currentSec);
+    }
+    if (this.spotifyTimeDurEl) {
+      this.spotifyTimeDurEl.textContent = this._formatRadioTime(info.durationSec);
+    }
+    if (this.spotifySeekSlider) {
+      this.spotifySeekSlider.value = String(Math.round((info.ratio || 0) * 1000));
+    }
+  }
+
+  _setMarqueeText(el, text, charThreshold = 20, forceScroll = false) {
+    if (!el) return;
+    const raw = String(text || '');
+    const shouldScroll = Boolean(raw) && (forceScroll || raw.length > charThreshold);
+    const cacheKey = `${raw}::${shouldScroll ? 1 : 0}`;
+    if (el._lastMarqueeKey === cacheKey) return;
+    el._lastMarqueeKey = cacheKey;
+
+    if (!shouldScroll) {
+      el.classList.remove('is-scrolling');
+      el.textContent = raw;
+      if (raw && typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+          if (el._lastMarqueeKey !== cacheKey) return;
+          if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 4) {
+            el._lastMarqueeKey = '';
+            this._setMarqueeText(el, raw, 0, true);
+          }
+        });
+      }
+      return;
+    }
+
+    const escaped = raw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    const durSec = Math.max(7.5, Math.min(22, raw.length * 0.28)).toFixed(1);
+    el.classList.add('is-scrolling');
+    el.innerHTML = `<span class="spotify-marquee-track" data-marquee="${escaped}" style="--marquee-dur:${durSec}s"><span class="spotify-marquee-copy">${escaped}</span></span>`;
+  }
+
+  setTikTokRadioOpen(open, controller = null) {
+    if (open && (this.isCreatorOpen || this.isCustomsOpen || this.isTitleScreenActive)) return;
+    if (controller) {
+      this._lastController = controller;
+    }
+    this.isTikTokRadioOpen = Boolean(open);
+    document.body?.classList.toggle('tiktok-radio-open', this.isTikTokRadioOpen);
+    if (this.tiktokModalEl) {
+      this.tiktokModalEl.classList.toggle('hidden', !this.isTikTokRadioOpen);
+    }
+
+    if (this.isTikTokRadioOpen) {
+      this._lastController?.resetHeldInputs?.();
+      if (this.isFullMapOpen) this.setFullMapOpen(false);
+      if (this.isDossierOpen) this.setHeroDossierOpen(false);
+      if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+      const promptEl = document.getElementById('pointer-prompt');
+      if (promptEl) promptEl.classList.remove('visible');
+      if (document.pointerLockElement && document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+      this.refreshTikTokRadioUI();
+    } else if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+      this._lastController.relockPointer();
+    }
+  }
+
+  toggleTikTokRadioModal(controller = null) {
+    this.setTikTokRadioOpen(!this.isTikTokRadioOpen, controller);
+  }
+
+  showTikTokRadioToast(track = this.tiktokRadio?.currentTrack) {
+    if (!this.tiktokToastEl || !track) return;
+    if (this.tiktokToastTitleEl) {
+      this.tiktokToastTitleEl.textContent = `${track.title} (${track.bpm} BPM)`;
+    }
+    this.tiktokToastEl.classList.remove('hidden');
+    if (this._tiktokToastTimeout) clearTimeout(this._tiktokToastTimeout);
+    this._tiktokToastTimeout = setTimeout(() => {
+      this.tiktokToastEl?.classList.add('hidden');
+    }, 3200);
+    if (typeof this._tiktokToastTimeout?.unref === 'function') {
+      this._tiktokToastTimeout.unref();
+    }
+  }
+
+  refreshTikTokRadioUI() {
+    if (!this.tiktokRadio) return;
+    const svgs = this._getSpotifySvgs();
+    const track = this.tiktokRadio.currentTrack;
+    const playing = this.tiktokRadio.isPlaying;
+    const totalCount = this.tiktokRadio.tracks.length;
+    const coverUrl = track ? getTrackCoverUrl(track) : getTrackCoverUrl({ id: 'empty', title: 'VAZIO', color: '#334155', bpm: 0, style: 'SEM FAIXAS' });
+
+    // Filtros da Sidebar
+    this.spotifyFilterAllBtn?.classList.toggle('active', this.spotifyFilterMode === 'all');
+    this.spotifyFilterLikedBtn?.classList.toggle('active', this.spotifyFilterMode === 'liked');
+    this.spotifyFilterCustomBtn?.classList.toggle('active', this.spotifyFilterMode === 'custom');
+
+    // Capas sincronizadas (Sidebar 136x136, Banner Hero 112x112 e Player Inferior 56x56)
+    if (this.spotifyFeaturedCoverImg) this.spotifyFeaturedCoverImg.src = coverUrl;
+    if (this.spotifyHeroCoverImg) this.spotifyHeroCoverImg.src = coverUrl;
+    if (this.spotifyBottomCoverImg) this.spotifyBottomCoverImg.src = coverUrl;
+
+    if (this.spotifyHeroBannerEl) {
+      const accent = track?.color || '#1ed760';
+      this.spotifyHeroBannerEl.style.background = `linear-gradient(180deg, ${accent}47 0%, rgba(18, 18, 18, 0.95) 85%, #121212 100%)`;
+    }
+    if (this.spotifyCountBadgeEl) {
+      this.spotifyCountBadgeEl.textContent = `${totalCount} ${totalCount === 1 ? 'música na playlist' : 'músicas na playlist'}`;
+    }
+
+    if (this.tiktokNowTitleEl) {
+      this._setMarqueeText(
+        this.tiktokNowTitleEl,
+        track ? track.title : 'Playlist vazia — Adicione ou restaure músicas',
+        26
+      );
+    }
+    if (this.tiktokNowMetaEl) {
+      this.tiktokNowMetaEl.textContent = track
+        ? `${track.artist} • ${track.bpm} BPM • ${track.style}`
+        : 'Use os botões da barra esquerda para importar MP3 ou restaurar as 8 originais';
+    }
+    if (this.tiktokNowStatusEl) {
+      this.tiktokNowStatusEl.innerHTML =
+        playing && track
+          ? `${svgs.speakerSmall} <span>Tocando Agora</span>`
+          : `${svgs.pauseSmall} <span>Pausado</span>`;
+      this.tiktokNowStatusEl.classList.toggle('playing', Boolean(playing && track));
+    }
+
+    if (this.spotifyBottomTitleEl) {
+      this._setMarqueeText(
+        this.spotifyBottomTitleEl,
+        track ? track.title : 'Nenhuma música selecionada',
+        18
+      );
+    }
+    if (this.spotifyBottomArtistEl) {
+      this.spotifyBottomArtistEl.textContent = track ? track.artist : 'Spotify // [P]';
+    }
+    if (this.spotifyLikeCurrentBtn) {
+      const isLiked = Boolean(track?.liked);
+      this.spotifyLikeCurrentBtn.classList.toggle('liked', isLiked);
+      this.spotifyLikeCurrentBtn.innerHTML = isLiked ? svgs.heartFilled : svgs.heartOutline;
+    }
+
+    if (this.tiktokPlayPauseBtn) {
+      this.tiktokPlayPauseBtn.innerHTML = playing ? svgs.pause : svgs.play;
+    }
+    if (this.tiktokShuffleBtn) {
+      this.tiktokShuffleBtn.classList.toggle('active', Boolean(this.tiktokRadio.isShuffle));
+    }
+    if (this.spotifyRepeatBtn) {
+      this.spotifyRepeatBtn.classList.toggle('active', Boolean(this.tiktokRadio.isRepeatOne));
+    }
+    if (this.tiktokBassBoostBtn) {
+      const bb = this.tiktokRadio.isBassBoostActive;
+      this.tiktokBassBoostBtn.classList.toggle('active', bb);
+      this.tiktokBassBoostBtn.innerHTML = `${svgs.bassWave} <span>Bass +6dB: ${bb ? 'ON' : 'OFF'}</span>`;
+    }
+    if (this.tiktokVolValEl) {
+      this.tiktokVolValEl.textContent = `${Math.round(this.tiktokRadio.volume * 100)}%`;
+    }
+    if (this.tiktokVolSlider) {
+      this.tiktokVolSlider.value = String(Math.round(this.tiktokRadio.volume * 100));
+    }
+    const isHudPlaying = Boolean(playing && track);
+    if (this.tiktokHudPillEl) {
+      this.tiktokHudPillEl.classList.toggle('playing', isHudPlaying);
+    }
+    if (this.hudSpotifyDiscImg) {
+      if (isHudPlaying && this.hudSpotifyDiscImg._lastSrc !== coverUrl) {
+        this.hudSpotifyDiscImg._lastSrc = coverUrl;
+        this.hudSpotifyDiscImg.src = coverUrl;
+      }
+    }
+    if (this.hudSpotifyMarqueeTitleEl) {
+      if (isHudPlaying) {
+        this._setMarqueeText(this.hudSpotifyMarqueeTitleEl, track.title, 0, true);
+      } else {
+        this._setMarqueeText(this.hudSpotifyMarqueeTitleEl, '', 999, false);
+      }
+    }
+
+    this._syncSpotifyTimeBar();
+
+    if (this.tiktokTrackListEl) {
+      const q = this.spotifySearchQuery || '';
+      const filtered = this.tiktokRadio.tracks
+        .map((t, idx) => ({ t, idx }))
+        .filter(({ t }) => {
+          if (this.spotifyFilterMode === 'liked' && !t.liked) return false;
+          if (this.spotifyFilterMode === 'custom' && !t.isCustomFile) return false;
+          if (q) {
+            const hay = `${t.title} ${t.artist} ${t.style}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          return true;
+        });
+
+      if (filtered.length === 0) {
+        const emptyMsg =
+          totalCount === 0
+            ? 'Sua playlist está vazia! Você removeu todas as músicas.'
+            : this.spotifyFilterMode === 'liked'
+              ? 'Você ainda não curtiu nenhuma música.'
+              : this.spotifyFilterMode === 'custom'
+                ? 'Você ainda não importou nenhum arquivo MP3 do seu PC.'
+                : 'Nenhuma música encontrada para essa busca.';
+        this.tiktokTrackListEl.innerHTML = `
+          <div class="spotify-empty-state">
+            <div class="spotify-empty-title">${svgs.musicNote} <span>${emptyMsg}</span></div>
+            <div class="spotify-empty-actions">
+              <button type="button" class="spotify-action-btn primary" data-spotify-empty-action="import">
+                ${svgs.plus}
+                <span>Adicionar Música (MP3)</span>
+              </button>
+              <button type="button" class="spotify-action-btn secondary" data-spotify-empty-action="restore">
+                ${svgs.refresh}
+                <span>Restaurar 8 Originais</span>
+              </button>
+            </div>
+          </div>
+        `;
+        this.tiktokTrackListEl.querySelectorAll('button[data-spotify-empty-action]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const act = btn.dataset.spotifyEmptyAction;
+            if (act === 'import') {
+              this.tiktokFileInput?.click?.();
+            } else if (act === 'restore') {
+              this.spotifyFilterMode = 'all';
+              this.tiktokRadio.restoreDefaultTracks();
+            }
+          });
+        });
+        return;
+      }
+
+      this.tiktokTrackListEl.innerHTML = filtered
+        .map(({ t, idx }) => {
+          const isCurrent = idx === this.tiktokRadio.currentTrackIndex;
+          const rowCover = getTrackCoverUrl(t);
+          const numDisplay = isCurrent && playing ? svgs.speakerSmall : String(idx + 1).padStart(2, '0');
+          return `
+            <div class="spotify-track-row tiktok-track-item ${isCurrent ? 'active' : ''}" data-track-idx="${idx}" data-track-id="${t.id}">
+              <span class="spotify-row-num">${numDisplay}</span>
+              <div class="spotify-row-main">
+                <img class="spotify-row-cover" src="${rowCover}" alt="Capa" />
+                <div class="spotify-row-text">
+                  <span class="spotify-row-title">${t.title}</span>
+                  <span class="spotify-row-artist">${t.artist}</span>
+                </div>
+              </div>
+              <span class="spotify-row-badge">${t.bpm} BPM • ${t.style}</span>
+              <div class="spotify-row-actions">
+                <button type="button" class="spotify-row-action-btn ${t.liked ? 'liked' : ''}" data-like-track-id="${t.id}" title="Curtir / Favoritar">
+                  ${t.liked ? svgs.heartFilled : svgs.heartOutline}
+                </button>
+                <button type="button" class="spotify-row-action-btn photo-btn" data-cover-track-id="${t.id}" title="Escolher Foto de Capa">
+                  ${svgs.camera}
+                  <span>Foto</span>
+                </button>
+                <button type="button" class="spotify-row-action-btn delete-btn" data-remove-track-id="${t.id}" title="Remover Música da Playlist">
+                  ${svgs.trash}
+                </button>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      // Clique na linha toca a música
+      this.tiktokTrackListEl.querySelectorAll('.spotify-track-row[data-track-idx]').forEach((row) => {
+        row.addEventListener('click', (e) => {
+          if (e.target && typeof e.target.closest === 'function' && e.target.closest('.spotify-row-actions')) {
+            return;
+          }
+          const idx = Number(row.dataset.trackIdx);
+          this.tiktokRadio.playTrack(idx, false);
+        });
+      });
+
+      // Botão Curtir na linha
+      this.tiktokTrackListEl.querySelectorAll('button[data-like-track-id]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.tiktokRadio.toggleLikeTrack(btn.dataset.likeTrackId);
+        });
+      });
+
+      // Botão Escolher Foto de Capa na linha
+      this.tiktokTrackListEl.querySelectorAll('button[data-cover-track-id]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._pendingCoverTrackId = btn.dataset.coverTrackId;
+          if (this.spotifyCoverInput) {
+            this.spotifyCoverInput.value = '';
+            this.spotifyCoverInput.click?.();
+          }
+        });
+      });
+
+      // Botão Remover Música na linha
+      this.tiktokTrackListEl.querySelectorAll('button[data-remove-track-id]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.tiktokRadio.removeTrack(btn.dataset.removeTrackId);
+        });
+      });
+    }
+  }
+
   update(dt) {
     if (this.isTitleScreenActive) {
       this._renderFavelaBackgroundCanvas(dt);
+    }
+    if (this.isTitleScreenActive || this.isLoadingActive) {
+      // Garante que nenhuma música da Rádio [P] continue tocando no Menu Inicial ou no Loading!
+      if (this.tiktokRadio?.isPlaying) {
+        this.tiktokRadio.stopAllPlayback();
+      }
+    } else if (this.tiktokRadio) {
+      this.tiktokRadio.update(dt);
+      if (this.isTikTokRadioOpen) {
+        this._syncSpotifyTimeBar();
+      }
     }
     if (this.displayedStuds < this.totalStuds) {
       const diff = this.totalStuds - this.displayedStuds;
@@ -601,13 +1253,13 @@ export class LegoHud {
     }
   }
 
-  setPlayerFaction(factionKey = 'cv', notifyWorld = true) {
+  setPlayerFaction(factionKey = 'cv', notifyWorld = true, conqueredTerritories = null) {
     const fData = FACTION_DATA[factionKey] || FACTION_DATA.cv;
     this.playerFaction = fData.id;
     if (notifyWorld && typeof this.onSelectFaction === 'function' && !this._isSyncingFaction) {
       this._isSyncingFaction = true;
       try {
-        this.onSelectFaction(fData.id);
+        this.onSelectFaction(fData.id, conqueredTerritories);
       } finally {
         this._isSyncingFaction = false;
       }
@@ -660,6 +1312,7 @@ export class LegoHud {
     this.valMusicEl = document.getElementById('val-music-vol');
     this.valSfxEl = document.getElementById('val-sfx-vol');
     this.btnToggleRegionToastEl = document.getElementById('btn-toggle-region-toast');
+    this.btnPauseTimeModeEl = document.getElementById('btn-pause-time-mode');
     this.btnPauseLangEl = document.getElementById('btn-pause-language');
 
     document.getElementById('hud-esc-hint-pill')?.addEventListener('click', () => {
@@ -745,6 +1398,18 @@ export class LegoHud {
       this._refreshLanguageAndOptionsUI();
     });
 
+    this.btnPauseTimeModeEl?.addEventListener('click', () => {
+      const order = ['auto', 'day', 'sunset', 'night'];
+      const curIdx = order.indexOf(this.settings.timeMode || 'auto');
+      this.settings.timeMode = order[(curIdx + 1) % order.length];
+      saveGameSettings(this.settings);
+      soundFX.playHeroSwap();
+      if (typeof this.onChangeTimeMode === 'function') {
+        this.onChangeTimeMode(this.settings.timeMode);
+      }
+      this._refreshLanguageAndOptionsUI();
+    });
+
     this.btnPauseLangEl?.addEventListener('click', () => {
       this._toggleLanguage();
     });
@@ -758,10 +1423,28 @@ export class LegoHud {
     });
 
     document.getElementById('btn-pause-save')?.addEventListener('click', () => {
+      const lang = this.settings?.language || 'pt-BR';
+      const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
       this.saveCurrentProgress();
       if (this.pauseSaveFeedbackEl) {
+        this.pauseSaveFeedbackEl.textContent = t.savedFeedback;
         this.pauseSaveFeedbackEl.classList.remove('hidden');
         setTimeout(() => this.pauseSaveFeedbackEl?.classList.add('hidden'), 2400);
+      }
+      soundFX.playTrueHeroFanfare();
+    });
+
+    document.getElementById('btn-pause-reset-territories')?.addEventListener('click', () => {
+      const lang = this.settings?.language || 'pt-BR';
+      const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
+      if (typeof this.onResetTerritories === 'function') {
+        this.onResetTerritories();
+      }
+      this.saveCurrentProgress();
+      if (this.pauseSaveFeedbackEl) {
+        this.pauseSaveFeedbackEl.textContent = t.resetTerritoriesFeedback;
+        this.pauseSaveFeedbackEl.classList.remove('hidden');
+        setTimeout(() => this.pauseSaveFeedbackEl?.classList.add('hidden'), 2600);
       }
       soundFX.playTrueHeroFanfare();
     });
@@ -775,6 +1458,12 @@ export class LegoHud {
 
     document.getElementById('btn-pause-save-quit')?.addEventListener('click', () => {
       this.saveCurrentProgress();
+      this._lastController?.resetHeldInputs?.();
+      this.setTikTokRadioOpen(false, this._lastController);
+      this.tiktokRadio?.stopAllPlayback();
+      soundFX.baileFunkMix = 0;
+      soundFX.baileBeatPulse = 0;
+      soundFX.stopWarMusic();
       this.setPauseMenuOpen(false, this._lastController, true);
       this.isTitleScreenActive = true;
       document.body?.classList.add('title-or-loading-active');
@@ -1107,10 +1796,12 @@ export class LegoHud {
     setTxt('lbl-music-vol', t.musicVol);
     setTxt('lbl-sfx-vol', t.sfxVol);
     setTxt('lbl-region-toast', t.regionToastToggle);
+    setTxt('lbl-time-mode', t.timeOfDayLabel);
     setTxt('lbl-lang-select', t.langLabel);
     setTxt('btn-pause-resume', t.resumeBtn);
     setTxt('btn-pause-save', t.saveNowBtn);
     setTxt('btn-pause-switch-faction', t.switchFactionBtn);
+    setTxt('btn-pause-reset-territories', t.resetTerritoriesBtn);
     setTxt('btn-pause-save-quit', t.saveQuitBtn);
     setTxt('pause-save-feedback', t.savedFeedback);
     setTxt('hud-esc-hint-text', lang === 'en-US' ? 'OPTIONS / SAVE' : 'OPÇÕES / SALVAR');
@@ -1132,6 +1823,13 @@ export class LegoHud {
         : lang === 'en-US'
           ? 'OFF // HIDDEN'
           : 'OFF // OCULTO';
+    }
+
+    if (this.btnPauseTimeModeEl) {
+      const modeKey = this.settings.timeMode || 'auto';
+      const modeLabels = t.timeModes || UI_TEXTS['pt-BR'].timeModes;
+      this.btnPauseTimeModeEl.textContent = modeLabels[modeKey] || modeLabels.auto;
+      this.btnPauseTimeModeEl.classList.add('active');
     }
 
     if (this.btnPauseLangEl) {
@@ -1173,21 +1871,28 @@ export class LegoHud {
           `;
         }
 
-        const heroInfo = getHeroInfo(s.heroKey || 'caveira');
+        const op09Label = s.customHero?.isCreated ? s.customHero.name : 'CIDADÃO COMUM';
+        const heroDisplayName =
+          s.heroKey === 'op09' ? op09Label : getHeroInfo(s.heroKey || 'caveira').name;
+        const fKey = FACTION_DATA[s.faction] ? s.faction : 'cv';
+        const fData = FACTION_DATA[fKey];
+        const conqCount = Array.isArray(s.conqueredTerritories)
+          ? new Set([fKey, ...s.conqueredTerritories]).size
+          : 1;
         return `
-          <div class="save-slot-card" style="border-top-color:#facc15">
+          <div class="save-slot-card" style="border-top-color:${fData.color}">
             <div class="faction-card-top">
-              ${getFreeRoamLogoSvg(58)}
+              ${getFactionLogoSvg(fKey, 58)}
               <div>
                 <div class="dossier-tag">SLOT 0${idx + 1} // ${s.updatedAt || ''}</div>
-                <div class="faction-card-name" style="color:#facc15; font-size:1.35rem;">
-                  ${t.freeRoamSlotTitle}
+                <div class="faction-card-name" style="color:${fData.color}; font-size:1.35rem;">
+                  ${fData.name[lang] || fData.name['pt-BR']}
                 </div>
               </div>
             </div>
             <div class="slot-meta-list">
-              <span><b>STUDS:</b> ${(s.studs || 0).toLocaleString('pt-BR')}</span>
-              <span><b>OPERADOR:</b> ${heroInfo.name}</span>
+              <span><b>STUDS:</b> ${(s.studs || 0).toLocaleString('pt-BR')} • <b>BASES:</b> ${conqCount}/3</span>
+              <span><b>ATIVO:</b> ${heroDisplayName} • <b>OP-09:</b> ${op09Label}</span>
             </div>
             <div class="slot-actions-row">
               <button class="tactical-btn" data-slot-action="${mode === 'new' ? 'start-new' : 'load'}" data-slot="${idx}">
@@ -1219,14 +1924,11 @@ export class LegoHud {
               this.startLoadingSequence(saved, false);
             }
           } else {
-            // Fluxo Simplificado para o Modo Livre: escolheu o Slot, inicia direto na Tela de Loading!
+            // Novo Jogo: abre o Painel de Escolha das 3 Facções (CV / PCC / A.R.E.S.)!
+            this.pendingSlotIndex = idx;
             this.activeSaveSlot = idx;
-            const slotData = writeSaveSlot(idx, {
-              faction: 'free_roam',
-              studs: 0,
-              heroKey: 'caveira'
-            });
-            this.startLoadingSequence(slotData, true);
+            soundFX.playHeroSwap();
+            this._openFactionSelectionPanel();
           }
         });
       });
@@ -1273,10 +1975,36 @@ export class LegoHud {
         btn.addEventListener('click', () => {
           const chosenFaction = btn.dataset.chooseFaction || 'cv';
           this.activeSaveSlot = this.pendingSlotIndex ?? this.activeSaveSlot ?? 0;
+
+          if (!this.isTitleScreenActive) {
+            // Troca instantânea de Facção durante a partida via [ESC] sem recarregar o motor 3D!
+            this.setPlayerFaction(chosenFaction, true);
+            this.saveCurrentProgress();
+            this.titleOverlayEl?.classList.add('hidden');
+            document.body?.classList.remove('title-or-loading-active');
+            soundFX.playTrueHeroFanfare();
+            if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+              this._lastController.relockPointer();
+            }
+            return;
+          }
+
+          const defaultCustom = createDefaultCustomHeroState();
+          const defaultGarage = createDefaultGarageSaveData();
+          setActiveCustomHero(defaultCustom);
+          setActiveGarageSaveData(defaultGarage);
+          syncOp09CatalogSlot();
+          if (this.tiktokRadio) {
+            this.tiktokRadio.importSaveState(null);
+          }
           const slotData = writeSaveSlot(this.activeSaveSlot, {
             faction: chosenFaction,
-            studs: this.isTitleScreenActive ? 0 : this.totalStuds,
-            heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
+            studs: 0,
+            heroKey: 'caveira',
+            conqueredTerritories: [],
+            customHero: defaultCustom,
+            customGarage: defaultGarage,
+            radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
           });
           this.startLoadingSequence(slotData, true);
         });
@@ -1308,18 +2036,31 @@ export class LegoHud {
     this.isLoadingActive = true;
     document.body?.classList.add('title-or-loading-active');
 
+    this._lastController?.resetHeldInputs?.();
+    this.setTikTokRadioOpen(false, this._lastController);
+    this.tiktokRadio?.stopAllPlayback();
+    soundFX.baileFunkMix = 0;
+    soundFX.baileBeatPulse = 0;
+    soundFX.stopWarMusic();
+    if (this.tiktokRadio) {
+      this.tiktokRadio.importSaveState(slotData?.radioState || null);
+    }
+
     this.titleOverlayEl?.classList.add('hidden');
     this.setPauseMenuOpen(false, this._lastController, true);
 
     const lang = this.settings?.language || 'pt-BR';
     const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
 
+    const chosenFaction = FACTION_DATA[slotData?.faction] ? slotData.faction : 'cv';
+    const fInfo = FACTION_DATA[chosenFaction];
+
     if (this.loadingFactionLogoEl) {
-      this.loadingFactionLogoEl.innerHTML = getFreeRoamLogoSvg(78);
+      this.loadingFactionLogoEl.innerHTML = getFactionLogoSvg(chosenFaction, 78);
     }
     if (this.loadingFactionTitleEl) {
-      this.loadingFactionTitleEl.textContent = t.subtitle;
-      this.loadingFactionTitleEl.style.color = '#facc15';
+      this.loadingFactionTitleEl.textContent = fInfo.name[lang] || fInfo.name['pt-BR'] || t.subtitle;
+      this.loadingFactionTitleEl.style.color = fInfo.color;
     }
     if (this.loadingTipTextEl) {
       const tips =
@@ -1356,25 +2097,49 @@ export class LegoHud {
     const safeWarmup = (stage, idx = 0) => {
       if (typeof this.onWarmupStep === 'function') {
         try {
-          this.onWarmupStep(stage, idx);
+          return this.onWarmupStep(stage, idx) !== false;
         } catch (err) {
           console.warn(`[Warmup ${stage}]`, err);
+          return false;
         }
       }
+      return true;
     };
 
-    // ETAPA 1 (0% -> 24%): Configura dados do Save, Herói, Corações LEGO e Matrizes
+    // ETAPA 1 (0% -> 24%): Inicializa Motor WebGL + Cidade 3D sob demanda, Save, Herói, Corações e Matrizes
     nextFrame(() => {
+      const engineOk = safeWarmup('init_engine', 0);
+      if (!engineOk) {
+        this.isLoadingActive = false;
+        this.isTitleScreenActive = true;
+        this.loadingScreenEl?.classList.add('hidden');
+        this.titleOverlayEl?.classList.remove('hidden');
+        this._setTitleSubPanel('main');
+        return;
+      }
+
       try {
+        setActiveCustomHero(slotData?.customHero || createDefaultCustomHeroState());
+        setActiveGarageSaveData(slotData?.customGarage || createDefaultGarageSaveData());
+        syncOp09CatalogSlot();
         this.totalStuds = Number(slotData?.studs || 0);
         this.displayedStuds = this.totalStuds;
         if (this.studCountEl) {
           this.studCountEl.textContent = this.totalStuds.toLocaleString('pt-BR');
         }
-        if (this._lastController && slotData?.heroKey) {
-          this._lastController.switchToHero(slotData.heroKey);
+        const initialHeroKey = slotData?.heroKey || 'caveira';
+        if (this._lastController) {
+          this._lastController.switchToHero(initialHeroKey);
         }
-        this.setPlayerFaction('free_roam', true);
+        if (initialHeroKey === 'op09') {
+          this.syncOp09UI();
+        }
+        this.setPlayerFaction(
+          chosenFaction,
+          true,
+          Array.isArray(slotData?.conqueredTerritories) ? slotData.conqueredTerritories : []
+        );
+        this._lastController?.world?.livingCity?.wantedSystem?.clearWanted?.('reset');
         this.setPlayerHealth(250, 250, false);
       } catch (err) {
         console.warn('[Loading Stage 1]', err);
@@ -1456,15 +2221,26 @@ export class LegoHud {
 
   saveCurrentProgress() {
     writeSaveSlot(this.activeSaveSlot || 0, {
-      faction: 'free_roam',
+      faction: FACTION_DATA[this.playerFaction] ? this.playerFaction : 'cv',
       studs: this.totalStuds || 0,
-      heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira'
+      heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira',
+      conqueredTerritories:
+        typeof this.getConqueredTerritories === 'function' ? this.getConqueredTerritories() : [],
+      customHero: { ...getActiveCustomHero() },
+      customGarage: JSON.parse(JSON.stringify(getActiveGarageSaveData())),
+      radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
     });
   }
 
   setPauseMenuOpen(open, controller = null, keepTitleState = false) {
     if (controller) {
       this._lastController = controller;
+    }
+    if (open && this.isCreatorOpen) {
+      this.creatorStudio?.close(false);
+    }
+    if (open && this.isCustomsOpen) {
+      this.customsStudio?.close(false);
     }
     this.isPauseMenuOpen = Boolean(open);
     if (this.pauseModalEl) {
@@ -1475,9 +2251,11 @@ export class LegoHud {
     }
 
     if (this.isPauseMenuOpen) {
+      this._lastController?.resetHeldInputs?.();
       if (this.isFullMapOpen) this.setFullMapOpen(false);
       if (this.isDossierOpen) this.setHeroDossierOpen(false);
       if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+      if (this.isTikTokRadioOpen) this.setTikTokRadioOpen(false);
       this._refreshLanguageAndOptionsUI();
       if (document.pointerLockElement && document.exitPointerLock) {
         document.exitPointerLock();

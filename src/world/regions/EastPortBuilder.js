@@ -7,6 +7,7 @@ import {
 import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
 import { NAVAL_AIR_SPECS } from '../NavalAndAirFleetBuilder.js';
 import { RIVER_BRIDGE_SPECS, RIVER_PIER_SPECS } from '../RoadGridBuilder.js';
+import { buildTerritoryInfrastructureForZone } from '../FactionWarSystem.js';
 
 /**
  * ACUMULADOR DE GEOMETRIAS DO IMPÉRIO INDUSTRIAL & CORPORATIVO DO PCC (60 FPS CRAVADOS!)
@@ -15,10 +16,17 @@ import { RIVER_BRIDGE_SPECS, RIVER_PIER_SPECS } from '../RoadGridBuilder.js';
  * Pilhas de Contêineres Pretos/Azuis, Frotas de Caminhões/SUVs/Vans, Paletes de Ouro, C4 e Muralhas) em ~16 Draw Calls!
  */
 class PCCIndustrialBatcher {
-  constructor() {
+  constructor(world = null) {
+    this.world = world;
     this.buckets = new Map();
     this.materials = new Map();
     this._initMaterials();
+  }
+
+  _terrainLift(x, z) {
+    if (!this.world?.getTerrainHeightAt) return 0;
+    if (x < 622 || x > 1430 || z < -720 || z > -40) return 0;
+    return Math.max(0, this.world.getTerrainHeightAt(x, z));
   }
 
   _reg(key, colorHex, opts = {}) {
@@ -95,30 +103,39 @@ class PCCIndustrialBatcher {
   addBox(key, w, h, d, x, y, z, rotX = 0, rotY = 0, rotZ = 0) {
     const arr = this.buckets.get(key);
     if (!arr) return;
+    const tY = this._terrainLift(x, z);
+    let finalH = h;
+    let finalY = y + tY;
+    if (tY > 0.04 && y - h * 0.5 <= 0.65 && rotX === 0 && rotZ === 0) {
+      finalH = h + 3.5;
+      finalY = y + tY - 1.75;
+    }
     if (rotX === 0 && rotY === 0 && rotZ === 0) {
-      arr.push(makeTranslatedBox(w, h, d, x, y, z));
+      arr.push(makeTranslatedBox(w, finalH, d, x, finalY, z));
       return;
     }
-    const geo = new THREE.BoxGeometry(w, h, d);
+    const geo = new THREE.BoxGeometry(w, finalH, d);
     if (rotX !== 0) geo.rotateX(rotX);
     if (rotY !== 0) geo.rotateY(rotY);
     if (rotZ !== 0) geo.rotateZ(rotZ);
-    geo.translate(x, y, z);
+    geo.translate(x, finalY, z);
     arr.push(geo);
   }
 
   addCylinder(key, rTop, rBot, h, x, y, z, segs = 8, rotX = 0, rotZ = 0) {
     const arr = this.buckets.get(key);
     if (!arr) return;
+    const tY = this._terrainLift(x, z);
     const geo = new THREE.CylinderGeometry(rTop, rBot, h, segs);
     if (rotX !== 0) geo.rotateX(rotX);
     if (rotZ !== 0) geo.rotateZ(rotZ);
-    geo.translate(x, y, z);
+    geo.translate(x, y + tY, z);
     arr.push(geo);
   }
 
   createSubBatcher() {
     const sub = Object.create(PCCIndustrialBatcher.prototype);
+    sub.world = this.world;
     sub.materials = this.materials;
     sub.buckets = new Map();
     for (const key of this.materials.keys()) {
@@ -139,6 +156,7 @@ class PCCIndustrialBatcher {
     for (const [key, geos] of this.buckets.entries()) {
       if (geos.length === 0) continue;
       const merged = mergeBufferGeometries(geos);
+      for (let i = 0; i < geos.length; i++) geos[i].dispose();
       if (!merged) continue;
       const mesh = new THREE.Mesh(merged, this.materials.get(key));
       mesh.castShadow = shadowCasterKeys.has(key);
@@ -153,7 +171,7 @@ class PCCIndustrialBatcher {
  * 6 & 7. IMPÉRIO INDUSTRIAL & CORPORATIVO BLINDADO 100% DO PCC + PORTO METROPOLITANO
  */
 export function buildEastCanalIndustrialAndPort(world) {
-  const batcher = new PCCIndustrialBatcher();
+  const batcher = new PCCIndustrialBatcher(world);
 
   // Metadados Oficiais do Território 100% PCC para inspeção e testes automatizados
   world.industrialPCCData = {
@@ -191,23 +209,42 @@ export function buildEastCanalIndustrialAndPort(world) {
   // 1. CANAL URBANO LESTE + PONTES BLINDADAS + 5 BARRICADAS TÁTICAS DO PCC NAS ENTRADAS
   buildEastCanalBridgesAndPCCBarricades(world, batcher);
 
-  // 2. A CIDADELA / TORRE DO BUNKER CENTRAL DO PCC (112m DE ALTURA + PASSARELAS AÉREAS BLINDADAS + RAMPA SUBTERRÂNEA)
-  buildPCCCentralCitadelAndBunker(world, batcher);
+  // Eleva automaticamente colisores do Distrito Industrial Leste conforme a Elevação Industrial (+7.0m)
+  const origAddCollider = world.addCollider.bind(world);
+  world.addCollider = (cx, cz, cw, cd, maxY = 10, minY = 0) => {
+    const tY = batcher._terrainLift(cx, cz);
+    if (tY > 0.04) {
+      const adjMin = minY <= 0.6 ? minY + tY - 3.5 : minY + tY;
+      return origAddCollider(cx, cz, cw, cd, maxY + tY, adjMin);
+    }
+    return origAddCollider(cx, cz, cw, cd, maxY, minY);
+  };
 
-  // 3. PÁTIO DA FROTA — "O BONDE DO PCC" (DENSO COM 2 GARAGENS BLINDADAS EM L, PILHAS DE CONTÊINERES E COMBOIO!)
-  buildPCCFleetConvoyYard(world, batcher);
+  try {
+    // 2. A CIDADELA / TORRE DO BUNKER CENTRAL DO PCC (112m DE ALTURA + PASSARELAS AÉREAS BLINDADAS + RAMPA SUBTERRÂNEA)
+    buildPCCCentralCitadelAndBunker(world, batcher);
 
-  // 4. PÁTIO DO DESMANCHE & FERRO-VELHO DO SINDICATO (OFICINAS EM U, CARROS-FORTES ROUBADOS, PRENSA E GUINDASTE)
-  buildPCCChopShopAndScrapyard(world, batcher);
+    // 3. PÁTIO DA FROTA — "O BONDE DO PCC" (DENSO COM 2 GARAGENS BLINDADAS EM L, PILHAS DE CONTÊINERES E COMBOIO!)
+    buildPCCFleetConvoyYard(world, batcher);
 
-  // 5. EXPANSÃO TOTAL DOS QUARTEIRÕES DO PCC (COBRINDO 100% DA REGIÃO LESTE E NORDESTE ATÉ ENCOSTAR NO PORTO!)
-  buildAllExpandedPCCIndustrialAndCorporateBlocks(world, batcher);
+    // 4. PÁTIO DO DESMANCHE & FERRO-VELHO DO SINDICATO (OFICINAS EM U, CARROS-FORTES ROUBADOS, PRENSA E GUINDASTE)
+    buildPCCChopShopAndScrapyard(world, batcher);
+
+    // 5. EXPANSÃO TOTAL DOS QUARTEIRÕES DO PCC (COBRINDO 100% DA REGIÃO LESTE E NORDESTE ATÉ ENCOSTAR NO PORTO!)
+    buildAllExpandedPCCIndustrialAndCorporateBlocks(world, batcher);
+  } finally {
+    world.addCollider = origAddCollider;
+  }
 
   // 6. PORTO DE CARGAS & CAIS MARÍTIMO (CAIS PESADO, LABIRINTO DE CONTÊINERES 4 ANDARES, 3 PORTAINER CRANES, DOCA 01/02 E NAVIO CARGUEIRO)
   buildMetropolitanPortAndDocks(world, batcher);
 
   // Finaliza toda a malha estática do Império Blindado do PCC + Porto de Cargas em ~21 Draw Calls!
   batcher.finalize(world.scene);
+
+  // 7. Infraestrutura Oficial dos 2 Territórios Leste/Sudeste: PCC (Industrial/Cidadela) e A.R.E.S. (Porto Blindado)!
+  buildTerritoryInfrastructureForZone(world, 'pcc');
+  buildTerritoryInfrastructureForZone(world, 'ares');
 }
 
 /**
@@ -608,8 +645,13 @@ function _spawnPCCExplosiveBarrel(world, x, z, colorHex = 0x1d4ed8) {
     getLegoMaterial(0xef4444, { emissive: 0xdc2626, emissiveIntensity: 0.8 })
   );
   cap.position.y = 1.9;
+  const c4GroundY =
+    0.28 +
+    (world.getTerrainHeightAt && x > 622 && x < 1430 && z > -720 && z < -40
+      ? Math.max(0, world.getTerrainHeightAt(x, z))
+      : 0);
   group.add(body, stripe, cap);
-  group.position.set(x, 0.28, z);
+  group.position.set(x, c4GroundY, z);
   world.scene.add(group);
 
   const col = world.addCollider(x, z, 1.4, 1.4, 2.1, 0.28);
@@ -623,7 +665,7 @@ function _spawnPCCExplosiveBarrel(world, x, z, colorHex = 0x1d4ed8) {
       colliders: [col],
       debrisColors: [colorHex, LEGO_COLORS.white, LEGO_COLORS.black, 0x38bdf8],
       studDrops: { silver: 3, gold: 3, blue: 1, purple: 0 },
-      groundY: 0.28
+      groundY: c4GroundY
     });
   }
 }
@@ -906,8 +948,9 @@ function buildPCCCentralCitadelAndBunker(world, batcher) {
   const radZ = bZ - 17;
   batcher.addBox('matte_black', 6.5, 5.5, 6.5, radX, citadelTopY + 2.75, radZ);
   batcher.addCylinder('brushed_silver', 1.0, 1.3, 4.5, radX, citadelTopY + 7.2, radZ, 8);
+  const radGroupTY = batcher._terrainLift(radX, radZ);
   const radarGroup = new THREE.Group();
-  radarGroup.position.set(radX, citadelTopY + 9.8, radZ);
+  radarGroup.position.set(radX, citadelTopY + 9.8 + radGroupTY, radZ);
   const radarBar = new THREE.Mesh(
     new THREE.BoxGeometry(11.0, 1.1, 1.5),
     getLegoMaterial(0x0ea5e9, { emissive: 0x0284c7, emissiveIntensity: 0.8 })
@@ -1646,9 +1689,10 @@ function _addStolenGoldPallet(world, batcher, x, z, spawnStuds = false) {
   world.addCollider(x, z, 3.4, 3.4, 2.6, 0.28);
 
   if (spawnStuds && world.destructibles) {
-    world.destructibles.spawnAmbientStud(x - 0.8, 2.75, z, 'gold');
-    world.destructibles.spawnAmbientStud(x + 0.8, 2.75, z, 'blue');
-    world.destructibles.spawnAmbientStud(x, 2.95, z, 'purple');
+    const palTY = batcher._terrainLift(x, z);
+    world.destructibles.spawnAmbientStud(x - 0.8, 2.75 + palTY, z, 'gold');
+    world.destructibles.spawnAmbientStud(x + 0.8, 2.75 + palTY, z, 'blue');
+    world.destructibles.spawnAmbientStud(x, 2.95 + palTY, z, 'purple');
   }
 }
 
@@ -3099,7 +3143,10 @@ function _addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, rotated
   truckGroup.add(flameGroup);
 
   const rotY = rotated90 ? Math.PI / 2 : 0;
-  truckGroup.position.set(x, 0, z);
+  const truckTY = world.getTerrainHeightAt && x > 622 && x < 1430 && z > -720 && z < -40
+    ? Math.max(0, world.getTerrainHeightAt(x, z))
+    : 0;
+  truckGroup.position.set(x, truckTY, z);
   truckGroup.rotation.y = rotY;
   truckGroup.userData.isOptimizedGroup = true;
   truckGroup.userData.carType = 'caminhao_carreta';
@@ -3123,7 +3170,7 @@ function _addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, rotated
     colliders: [col],
     debrisColors: [0xf97316, 0x090a0d, 0xf8fafc, 0xfacc15],
     studDrops: NAVAL_AIR_SPECS.caminhao_carreta.studDrops,
-    groundY: 0
+    groundY: truckTY
   });
 }
 

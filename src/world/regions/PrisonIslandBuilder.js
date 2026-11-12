@@ -3,6 +3,7 @@ import {
   mergeBufferGeometries,
   makeTranslatedBox
 } from '../BuildingGenerator.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 /**
  * Acumulador de Geometrias 3D da Grande Ponte Blindada Estaiada & Ilha da Prisão de Segurança Máxima (2x Maior):
@@ -161,33 +162,22 @@ class PrisonIslandBatcher {
  * Cria placas luminosas táticas no estilo IDV Oficial (Preto Asfalto + Amarelo Alerta / Vermelho Alerta)
  */
 function _addPrisonBannerSign(world, x, y, z, width, height, text, subText = '', rotY = 0, borderColor = '#facc15', textColor = '#facc15') {
-  const canvas = document.createElement('canvas');
-  canvas.width = 768;
-  canvas.height = 160;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(0, 0, 768, 160);
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 10;
-    ctx.strokeRect(6, 6, 756, 148);
-    ctx.fillStyle = textColor;
-    ctx.font = '900 40px "Chakra Petch", Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(text, 384, subText ? 76 : 94);
-    if (subText) {
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = '700 22px "JetBrains Mono", monospace';
-      ctx.fillText(subText, 384, 124);
-    }
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  const signMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(width, height, 1.2),
-    new THREE.MeshBasicMaterial({ map: tex })
-  );
-  signMesh.position.set(x, y, z);
-  signMesh.rotation.y = rotY;
+  const signMesh = createSignBoardMesh({
+    x,
+    y,
+    z,
+    width,
+    height,
+    depth: 1.1,
+    rotY,
+    title: text,
+    subText,
+    bgColor: '#090a0d',
+    borderColor,
+    textColor,
+    subColor: '#f8fafc',
+    doubleSided: true
+  });
   world.scene.add(signMesh);
 }
 

@@ -9,6 +9,7 @@ import {
   mergeBufferGeometries,
   makeTranslatedBox
 } from '../BuildingGenerator.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 /**
  * PARQUE CENTRAL & LAGO — FLORESTA URBANA / SELVA DENSA (X: -490..+490, Z: +152..+384)
@@ -291,25 +292,20 @@ function buildMonumentalParkGate(world, batcher, gx, groundY, gz, isEastWest, ga
   batcher.addBox('stone_dark', isEastWest ? 3.2 : 14.0, 1.6, isEastWest ? 14.0 : 3.2, gx, groundY + 14.5, gz);
   world.addCollider(gx, gz, archW, archD, groundY + 15.2, groundY + 11.0);
 
-  const signCanvas = document.createElement('canvas');
-  signCanvas.width = 512;
-  signCanvas.height = 96;
-  const ctx = signCanvas.getContext('2d');
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(0, 0, 512, 96);
-  ctx.strokeStyle = '#facc15';
-  ctx.lineWidth = 8;
-  ctx.strokeRect(6, 6, 500, 84);
-  ctx.fillStyle = '#facc15';
-  ctx.font = '900 38px "Chakra Petch", Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(gateTitle, 256, 60);
-  const tex = new THREE.CanvasTexture(signCanvas);
-  const signMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(isEastWest ? 0.6 : 18.0, 2.6, isEastWest ? 18.0 : 0.6),
-    new THREE.MeshBasicMaterial({ map: tex })
-  );
-  signMesh.position.set(gx, groundY + 12.3, gz);
+  const signMesh = createSignBoardMesh({
+    x: gx,
+    y: groundY + 12.3,
+    z: gz,
+    width: 18.0,
+    height: 2.6,
+    depth: 0.65,
+    rotY: isEastWest ? Math.PI / 2 : 0,
+    title: gateTitle,
+    bgColor: '#0f172a',
+    borderColor: '#facc15',
+    textColor: '#facc15',
+    doubleSided: true
+  });
   world.scene.add(signMesh);
 }
 
@@ -797,6 +793,13 @@ function buildDenseJungleForestVegetation(world, batcher, px, pz, pw, pd, ground
     if (Math.hypot(x + 355, z - 324) < 12.5) return false;
     if (Math.hypot(x + 135, z - 212) < 12.5) return false;
 
+    // Viaduto Panorâmico Norte-Sul (X = +252) & Mirante Circular / Rampas da Colina Oeste (-215, 296)
+    if (Math.abs(x - 252) < 14.5) return false;
+    if (Math.hypot(x + 215, z - 296) < 19.5) return false;
+    if (Math.hypot(x + 408, z - 268) < 12.0) return false;
+    if (x >= -205 && x <= -120 && Math.abs(z - 296) < 7.5) return false;
+    if (z >= 238 && z <= 284 && Math.abs(x + 215) < 7.5) return false;
+
     return true;
   };
 
@@ -822,6 +825,8 @@ function buildDenseJungleForestVegetation(world, batcher, px, pz, pw, pd, ground
 
       if (!isClearForTreeTrunk(tx, tz)) continue;
 
+      const treeY = Math.max(groundY, world.getTerrainHeightAt ? world.getTerrainHeightAt(tx, tz) : groundY);
+
       // Escala vertical alta (1.35x a 2.65x -> árvores de 18m até 38m de altura!)
       const hScale = 1.35 + rand() * 1.3;
       const wScale = 1.25 + rand() * 0.95;
@@ -831,14 +836,14 @@ function buildDenseJungleForestVegetation(world, batcher, px, pz, pw, pd, ground
         // 1. CARVALHO / SEQUOIA GIGANTE DE SELVA (Copa colossal com galhos abertos e cipós pendurados!)
         const leafKey = canopyGreenKeys[Math.floor(rand() * canopyGreenKeys.length)];
         const leafKey2 = canopyGreenKeys[Math.floor(rand() * canopyGreenKeys.length)];
-        addColossalJungleCanopyTree(batcher, tx, groundY, tz, wScale, hScale, leafKey, leafKey2, rand() < 0.65);
+        addColossalJungleCanopyTree(batcher, tx, treeY, tz, wScale, hScale, leafKey, leafKey2, rand() < 0.65);
       } else if (rType < 0.72) {
         // 2. ÁRVORE GIGANTE DE OUTONO / IPÊ (Laranja, Amarela, Vermelha ou Rosa-Ipê!)
         const autKey = autumnKeys[Math.floor(rand() * autumnKeys.length)];
-        addGiantAutumnTree(batcher, tx, groundY, tz, wScale, hScale, autKey);
+        addGiantAutumnTree(batcher, tx, treeY, tz, wScale, hScale, autKey);
       } else {
         // 3. PINHEIRO / ARAUCÁRIA GIGANTE DE FLORESTA (20m a 36m de altura!)
-        addGiantConiferPineTree(batcher, tx, groundY, tz, wScale, hScale);
+        addGiantConiferPineTree(batcher, tx, treeY, tz, wScale, hScale);
       }
       batcher.treeCount++;
 
@@ -848,8 +853,9 @@ function buildDenseJungleForestVegetation(world, batcher, px, pz, pw, pd, ground
         const ux = tx + (rand() - 0.5) * 8.5;
         const uz = tz + (rand() - 0.5) * 8.5;
         if (!isClearForTreeTrunk(ux, uz)) continue;
+        const underY = Math.max(groundY, world.getTerrainHeightAt ? world.getTerrainHeightAt(ux, uz) : groundY);
         const flKey = flowerKeys[Math.floor(rand() * flowerKeys.length)];
-        addJungleUndergrowthCluster(batcher, ux, groundY, uz, 0.9 + rand() * 0.9, flKey, u % 2 === 0);
+        addJungleUndergrowthCluster(batcher, ux, underY, uz, 0.9 + rand() * 0.9, flKey, u % 2 === 0);
         batcher.undergrowthCount++;
       }
     }
@@ -860,7 +866,7 @@ function buildDenseJungleForestVegetation(world, batcher, px, pz, pw, pd, ground
   // ============================================================================
   // Ao redor da margem do Grande Lago (X = 68..342, Z = 185..351)
   for (let wx = 78; wx <= 332; wx += 24) {
-    if (Math.abs(wx - 205) < 16) continue;
+    if (Math.abs(wx - 205) < 16 || Math.abs(wx - 252) < 16) continue;
     addGiantWeepingWillow(batcher, wx + (rand() - 0.5) * 5, groundY, 184, 1.35 + rand() * 0.45);
     addGiantWeepingWillow(batcher, wx + (rand() - 0.5) * 5, groundY, 352, 1.35 + rand() * 0.45);
     batcher.treeCount += 2;

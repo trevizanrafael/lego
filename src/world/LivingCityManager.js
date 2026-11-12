@@ -8,6 +8,10 @@ import {
 } from '../materials/LegoMaterials.js';
 import { mergeBufferGeometries } from './BuildingGenerator.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from './VehicleFleetBuilder.js';
+import { getMetroCutoutFloorY } from './MetroSystemBuilder.js';
+import { FactionWarSystem, getTerritoryZoneAt } from './FactionWarSystem.js';
+import { WantedPursuitSystem } from './WantedPursuitSystem.js';
+import { ensureVehicleNightLights } from './DayNightAtmosphereManager.js';
 import { soundFX } from '../audio/SoundFX.js';
 
 // ============================================================================
@@ -457,8 +461,8 @@ export class LivingCityManager {
     this.healStations = [];
     this.healthCrystals = [];
 
-    // No Modo Livre, o jogador tem sempre os 4 Corações LEGO cheios (zero dano punitivo!)
-    this.playerFaction = 'free_roam';
+    // Facção Aliada do Jogador ('cv' | 'pcc' | 'ares') — Cidade Civil 100% Pacífica; Guerra 1x1 apenas nos 3 Territórios!
+    this.playerFaction = 'cv';
     this.playerMaxHp = 250;
     this.playerHp = 250;
 
@@ -480,6 +484,26 @@ export class LivingCityManager {
     this._initPedestrians();
     this._initCivilianSkyHelicopter();
     this._initStreetVendorCarts();
+
+    // Sistema de Guerra Territorial de Invasão (1x1 apenas dentro do Território Invadido!)
+    this.factionWar = new FactionWarSystem(this);
+
+    // Sistema de Procurado Escalável Estilo GTA (0 a 5 Estrelas) + Fuga Tática!
+    this.wantedSystem = new WantedPursuitSystem(this);
+  }
+
+  setPlayerFaction(factionKey = 'cv', controller = null, savedConquests = null) {
+    if (this.factionWar) {
+      this.factionWar.setPlayerFaction(factionKey, controller, savedConquests);
+    } else {
+      this.playerFaction = factionKey;
+    }
+  }
+
+  resetTerritories() {
+    if (this.factionWar) {
+      this.factionWar.resetConqueredTerritories();
+    }
   }
 
   // ============================================================================
@@ -495,8 +519,9 @@ export class LivingCityManager {
         const hw = (bld.w || 0) * 0.5;
         const hd = (bld.d || 0) * 0.5;
         if (hw < 1.5 || hd < 1.5) continue;
-        // O interior térreo do Super Banco Central é aberto!
+        // O interior térreo do Super Banco Central é aberto, e Estações Elevadas / Mirante não bloqueiam o térreo!
         if (Math.abs(bld.x) < 56 && bld.z > -230 && bld.z < -128) continue;
+        if (bld.label && (bld.label.startsWith('METRÔ') || bld.label.startsWith('MIRANTE'))) continue;
         boxes.push({
           minX: bld.x - hw,
           maxX: bld.x + hw,
@@ -606,8 +631,9 @@ export class LivingCityManager {
   }
 
   _isValidDryLandForPedestrian(x, z) {
-    // Limites seguros da Grande Ilha Metropolitana + Praia + Porto + Aeroporto
+    // Limites seguros da Grande Ilha Metropolitana + Praia + Porto + Aeroporto (e fora das bocas subterrâneas do Metrô!)
     if (x < -1420 || x > 1180 || z < -1180 || z > 885) return false;
+    if (getMetroCutoutFloorY(x, z) !== null) return false;
     if (this.world?.isDeepWaterAt && this.world.isDeepWaterAt(x, z)) return false;
     return true;
   }
@@ -753,11 +779,32 @@ export class LivingCityManager {
       { type: 'buggy_praia', color: 0x22c55e, roofColor: 0xf97316, axis: 'z_const', roadCoord: 710, laneOffset: -5.2, posAlong: 40, dir: -1, minC: -520, maxC: 520 },
       { type: 'cyber_blade', color: 0x38bdf8, roofColor: BLK, axis: 'z_const', roadCoord: 710, laneOffset: -5.2, posAlong: -230, dir: -1, minC: -520, maxC: 520 },
 
-      // 9. Subúrbio Norte (Z = -512)
+      // 9. Subúrbio Norte (Z = -512) & Ladeiras Norte-Sul até o Platô Costeiro (+11.5m)
       { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'z_const', roadCoord: -512, laneOffset: 5.2, posAlong: -280, dir: 1, minC: -490, maxC: 490 },
       { type: 'sedan_familiar', color: 0x2563eb, roofColor: WHT, axis: 'z_const', roadCoord: -512, laneOffset: 5.2, posAlong: 85, dir: 1, minC: -490, maxC: 490 },
       { type: 'onibus_urbano', color: 0xfacc15, roofColor: 0x2563eb, axis: 'z_const', roadCoord: -512, laneOffset: -5.2, posAlong: 220, dir: -1, minC: -490, maxC: 490 },
-      { type: 'sedan_familiar', color: 0x16a34a, roofColor: WHT, axis: 'z_const', roadCoord: -512, laneOffset: -5.2, posAlong: -140, dir: -1, minC: -490, maxC: 490 }
+      { type: 'sedan_familiar', color: 0x16a34a, roofColor: WHT, axis: 'z_const', roadCoord: -512, laneOffset: -5.2, posAlong: -140, dir: -1, minC: -490, maxC: 490 },
+
+      // 10. REDE DOS 3 GRANDES VIADUTOS EXPRESSOS LEGO (Circulação Multi-Nível em Y = +12.4m / +10.2m / +9.2m!)
+      // Viaduto 01 — Elevado Leste-Oeste (Z = -382, X = -465..+465, Y = +12.4m)
+      { type: 'apex_gtx', color: 0xef4444, roofColor: BLK, axis: 'z_const', roadCoord: -382, laneOffset: 3.8, posAlong: -310, dir: 1, minC: -495, maxC: 505, startY: 12.4 },
+      { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'z_const', roadCoord: -382, laneOffset: 3.8, posAlong: -65, dir: 1, minC: -495, maxC: 505, startY: 12.4 },
+      { type: 'onibus_urbano', color: 0x2563eb, roofColor: WHT, axis: 'z_const', roadCoord: -382, laneOffset: 3.8, posAlong: 185, dir: 1, minC: -495, maxC: 505, startY: 12.4 },
+      { type: 'vortex_roadster', color: 0x06b6d4, roofColor: WHT, axis: 'z_const', roadCoord: -382, laneOffset: -3.8, posAlong: 315, dir: -1, minC: -495, maxC: 505, startY: 12.4 },
+      { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'z_const', roadCoord: -382, laneOffset: -3.8, posAlong: 40, dir: -1, minC: -495, maxC: 505, startY: 12.4 },
+      { type: 'interceptor_v8', color: BLK, roofColor: WHT, axis: 'z_const', roadCoord: -382, laneOffset: -3.8, posAlong: -225, dir: -1, minC: -495, maxC: 505, startY: 12.4 },
+
+      // Viaduto 02 — Panorâmico Norte-Sul sobre o Grande Lago (X = +252, Z = -84..+520, Y = +10.2m)
+      { type: 'vortex_roadster', color: 0xfacc15, roofColor: BLK, axis: 'x_const', roadCoord: 252, laneOffset: -3.8, posAlong: 55, dir: 1, minC: -102, maxC: 542, startY: 10.2 },
+      { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'x_const', roadCoord: 252, laneOffset: -3.8, posAlong: 295, dir: 1, minC: -102, maxC: 542, startY: 10.2 },
+      { type: 'cyber_blade', color: 0xec4899, roofColor: BLK, axis: 'x_const', roadCoord: 252, laneOffset: 3.8, posAlong: 390, dir: -1, minC: -102, maxC: 542, startY: 10.2 },
+      { type: 'sedan_familiar', color: 0x10b981, roofColor: WHT, axis: 'x_const', roadCoord: 252, laneOffset: 3.8, posAlong: 135, dir: -1, minC: -102, maxC: 542, startY: 10.2 },
+
+      // Viaduto 03 — Expresso Oeste Aeroporto <-> Centro / CDD (Z = 0, X = -1036..-466, Y = +9.2m)
+      { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'z_const', roadCoord: 0, laneOffset: 3.8, posAlong: -880, dir: 1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0.28 },
+      { type: 'onibus_urbano', color: 0xfacc15, roofColor: 0x2563eb, axis: 'z_const', roadCoord: 0, laneOffset: 3.8, posAlong: -620, dir: 1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0.28 },
+      { type: 'apex_gtx', color: 0x38bdf8, roofColor: BLK, axis: 'z_const', roadCoord: 0, laneOffset: -3.8, posAlong: -560, dir: -1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0 },
+      { type: 'interceptor_v8', color: BLK, roofColor: WHT, axis: 'z_const', roadCoord: 0, laneOffset: -3.8, posAlong: -810, dir: -1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0 }
     ];
 
     for (const cfg of trafficSpecs) {
@@ -777,7 +824,10 @@ export class LivingCityManager {
         : cfg.dir > 0
           ? 0
           : Math.PI;
-    const yBase = this.world.getRoadElevation ? this.world.getRoadElevation(x, z) : 0;
+    const refStartY = cfg.startY ?? 0;
+    const yBase = this.world.getSurfaceHeightAt
+      ? this.world.getSurfaceHeightAt(x, z, refStartY)
+      : (this.world.getRoadElevation ? this.world.getRoadElevation(x, z) : 0);
 
     const carGroup = createLegoCarMesh({
       x,
@@ -851,6 +901,7 @@ export class LivingCityManager {
       faction: 'civilian',
       isPoliceVehicle,
       brakeLights,
+      nightLightRig: ensureVehicleNightLights(carGroup, spec),
       isBraking: false,
       mesh: carGroup,
       destructible: destructibleEntry,
@@ -862,18 +913,120 @@ export class LivingCityManager {
       axis: cfg.axis,
       roadCoord: cfg.roadCoord,
       laneOffset: cfg.laneOffset,
+      baseLaneOffset: cfg.laneOffset,
+      targetLaneOffset: cfg.laneOffset,
       posAlong: cfg.posAlong,
       dir: cfg.dir,
       minC: cfg.minC,
       maxC: cfg.maxC,
       cruiseSpeed,
       currentSpeed: cruiseSpeed,
+      stuckTimer: 0,
+      surroundedTimer: 0,
+      respawnFadeTimer: 0,
+      abandonedTimer: 0,
       panicTimer: 0,
       hornCooldown: 0,
       hijackedByPlayer: false
     };
     this.trafficVehicles.push(tvEntry);
     return tvEntry;
+  }
+
+  _relocateStuckTrafficVehicle(tv, playerPos = null) {
+    if (!tv || !tv.destructible || tv.destructible.destroyed) return false;
+    const obj = tv.destructible;
+    const span = Math.max(60, (tv.maxC - 25) - (tv.minC + 25));
+
+    let chosenPosAlong = tv.dir > 0 ? tv.minC + 25 : tv.maxC - 25;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const candidatePosAlong = tv.minC + 25 + ((attempt + 0.5) / 12) * span;
+      const cx = tv.axis === 'z_const' ? candidatePosAlong : tv.roadCoord + tv.baseLaneOffset;
+      const cz = tv.axis === 'z_const' ? tv.roadCoord + tv.baseLaneOffset : candidatePosAlong;
+
+      if (playerPos && Math.hypot(cx - playerPos.x, cz - playerPos.z) < 65.0) {
+        continue;
+      }
+
+      let laneFree = true;
+      for (const other of this.trafficVehicles) {
+        if (other === tv || !other.destructible || other.destructible.destroyed) continue;
+        if (other.axis !== tv.axis || Math.abs(other.roadCoord - tv.roadCoord) > 4.0) continue;
+        if (
+          Math.abs(other.laneOffset - tv.baseLaneOffset) < 2.8 &&
+          Math.abs(other.posAlong - candidatePosAlong) < 24.0
+        ) {
+          laneFree = false;
+          break;
+        }
+      }
+
+      if (laneFree) {
+        chosenPosAlong = candidatePosAlong;
+        break;
+      }
+    }
+
+    tv.posAlong = chosenPosAlong;
+    tv.laneOffset = tv.baseLaneOffset;
+    tv.targetLaneOffset = tv.baseLaneOffset;
+    tv.currentSpeed = tv.cruiseSpeed;
+    tv.stuckTimer = 0;
+    tv.surroundedTimer = 0;
+    tv.abandonedTimer = 0;
+    tv.respawnFadeTimer = 0.35;
+
+    if (tv.isBraking) {
+      tv.isBraking = false;
+      for (const bl of tv.brakeLights) {
+        bl.material = SHARED_BRAKE_LIGHT_OFF_MAT;
+      }
+    }
+
+    const nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
+    const nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
+    const rotY =
+      tv.axis === 'z_const'
+        ? tv.dir > 0
+          ? Math.PI / 2
+          : -Math.PI / 2
+        : tv.dir > 0
+          ? 0
+          : Math.PI;
+    const refY =
+      tv.cfg?.startY ??
+      tv.cfg?.wrapY ??
+      (this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0);
+    const ny = this.world.getSurfaceHeightAt
+      ? this.world.getSurfaceHeightAt(nx, nz, refY)
+      : (this.world.getRoadElevation ? this.world.getRoadElevation(nx, nz) : 0);
+
+    tv.mesh.position.set(nx, ny, nz);
+    tv.mesh.rotation.set(0, rotY, 0, 'YXZ');
+    obj.basePos.copy(tv.mesh.position);
+    obj.baseRot.copy(tv.mesh.rotation);
+    obj.groundY = ny;
+
+    const isRotated90 = Math.abs(Math.sin(rotY)) > 0.7;
+    const w = isRotated90 ? tv.baseD : tv.baseW;
+    const d = isRotated90 ? tv.baseW : tv.baseD;
+    if (tv.col1) {
+      tv.col1.minX = nx - w * 0.5;
+      tv.col1.maxX = nx + w * 0.5;
+      tv.col1.minZ = nz - d * 0.5;
+      tv.col1.maxZ = nz + d * 0.5;
+      tv.col1.minY = ny;
+      tv.col1.maxY = ny + 1.35;
+    }
+    if (tv.col2) {
+      tv.col2.minX = nx - w * 0.44;
+      tv.col2.maxX = nx + w * 0.44;
+      tv.col2.minZ = nz - d * 0.36;
+      tv.col2.maxZ = nz + d * 0.36;
+      tv.col2.minY = ny;
+      tv.col2.maxY = ny + tv.baseH;
+    }
+    return true;
   }
 
   triggerTrafficPanicNear(origin, radius = 28.0) {
@@ -933,12 +1086,30 @@ export class LivingCityManager {
   _updateUrbanTraffic(dt, playerPos, controller) {
     const drivenObj = controller?.currentVehicle || null;
 
+    const isLaneSegmentClear = (tv, candLaneOffset, checkSpan = 12.0) => {
+      for (const other of this.trafficVehicles) {
+        if (other === tv || !other.destructible || other.destructible.destroyed) continue;
+        if (Math.abs(other.mesh.position.y - tv.mesh.position.y) > 3.2) continue;
+        if (other.axis !== tv.axis || Math.abs(other.roadCoord - tv.roadCoord) > 4.0) continue;
+        if (
+          Math.abs(other.laneOffset - candLaneOffset) < 2.6 &&
+          Math.abs(other.posAlong - tv.posAlong) < checkSpan
+        ) {
+          return false;
+        }
+      }
+      return true;
+    };
+
     for (const tv of this.trafficVehicles) {
       const obj = tv.destructible;
       if (!obj || obj.destroyed) continue;
 
       tv.hornCooldown = Math.max(0, tv.hornCooldown - dt);
       tv.panicTimer = Math.max(0, tv.panicTimer - dt);
+      if (tv.respawnFadeTimer > 0) {
+        tv.respawnFadeTimer = Math.max(0, tv.respawnFadeTimer - dt);
+      }
 
       // Carjacking Amigável ao entrar com [E] ou agarrar carro com o Titã Blindado
       if (obj.isDriven || obj.isGrabbed) {
@@ -946,13 +1117,30 @@ export class LivingCityManager {
           tv.hijackedByPlayer = true;
           this._ejectDriverOnCarjack(tv);
         }
+        tv.abandonedTimer = 0;
         if (tv.isBraking) {
           tv.isBraking = false;
           for (const bl of tv.brakeLights) bl.material = SHARED_BRAKE_LIGHT_OFF_MAT;
         }
         continue;
       }
+
+      // Se um carro do trânsito foi roubado e depois abandonado no meio da rua longe do jogador (> 55m por 8s),
+      // recicla de volta para o fluxo normal da avenida!
       if (tv.hijackedByPlayer) {
+        const distPlayer = playerPos
+          ? Math.hypot(playerPos.x - tv.mesh.position.x, playerPos.z - tv.mesh.position.z)
+          : 999;
+        if (distPlayer > 55.0) {
+          tv.abandonedTimer = (tv.abandonedTimer || 0) + dt;
+          if (tv.abandonedTimer >= 8.0) {
+            tv.hijackedByPlayer = false;
+            tv.abandonedTimer = 0;
+            this._relocateStuckTrafficVehicle(tv, playerPos);
+          }
+        } else {
+          tv.abandonedTimer = 0;
+        }
         continue;
       }
 
@@ -963,6 +1151,8 @@ export class LivingCityManager {
 
       let obstacleAhead = false;
       let shouldHonk = false;
+      let slowCarInBaseLane = false;
+      let nearbyCarsCount = 0;
 
       // 1) Verifica se o jogador a pé ou o veículo do jogador está na frente (folga de 3.5m do para-choque!)
       if (playerPos) {
@@ -975,27 +1165,98 @@ export class LivingCityManager {
           obstacleAhead = true;
           shouldHonk = true;
         }
+        if (drivenObj && Math.hypot(dxP, dzP) < 8.5 && Math.abs(playerPos.y - pos.y) < 3.0) {
+          nearbyCarsCount++;
+        }
       }
 
-      // 2) Verifica fila de carros à frente mantendo distância de 3.5m entre os para-choques!
-      if (!obstacleAhead) {
-        for (const other of this.trafficVehicles) {
-          if (other === tv || !other.destructible || other.destructible.destroyed) continue;
-          const oPos = other.mesh.position;
-          const dxO = oPos.x - pos.x;
-          const dzO = oPos.z - pos.z;
-          const distAheadO = dxO * fwdX + dzO * fwdZ;
-          if (distAheadO <= 1.0 || distAheadO > 22.0) continue;
-          const latDistO = Math.abs(dxO * fwdZ - dzO * fwdX);
-          if (latDistO < 2.85) {
-            const bumperGap = distAheadO - (myHalfLen + other.baseD * 0.5);
-            if (bumperGap < 3.8) {
-              obstacleAhead = true;
-              if (other.hijackedByPlayer) shouldHonk = true;
-              break;
+      // 2) Verifica fila de carros à frente, tenta ultrapassagem suave de faixa e conta carros colados (< 8.5m)!
+      for (const other of this.trafficVehicles) {
+        if (other === tv || !other.destructible || other.destructible.destroyed) continue;
+        const oPos = other.mesh.position;
+        if (Math.abs(oPos.y - pos.y) > 3.2) continue;
+
+        const dxO = oPos.x - pos.x;
+        const dzO = oPos.z - pos.z;
+        const distO = Math.hypot(dxO, dzO);
+        if (distO < 8.5) {
+          nearbyCarsCount++;
+        }
+
+        const distAheadO = dxO * fwdX + dzO * fwdZ;
+        if (distAheadO <= 1.0 || distAheadO > 22.0) continue;
+
+        if (
+          other.axis === tv.axis &&
+          Math.abs(other.roadCoord - tv.roadCoord) < 4.0 &&
+          Math.abs(other.laneOffset - tv.baseLaneOffset) < 2.6 &&
+          distAheadO < 18.0 &&
+          (other.hijackedByPlayer || other.currentSpeed < 3.5)
+        ) {
+          slowCarInBaseLane = true;
+        }
+
+        const latDistO = Math.abs(dxO * fwdZ - dzO * fwdX);
+        if (latDistO < 2.65) {
+          const bumperGap = distAheadO - (myHalfLen + other.baseD * 0.5);
+          const isSlowOrStopped = other.hijackedByPlayer || other.currentSpeed < 3.5;
+
+          // ULTRAPASSAGEM INTELIGENTE: se houver carro lento/abandonado a < 16m na frente, muda para a faixa lateral livre!
+          if (isSlowOrStopped && distAheadO < 16.0) {
+            const altLane = tv.baseLaneOffset > 0 ? tv.baseLaneOffset - 3.6 : tv.baseLaneOffset + 3.6;
+            if (isLaneSegmentClear(tv, altLane, 12.0)) {
+              tv.targetLaneOffset = altLane;
+              if (bumperGap < 1.6) {
+                obstacleAhead = true;
+              }
+              continue;
             }
           }
+
+          if (!obstacleAhead && bumperGap < 3.8) {
+            obstacleAhead = true;
+            if (other.hijackedByPlayer) shouldHonk = true;
+          }
         }
+      }
+
+      // Conta também viaturas de perseguição coladas ao redor (< 8.5m) para detectar cercamento!
+      if (this.wantedSystem?.pursuitVehicles?.length > 0) {
+        for (const pv of this.wantedSystem.pursuitVehicles) {
+          if (!pv.carObj || pv.carObj.destroyed) continue;
+          const pPos = pv.carObj.mesh.position;
+          if (Math.abs(pPos.y - pos.y) < 3.0 && Math.hypot(pPos.x - pos.x, pPos.z - pos.z) < 8.5) {
+            nearbyCarsCount++;
+          }
+        }
+      }
+
+      // Retorna suavemente para a faixa original assim que ela liberar!
+      if (
+        tv.targetLaneOffset !== tv.baseLaneOffset &&
+        !slowCarInBaseLane &&
+        isLaneSegmentClear(tv, tv.baseLaneOffset, 10.5)
+      ) {
+        tv.targetLaneOffset = tv.baseLaneOffset;
+      }
+
+      // 3) AUTO-DESPAWN & RESPAWN ANTI-ENGARRAFAMENTO:
+      //    Se o carro ficar travado (>= 4.2s) ou cercado por >= 2 veículos (>= 2.4s), reposiciona em trecho livre!
+      if (tv.currentSpeed < 2.0) {
+        tv.stuckTimer = (tv.stuckTimer || 0) + dt;
+      } else {
+        tv.stuckTimer = Math.max(0, (tv.stuckTimer || 0) - dt * 2.0);
+      }
+
+      if (nearbyCarsCount >= 2 && tv.currentSpeed < 3.0) {
+        tv.surroundedTimer = (tv.surroundedTimer || 0) + dt;
+      } else {
+        tv.surroundedTimer = Math.max(0, (tv.surroundedTimer || 0) - dt * 1.5);
+      }
+
+      if (tv.stuckTimer >= 4.2 || tv.surroundedTimer >= 2.4) {
+        this._relocateStuckTrafficVehicle(tv, playerPos);
+        continue;
       }
 
       // Buzina cômica periódica até a rua liberar!
@@ -1028,14 +1289,38 @@ export class LivingCityManager {
 
       if (tv.currentSpeed > 0.04) {
         tv.posAlong += tv.dir * tv.currentSpeed * dt;
-        if (tv.posAlong > tv.maxC) tv.posAlong = tv.minC;
-        else if (tv.posAlong < tv.minC) tv.posAlong = tv.maxC;
+        tv.laneOffset = THREE.MathUtils.lerp(
+          tv.laneOffset,
+          tv.targetLaneOffset ?? tv.baseLaneOffset,
+          Math.min(1, dt * 4.0)
+        );
+        let wrapped = false;
+        if (tv.posAlong > tv.maxC) {
+          tv.posAlong = tv.minC;
+          wrapped = true;
+        } else if (tv.posAlong < tv.minC) {
+          tv.posAlong = tv.maxC;
+          wrapped = true;
+        }
 
         const nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
         const nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
-        const ny = this.world.getRoadElevation ? this.world.getRoadElevation(nx, nz) : 0;
+        const refY = wrapped
+          ? (tv.cfg.wrapY ?? (this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0))
+          : tv.mesh.position.y;
+        const ny = this.world.getSurfaceHeightAt
+          ? this.world.getSurfaceHeightAt(nx, nz, refY)
+          : (this.world.getRoadElevation ? this.world.getRoadElevation(nx, nz) : 0);
+        const aheadY = this.world.getSurfaceHeightAt
+          ? this.world.getSurfaceHeightAt(nx + fwdX * 2.0, nz + fwdZ * 2.0, ny)
+          : ny;
+        const slopePitch = -Math.atan2(aheadY - ny, 2.0);
 
+        tv.mesh.rotation.order = 'YXZ';
         tv.mesh.position.set(nx, ny, nz);
+        tv.mesh.rotation.x = wrapped
+          ? slopePitch
+          : THREE.MathUtils.lerp(tv.mesh.rotation.x || 0, slopePitch, Math.min(1, dt * 10));
         obj.basePos.copy(tv.mesh.position);
         obj.baseRot.copy(tv.mesh.rotation);
         obj.groundY = ny;
@@ -1118,16 +1403,21 @@ export class LivingCityManager {
     const headMat = getLegoMaterial(LEGO_COLORS.yellow, { roughness: 0.22 });
     const torsoBaseMat = getLegoMaterial(preset.torsoHex, { roughness: 0.22 });
     const legMat = getLegoMaterial(preset.legHex, { roughness: 0.24 });
-    const hipMat = getLegoMaterial(0x1e293b, { roughness: 0.28 });
+
+    // Mescla cintura/pelve estática direto com o tronco na criação da geometria única se ainda não cacheada!
+    if (!LivingCityManager._mergedTorsoHipGeo) {
+      const tGeo = NPC_TRAPEZOID_TORSO_GEO.clone();
+      const hGeo = NPC_HIP_GEO.clone();
+      hGeo.translate(0, -0.4, 0);
+      LivingCityManager._mergedTorsoHipGeo = mergeBufferGeometries([tGeo, hGeo]);
+    }
 
     const leftLeg = new THREE.Mesh(NPC_LEG_GEO, legMat);
     leftLeg.position.set(-0.2, 0.62, 0);
     const rightLeg = new THREE.Mesh(NPC_LEG_GEO, legMat);
     rightLeg.position.set(0.2, 0.62, 0);
-    const hipPelvis = new THREE.Mesh(NPC_HIP_GEO, hipMat);
-    hipPelvis.position.set(0, 0.64, 0);
 
-    const torso = new THREE.Mesh(NPC_TRAPEZOID_TORSO_GEO, torsoBaseMat);
+    const torso = new THREE.Mesh(LivingCityManager._mergedTorsoHipGeo, torsoBaseMat);
     torso.position.set(0, 1.04, 0);
     const torsoDecal = new THREE.Mesh(
       NPC_TORSO_DECAL_GEO,
@@ -1150,7 +1440,7 @@ export class LivingCityManager {
     rightArm.position.set(0.52, 1.33, 0);
     rightArm.rotation.z = -0.08;
 
-    root.add(leftLeg, rightLeg, hipPelvis, torso, torsoDecal, head, faceShell, leftArm, rightArm);
+    root.add(leftLeg, rightLeg, torso, torsoDecal, head, faceShell, leftArm, rightArm);
 
     // Acessório de Cabeça (Cabelo, Boné, Capacete de Obra, Headband ou Headphones)
     let headPropMesh = null;
@@ -1457,7 +1747,7 @@ export class LivingCityManager {
       // Parque Central & Caminhos do Lago
       { x1: 22, z1: 18, x2: 112, z2: 18 },
       { x1: 138, z1: 18, x2: 242, z2: 18 },
-      { x1: -98, z1: 18, x2: -12, z2: 18 },
+      { x1: -55, z1: 18, x2: -12, z2: 18 },
       { x1: 58, z1: 162, x2: 188, z2: 162 },
       { x1: 58, z1: 362, x2: 225, z2: 362 },
       { x1: 56, z1: 35, x2: 56, z2: 175 },
@@ -1534,23 +1824,29 @@ export class LivingCityManager {
     if (!playerPos || playerPos.y > 95) return; // Não recicla se estiver lá no alto no Aeroporta-Aviões (Y=165m)
 
     let recycledCount = 0;
-    const maxRecyclesPerTick = 28;
+    const maxRecyclesPerTick = 32;
 
     for (let i = 0; i < this.pedestrians.length; i++) {
       if (recycledCount >= maxRecyclesPerTick) break;
       const ped = this.pedestrians[i];
       const root = ped.visual.root;
       const dist = Math.hypot(root.position.x - playerPos.x, root.position.z - playerPos.z);
-      if (dist <= 165.0) continue;
+      if (dist <= 125.0) continue;
 
-      // Escolhe um ponto de calçada/praça no anel de 48m a 122m ao redor do jogador
+      // Escolhe um ponto de calçada/praça no anel denso de 25m a 115m ao redor do jogador!
       let placed = false;
       for (let attempt = 0; attempt < 5; attempt++) {
         const ang = ((i * 1.618 + attempt * 1.25 + performance.now() * 0.0003) % 1) * Math.PI * 2;
-        const ringDist = 48.0 + ((i * 19 + attempt * 23) % 74);
+        const ringDist = 25.0 + ((i * 19 + attempt * 23) % 90);
         const candX = playerPos.x + Math.cos(ang) * ringDist;
         const candZ = playerPos.z + Math.sin(ang) * ringDist;
         if (!this._isValidDryLandForPedestrian(candX, candZ)) continue;
+        if (
+          this.factionWar?.isInvasionActive &&
+          getTerritoryZoneAt(candX, candZ)?.id === this.factionWar.activeZoneId
+        ) {
+          continue;
+        }
 
         const safe = this._findSafeStreetSpawn(candX, candZ, 1.85);
         if (!safe.valid) continue;
@@ -1716,8 +2012,11 @@ export class LivingCityManager {
         dxFromPlayer = root.position.x - playerPos.x;
         dzFromPlayer = root.position.z - playerPos.z;
         const dSq = dxFromPlayer * dxFromPlayer + dzFromPlayer * dzFromPlayer;
-        root.visible = dSq <= 260 * 260;
-        if (dSq > 175 * 175) continue;
+        const isCloseVisible = dSq <= 125 * 125;
+        if (root.visible !== isCloseVisible) {
+          root.visible = isCloseVisible;
+        }
+        if (!isCloseVisible) continue;
         distToPlayer = Math.sqrt(dSq);
       }
 
@@ -1787,6 +2086,23 @@ export class LivingCityManager {
         if (ped.panicTimer <= 0) {
           ped.state = 'NORMAL';
           this._setPedestrianFace(ped, ped.normalFaceKey);
+        }
+      } else if (controller?.minifigure?.activeEmote && distToPlayer <= 12.0 && !isDrivingCar) {
+        // ESTADO EMOTE CONTAGIANTE (< 12m): Civis olham para o jogador e começam a dançar / bater palmas junto!
+        ped.state = 'DANCE_ALONG';
+        this._setPedestrianFace(ped, 'civ_smile');
+        root.rotation.y = Math.atan2(-dxFromPlayer, -dzFromPlayer);
+        const dancePhase = ped.animTime * 11.5 + (ped.id % 4) * 0.5;
+        hopHeight = Math.abs(Math.sin(dancePhase)) * 0.28;
+        vis.leftLeg.rotation.x = Math.sin(dancePhase) * 0.55;
+        vis.rightLeg.rotation.x = -Math.sin(dancePhase) * 0.55;
+        if (ped.id % 2 === 0) {
+          const clap = Math.sin(dancePhase * 1.4) * 0.25;
+          vis.leftArm.rotation.x = -1.4 + clap;
+          vis.rightArm.rotation.x = -1.4 - clap;
+        } else {
+          vis.leftArm.rotation.x = -2.25 + Math.sin(dancePhase) * 0.55;
+          vis.rightArm.rotation.x = -2.25 - Math.sin(dancePhase) * 0.55;
         }
       } else if (isVortexSymbiote && distToPlayer < 7.0 && !isDrivingCar) {
         // ESTADO 3: VILLAIN_SPOOK (Reação assustada ao Simbionte Vórtex OP-08 a < 7m!)
@@ -2164,8 +2480,9 @@ export class LivingCityManager {
       this.caveiraSupportCooldown = Math.max(0, this.caveiraSupportCooldown - dt);
     }
 
-    // Garante que os 4 Corações LEGO fiquem sempre cheios no Modo Livre!
-    if (this.playerHp < this.playerMaxHp) {
+    // Na Cidade Civil Pacífica (0 Estrelas e fora de Invasão de Território), os 4 Corações LEGO ficam sempre cheios!
+    const isWantedActive = Boolean(this.wantedSystem && this.wantedSystem.stars > 0);
+    if (!this.factionWar?.isInvasionActive && !isWantedActive && this.playerHp < this.playerMaxHp) {
       this.playerHp = this.playerMaxHp;
       this.hud?.setPlayerHealth(this.playerMaxHp, this.playerMaxHp, false);
     }
@@ -2180,5 +2497,11 @@ export class LivingCityManager {
     this._updateUrbanTraffic(dt, playerPos, controller);
     this._updatePedestrians(dt, playerPos, controller);
     this._updateCivilianSkyHelicopter(dt);
+    if (this.factionWar) {
+      this.factionWar.update(dt, playerPos, controller);
+    }
+    if (this.wantedSystem) {
+      this.wantedSystem.update(dt, playerPos, controller);
+    }
   }
 }

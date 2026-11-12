@@ -424,6 +424,19 @@ VEHICLE_SPECS.taxi = VEHICLE_SPECS.taxi_metro;
  * - Rodas cilíndricas com calotas, faróis brilhantes, lanternas traseiras vermelhas,
  *   para-brisa translúcido, capô com pinos de LEGO, bancos e volante 3D interno!
  */
+export function getFinishMaterialOpts(finishStyle = 'glossy') {
+  if (finishStyle === 'matte') {
+    return { roughness: 0.72, metalness: 0.08, clearcoat: 0.04 };
+  }
+  if (finishStyle === 'pearl') {
+    return { roughness: 0.15, metalness: 0.58, clearcoat: 0.78 };
+  }
+  if (finishStyle === 'chrome') {
+    return { roughness: 0.06, metalness: 0.92, clearcoat: 0.95 };
+  }
+  return { roughness: 0.2, metalness: 0.06, clearcoat: 0.55 };
+}
+
 export function createLegoCarMesh(cfg) {
   const type = cfg.type || 'apex_gtx';
   const spec = VEHICLE_SPECS[type] || VEHICLE_SPECS.apex_gtx;
@@ -431,8 +444,16 @@ export function createLegoCarMesh(cfg) {
 
   const bodyColor = cfg.color ?? 0xfacc15;
   const roofColor = cfg.roofColor ?? LEGO_COLORS.black;
+  const finishOpts = getFinishMaterialOpts(cfg.finishStyle);
+  const customWheelMat =
+    cfg.wheelColor !== undefined
+      ? getLegoMaterial(cfg.wheelColor, { metalness: 0.55, roughness: 0.18, clearcoat: 0.6 })
+      : null;
 
-  const bodyMat = getLegoMaterial(bodyColor, { roughness: 0.2, clearcoat: 0.55 });
+  group.userData.carType = type;
+  group.userData.initialColors = { color: bodyColor, roofColor };
+
+  const bodyMat = getLegoMaterial(bodyColor, finishOpts);
   const darkTrimMat = getLegoMaterial(LEGO_COLORS.charcoal, { roughness: 0.35 });
   const blackMat = getLegoMaterial(LEGO_COLORS.black, { roughness: 0.4 });
   const whiteMat = getLegoMaterial(LEGO_COLORS.white, { roughness: 0.25 });
@@ -445,7 +466,9 @@ export function createLegoCarMesh(cfg) {
     roughness: 0.08,
     metalness: 0.45
   });
+  glassMat.userData = { ...glassMat.userData, isVehicleGlass: true };
   const headlightMat = getLegoMaterial(0xfef08a, { emissive: 0xfef08a, emissiveIntensity: 0.95 });
+  headlightMat.userData = { ...headlightMat.userData, isVehicleHeadlight: true };
   const taillightMat = getLegoMaterial(LEGO_COLORS.red, { emissive: 0xef4444, emissiveIntensity: 0.85 });
 
   // ============================================================================
@@ -467,8 +490,8 @@ export function createLegoCarMesh(cfg) {
         ? (cfg.roofColor ?? LEGO_COLORS.white)
         : (cfg.roofColor ?? LEGO_COLORS.black);
 
-    const primaryMat = getLegoMaterial(primaryColor, { roughness: 0.2, clearcoat: 0.55 });
-    const secondaryMat = getLegoMaterial(secondaryColor, { roughness: 0.24, clearcoat: 0.45 });
+    const primaryMat = getLegoMaterial(primaryColor, finishOpts);
+    const secondaryMat = getLegoMaterial(secondaryColor, finishOpts);
     const gunmetalMat = getLegoMaterial(0x334155, { metalness: 0.55, roughness: 0.25 });
     const chromeMat = getLegoMaterial(0xe2e8f0, { metalness: 0.72, roughness: 0.18 });
     const pccNeonBlueMat = getLegoMaterial(0x0ea5e9, { emissive: 0x0ea5e9, emissiveIntensity: 0.95 });
@@ -638,10 +661,15 @@ export function createLegoCarMesh(cfg) {
 
     // Bolha / Para-brisa Aerodinâmico (Mais alto na Moto Tática da Polícia, fumê esportivo na Superbike do PCC)
     const shieldH = isPolice ? 0.68 : isPcc ? 0.48 : 0.36;
+    const motoShieldMat = isPcc
+      ? getLegoMaterial(0x020617, { roughness: 0.08, metalness: 0.6 })
+      : glassMat;
+    motoShieldMat.userData = { ...motoShieldMat.userData, isVehicleGlass: true };
     const windshield = new THREE.Mesh(
       new THREE.BoxGeometry(0.76, shieldH, 0.1),
-      isPcc ? getLegoMaterial(0x020617, { roughness: 0.08, metalness: 0.6 }) : glassMat
+      motoShieldMat
     );
+    windshield.userData.isVehicleGlass = true;
     windshield.rotation.x = isPolice ? -0.32 : -0.52;
     windshield.position.set(0, 1.52 + (isPolice ? 0.12 : 0), 1.08);
     group.add(windshield);
@@ -752,7 +780,7 @@ export function createLegoCarMesh(cfg) {
       { wz: 1.38, radius: 0.55, width: 0.38, isFront: true },
       { wz: -1.38, radius: 0.58, width: 0.52, isFront: false }
     ];
-    const rimMat = isPcc ? pccNeonBlueMat : isPolice ? silverMat : goldMat;
+    const rimMat = customWheelMat || (isPcc ? pccNeonBlueMat : isPolice ? silverMat : goldMat);
     const caliperMat = isPcc ? pccNeonBlueMat : isPolice ? goldMat : primaryMat;
 
     for (const wc of wheelConfigs) {
@@ -802,6 +830,20 @@ export function createLegoCarMesh(cfg) {
     }
 
     group.userData.wheels = wheels;
+    group.userData.chassisDims = {
+      w: 0.96,
+      h: 0.9,
+      d: 3.3,
+      topY: 1.46,
+      roofY: 1.46,
+      cabinW: 0.9,
+      cabinD: 1.1,
+      cabinZ: 0.28,
+      frontZ: 1.55,
+      openTop: true,
+      isMoto: true,
+      wheelRadius: 0.56
+    };
     _attachTurboFlames(group, [-0.48, 0.48], 0.92, -1.68);
     return group;
   }
@@ -861,6 +903,20 @@ export function createLegoCarMesh(cfg) {
       }
     }
     group.userData.wheels = wheels;
+    group.userData.chassisDims = {
+      w: 3.4,
+      h: 1.15,
+      d: 5.8,
+      topY: 1.5,
+      roofY: 2.25,
+      cabinW: 2.3,
+      cabinD: 2.7,
+      cabinZ: -0.2,
+      frontZ: 2.95,
+      openTop: false,
+      isMoto: false,
+      wheelRadius: 0.42
+    };
     _attachTurboFlames(group, [-0.8, 0.8], 0.75, -3.0);
     return group;
   }
@@ -945,6 +1001,21 @@ export function createLegoCarMesh(cfg) {
       }
     }
     group.userData.wheels = wheels;
+    group.userData.chassisDims = {
+      w: busW,
+      h: lowerH + upperH + 0.16,
+      d: busD,
+      topY: roofY,
+      roofY: roofY + 0.11,
+      cabinW: busW - 0.14,
+      cabinD: busD - 0.3,
+      cabinZ: 0,
+      frontZ: busD * 0.5 + 0.06,
+      openTop: false,
+      isMoto: false,
+      isBus: true,
+      wheelRadius: 0.52
+    };
     _attachTurboFlames(group, [-0.75, 0.75], 0.52, -busD * 0.5 - 0.24);
     return group;
   }
@@ -962,7 +1033,11 @@ export function createLegoCarMesh(cfg) {
   const chassisD = isHeavyTruck || isSixWheelApc ? 5.6 : 4.85;
 
   // Chassi principal + Capô com pinos de LEGO (Studs)
-  const chassis = createLegoBrick(chassisW, chassisH, chassisD, bodyColor, { studStep: 0.65 });
+  const chassis = createLegoBrick(chassisW, chassisH, chassisD, bodyColor, {
+    studStep: 0.65,
+    roughness: finishOpts.roughness,
+    metalness: finishOpts.metalness
+  });
   chassis.position.set(0, 0.42 + chassisH * 0.5, 0);
   group.add(chassis);
 
@@ -1023,15 +1098,20 @@ export function createLegoCarMesh(cfg) {
     group.add(cabinGlass);
 
     const roofY = chassisTopY + cabinH + 0.09;
-    const roofPlate = createLegoBrick(cabinW + 0.08, 0.18, cabinD + 0.08, roofColor, { studStep: 0.65 });
+    const roofPlate = createLegoBrick(cabinW + 0.08, 0.18, cabinD + 0.08, roofColor, {
+      studStep: 0.65,
+      roughness: finishOpts.roughness,
+      metalness: finishOpts.metalness
+    });
     roofPlate.position.set(0, roofY, cabinZ);
     group.add(roofPlate);
+    group.userData._roofMeta = { roofY, cabinW, cabinD, cabinZ };
   }
 
   // ============================================================================
   // DETALHES EXCLUSIVOS DE CADA UM DOS VEÍCULOS
   // ============================================================================
-  if (type === 'apex_gtx') {
+  if (type === 'apex_gtx' && !cfg.suppressDefaultSpoiler) {
     // Faixa preta central + Aerofólio GT largo
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, chassisD - 0.2), blackMat);
     stripe.position.set(0, chassisTopY + 0.03, 0);
@@ -1164,7 +1244,13 @@ export function createLegoCarMesh(cfg) {
   const wheelX = chassisW * 0.5;
   const wheelRadius = isHeavyTruck || type === 'buggy_praia' ? 0.52 : 0.44;
   const zPositions = isSixWheelApc ? [1.75, 0, -1.75] : [chassisD * 0.31, -chassisD * 0.31];
-  const hubMat = type === 'cyber_blade' ? neonCyanMat : type === 'apex_gtx' || type === 'carro_forte' ? goldMat : silverMat;
+  const hubMat =
+    customWheelMat ||
+    (type === 'cyber_blade'
+      ? neonCyanMat
+      : type === 'apex_gtx' || type === 'carro_forte'
+        ? goldMat
+        : silverMat);
 
   const wheels = [];
   for (const wz of zPositions) {
@@ -1185,6 +1271,21 @@ export function createLegoCarMesh(cfg) {
     }
   }
   group.userData.wheels = wheels;
+  const rm = group.userData._roofMeta;
+  group.userData.chassisDims = {
+    w: chassisW,
+    h: chassisH,
+    d: chassisD,
+    topY: chassisTopY,
+    roofY: rm ? rm.roofY + 0.09 : chassisTopY,
+    cabinW: rm ? rm.cabinW : chassisW - 0.3,
+    cabinD: rm ? rm.cabinD : 2.1,
+    cabinZ: rm ? rm.cabinZ : -0.1,
+    frontZ,
+    openTop: Boolean(spec.openTop),
+    isMoto: false,
+    wheelRadius
+  };
 
   _attachTurboFlames(group, [-0.55, 0.55], 0.46, -frontZ - 0.25);
   return group;
@@ -1210,6 +1311,7 @@ function _attachTurboFlames(group, xOffsets, y, z) {
   const fGroup = new THREE.Group();
   fGroup.position.set(0, y, z);
   fGroup.visible = false;
+  fGroup.userData.isNitroFlame = true;
   const coneGeos = [];
   for (const ex of xOffsets) {
     const g = new THREE.ConeGeometry(0.24, 1.45, 8);
@@ -1218,14 +1320,20 @@ function _attachTurboFlames(group, xOffsets, y, z) {
     coneGeos.push(g);
   }
   const flameMesh = new THREE.Mesh(mergeBufferGeometries(coneGeos), SHARED_FLAME_MAT);
+  flameMesh.userData.isNitroFlame = true;
   fGroup.add(flameMesh);
   group.add(fGroup);
 
   const turboFlames = [fGroup];
   group.userData.turboFlames = turboFlames;
+  group.userData.turboFlameMesh = flameMesh;
+  const wheelSteerGroups = Array.isArray(group.userData.wheels)
+    ? group.userData.wheels.map((w) => w.steerGroup)
+    : [];
   optimizeStaticGroupMeshes(group, [
     fGroup,
-    group.userData.turretGroup
+    group.userData.turretGroup,
+    ...wheelSteerGroups
   ]);
 }
 
@@ -1337,7 +1445,8 @@ export function buildParkedLegoCars(world) {
   cars.forEach((cfg) => {
     const spec = VEHICLE_SPECS[cfg.type] || VEHICLE_SPECS.apex_gtx;
     const carGroup = createLegoCarMesh(cfg);
-    const yBase = cfg.y ?? 0;
+    const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(cfg.x, cfg.z) : 0;
+    const yBase = cfg.y !== undefined ? (cfg.y < 1.5 ? terrainY + cfg.y : cfg.y) : terrainY;
     carGroup.position.set(cfg.x, yBase, cfg.z);
     carGroup.rotation.y = cfg.rotY;
     carGroup.userData.carType = cfg.type;

@@ -3,6 +3,9 @@
  * SISTEMA DE SAVES EM 3 SLOTS (localStorage) E TRADUÇÃO BILÍNGUE (PT-BR / EN-US)
  */
 
+import { createDefaultCustomHeroState } from '../entities/CustomHeroSystem.js';
+import { createDefaultGarageSaveData } from '../world/StreetCustomGarage.js';
+
 export const SAVE_STORAGE_KEY = 'lego_cdd_saves_v1';
 export const SETTINGS_STORAGE_KEY = 'lego_cdd_settings_v1';
 
@@ -26,14 +29,14 @@ export const FACTION_DATA = {
       'en-US': 'ALLY: CV'
     },
     fortress: {
-      'pt-BR': 'FORTALEZA: MORRO DA CIDADE DE DEUS (OESTE)',
-      'en-US': 'FORTRESS: CIDADE DE DEUS HILL (WEST)'
+      'pt-BR': 'TERRITÓRIO OFICIAL: COMPLEXO DA CIDADE DE DEUS / MORRO OESTE',
+      'en-US': 'OFFICIAL TERRITORY: CIDADE DE DEUS / WEST HILL'
     },
     desc: {
       'pt-BR':
-        'Todo o exército do CV, Médicos de Combate do Morro, Artilheiros de RPG e o Boss Colossal "Trovão Rubro" são SEUS ALIADOS (lutam com você e te curam com Feixe Médico!). PCC e A.R.E.S. são seus inimigos mortais.',
+        'O Morro da Cidade de Deus é seu QG seguro (guardas batem continência, médicos te curam e 2 garagens liberam Picapes, Motos e SUVs Rubros!). Invada os territórios do PCC ou A.R.E.S. com seu comboio aliado e o Boss "Trovão Rubro"!',
       'en-US':
-        'The entire CV army, Hill Combat Medics, RPG Gunners and the Colossal Boss "Crimson Thunder" are YOUR ALLIES (they fight beside you and heal you with Medi-Beams!). PCC and A.R.E.S. are your mortal enemies.'
+        'Cidade de Deus Hill is your safe HQ (guards salute you, medics heal you and 2 garages unlock Crimson Pickups, Bikes and Armored SUVs!). Invade PCC or A.R.E.S. territories with your allied convoy and Boss "Crimson Thunder"!'
     }
   },
   pcc: {
@@ -55,14 +58,14 @@ export const FACTION_DATA = {
       'en-US': 'ALLY: PCC'
     },
     fortress: {
-      'pt-BR': 'FORTALEZA: DISTRITO INDUSTRIAL & CAIS (LESTE)',
-      'en-US': 'FORTRESS: INDUSTRIAL DISTRICT & DOCKS (EAST)'
+      'pt-BR': 'TERRITÓRIO OFICIAL: DISTRITO INDUSTRIAL & CIDADELA LESTE',
+      'en-US': 'OFFICIAL TERRITORY: INDUSTRIAL DISTRICT & EAST CITADEL'
     },
     desc: {
       'pt-BR':
-        'Todo o exército do PCC, Cientistas/Médicos Táticos, o Helicóptero de Assalto do PCC e o Boss Mecha "Blindado Supremo Z-15" são SEUS ALIADOS e te curam em combate! CV e A.R.E.S. são seus inimigos.',
+        'A Cidadela Industrial Leste é seu QG em paz com 2 garagens de SUVs Executivos, Vans Táticas e Superbikes Azuis! Ao invadir CV ou A.R.E.S., o PCC envia Comboios Blindados, Médicos Táticos e o Boss "Blindado Supremo Z-15"!',
       'en-US':
-        'The entire PCC army, Tactical Scientist Medics, the PCC Assault Helicopter and the Mecha Boss "Supreme Armor Z-15" are YOUR ALLIES and heal you in combat! CV and A.R.E.S. are your enemies.'
+        'The East Industrial Citadel is your peaceful HQ with 2 garages of Executive SUVs, Tactical Vans and Royal-Blue Superbikes! Invade CV or A.R.E.S. backed by Armored Convoys, Medics and Boss "Supreme Armor Z-15"!'
     }
   },
   ares: {
@@ -76,95 +79,113 @@ export const FACTION_DATA = {
       'en-US': 'QUANTUM OVERLORD'
     },
     name: {
-      'pt-BR': 'SYNDICATO A.R.E.S. & TROPA DE CHOQUE',
-      'en-US': 'A.R.E.S. SYNDICATE & SHOCK TROOPS'
+      'pt-BR': 'SYNDICATO A.R.E.S.',
+      'en-US': 'A.R.E.S. SYNDICATE'
     },
     shortName: {
       'pt-BR': 'ALIADO: A.R.E.S.',
       'en-US': 'ALLY: A.R.E.S.'
     },
     fortress: {
-      'pt-BR': 'FORTALEZA: PORTO MILITAR & AEROPORTA-AVIÕES',
-      'en-US': 'FORTRESS: MILITARY PORT & SKY HELICARRIER'
+      'pt-BR': 'TERRITÓRIO OFICIAL: PORTO BLINDADO SUDESTE',
+      'en-US': 'OFFICIAL TERRITORY: SOUTHEAST ARMORED PORT'
     },
     desc: {
       'pt-BR':
-        'Os Exoesqueletos Laser, Drones Curandeiros, Policiais Táticos do BOPE e o Boss Colossal "Overlord Quântico" são SEUS ALIADOS e regeneram sua armadura! CV e PCC são seus inimigos.',
+        'O Porto Blindado Sudeste é sua fortaleza com 2 garagens de Hover-APCs, Cyber-Blades e Interceptadores Neon! Ao invadir CV ou PCC, seu esquadrão laser desembarca com você junto ao Boss Colossal "Overlord Quântico"!',
       'en-US':
-        'Laser Exoskeletons, Healer Drones, BOPE Tactical Police and the Colossal Boss "Quantum Overlord" are YOUR ALLIES and regenerate your armor! CV and PCC are your enemies.'
+        'The Southeast Armored Port is your fortress with 2 garages of Hover-APCs, Cyber-Blades and Neon Interceptors! Invade CV or PCC with laser squads and Colossal Boss "Quantum Overlord"!'
     }
   }
 };
 
 export const UI_TEXTS = {
   'pt-BR': {
-    subtitle: 'MUNDO ABERTO 3D // EXPLORAÇÃO LIVRE',
+    subtitle: 'MUNDO ABERTO PACÍFICO & INVASÃO TERRITORIAL DE FACÇÕES',
     newGame: 'NOVO JOGO',
     loadGame: 'CARREGAR JOGO',
     options: 'OPÇÕES DE JOGO',
     languageBtn: 'IDIOMA: PT-BR',
-    selectSlotNew: 'ESCOLHA UM SLOT DE MEMÓRIA PARA INICIAR NO MODO LIVRE',
+    selectSlotNew: 'ESCOLHA UM SLOT DE MEMÓRIA PARA CRIAR SUA CAMPANHA',
     selectSlotLoad: 'SELECIONE UM SLOT SALVO PARA CONTINUAR SUA PARTIDA',
     backBtn: 'VOLTAR',
-    emptySlot: 'SLOT VAZIO // PRONTO PARA EXPLORAÇÃO LIVRE',
-    startSlotBtn: 'INICIAR MODO LIVRE',
+    emptySlot: 'SLOT VAZIO // ESCOLHA SUA FACÇÃO & EXPLORE A METRÓPOLE',
+    startSlotBtn: 'ESCOLHER FACÇÃO & INICIAR',
     overwriteSlotBtn: 'NOVO JOGO NESTE SLOT',
     loadSlotBtn: 'CARREGAR PARTIDA',
     deleteSlotBtn: 'APAGAR',
     freeRoamSlotTitle: 'MUNDO ABERTO // EXPLORAÇÃO LIVRE',
-    chooseFactionTag: 'SELEÇÃO DE ALIANÇA MILITAR // BACKYARD BATTLEGROUND',
-    chooseFactionTitle: 'ESCOLHA SUA FACÇÃO ALIADA NA GUERRA MUNDIAL',
+    chooseFactionTag: 'ALIANÇA TERRITORIAL // CIDADE CIVIL PACÍFICA + 3 FORTALEZAS',
+    chooseFactionTitle: 'ESCOLHA A FACÇÃO DO SEU OPERADOR',
     chooseFactionSub:
-      'Sua facção lutará ao seu lado no Centro da Metrópole, enviará Médicos de Combate para curar você e invocará Bosses Colossais aliados!',
-    joinFactionBtn: 'JURAR LEALDADE & ENTRAR NA GUERRA',
+      'O Centro, Banco, Parque, Praia e Subúrbio são 100% civis e pacíficos! Seu território é seu QG com garagens exclusivas, e a guerra 1x1 só começa quando você INVADE o território de uma facção rival!',
+    joinFactionBtn: 'ASSUMIR COMANDO DESTA FACÇÃO',
     pauseTag: 'SISTEMA DE COMANDO // JOGO PAUSADO [ESC]',
-    pauseTitle: 'CENTRAL DE OPÇÕES & MUNDO ABERTO',
+    pauseTitle: 'CENTRAL DE OPÇÕES & FACÇÕES TERRITORIAIS',
     masterVol: 'VOLUME GERAL (MASTER)',
     musicVol: 'VOLUME DA MÚSICA DA CIDADE',
     sfxVol: 'VOLUME DE EFEITOS SONOROS (PODERES / VEÍCULOS)',
     regionToastToggle: 'AVISO DE TROCA DE REGIÃO NA TELA',
+    timeOfDayLabel: 'CLIMA & HORÁRIO DO MUNDO',
+    timeModes: {
+      auto: 'CICLO AUTOMÁTICO (12 MIN)',
+      day: 'SEMPRE DIA SOLAR (12:00)',
+      sunset: 'SEMPRE PÔR DO SOL DOURADO (17:45)',
+      night: 'SEMPRE NOITE NEON (22:00)'
+    },
     langLabel: 'IDIOMA DA INTERFACE (LANGUAGE)',
     resumeBtn: 'CONTINUAR PARTIDA [ESC]',
     saveNowBtn: 'SALVAR JOGO AGORA',
     switchFactionBtn: 'TROCAR DE FACÇÃO ALIADA',
+    resetTerritoriesBtn: 'RESETAR TERRITÓRIOS DE FACÇÃO',
     saveQuitBtn: 'SALVAR E SAIR PARA O MENU INICIAL',
-    savedFeedback: '✔ PROGRESSO SALVO NO SLOT COM SUCESSO!',
+    savedFeedback: 'PROGRESSO SALVO NO SLOT COM SUCESSO!',
+    resetTerritoriesFeedback: 'OS 3 TERRITÓRIOS FORAM RESTAURADOS PARA NOVA INVASÃO!',
     worldWarFront: 'MUNDO ABERTO // EXPLORAÇÃO LIVRE',
     invasionActive: '',
     medicHealing: ''
   },
   'en-US': {
-    subtitle: '3D OPEN WORLD // FREE ROAM EXPLORATION',
+    subtitle: 'PEACEFUL OPEN WORLD & FACTION TERRITORY INVASION',
     newGame: 'NEW GAME',
     loadGame: 'LOAD GAME',
     options: 'GAME OPTIONS',
     languageBtn: 'LANGUAGE: EN-US',
-    selectSlotNew: 'SELECT A MEMORY SLOT TO START FREE ROAM',
+    selectSlotNew: 'SELECT A MEMORY SLOT TO START YOUR CAMPAIGN',
     selectSlotLoad: 'SELECT A SAVED SLOT TO RESUME EXPLORATION',
     backBtn: 'BACK',
-    emptySlot: 'EMPTY SLOT // READY FOR FREE ROAM',
-    startSlotBtn: 'START FREE ROAM',
+    emptySlot: 'EMPTY SLOT // PICK YOUR FACTION & ROAM THE METROPOLIS',
+    startSlotBtn: 'CHOOSE FACTION & START',
     overwriteSlotBtn: 'NEW GAME IN THIS SLOT',
     loadSlotBtn: 'LOAD SAVE',
     deleteSlotBtn: 'DELETE',
     freeRoamSlotTitle: 'OPEN WORLD // FREE ROAM',
-    chooseFactionTag: 'MILITARY ALLIANCE SELECTION // BACKYARD BATTLEGROUND',
-    chooseFactionTitle: 'CHOOSE YOUR ALLIED FACTION IN THE WORLD WAR',
+    chooseFactionTag: 'TERRITORIAL ALLIANCE // PEACEFUL CITY + 3 FORTRESSES',
+    chooseFactionTitle: 'CHOOSE YOUR OPERATOR FACTION',
     chooseFactionSub:
-      'Your faction will fight beside you in Downtown, send Combat Medics to heal you and deploy Allied Colossal Bosses!',
-    joinFactionBtn: 'PLEDGE ALLEGIANCE & DEPLOY TO WAR',
+      'Downtown, Bank, Park, Beach and Suburb stay 100% civilian and peaceful! Your territory is your safe HQ with team garages, and 1v1 war begins only when you INVADE a rival faction territory!',
+    joinFactionBtn: 'TAKE COMMAND OF THIS FACTION',
     pauseTag: 'COMMAND SYSTEM // GAME PAUSED [ESC]',
-    pauseTitle: 'OPTIONS CENTER & OPEN WORLD',
+    pauseTitle: 'OPTIONS CENTER & FACTION TERRITORIES',
     masterVol: 'MASTER VOLUME',
     musicVol: 'CITY MUSIC VOLUME',
     sfxVol: 'SOUND EFFECTS VOLUME (POWERS / VEHICLES)',
     regionToastToggle: 'REGION TRANSITION BANNER ON SCREEN',
+    timeOfDayLabel: 'WORLD TIME & ATMOSPHERE',
+    timeModes: {
+      auto: 'AUTOMATIC CYCLE (12 MIN)',
+      day: 'ALWAYS SOLAR DAY (12:00)',
+      sunset: 'ALWAYS GOLDEN SUNSET (17:45)',
+      night: 'ALWAYS NEON NIGHT (22:00)'
+    },
     langLabel: 'INTERFACE LANGUAGE (IDIOMA)',
     resumeBtn: 'RESUME GAME [ESC]',
     saveNowBtn: 'SAVE GAME NOW',
     switchFactionBtn: 'SWITCH ALLIED FACTION',
+    resetTerritoriesBtn: 'RESET FACTION TERRITORIES',
     saveQuitBtn: 'SAVE & QUIT TO TITLE SCREEN',
-    savedFeedback: '✔ PROGRESS SAVED TO SLOT SUCCESSFULLY!',
+    savedFeedback: 'PROGRESS SAVED TO SLOT SUCCESSFULLY!',
+    resetTerritoriesFeedback: 'ALL 3 TERRITORIES RESTORED FOR NEW INVASIONS!',
     worldWarFront: 'OPEN WORLD // FREE ROAM',
     invasionActive: '',
     medicHealing: ''
@@ -300,11 +321,37 @@ export function loadAllSaveSlots() {
 
 export function writeSaveSlot(slotIndex, data) {
   const slots = loadAllSaveSlots();
+  const prev = slots[slotIndex];
+  const validFaction = FACTION_DATA[data.faction] ? data.faction : 'cv';
+  const customHero =
+    data.customHero && typeof data.customHero === 'object'
+      ? { ...data.customHero }
+      : prev?.customHero && typeof prev.customHero === 'object'
+        ? { ...prev.customHero }
+        : createDefaultCustomHeroState();
+  const customGarage =
+    data.customGarage && typeof data.customGarage === 'object'
+      ? JSON.parse(JSON.stringify(data.customGarage))
+      : prev?.customGarage && typeof prev.customGarage === 'object'
+        ? JSON.parse(JSON.stringify(prev.customGarage))
+        : createDefaultGarageSaveData();
+  const radioState =
+    data.radioState !== undefined
+      ? data.radioState
+        ? JSON.parse(JSON.stringify(data.radioState))
+        : null
+      : prev?.radioState && typeof prev.radioState === 'object'
+        ? JSON.parse(JSON.stringify(prev.radioState))
+        : null;
   slots[slotIndex] = {
     slotIndex,
-    faction: data.faction || 'cv',
+    faction: validFaction,
     studs: Number(data.studs || 0),
     heroKey: data.heroKey || 'caveira',
+    conqueredTerritories: Array.isArray(data.conqueredTerritories) ? data.conqueredTerritories : [],
+    customHero,
+    customGarage,
+    radioState,
     updatedAt: new Date().toLocaleString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -337,6 +384,7 @@ export function loadGameSettings() {
     musicVolume: 0.55,
     sfxVolume: 0.9,
     showRegionToast: true,
+    timeMode: 'auto',
     language: 'pt-BR'
   };
   try {

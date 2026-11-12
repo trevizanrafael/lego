@@ -8,8 +8,8 @@
   <!-- Fontes Oficiais da IDV Tática Urbana: Teko, Chakra Petch e JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Inter:wght@500;600;700;800&family=JetBrains+Mono:wght@700;800&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css?v=20261110j" />
   <script type="importmap">
     {
       "imports": {
@@ -94,8 +94,53 @@
         </div>
       </div>
 
-      <!-- Coluna Direita do Topo: Armas CS + Velocímetro -->
+      <!-- Coluna Direita do Topo: Estrelas de Procurado (1-5★) + Armas CS + Velocímetro -->
       <div id="top-right-cluster" class="top-right-cluster">
+
+      <!-- Canto Superior Direito: Estrelas de Procurado LEGO Estilo GTA (100% Oculto em 0 Estrelas!) -->
+      <div id="hud-wanted-panel" class="hud-wanted-panel hidden" aria-live="polite">
+        <div class="wanted-top-row">
+          <span id="wanted-status-tag" class="wanted-status-tag">PROCURADO // PATRULHA LOCAL</span>
+        </div>
+        <div id="wanted-stars-row" class="wanted-stars-row">
+          <div class="wanted-lego-star" data-star="1">
+            <svg viewBox="0 0 36 36" width="28" height="28">
+              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+              <circle cx="18" cy="18.5" r="3.4" class="star-lego-stud" />
+            </svg>
+          </div>
+          <div class="wanted-lego-star" data-star="2">
+            <svg viewBox="0 0 36 36" width="28" height="28">
+              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+              <circle cx="18" cy="18.5" r="3.4" class="star-lego-stud" />
+            </svg>
+          </div>
+          <div class="wanted-lego-star" data-star="3">
+            <svg viewBox="0 0 36 36" width="28" height="28">
+              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+              <circle cx="18" cy="18.5" r="3.4" class="star-lego-stud" />
+            </svg>
+          </div>
+          <div class="wanted-lego-star" data-star="4">
+            <svg viewBox="0 0 36 36" width="28" height="28">
+              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+              <circle cx="18" cy="18.5" r="3.4" class="star-lego-stud" />
+            </svg>
+          </div>
+          <div class="wanted-lego-star" data-star="5">
+            <svg viewBox="0 0 36 36" width="28" height="28">
+              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+              <circle cx="18" cy="18.5" r="3.4" class="star-lego-stud" />
+            </svg>
+          </div>
+        </div>
+        <div id="wanted-escape-bar-wrap" class="wanted-escape-bar-wrap hidden">
+          <div class="wanted-escape-track">
+            <div id="wanted-escape-bar-fill" class="wanted-escape-bar-fill"></div>
+          </div>
+          <span id="wanted-escape-sec" class="wanted-escape-sec">18s</span>
+        </div>
+      </div>
 
       <!-- Canto Superior Direito: Scroll de Silhuetas Estilo CS (Exclusivo do Vingador de Chumbo a pé — ZERO TEXTO) -->
       <div id="vingador-weapon-hud" class="hidden" aria-hidden="true">
@@ -164,6 +209,26 @@
         </div>
       </div>
 
+      <!-- Canto Superior Direito: Botão Spotify [P] (Parado = só o P | Tocando = Capa Girando tipo Álbum + Nome Rodando) -->
+      <div id="hud-tiktok-radio-pill" class="hud-tiktok-radio-pill" title="Spotify [P] • [J] Anterior [K] Play/Pause [L] Próxima" aria-label="Spotify [P]">
+        <span class="tiktok-pill-key">P</span>
+        <div class="hud-spotify-disc-wrap" aria-hidden="true">
+          <img id="hud-spotify-disc-img" class="hud-spotify-disc-img" alt="" />
+          <span class="hud-spotify-disc-spindle"></span>
+        </div>
+        <div class="hud-spotify-title-viewport" aria-hidden="true">
+          <div id="hud-spotify-marquee-title" class="hud-spotify-marquee-title"></div>
+        </div>
+      </div>
+
+      <div id="tiktok-radio-toast" class="tiktok-radio-toast hidden">
+        <span class="tiktok-toast-tag">
+          <svg class="spotify-inline-svg" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span>Spotify</span>
+        </span>
+        <span id="tiktok-toast-title" class="tiktok-toast-title">MTG AUTOMOTIVO BIBI / MANDELÃO VIRAL</span>
+      </div>
+
       <!-- Canto Superior Direito: Velocímetro Estilizado IDV (Aparece APENAS ao Dirigir/Pilotar Veículo) -->
       <div id="vehicle-speedometer" class="hidden">
         <div class="speedo-header">
@@ -187,6 +252,12 @@
       <div class="toast-code" id="region-toast-code">SETOR R-01</div>
       <div class="toast-title" id="region-toast-title">CENTRO FINANCEIRO & SUPER BANCO</div>
       <div class="toast-sub" id="region-toast-sub">Coração Corporativo • Times Square & Super Banco Central</div>
+    </div>
+
+    <!-- Banner Tático de Perseguição / Fuga Perfeita / Detido -->
+    <div id="wanted-event-banner" class="wanted-event-banner hidden" data-variant="pursuit">
+      <div id="wanted-banner-title" class="wanted-banner-title">PROCURADO!</div>
+      <div id="wanted-banner-sub" class="wanted-banner-sub">PATRULHA LOCAL EM PERSEGUIÇÃO</div>
     </div>
 
     <!-- Aviso de Clique para Travar Mira (Some assim que clica na tela!) -->
@@ -348,6 +419,12 @@
             <button id="btn-toggle-region-toast" class="tactical-toggle-btn active">ON // ATIVADO</button>
           </div>
 
+          <!-- Controle de Clima & Horário do Mundo (4 Modos Salvos nas Configurações) -->
+          <div class="option-row option-row-inline">
+            <span id="lbl-time-mode" class="option-title">CLIMA & HORÁRIO DO MUNDO</span>
+            <button id="btn-pause-time-mode" class="tactical-toggle-btn active">CICLO AUTOMÁTICO (12 MIN)</button>
+          </div>
+
           <!-- Seletor de Idioma (PT-BR / EN-US) -->
           <div class="option-row option-row-inline">
             <span id="lbl-lang-select" class="option-title">IDIOMA DA INTERFACE (LANGUAGE)</span>
@@ -361,10 +438,222 @@
         <div id="pause-ingame-actions" class="pause-actions-grid">
           <button id="btn-pause-resume" class="tactical-btn pause-main-btn">CONTINUAR PARTIDA [ESC]</button>
           <button id="btn-pause-save" class="tactical-btn">SALVAR JOGO AGORA</button>
-          <button id="btn-pause-switch-faction" class="tactical-btn hidden">TROCAR DE FACÇÃO ALIADA</button>
+          <button id="btn-pause-switch-faction" class="tactical-btn">TROCAR DE FACÇÃO ALIADA</button>
+          <button id="btn-pause-reset-territories" class="tactical-btn">RESETAR TERRITÓRIOS DE FACÇÃO</button>
           <button id="btn-pause-save-quit" class="tactical-btn danger-btn">SALVAR E SAIR PARA O MENU INICIAL</button>
         </div>
       </div>
+    </div>
+
+    <!-- Estúdio Interativo 3D do Porão da Torre dos Heróis: Criador de Personagem OP-09 -->
+    <div id="custom-hero-creator-modal" class="hidden">
+      <div class="creator-studio-turntable-controls">
+        <button id="btn-creator-rot-left" class="tactical-btn">◀ GIRAR BONECO</button>
+        <span class="creator-studio-badge">PEDESTAL BIO-GENÉTICO 3D // TORRE DOS HERÓIS</span>
+        <button id="btn-creator-rot-right" class="tactical-btn">GIRAR BONECO ▶</button>
+      </div>
+
+      <div class="creator-side-panel">
+        <div class="creator-header">
+          <div>
+            <div class="dossier-tag">LABORATÓRIO SUBTERRÂNEO // SLOT EXCLUSIVO OP-09</div>
+            <div class="creator-title">CRIADOR DE OPERADOR LEGO</div>
+          </div>
+          <button id="btn-creator-close" class="tactical-btn">[X] SAIR</button>
+        </div>
+
+        <div class="creator-tabs-row">
+          <button id="btn-creator-tab-app" class="creator-tab-btn active">01 // APARÊNCIA INÉDITA</button>
+          <button id="btn-creator-tab-pow" class="creator-tab-btn">02 // PODERES & COMBATE</button>
+        </div>
+
+        <div id="creator-panel-body" class="creator-panel-body"></div>
+
+        <div class="creator-footer-actions">
+          <button id="btn-creator-reset-civilian" class="tactical-btn danger-btn">VOLTAR A SER CIDADÃO COMUM</button>
+          <button id="btn-creator-save-equip" class="tactical-btn pause-main-btn">SALVAR E EQUIPAR OP-09</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estúdio Automotivo 360° da Oficina "LS CUSTOMS // PRO TUNER" (ECU/Dyno Showroom) -->
+    <div id="lego-customs-modal" class="hidden">
+      <!-- ZONA 1: Barra Superior Flutuante de Telemetria & Dinamômetro (Topo Esquerdo) -->
+      <header class="customs-telemetry-bar">
+        <div class="customs-telemetry-top">
+          <div class="customs-telemetry-ident">
+            <span id="customs-vehicle-class-badge" class="customs-class-badge">CARRO</span>
+            <div class="customs-title-stack">
+              <div id="customs-car-title" class="customs-car-title">APEX GT-X</div>
+              <div class="customs-ecu-subtitle">ECU TELEMETRY // DYNO LIVE</div>
+            </div>
+          </div>
+          <div class="customs-studs-wallet" title="Carteira de Studs">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+              <ellipse cx="10" cy="6.2" rx="6" ry="2.5" fill="rgba(250,204,21,0.22)" />
+              <path d="M4 6.2v7.2c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V6.2" />
+              <ellipse cx="10" cy="4.1" rx="2.7" ry="1.05" />
+            </svg>
+            <b id="customs-studs-balance">0</b>
+            <span class="customs-studs-unit">STUDS</span>
+          </div>
+        </div>
+
+        <div class="customs-stats-grid">
+          <div class="customs-stat-box">
+            <div class="customs-stat-row">
+              <span>VEL. MÁX (KM/H)</span>
+              <b id="customs-stat-kmh">290 KM/H</b>
+            </div>
+            <div class="customs-gauge-track">
+              <div id="customs-bar-kmh" class="customs-gauge-fill fill-amber" style="width: 45%;"></div>
+            </div>
+          </div>
+          <div class="customs-stat-box">
+            <div class="customs-stat-row">
+              <span>NITRO [Q]</span>
+              <b id="customs-stat-nitro">330 KM/H</b>
+            </div>
+            <div class="customs-gauge-track">
+              <div id="customs-bar-nitro" class="customs-gauge-fill fill-cyan" style="width: 48%;"></div>
+            </div>
+          </div>
+          <div class="customs-stat-box">
+            <div class="customs-stat-row">
+              <span>BLINDAGEM (HP)</span>
+              <b id="customs-stat-hp">250 HP</b>
+            </div>
+            <div class="customs-gauge-track">
+              <div id="customs-bar-hp" class="customs-gauge-fill fill-emerald" style="width: 22%;"></div>
+            </div>
+          </div>
+          <div class="customs-stat-box">
+            <div class="customs-stat-row">
+              <span>SUSPENSÃO / PULO</span>
+              <b id="customs-stat-jump">STOCK (0M)</b>
+            </div>
+            <div class="customs-gauge-track">
+              <div id="customs-bar-jump" class="customs-gauge-fill fill-violet" style="width: 8%;"></div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ZONA 2: Pílula Flutuante de Controles Interativos de Showroom (Rodapé Esquerdo/Central) -->
+      <div class="customs-showroom-controls creator-studio-turntable-controls">
+        <button id="btn-customs-rot-left" type="button" class="customs-pill-btn" title="Girar Esquerda">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M7.5 5.5L3.5 9.5l4 4" />
+            <path d="M4 9.5h8.5a4 4 0 0 1 4 4v1" />
+          </svg>
+        </button>
+        <button id="btn-customs-toggle-orbit" type="button" class="customs-pill-btn active" title="Auto-Órbita 360° ON/OFF">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <ellipse cx="10" cy="10" rx="7.5" ry="3.8" />
+            <path d="M12.5 5.8L15 6.8l-1 2.4" />
+            <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+          </svg>
+          <span>AUTO-ÓRBITA</span>
+        </button>
+        <button id="btn-customs-rot-right" type="button" class="customs-pill-btn" title="Girar Direita">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12.5 5.5l4 4-4 4" />
+            <path d="M16 9.5H7.5a4 4 0 0 0-4 4v1" />
+          </svg>
+        </button>
+
+        <span class="customs-pill-sep" aria-hidden="true"></span>
+
+        <button id="btn-customs-test-nitro" type="button" class="customs-pill-btn accent-cyan" title="Disparar Labaredas do Nitro no Elevador">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10.8 2.2c.4 2.8-1.8 4.4-1.8 6.8 0 1.4 1.1 2.5 2.5 2.5 1.8 0 2.7-1.5 2.5-3.2 1.8 1.4 2.8 3.6 2.2 5.9-.6 2.3-2.8 3.8-5.7 3.8-3.5 0-6-2.3-6-5.7 0-3.7 3-6.7 6.3-10.1z" />
+          </svg>
+          <span>TESTAR NITRO</span>
+        </button>
+
+        <button id="btn-customs-test-hydraulics" type="button" class="customs-pill-btn accent-amber" title="Testar Suspensão Hidráulica no Elevador">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M7 2.5h6M7 17.5h6M10 2.5v2.2l-3 1.6 6 2.2-6 2.2 6 2.2-3 1.6v3" />
+          </svg>
+          <span>TESTAR HIDRÁULICA</span>
+        </button>
+      </div>
+
+      <!-- ZONA 3: Dock Lateral Direito Slim (Pro Tuner / ECU Diagnostic) -->
+      <aside class="customs-side-panel">
+        <div class="customs-dock-header">
+          <div class="customs-dock-brand">
+            <div class="customs-dock-kicker">ECU DIAGNOSTIC // DYNO PRO</div>
+            <div class="customs-dock-title">LS CUSTOMS // PRO TUNER</div>
+          </div>
+          <div class="customs-dock-header-btns">
+            <button id="btn-customs-reset-stock" type="button" class="customs-icon-btn" title="Restaurar Original (Stock)">
+              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3.5 8.5a6.5 6.5 0 1 1 1.4 5.2" />
+                <path d="M3.2 4.5v4.2h4.2" />
+              </svg>
+              <span>STOCK</span>
+            </button>
+            <button id="btn-customs-close" type="button" class="customs-icon-btn danger" title="Sair da Oficina [ESC]">
+              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M5 5l10 10M15 5L5 15" />
+              </svg>
+              <span>[ESC] SAIR DA OFICINA</span>
+            </button>
+          </div>
+        </div>
+
+        <nav class="customs-tabs customs-tabs-row" aria-label="Categorias de Preparação">
+          <button id="btn-customs-tab-perf" type="button" class="customs-tab-btn active">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3.5 13.5a6.5 6.5 0 1 1 13 0" />
+              <path d="M10 10.5l3.2-3.2" />
+              <circle cx="10" cy="10.5" r="1.4" />
+            </svg>
+            <span>ECU &amp; MOTOR</span>
+          </button>
+          <button id="btn-customs-tab-paint" type="button" class="customs-tab-btn">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 2.6c3.2 3.8 5.2 6.3 5.2 8.9a5.2 5.2 0 1 1-10.4 0c0-2.6 2-5.1 5.2-8.9z" />
+            </svg>
+            <span>PINTURA</span>
+          </button>
+          <button id="btn-customs-tab-mods" type="button" class="customs-tab-btn">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.5 8.5h15l-2.2-3H4.7L2.5 8.5z" />
+              <path d="M6 8.5v4.5M14 8.5v4.5M3.5 13h13" />
+            </svg>
+            <span>BODYKIT</span>
+          </button>
+          <button id="btn-customs-tab-roof" type="button" class="customs-tab-btn">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="10" cy="10" r="6.5" />
+              <circle cx="10" cy="10" r="2.2" />
+              <path d="M10 3.5v4.3M10 12.2v4.3M3.5 10h4.3M12.2 10h4.3" />
+            </svg>
+            <span>TETO &amp; RODAS</span>
+          </button>
+          <button id="btn-customs-tab-garage" type="button" class="customs-tab-btn">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.5 8L10 3l7.5 5v8.5h-15V8z" />
+              <path d="M6 16.5v-5.5h8v5.5M6 13.5h8" />
+            </svg>
+            <span>GARAGEM</span>
+          </button>
+        </nav>
+
+        <div id="customs-feedback-banner" class="customs-feedback-banner hidden"></div>
+        <div id="customs-panel-body" class="customs-body"></div>
+
+        <div class="customs-dock-footer">
+          <button id="btn-customs-apply-drive" type="button" class="customs-confirm-btn">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 10.5l4 4L16 6" />
+            </svg>
+            <span>CONFIRMAR TUNING E ACELERAR NA RUA</span>
+          </button>
+        </div>
+      </aside>
     </div>
 
     <!-- Modal da Ficha Tática Individual do Personagem [H] -->
@@ -449,6 +738,182 @@
       </div>
     </div>
 
+    <!-- Modal Interativo Estilo Spotify Desktop da Rádio [P] -->
+    <div id="tiktok-radio-modal" class="hidden">
+      <div class="spotify-app-shell">
+        <div class="spotify-upper-workspace">
+          <!-- A) SIDEBAR ESQUERDA ESTILO SPOTIFY -->
+          <aside class="spotify-sidebar">
+            <div class="spotify-brand-header">
+              <span class="spotify-brand-dot" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
+                  <circle cx="12" cy="12" r="11" fill="#1ed760" />
+                  <path d="M6.8 9.4C10.4 8.3 14.5 8.6 17.6 10.4" stroke="#000000" stroke-width="2.1" stroke-linecap="round" />
+                  <path d="M7.6 12.6C10.6 11.7 14.0 12.0 16.5 13.5" stroke="#000000" stroke-width="1.85" stroke-linecap="round" />
+                  <path d="M8.4 15.6C10.8 14.9 13.4 15.1 15.4 16.3" stroke="#000000" stroke-width="1.6" stroke-linecap="round" />
+                </svg>
+              </span>
+              <span class="spotify-brand-title">Spotify // [P]</span>
+            </div>
+
+            <div class="spotify-nav-group">
+              <div class="spotify-nav-label">Sua Biblioteca</div>
+              <button id="btn-spotify-filter-all" type="button" class="spotify-nav-btn active" data-filter="all">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                <span>Todas as Músicas</span>
+              </button>
+              <button id="btn-spotify-filter-liked" type="button" class="spotify-nav-btn" data-filter="liked">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span>Músicas Curtidas</span>
+              </button>
+              <button id="btn-spotify-filter-custom" type="button" class="spotify-nav-btn" data-filter="custom">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>Meus MP3 Importados</span>
+              </button>
+            </div>
+
+            <!-- Card de Capa em Destaque (136x136px) com Troca de Foto -->
+            <div class="spotify-sidebar-cover-card">
+              <div class="spotify-cover-frame">
+                <img id="spotify-featured-cover-img" class="spotify-featured-cover-img" alt="Capa da Música" />
+                <button id="btn-spotify-change-current-cover" type="button" class="spotify-cover-overlay-btn">
+                  <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <span>Trocar Foto</span>
+                </button>
+              </div>
+              <div class="spotify-cover-caption">Salvo automaticamente no Slot</div>
+            </div>
+
+            <!-- Gerenciamento Total da Playlist -->
+            <div class="spotify-sidebar-actions">
+              <input id="input-tiktok-mp3-file" type="file" accept="audio/*" multiple class="hidden" />
+              <input id="input-spotify-cover-file" type="file" accept="image/*" class="hidden" />
+
+              <button id="btn-tiktok-import-mp3" type="button" class="spotify-action-btn primary">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Adicionar Música (MP3)</span>
+              </button>
+              <button id="btn-spotify-restore-defaults" type="button" class="spotify-action-btn secondary">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Restaurar 8 Originais</span>
+              </button>
+              <button id="btn-spotify-clear-all" type="button" class="spotify-action-btn danger">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>Remover Todas</span>
+              </button>
+            </div>
+          </aside>
+
+          <!-- B) ÁREA PRINCIPAL DIREITA ESTILO SPOTIFY -->
+          <main class="spotify-main-view">
+            <!-- Banner Superior com Degradê Dinâmico da Música Atual -->
+            <div id="spotify-playlist-hero" class="spotify-playlist-hero">
+              <div class="spotify-hero-left">
+                <img id="spotify-hero-cover-img" class="spotify-hero-cover-img" alt="Capa Principal" />
+                <div class="spotify-hero-info">
+                  <div class="spotify-hero-badges-row">
+                    <span id="tiktok-now-status-badge" class="tiktok-status-badge">
+                      <svg class="spotify-inline-svg" viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                      <span>Pausado</span>
+                    </span>
+                    <span id="spotify-playlist-count-badge" class="spotify-count-badge">8 músicas na playlist</span>
+                  </div>
+                  <div id="tiktok-now-playing-title" class="tiktok-now-title">MTG AUTOMOTIVO BIBI / MANDELÃO VIRAL</div>
+                  <div id="tiktok-now-playing-meta" class="tiktok-now-meta">DJ LEGO MANDELÃO • 132 BPM • FUNK AUTOMOTIVO</div>
+                </div>
+              </div>
+
+              <div class="spotify-hero-right">
+                <button id="btn-tiktok-close" type="button" class="spotify-close-btn">
+                  <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <span>Fechar [P]</span>
+                </button>
+                <div class="spotify-search-wrap">
+                  <svg class="spotify-search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input
+                    id="input-spotify-search"
+                    type="text"
+                    placeholder="Buscar música, artista ou estilo..."
+                    class="spotify-search-input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Cabeçalho da Tabela de Músicas -->
+            <div class="spotify-table-header">
+              <span class="col-idx">#</span>
+              <span class="col-title">Título</span>
+              <span class="col-style">Estilo &amp; BPM</span>
+              <span class="col-actions">Ações</span>
+            </div>
+
+            <!-- Lista / Tabela de Músicas -->
+            <div id="tiktok-track-list" class="spotify-track-list"></div>
+          </main>
+        </div>
+
+        <!-- C) BARRA INFERIOR FIXA DO PLAYER ESTILO SPOTIFY -->
+        <footer class="spotify-bottom-player">
+          <!-- Coluna Esquerda: Mini-Capa 56x56 + Nome + Artista + Curtir + Foto -->
+          <div class="spotify-player-left">
+            <img id="spotify-bottom-cover-img" class="spotify-bottom-cover-img" alt="Mini Capa" />
+            <div class="spotify-bottom-meta">
+              <div id="spotify-bottom-title" class="spotify-bottom-title">MTG AUTOMOTIVO BIBI</div>
+              <div id="spotify-bottom-artist" class="spotify-bottom-artist">DJ LEGO MANDELÃO</div>
+            </div>
+            <button id="btn-spotify-like-current" type="button" class="spotify-icon-btn" title="Curtir Música">
+              <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>
+            <button id="btn-spotify-cover-current" type="button" class="spotify-icon-btn" title="Trocar Foto da Música">
+              <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+          </div>
+
+          <!-- Coluna Central: Controles de Reprodução + Barra de Progresso -->
+          <div class="spotify-player-center">
+            <div class="spotify-transport-row">
+              <button id="btn-tiktok-shuffle" type="button" class="spotify-transport-btn" title="Modo Aleatório (Shuffle)">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+              </button>
+              <button id="btn-tiktok-prev" type="button" class="spotify-transport-btn" title="Música Anterior">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2.4" height="16" rx="1"/></svg>
+              </button>
+              <button id="btn-tiktok-play-pause" type="button" class="spotify-play-circle-btn" title="Tocar / Pausar">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="7 4 20 12 7 20 7 4"/></svg>
+              </button>
+              <button id="btn-tiktok-next" type="button" class="spotify-transport-btn" title="Próxima Música">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="16.6" y="4" width="2.4" height="16" rx="1"/></svg>
+              </button>
+              <button id="btn-spotify-repeat" type="button" class="spotify-transport-btn" title="Repetir Música Atual">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              </button>
+            </div>
+            <div class="spotify-seek-row">
+              <span id="spotify-time-cur" class="spotify-time-label">0:00</span>
+              <input id="spotify-seek-slider" type="range" min="0" max="1000" value="0" class="spotify-seek-slider" />
+              <span id="spotify-time-dur" class="spotify-time-label">1:30</span>
+            </div>
+          </div>
+
+          <!-- Coluna Direita: Bass Boost +6dB + Volume -->
+          <div class="spotify-player-right">
+            <button id="btn-tiktok-bass-boost" type="button" class="spotify-pill-btn active" title="Grave Estourado +6dB">
+              <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+              <span>Bass +6dB</span>
+            </button>
+            <div class="spotify-vol-wrap">
+              <span class="spotify-vol-icon" aria-hidden="true">
+                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              </span>
+              <input id="slider-tiktok-vol" type="range" min="0" max="100" value="85" class="spotify-vol-slider" />
+              <b id="val-tiktok-vol" class="spotify-vol-val">85%</b>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </div>
+
     <!-- Indicador Contextual Tático de Veículo [E] (Apenas a pé perto de veículo) -->
     <div id="vehicle-prompt" class="hidden">
       <span class="pill-key">E</span>
@@ -477,6 +942,6 @@
     </div>
   </div>
 
-  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/main.js?v=20261110j"></script>
 </body>
 </html>

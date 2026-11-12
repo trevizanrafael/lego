@@ -5,6 +5,17 @@ import {
   createMinifigFaceTexture,
   createMinifigTorsoTexture
 } from '../materials/LegoMaterials.js';
+import {
+  getOp09MinifigPreset,
+  createCustomFaceTexture,
+  createCustomTorsoTexture,
+  attachOp09CustomRigToMinifigure
+} from './CustomHeroSystem.js';
+import {
+  HERO_EMOTES,
+  applyEmoteAnimationToMinifigure
+} from '../world/InteractiveAttractionsAndEmotes.js';
+import { soundFX } from '../audio/SoundFX.js';
 
 /**
  * Cria a geometria trapezoidal clássica do tronco de uma Minifigura LEGO
@@ -222,7 +233,10 @@ export class Minifigure {
   }
 
   setHero(presetKey) {
-    const preset = MINIFIG_PRESETS[presetKey] || MINIFIG_PRESETS.caveira;
+    const preset =
+      presetKey === 'op09'
+        ? getOp09MinifigPreset()
+        : MINIFIG_PRESETS[presetKey] || MINIFIG_PRESETS.caveira;
     this.currentHeroKey = preset.key;
     this.isBigFig = Boolean(preset.isBigFig);
     this.isStealth = false;
@@ -335,7 +349,10 @@ export class Minifigure {
     this.torsoMesh.receiveShadow = true;
     this.upperBodyGroup.add(this.torsoMesh);
 
-    const torsoTex = createMinifigTorsoTexture(preset.torsoPreset);
+    const torsoTex =
+      preset.key === 'op09'
+        ? createCustomTorsoTexture(preset.customCfg)
+        : createMinifigTorsoTexture(preset.torsoPreset);
     const chestDecalGeo = createTrapezoidTorsoGeometry(0.74, 0.88, 0.72, 0.01);
     const chestDecalMat = getLegoMaterial(0xffffff, {
       map: torsoTex,
@@ -440,7 +457,10 @@ export class Minifigure {
     botRim.position.set(0, 0.33 - headHeight * 0.5, 0);
     this.headGroup.add(botRim);
 
-    const faceTex = createMinifigFaceTexture(preset.facePreset);
+    const faceTex =
+      preset.key === 'op09'
+        ? createCustomFaceTexture(preset.customCfg)
+        : createMinifigFaceTexture(preset.facePreset);
     const faceMat = new THREE.MeshPhysicalMaterial({
       map: faceTex,
       roughness: 0.2,
@@ -468,6 +488,10 @@ export class Minifigure {
     headStud.castShadow = true;
     headStud.receiveShadow = true;
     this.headGroup.add(headStud);
+
+    if (preset.key === 'op09') {
+      attachOp09CustomRigToMinifigure(this, preset.customCfg);
+    }
 
     if (preset.headgear === 'beret') {
       const beretGroup = new THREE.Group();
@@ -4818,6 +4842,34 @@ export class Minifigure {
   /**
    * Atualiza animações do boneco incluindo Rolamento Tático, Hover e Voo Supersônico de Cometa
    */
+  /**
+   * Inicia ou alterna entre os 4 Emotes / Danças [Tecla B] para qualquer herói (inclusive Titã, Vórtex e OP-09!)
+   */
+  triggerNextEmote() {
+    this._emoteIndex = ((this._emoteIndex ?? -1) + 1) % HERO_EMOTES.length;
+    const chosen = HERO_EMOTES[this._emoteIndex];
+    this.activeEmote = chosen.id;
+    this.emoteTimer = 0;
+    this.state = `EMOTE_${chosen.id.toUpperCase()}`;
+    soundFX.playEmoteJingle(this._emoteIndex);
+    return chosen;
+  }
+
+  stopEmote() {
+    if (!this.activeEmote) return;
+    this.activeEmote = null;
+    this.emoteTimer = 0;
+    if (this._emoteAuraGroup) {
+      this._emoteAuraGroup.visible = false;
+    }
+    this.visualRoot.position.set(0, 0, 0);
+    this.visualRoot.rotation.set(0, 0, 0);
+    this.leftArmPivot.rotation.set(0, 0, 0);
+    this.rightArmPivot.rotation.set(0, 0, 0);
+    this.leftLegPivot.rotation.set(0, 0, 0);
+    this.rightLegPivot.rotation.set(0, 0, 0);
+  }
+
   updateAnimation(
     dt,
     moveSpeed,
@@ -5063,6 +5115,23 @@ export class Minifigure {
     }
 
     const lerpSpeed = Math.min(1, dt * 14);
+
+    // 0. Sistema de Emotes & Danças [Tecla B] (cancela instantaneamente ao andar, pular, voar ou atacar!)
+    if (this.activeEmote) {
+      if (
+        moveSpeed > 0.45 ||
+        !isGrounded ||
+        isFlying ||
+        this.rollTimer > 0 ||
+        this.punchTimer > 0 ||
+        this.shootTimer > 0
+      ) {
+        this.stopEmote();
+      } else {
+        applyEmoteAnimationToMinifigure(this, dt);
+        return;
+      }
+    }
 
     // 1. Animação de Rolamento Tático 360° (Comandante Caveira) girando no centro de massa (sem entrar no chão!)
     if (this.rollTimer > 0) {

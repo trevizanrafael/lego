@@ -5,6 +5,7 @@ import {
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 const TROPICAL_WALL_KEYS = [
   { key: 'coastal_white', hex: 0xf8fafc, mapColor: '#f8fafc' },
@@ -186,25 +187,19 @@ function addCurvedLegoPalmTree(batcher, x, yBase, z, leanDirX = 0.25, leanDirZ =
 }
 
 function addNeonHotelSign(world, x, y, z, width, text, borderColor = '#00f0ff', textColor = '#facc15') {
-  const signCanvas = document.createElement('canvas');
-  signCanvas.width = 512;
-  signCanvas.height = 96;
-  const sctx = signCanvas.getContext('2d');
-  sctx.fillStyle = '#090a0d';
-  sctx.fillRect(0, 0, 512, 96);
-  sctx.strokeStyle = borderColor;
-  sctx.lineWidth = 8;
-  sctx.strokeRect(4, 4, 504, 88);
-  sctx.fillStyle = textColor;
-  sctx.font = '900 36px "Chakra Petch", Arial, sans-serif';
-  sctx.textAlign = 'center';
-  sctx.fillText(text, 256, 60);
-  const signTex = new THREE.CanvasTexture(signCanvas);
-  const signBoard = new THREE.Mesh(
-    new THREE.BoxGeometry(width, 4.8, 0.9),
-    new THREE.MeshBasicMaterial({ map: signTex })
-  );
-  signBoard.position.set(x, y, z);
+  const signBoard = createSignBoardMesh({
+    x,
+    y,
+    z,
+    width,
+    height: 4.8,
+    depth: 0.9,
+    title: text,
+    bgColor: '#090a0d',
+    borderColor,
+    textColor,
+    doubleSided: true
+  });
   world.scene.add(signBoard);
 }
 
@@ -334,13 +329,18 @@ function buildCoastalHotelBlocks(world, batcher) {
     buildSignatureOceanfrontHotel(world, batcher, spec.x, bz, w, d, spec);
 
     // Coqueiros altos na calçada frontal de cada super-prédio da orla
-    addCurvedLegoPalmTree(batcher, spec.x - w * 0.38, 0.3, 675.5, -0.18, 0.78, 1.15);
-    addCurvedLegoPalmTree(batcher, spec.x + w * 0.38, 0.3, 675.5, 0.18, 0.78, 1.15);
+    const palmLY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(spec.x - w * 0.38, 675.5) : 0) + 0.3;
+    const palmRY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(spec.x + w * 0.38, 675.5) : 0) + 0.3;
+    addCurvedLegoPalmTree(batcher, spec.x - w * 0.38, palmLY, 675.5, -0.18, 0.78, 1.15);
+    addCurvedLegoPalmTree(batcher, spec.x + w * 0.38, palmRY, 675.5, 0.18, 0.78, 1.15);
   });
 }
 
 function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, isFrontRow = false, signText = null) {
-  const yBase = 0.3;
+  const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
+  const yBase = terrainY + 0.3;
+  // Alicerce de concreto de 8.0m para baixo garantindo zero canto flutuando na Crista Panorâmica Sul (+10.5m)!
+  batcher.addBox('trim_white', w + 0.6, 8.0, d + 0.6, x, yBase - 3.9, z);
   const floorH = 3.8;
   const podiumH = 7.0;
   const totalH = podiumH + (floors - 1) * floorH;
@@ -392,10 +392,14 @@ function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, is
  * Constrói cada um dos 8 Super-Arranha-Céus Exclusivos na Orla Estilo Balneário Camboriú (232m a 296m de altura!)
  */
 function buildSignatureOceanfrontHotel(world, batcher, x, z, w, d, spec) {
-  const yBase = 0.3;
+  const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
+  const yBase = terrainY + 0.3;
   const podiumH = 8.5;
-  const H = spec.height;
+  const H = yBase + spec.height;
   const southZ = z + d * 0.5;
+
+  // Alicerce sólido de 8.0m para baixo acompanhando a Crista Panorâmica Sul (+10.5m)
+  batcher.addBox('trim_white', w + 0.6, 8.0, d + 0.6, x, yBase - 3.9, z);
 
   // Base Podium de Luxo (Boulevard Atlântico, Vitrines Duplas, Toldos e Mesas na Calçada)
   batcher.addBox('trim_white', w, podiumH, d, x, yBase + podiumH * 0.5, z);
@@ -893,17 +897,18 @@ function buildGoldenBeachAndShorelineLife(world, batcher) {
 
       const jitterX = ux + ((r * 17 + ux) % 11) - 5;
       const jitterZ = rz + ((ux * 7) % 9) - 4;
+      const localSandY = Math.max(sandY, world.getTerrainHeightAt ? world.getTerrainHeightAt(jitterX, jitterZ) : sandY);
       const uColor = UMBRELLA_KEYS[Math.floor(Math.random() * UMBRELLA_KEYS.length)];
       const towelColor = UMBRELLA_KEYS[Math.floor(Math.random() * UMBRELLA_KEYS.length)];
 
-      batcher.addBox('trim_white', 0.22, 3.1, 0.22, jitterX, sandY + 1.55, jitterZ);
-      batcher.addBox(uColor, 4.4, 0.42, 4.4, jitterX, sandY + 3.1, jitterZ);
-      batcher.addBox('trim_white', 2.8, 0.38, 2.8, jitterX, sandY + 3.45, jitterZ);
-      batcher.addBox(uColor, 1.2, 0.32, 1.2, jitterX, sandY + 3.75, jitterZ);
+      batcher.addBox('trim_white', 0.22, 3.1, 0.22, jitterX, localSandY + 1.55, jitterZ);
+      batcher.addBox(uColor, 4.4, 0.42, 4.4, jitterX, localSandY + 3.1, jitterZ);
+      batcher.addBox('trim_white', 2.8, 0.38, 2.8, jitterX, localSandY + 3.45, jitterZ);
+      batcher.addBox(uColor, 1.2, 0.32, 1.2, jitterX, localSandY + 3.75, jitterZ);
 
-      batcher.addBox('trim_white', 1.25, 0.32, 2.4, jitterX - 1.7, sandY + 0.16, jitterZ + 0.4);
-      batcher.addBox('trim_white', 1.25, 0.55, 0.5, jitterX - 1.7, sandY + 0.38, jitterZ - 0.6);
-      batcher.addBox(towelColor, 1.4, 0.06, 2.5, jitterX + 1.7, sandY + 0.03, jitterZ + 0.5);
+      batcher.addBox('trim_white', 1.25, 0.32, 2.4, jitterX - 1.7, localSandY + 0.16, jitterZ + 0.4);
+      batcher.addBox('trim_white', 1.25, 0.55, 0.5, jitterX - 1.7, localSandY + 0.38, jitterZ - 0.6);
+      batcher.addBox(towelColor, 1.4, 0.06, 2.5, jitterX + 1.7, localSandY + 0.03, jitterZ + 0.5);
     }
   }
 
@@ -1135,17 +1140,11 @@ function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
     }
   });
 
-  // 5. MONTANHA-RUSSA COSTEIRA NO PÍER (Trilhos Vermelhos/Amarelos em Arcos Elevados em X = -36, Z = 1230..1390)
-  for (let cz = 1235; cz <= 1385; cz += 10) {
-    const waveH = 8.0 + Math.sin((cz - 1235) * 0.06) * 6.5;
-    batcher.addBox('trim_white', 1.0, waveH, 1.0, -38, deckTopY + waveH * 0.5, cz);
-    batcher.addBox('umb_red', 4.2, 0.75, 10.5, -38, deckTopY + waveH, cz);
-    batcher.addBox('umb_yellow', 2.8, 0.45, 10.5, -38, deckTopY + waveH + 0.5, cz);
-  }
+  // 5. MONTANHA-RUSSA OCEÂNICA EM CIRCUITO FECHADO (Construída dinamicamente em `InteractiveAttractionsAndEmotes.js`!)
 
-  // 6. CARROSSEL CLÁSSICO GIRATÓRIO 3D (X = -22, Z = 1325) — Gira continuamente no loop!
+  // 6. CARROSSEL CLÁSSICO GIRATÓRIO 3D (X = -16, Z = 1325) — Gira continuamente no loop!
   const carouselGroup = new THREE.Group();
-  carouselGroup.position.set(-22, deckTopY, 1325);
+  carouselGroup.position.set(-16, deckTopY, 1325);
   const cBase = createLegoBrick(18, 0.8, 18, LEGO_COLORS.white);
   cBase.position.y = 0.4;
   const cPillar = new THREE.Mesh(
@@ -1176,18 +1175,16 @@ function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   }
   world.scene.add(carouselGroup);
   world.rotatingElements.push({ mesh: carouselGroup, axis: 'y', speed: 0.85 });
-  world.addCollider(-22, 1325, 18, 18, deckTopY + 12, deckTopY);
+  world.addCollider(-16, 1325, 18, 18, deckTopY + 12, deckTopY);
 
-  // 7. TORRE DE QUEDA LIVRE "BIG DROP" DE 58m DE ALTURA! (X = +24, Z = 1325)
+  // 7. TORRE DE QUEDA LIVRE "BIG DROP" DE 58m DE ALTURA! (X = +24, Z = 1325 — Gôndola animada em `InteractiveAttractionsAndEmotes.js`!)
   const dropX = 24;
   const dropZ = 1325;
   const dropH = 58.0;
   batcher.addBox('umb_red', 5.2, dropH, 5.2, dropX, deckTopY + dropH * 0.5, dropZ);
   batcher.addBox('umb_yellow', 6.4, 3.2, 6.4, dropX, deckTopY + dropH, dropZ);
   batcher.addBox('neon_cyan', 7.8, 1.8, 7.8, dropX, deckTopY + dropH + 2.2, dropZ);
-  // Gôndola de Assentos na metade da torre
-  batcher.addBox('neon_pink', 9.2, 2.4, 9.2, dropX, deckTopY + 26.0, dropZ);
-  world.addCollider(dropX, dropZ, 8.5, 8.5, deckTopY + dropH + 3.0, deckTopY);
+  world.addCollider(dropX, dropZ, 5.4, 5.4, deckTopY + dropH + 3.0, deckTopY);
 
   // ============================================================================
   // 8. RODA-GIGANTE 3D COLOSSAL NA PRAÇA FUNDA DO PÍER (Z = 1480, Raio 32m, 16 Cabines!)
@@ -1250,6 +1247,7 @@ function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
     0xa855f7
   ];
 
+  const ferrisCabins = [];
   for (let i = 0; i < cabinCount; i++) {
     const angle = (i / cabinCount) * Math.PI * 2;
     const sinA = Math.sin(angle);
@@ -1268,7 +1266,7 @@ function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
     cabinBody.position.y = -1.0;
     const cabinGlass = new THREE.Mesh(
       new THREE.BoxGeometry(4.8, 1.3, 3.8),
-      new THREE.MeshBasicMaterial({ color: 0xe0f2fe })
+      new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.45 })
     );
     cabinGlass.position.y = 0.45;
     const cabinRoof = createLegoBrick(5.2, 0.6, 4.2, cabinColor);
@@ -1277,13 +1275,14 @@ function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
     cabinGroup.add(cabinBody, cabinGlass, cabinRoof);
     cabinGroup.position.set(0, sinA * wheelRadius, cosA * wheelRadius);
     wheelGroup.add(cabinGroup);
+    ferrisCabins.push(cabinGroup);
   }
 
   world.scene.add(wheelGroup);
   world.ferrisWheelGroup = wheelGroup;
+  world.ferrisWheelCabins = ferrisCabins;
   world.ferrisWheelCabinCount = cabinCount;
   world.pierData = { zStart: 1030, zEnd: 1570, length: 540, width: mainPierW, plazaWidth: endPlazaW };
-  world.rotatingElements.push({ mesh: wheelGroup, axis: 'x', speed: 0.42 });
 
   // 9. FAROL MARÍTIMO LISTRADO VERMELHO E BRANCO NA PONTA FINAL DO PÍER (Z = 1552, 36m de altura!)
   const lhZ = 1552;

@@ -71,10 +71,18 @@ export class DestructibleManager {
     this.hud = hud;
 
     this.objects = [];
+    this._spatialGrid = new Map();
+    this._dynamicObjects = [];
+    this.spatialCellSize = 36;
+    this._nearbyQueryScratch = [];
+    this._cullTickAccumulator = 0;
+    this._cullSliceCursor = 0;
+
     this.debrisList = [];
     this.studsList = [];
     this.ambientStuds = [];
     this.geysers = [];
+    this.topplingPoles = [];
     this.projectiles = [];
     this.grenades = [];
     this.thrownCars = [];
@@ -84,6 +92,9 @@ export class DestructibleManager {
     this.timedBeams = [];
     this._turboGhostBikeObj = null;
     this._vortexComboStep = 0;
+
+    this.onObjectDamaged = null;
+    this.onObjectDestroyed = null;
 
     this.magnetRadius = 5.2;
     this.collectRadius = 0.9;
@@ -292,7 +303,12 @@ export class DestructibleManager {
     groundY = 0.26,
     goldOnly = false,
     crackedWallOnly = false,
-    silverOnly = false
+    silverOnly = false,
+    isStreetProp = false,
+    chaosValue = 0,
+    isPoliceUnit = false,
+    isFactionWarUnit = false,
+    noAutoRespawn = false
   }) {
     const basePos = mesh.position.clone();
     const baseRot = mesh.rotation.clone();
@@ -301,10 +317,28 @@ export class DestructibleManager {
       !mesh.userData?.isOptimizedGroup &&
       !mesh.userData?.skipStaticMerge &&
       type !== 'npc_fighter' &&
-      type !== 'pedestrian_civilian'
+      type !== 'npc_boss' &&
+      type !== 'pedestrian_civilian' &&
+      type !== 'police_helicopter' &&
+      type !== 'hunter_drone'
     ) {
       optimizeStaticGroupMeshes(mesh, []);
     }
+    if (isStreetProp && mesh) {
+      mesh.traverse((c) => {
+        if (c.isMesh) c.castShadow = false;
+      });
+    }
+
+    const isDynamic =
+      type === 'car' ||
+      type === 'npc_fighter' ||
+      type === 'npc_boss' ||
+      type === 'pedestrian_civilian' ||
+      type === 'police_helicopter' ||
+      type === 'hunter_drone' ||
+      Boolean(isPoliceUnit) ||
+      Boolean(isFactionWarUnit);
 
     const item = {
       mesh,
@@ -320,6 +354,13 @@ export class DestructibleManager {
       goldOnly,
       crackedWallOnly,
       silverOnly,
+      isStreetProp: Boolean(isStreetProp),
+      chaosValue,
+      isPoliceUnit: Boolean(isPoliceUnit),
+      isFactionWarUnit: Boolean(isFactionWarUnit),
+      noAutoRespawn: Boolean(noAutoRespawn),
+      _isDynamicIndexed: isDynamic,
+      _spatialCellKey: null,
       heatLevel: 0,
       basePos,
       baseRot,
@@ -329,10 +370,106 @@ export class DestructibleManager {
     };
 
     this.objects.push(item);
+
+    if (isDynamic) {
+      this._dynamicObjects.push(item);
+      if (Array.isArray(colliders) && this.world?.promoteDynamicCollider) {
+        for (let ci = 0; ci < colliders.length; ci++) {
+          this.world.promoteDynamicCollider(colliders[ci]);
+        }
+      }
+    } else {
+      const cx = Math.floor(basePos.x / this.spatialCellSize);
+      const cz = Math.floor(basePos.z / this.spatialCellSize);
+      const key = `${cx},${cz}`;
+      item._spatialCellKey = key;
+      let bucket = this._spatialGrid.get(key);
+      if (!bucket) {
+        bucket = [];
+        this._spatialGrid.set(key, bucket);
+      }
+      bucket.push(item);
+    }
+
     return item;
   }
 
+  unregisterDestructible(item) {
+    if (!item) return;
+    item.destroyed = true;
+    item.noAutoRespawn = true;
+    if (Array.isArray(item.colliders)) {
+      for (const col of item.colliders) {
+        if (col) col.disabled = true;
+      }
+    }
+    if (item.mesh && item.mesh.parent) {
+      item.mesh.parent.remove(item.mesh);
+    }
+    if (item._isDynamicIndexed) {
+      const dynIdx = this._dynamicObjects.indexOf(item);
+      if (dynIdx !== -1) this._dynamicObjects.splice(dynIdx, 1);
+    } else if (item._spatialCellKey) {
+      const bucket = this._spatialGrid.get(item._spatialCellKey);
+      if (bucket) {
+        const bIdx = bucket.indexOf(item);
+        if (bIdx !== -1) bucket.splice(bIdx, 1);
+      }
+    }
+    const idx = this.objects.indexOf(item);
+    if (idx !== -1) {
+      this.objects.splice(idx, 1);
+    }
+  }
+
+  removeDestructible(item) {
+    return this.unregisterDestructible(item);
+  }
+
+  /**
+   * Consulta espacial O(1) nas células vizinhas de 36m + objetos móveis (60 FPS cravados com ~450+ props!)
+   */
+  getObjectsNear(x, z, range = 12) {
+    const out = [];
+    const pad = range + 4.5;
+    const minCX = Math.floor((x - pad) / this.spatialCellSize);
+    const maxCX = Math.floor((x + pad) / this.spatialCellSize);
+    const minCZ = Math.floor((z - pad) / this.spatialCellSize);
+    const maxCZ = Math.floor((z + pad) / this.spatialCellSize);
+
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cz = minCZ; cz <= maxCZ; cz++) {
+        const bucket = this._spatialGrid.get(`${cx},${cz}`);
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i++) {
+          const obj = bucket[i];
+          if (!obj.destroyed) out.push(obj);
+        }
+      }
+    }
+
+    const padSq = (pad + 6.0) * (pad + 6.0);
+    for (let i = 0; i < this._dynamicObjects.length; i++) {
+      const obj = this._dynamicObjects[i];
+      if (obj.destroyed) continue;
+      const ox = obj.mesh?.position?.x ?? obj.basePos.x;
+      const oz = obj.mesh?.position?.z ?? obj.basePos.z;
+      const dx = ox - x;
+      const dz = oz - z;
+      if (dx * dx + dz * dz <= padSq) {
+        out.push(obj);
+      }
+    }
+    return out;
+  }
+
   spawnAmbientStud(x, y, z, tierKey = 'gold') {
+    if (x && typeof x === 'object' && 'x' in x) {
+      if (typeof y === 'string') tierKey = y;
+      z = x.z;
+      y = x.y;
+      x = x.x;
+    }
     const tierCfg = STUD_TIERS[tierKey] || STUD_TIERS.gold;
     const mesh = this._createStudMesh(tierCfg);
     mesh.position.set(x, y, z);
@@ -351,9 +488,9 @@ export class DestructibleManager {
 
   rebuildAll() {
     for (const obj of this.objects) {
-      if (obj.destroyed) {
+      if (obj.destroyed && !obj.noAutoRespawn) {
         this._restoreObject(obj);
-      } else {
+      } else if (!obj.destroyed) {
         obj.hp = obj.maxHp;
         obj.heatLevel = 0;
       }
@@ -365,11 +502,16 @@ export class DestructibleManager {
       s.mesh.position.copy(s.basePos);
     }
     for (const g of this.geysers) {
+      if (g.columnMesh) this.scene.remove(g.columnMesh);
       for (const drop of g.drops) {
         this.scene.remove(drop.mesh);
       }
     }
     this.geysers.length = 0;
+    for (const tp of this.topplingPoles) {
+      this.scene.remove(tp.mesh);
+    }
+    this.topplingPoles.length = 0;
   }
 
   _restoreObject(obj) {
@@ -390,46 +532,58 @@ export class DestructibleManager {
    * Calcula o ponto 3D exato que está na mira central (#crosshair) estilo Fortnite
    */
   getAimTargetPoint(camera, maxDist = 75) {
-    const rayOrigin = camera.position.clone();
-    const rayDir = new THREE.Vector3();
+    const ox = camera.position.x;
+    const oy = camera.position.y;
+    const oz = camera.position.z;
+    if (!this._aimDirScratch) this._aimDirScratch = new THREE.Vector3();
+    const rayDir = this._aimDirScratch;
     camera.getWorldDirection(rayDir);
+    const dxR = rayDir.x;
+    const dyR = rayDir.y;
+    const dzR = rayDir.z;
 
     let closestDist = maxDist;
     let hitObj = null;
 
-    // 1. Verifica interseção do raio da mira central com a esfera/cilindro dos objetos quebráveis (ignorando o veículo atual do jogador e tropas aliadas!)
-    for (const obj of this.objects) {
+    // 1. Consulta espacial sem alocar Vector3 por objeto no loop!
+    const midX = ox + dxR * (maxDist * 0.5);
+    const midZ = oz + dzR * (maxDist * 0.5);
+    const candidates = this.getObjectsNear(midX, midZ, maxDist * 0.5 + 8.0);
+
+    for (let i = 0; i < candidates.length; i++) {
+      const obj = candidates[i];
       if (obj.destroyed || obj.isDriven || obj.isAlliedToPlayer) continue;
 
-      const objCenter = new THREE.Vector3(
-        obj.basePos.x,
-        obj.basePos.y + obj.height * 0.5,
-        obj.basePos.z
-      );
-      const toCenter = objCenter.sub(rayOrigin);
-      const t = toCenter.dot(rayDir);
+      const cx = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+      const cy = (obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y) + obj.height * 0.5;
+      const cz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+
+      const tx = cx - ox;
+      const ty = cy - oy;
+      const tz = cz - oz;
+      const t = tx * dxR + ty * dyR + tz * dzR;
       if (t < 1.5 || t > closestDist) continue;
 
-      const closestPt = rayOrigin.clone().addScaledVector(rayDir, t);
-      const dx = closestPt.x - obj.basePos.x;
-      const dz = closestPt.z - obj.basePos.z;
-      const dy = Math.abs(closestPt.y - (obj.basePos.y + obj.height * 0.5));
+      const px = ox + dxR * t - cx;
+      const py = Math.abs(oy + dyR * t - cy);
+      const pz = oz + dzR * t - cz;
 
-      if (Math.hypot(dx, dz) <= obj.radius * 0.95 && dy <= obj.height * 0.65) {
+      if (px * px + pz * pz <= (obj.radius * 0.95) * (obj.radius * 0.95) && py <= obj.height * 0.65) {
         closestDist = t;
         hitObj = obj;
       }
     }
 
     // 2. Se não bateu num objeto quebrável e o raio aponta para o chão, calcula o toque no asfalto
-    if (!hitObj && rayDir.y < -0.02) {
-      const groundT = -rayOrigin.y / rayDir.y;
+    if (!hitObj && dyR < -0.02) {
+      const floorY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(ox, oz) : 0;
+      const groundT = (floorY - oy) / dyR;
       if (groundT > 2.0 && groundT < closestDist) {
         closestDist = groundT;
       }
     }
 
-    const point = rayOrigin.addScaledVector(rayDir, closestDist);
+    const point = new THREE.Vector3(ox + dxR * closestDist, oy + dyR * closestDist, oz + dzR * closestDist);
     return { point, hitObj, distance: closestDist };
   }
 
@@ -444,13 +598,17 @@ export class DestructibleManager {
     this.world?.livingCity?.triggerPedestrianPanicNear(attackCenter, 22);
 
     let hitAny = false;
-    for (const obj of this.objects) {
+    const meleeCandidates = this.getObjectsNear(attackCenter.x, attackCenter.z, range + 3.0);
+    for (let i = 0; i < meleeCandidates.length; i++) {
+      const obj = meleeCandidates[i];
       if (obj.destroyed) continue;
-
-      const dx = obj.basePos.x - attackCenter.x;
-      const dz = obj.basePos.z - attackCenter.z;
+      const bx = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+      const by = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+      const bz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+      const dx = bx - attackCenter.x;
+      const dz = bz - attackCenter.z;
       const distHoriz = Math.hypot(dx, dz);
-      const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - attackCenter.y);
+      const dy = Math.abs(by + obj.height * 0.5 - attackCenter.y);
 
       if (distHoriz <= obj.radius + range * 0.55 && dy <= obj.height + 1.4) {
         this.damageObject(obj, damage, attackCenter, false);
@@ -3167,14 +3325,14 @@ export class DestructibleManager {
       duration: isSupernova ? 0.72 + chargeRatio * 0.38 : 0.36
     });
 
-    // Causa dano em todos os objetos quebráveis dentro do raio (exceto o próprio veículo que o jogador está dirigindo!)
-    for (const obj of this.objects) {
+    // Causa dano em todos os objetos quebráveis dentro do raio (usando índice espacial + posição móvel real!)
+    const blastCandidates = this.getObjectsNear(center.x, center.z, radius + 3.0);
+    for (const obj of blastCandidates) {
       if (obj.destroyed || obj.isDriven || obj.isGrabbed) continue;
-      const objPos = new THREE.Vector3(
-        obj.basePos.x,
-        obj.basePos.y + obj.height * 0.5,
-        obj.basePos.z
-      );
+      const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+      const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+      const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+      const objPos = new THREE.Vector3(ox, oy + obj.height * 0.5, oz);
       const dist = objPos.distanceTo(center);
       if (dist <= radius + obj.radius) {
         this.damageObject(obj, maxDamage, center, isSupernova, damageOpts);
@@ -3185,9 +3343,9 @@ export class DestructibleManager {
   /**
    * Cria partícula de rastro de chamas (Voo de Cometa / Feixe Solar)
    */
-  spawnFlameTrailParticle(pos, scale = 1.0) {
+  spawnFlameTrailParticle(pos, scale = 1.0, customHex = null) {
     const colors = [0xfef08a, 0xfacc15, 0xf97316, 0xef4444];
-    const c = colors[Math.floor(Math.random() * colors.length)];
+    const c = typeof customHex === 'number' ? customHex : colors[Math.floor(Math.random() * colors.length)];
     const mat = new THREE.MeshBasicMaterial({
       color: c,
       transparent: true,
@@ -3309,6 +3467,13 @@ export class DestructibleManager {
     if (typeof obj.onDamaged === 'function') {
       obj.onDamaged(finalDamage, hitOrigin);
     }
+    if (
+      typeof this.onObjectDamaged === 'function' &&
+      !damageOpts?.fromEnemyNpc &&
+      !damageOpts?.fromPursuitPolice
+    ) {
+      this.onObjectDamaged(obj, finalDamage, hitOrigin, damageOpts);
+    }
 
     if (obj.hp > 0) {
       if (finalDamage >= 5) {
@@ -3316,17 +3481,25 @@ export class DestructibleManager {
         this._spawnDebris(obj, 2, 0.6);
       }
     } else {
-      this._shatterObject(obj, hitOrigin);
+      this._shatterObject(obj, hitOrigin, damageOpts);
     }
   }
 
-  _shatterObject(obj) {
+  _shatterObject(obj, hitOrigin = null, damageOpts = {}) {
     obj.destroyed = true;
     obj.isGrabbed = false;
-    obj.respawnTimer = obj.isCombatNpc ? 4.0 : 28.0;
+    // Objetos de rua (isStreetProp) reconstroem após 45s fora do campo de visão / longe do jogador!
+    obj.respawnTimer = obj.isCombatNpc ? 4.0 : obj.isStreetProp ? 45.0 : 28.0;
     obj.mesh.visible = false;
     if (typeof obj.onShattered === 'function') {
       obj.onShattered();
+    }
+    if (
+      typeof this.onObjectDestroyed === 'function' &&
+      !damageOpts?.fromEnemyNpc &&
+      !damageOpts?.fromPursuitPolice
+    ) {
+      this.onObjectDestroyed(obj, hitOrigin, damageOpts);
     }
 
     for (const col of obj.colliders) {
@@ -3335,6 +3508,10 @@ export class DestructibleManager {
 
     const isBig =
       obj.type === 'car' ||
+      obj.type === 'police_helicopter' ||
+      obj.type === 'bus_stop' ||
+      obj.type === 'atm_machine' ||
+      obj.type === 'dumpster' ||
       obj.type === 'newsstand' ||
       obj.type === 'gold_vault' ||
       obj.type === 'cracked_wall' ||
@@ -3344,10 +3521,10 @@ export class DestructibleManager {
     soundFX.playLegoBreak(isBig);
 
     const pieceCount =
-      obj.type === 'car' || obj.type === 'bank_vault_door' || obj.type === 'cracked_wall' ? 24 :
-      obj.type === 'gold_vault' || obj.type === 'silver_lego' || obj.type === 'gas_pump' ? 20 :
-      obj.type === 'newsstand' ? 18 :
-      obj.type === 'streetlamp' ? 14 : 11;
+      obj.type === 'car' || obj.type === 'police_helicopter' || obj.type === 'bank_vault_door' || obj.type === 'cracked_wall' ? 24 :
+      obj.type === 'gold_vault' || obj.type === 'silver_lego' || obj.type === 'gas_pump' || obj.type === 'bus_stop' || obj.type === 'atm_machine' ? 18 :
+      obj.type === 'newsstand' || obj.type === 'phone_booth' || obj.type === 'food_cart' || obj.type === 'dumpster' ? 15 :
+      obj.type === 'streetlamp' || obj.type === 'traffic_light' ? 12 : 9;
     const upwardBoost = obj.type === 'car' || obj.type === 'gas_pump' ? 1.65 : isBig ? 1.25 : 0.95;
     this._spawnDebris(obj, pieceCount, upwardBoost);
 
@@ -3355,12 +3532,97 @@ export class DestructibleManager {
 
     if (obj.type === 'hydrant') {
       this._createWaterGeyser(obj.basePos.clone(), obj.groundY);
+    } else if (obj.type === 'streetlamp' || obj.type === 'traffic_light') {
+      this._spawnTopplingPoleAndSparks(obj, hitOrigin);
+    } else if (obj.type === 'atm_machine') {
+      // Faíscas elétricas do terminal bancário LEGO estourado!
+      this._spawnElectricSparks(obj.basePos.clone().add(new THREE.Vector3(0, 1.2, 0)), 14);
     } else if (obj.type === 'gas_pump' || obj.type === 'fuel_truck' || obj.type === 'explosive_barrel') {
       // Bombas do Posto e Caminhões-Tanque explodem em reação em cadeia e jogam carros pro alto!
       const blastCenter = obj.basePos.clone();
       blastCenter.y += 1.0;
       this._triggerExplosion(blastCenter, 36.0, 110, false, true);
     }
+  }
+
+  _spawnElectricSparks(origin, count = 12) {
+    const colors = [0xfacc15, 0xfef08a, 0x38bdf8, 0xffffff];
+    for (let i = 0; i < count; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: colors[i % colors.length],
+        transparent: true,
+        opacity: 0.95
+      });
+      const spark = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
+      spark.position.copy(origin);
+      spark.scale.setScalar(0.55 + Math.random() * 0.45);
+      this.scene.add(spark);
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 3.5 + Math.random() * 7.5;
+      this.fxParticles.push({
+        mesh: spark,
+        vel: new THREE.Vector3(Math.cos(ang) * spd, 3.0 + Math.random() * 6.5, Math.sin(ang) * spd),
+        life: 0.34 + Math.random() * 0.22,
+        maxLife: 0.56
+      });
+    }
+  }
+
+  _spawnTopplingPoleAndSparks(obj, hitOrigin = null) {
+    const base = obj.basePos.clone();
+    this._spawnElectricSparks(new THREE.Vector3(base.x, base.y + 0.55, base.z), 12);
+    this._spawnElectricSparks(new THREE.Vector3(base.x, base.y + (obj.height || 5.2) * 0.9, base.z), 10);
+
+    let dirX = 1;
+    let dirZ = 0;
+    if (hitOrigin) {
+      const lenSq = hitOrigin.x * hitOrigin.x + hitOrigin.z * hitOrigin.z;
+      if (lenSq > 0.001 && lenSq <= 4.5) {
+        // Vetor de direção (ex.: atropelamento por veículo)
+        const inv = 1 / Math.hypot(hitOrigin.x, hitOrigin.z);
+        dirX = hitOrigin.x * inv;
+        dirZ = hitOrigin.z * inv;
+      } else {
+        const dx = base.x - hitOrigin.x;
+        const dz = base.z - hitOrigin.z;
+        const d = Math.hypot(dx, dz);
+        if (d > 0.05) {
+          dirX = dx / d;
+          dirZ = dz / d;
+        }
+      }
+    } else {
+      const ang = Math.random() * Math.PI * 2;
+      dirX = Math.cos(ang);
+      dirZ = Math.sin(ang);
+    }
+
+    const poleH = obj.height || 5.2;
+    const pivot = new THREE.Group();
+    pivot.position.copy(base);
+
+    const poleMat = getLegoMaterial(obj.type === 'traffic_light' ? LEGO_COLORS.charcoal : LEGO_COLORS.darkGrey);
+    const shaftGeo = new THREE.CylinderGeometry(0.11, 0.14, poleH, 8);
+    shaftGeo.translate(0, poleH * 0.5, 0);
+    const shaft = new THREE.Mesh(shaftGeo, poleMat);
+    pivot.add(shaft);
+
+    const headColor = obj.type === 'traffic_light' ? 0xfacc15 : 0xfef08a;
+    const headMat = new THREE.MeshBasicMaterial({ color: headColor });
+    const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.52, 0.42), headMat);
+    headMesh.position.set(0, poleH * 0.92, 0);
+    pivot.add(headMesh);
+
+    this.scene.add(pivot);
+    this.topplingPoles.push({
+      mesh: pivot,
+      axis: new THREE.Vector3(dirZ, 0, -dirX).normalize(),
+      angle: 0,
+      angVel: 2.2,
+      life: 0.95,
+      sparkedGround: false,
+      tipOffset: new THREE.Vector3(dirX * poleH * 0.9, 0.25, dirZ * poleH * 0.9)
+    });
   }
 
   _spawnDebris(obj, count, scaleFactor = 1.0) {
@@ -3488,19 +3750,34 @@ export class DestructibleManager {
     });
     const foamMat = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
 
+    // Coluna central de jato d'água LEGO de 8.0m de altura!
+    const colGeo = new THREE.CylinderGeometry(0.14, 0.34, 8.0, 10, 1, true);
+    colGeo.translate(0, 4.0, 0);
+    const colMat = new THREE.MeshBasicMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0.62,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const columnMesh = new THREE.Mesh(colGeo, colMat);
+    columnMesh.position.set(position.x, groundY, position.z);
+    this.scene.add(columnMesh);
+
     const drops = [];
-    const dropCount = 26;
+    const dropCount = 28;
 
     for (let i = 0; i < dropCount; i++) {
       const mesh = new THREE.Mesh(WATER_DROP_GEO, i % 3 === 0 ? foamMat : waterMat);
       this._resetGeyserDrop(mesh, position, groundY);
+      mesh.position.y = groundY + Math.random() * 6.5;
       this.scene.add(mesh);
       drops.push({
         mesh,
         vel: new THREE.Vector3(
-          (Math.random() - 0.5) * 1.8,
-          6.5 + Math.random() * 4.5,
-          (Math.random() - 0.5) * 1.8
+          (Math.random() - 0.5) * 1.9,
+          15.6 + Math.random() * 2.5,
+          (Math.random() - 0.5) * 1.9
         )
       });
     }
@@ -3508,23 +3785,52 @@ export class DestructibleManager {
     this.geysers.push({
       origin: position,
       groundY,
-      timer: 14.0,
+      maxHeight: 8.0,
+      maxTimer: 7.0,
+      timer: 7.0,
+      columnMesh,
       drops
     });
   }
 
   _resetGeyserDrop(mesh, origin, groundY) {
     mesh.position.set(
-      origin.x + (Math.random() - 0.5) * 0.25,
+      origin.x + (Math.random() - 0.5) * 0.28,
       groundY + 0.2,
-      origin.z + (Math.random() - 0.5) * 0.25
+      origin.z + (Math.random() - 0.5) * 0.28
     );
   }
 
-  update(dt, playerPosition) {
-    // 1. Tremor e respawn de objetos quebráveis
-    for (const obj of this.objects) {
+  update(dt, playerPosition, cameraForward = null) {
+    const totalObjs = this.objects.length;
+    const runFullStreetPropCull = dt >= 0.15;
+    const sliceStart = this._cullSliceCursor;
+    const sliceEnd = runFullStreetPropCull ? totalObjs : Math.min(totalObjs, sliceStart + 80);
+    this._cullSliceCursor = sliceEnd >= totalObjs ? 0 : sliceEnd;
+
+    // 1. Tremor, distance culling em fatias de 80/frame (155m para StreetProps) e auto-reconstrução LEGO (45s)
+    for (let oi = 0; oi < totalObjs; oi++) {
+      const obj = this.objects[oi];
       if (obj.destroyed) {
+        if (obj.noAutoRespawn) continue;
+        if (obj.isStreetProp && playerPosition) {
+          const dx = obj.basePos.x - playerPosition.x;
+          const dz = obj.basePos.z - playerPosition.z;
+          const distSq = dx * dx + dz * dz;
+          // Fora de vista: longe (> 48m) ou atrás da câmera (> 18m e dot < -0.1)
+          let outOfView = distSq >= 48 * 48;
+          if (!outOfView && cameraForward && distSq >= 18 * 18) {
+            const dot = dx * cameraForward.x + dz * cameraForward.z;
+            if (dot < -0.1) outOfView = true;
+          }
+          if (outOfView) {
+            obj.respawnTimer -= dt;
+            if (obj.respawnTimer <= 0) {
+              this._restoreObject(obj);
+            }
+          }
+          continue;
+        }
         obj.respawnTimer -= dt;
         if (obj.respawnTimer <= 0) {
           this._restoreObject(obj);
@@ -3537,16 +3843,26 @@ export class DestructibleManager {
         continue;
       }
 
-      if (playerPosition) {
-        const dx = obj.basePos.x - playerPosition.x;
-        const dz = obj.basePos.z - playerPosition.z;
+      const inCullSlice = runFullStreetPropCull || (oi >= sliceStart && oi < sliceEnd);
+      if (playerPosition && (!obj.isStreetProp || inCullSlice || obj.shakeTimer > 0)) {
+        const refX = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+        const refZ = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+        const dx = refX - playerPosition.x;
+        const dz = refZ - playerPosition.z;
         const distSq = dx * dx + dz * dz;
-        const maxCullSq = obj.type === 'car' ? 680 * 680 : 420 * 420;
+        const maxCullSq =
+          obj.type === 'car' || obj.type === 'police_helicopter'
+            ? 560 * 560
+            : obj.isStreetProp
+              ? 155 * 155
+              : 380 * 380;
         const shouldBeVisible = distSq <= maxCullSq;
         if (obj.mesh.visible !== shouldBeVisible) {
           obj.mesh.visible = shouldBeVisible;
         }
         if (!shouldBeVisible) continue;
+      } else if (!obj.mesh.visible) {
+        continue;
       }
 
       if (obj.shakeTimer > 0) {
@@ -3615,15 +3931,19 @@ export class DestructibleManager {
         }
 
         const slashR = p.slashRadius ?? 2.2;
-        for (const obj of this.objects) {
+        const slashCandidates = this.getObjectsNear(p.mesh.position.x, p.mesh.position.z, slashR + 3.5);
+        for (const obj of slashCandidates) {
           if (obj.destroyed || obj.isDriven || (p.hitObjects && p.hitObjects.has(obj))) continue;
-          const dx = p.mesh.position.x - obj.basePos.x;
-          const dz = p.mesh.position.z - obj.basePos.z;
-          const dy = p.mesh.position.y - (obj.basePos.y + obj.height * 0.5);
+          const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+          const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+          const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+          const dx = p.mesh.position.x - ox;
+          const dz = p.mesh.position.z - oz;
+          const dy = p.mesh.position.y - (oy + obj.height * 0.5);
           if (Math.hypot(dx, dz) <= obj.radius + slashR && Math.abs(dy) <= obj.height * 0.75 + 1.8) {
             if (p.hitObjects) p.hitObjects.add(obj);
             if (p.type === 'turbo_plasma_slash' || p.type === 'vortex_symbiote_wave') {
-              this._triggerMicroImpactBlast(obj.basePos.clone().add(new THREE.Vector3(0, 0.8, 0)));
+              this._triggerMicroImpactBlast(new THREE.Vector3(ox, oy + 0.8, oz));
             }
             this.damageObject(obj, p.damage, p.mesh.position, false, {
               canBreakCrackedWall: Boolean(p.canBreakCrackedWall),
@@ -3645,11 +3965,15 @@ export class DestructibleManager {
       }
 
       let hit = false;
-      for (const obj of this.objects) {
+      const projCandidates = this.getObjectsNear(p.mesh.position.x, p.mesh.position.z, 5.0);
+      for (const obj of projCandidates) {
         if (obj.destroyed || obj.isDriven) continue;
-        const dx = p.mesh.position.x - obj.basePos.x;
-        const dz = p.mesh.position.z - obj.basePos.z;
-        const dy = p.mesh.position.y - (obj.basePos.y + obj.height * 0.5);
+        const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+        const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+        const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+        const dx = p.mesh.position.x - ox;
+        const dz = p.mesh.position.z - oz;
+        const dy = p.mesh.position.y - (oy + obj.height * 0.5);
 
         if (Math.hypot(dx, dz) <= obj.radius + 0.45 && Math.abs(dy) <= obj.height * 0.65 + 0.5) {
           if (p.type === 'fireball' || p.type === 'rpg_rocket') {
@@ -3684,12 +4008,15 @@ export class DestructibleManager {
         }
       }
 
-      // Colisão contra prédios/muros (world.colliders) para Bazuca RPG e Calibre .50 (permite Rocket Jump em paredes!)
+      // Colisão contra prédios/muros via grade espacial O(1) para Bazuca RPG e Calibre .50!
       if (!hit && (p.type === 'rpg_rocket' || p.type === 'punisher_50cal') && this.world?.colliders) {
         const px = p.mesh.position.x;
         const py = p.mesh.position.y;
         const pz = p.mesh.position.z;
-        for (const col of this.world.colliders) {
+        const nearProjCols = this.world.getCollidersNear
+          ? this.world.getCollidersNear(px, pz, 2.5)
+          : this.world.colliders;
+        for (const col of nearProjCols) {
           if (col.disabled) continue;
           const colMinY = col.minY ?? 0;
           if (
@@ -3770,7 +4097,8 @@ export class DestructibleManager {
       let hitAny = cy <= (carObj.groundY ?? 0) + 0.25;
 
       if (!hitAny) {
-        for (const obj of this.objects) {
+        const thrownNear = this.getObjectsNear(cx, cz, 5.5);
+        for (const obj of thrownNear) {
           if (obj.destroyed || obj === carObj || obj.isDriven) continue;
           const dHoriz = Math.hypot(cx - obj.basePos.x, cz - obj.basePos.z);
           const dVert = Math.abs(cy - (obj.basePos.y + obj.height * 0.5));
@@ -3817,9 +4145,12 @@ export class DestructibleManager {
         hitCollision = true;
       }
 
-      // B) Tocou em qualquer colisor estático do mapa (calçada, prédio, muro, carro, etc.)
-      if (!hitCollision && g.worldColliders) {
-        for (const col of g.worldColliders) {
+      // B) Tocou em qualquer colisor estático do mapa via grade espacial O(1)!
+      if (!hitCollision && (this.world?.getCollidersNear || g.worldColliders)) {
+        const grenCols = this.world?.getCollidersNear
+          ? this.world.getCollidersNear(gx, gz, 2.0)
+          : g.worldColliders;
+        for (const col of grenCols) {
           if (col.disabled) continue;
           const colMinY = col.minY ?? 0;
           if (
@@ -3836,9 +4167,10 @@ export class DestructibleManager {
         }
       }
 
-      // C) Tocou em qualquer objeto quebrável
+      // C) Tocou em qualquer objeto quebrável próximo via grade espacial O(1)!
       if (!hitCollision) {
-        for (const obj of this.objects) {
+        const grenObjs = this.getObjectsNear(gx, gz, 3.0);
+        for (const obj of grenObjs) {
           if (obj.destroyed) continue;
           const dHoriz = Math.hypot(gx - obj.basePos.x, gz - obj.basePos.z);
           const dVert = Math.abs(gy - (obj.basePos.y + obj.height * 0.5));
@@ -4107,12 +4439,15 @@ export class DestructibleManager {
       }
     }
 
-    // 8. Chafarizes de água de hidrantes
+    // 8. Gêiseres Verticais de Água de 8.0m de altura (Hidrantes Vermelhos LEGO por 7 segundos!)
     for (let i = this.geysers.length - 1; i >= 0; i--) {
       const g = this.geysers[i];
       g.timer -= dt;
 
       if (g.timer <= 0) {
+        if (g.columnMesh) {
+          this.scene.remove(g.columnMesh);
+        }
         for (const drop of g.drops) {
           this.scene.remove(drop.mesh);
         }
@@ -4120,20 +4455,53 @@ export class DestructibleManager {
         continue;
       }
 
+      const fadeRatio = g.timer < 0.85 ? Math.max(0.08, g.timer / 0.85) : 1.0;
+      if (g.columnMesh) {
+        const pulse = 0.94 + Math.sin(g.timer * 24.0) * 0.08;
+        g.columnMesh.scale.set(pulse, fadeRatio * pulse, pulse);
+        g.columnMesh.rotation.y += dt * 5.5;
+        if (g.columnMesh.material) {
+          g.columnMesh.material.opacity = 0.62 * fadeRatio;
+        }
+      }
+
       for (const drop of g.drops) {
         drop.vel.y -= 18.0 * dt;
         drop.mesh.position.addScaledVector(drop.vel, dt);
-        drop.mesh.rotation.x += dt * 5;
-        drop.mesh.rotation.y += dt * 4;
+        drop.mesh.rotation.x += dt * 6;
+        drop.mesh.rotation.y += dt * 5;
 
         if (drop.mesh.position.y <= g.groundY) {
           this._resetGeyserDrop(drop.mesh, g.origin, g.groundY);
           drop.vel.set(
             (Math.random() - 0.5) * 1.9,
-            6.8 + Math.random() * 4.2,
+            (15.6 + Math.random() * 2.5) * fadeRatio,
             (Math.random() - 0.5) * 1.9
           );
         }
+      }
+    }
+
+    // 9. Postes de Luz e Semáforos tombando e faiscando ao serem atropelados/destruídos!
+    for (let i = this.topplingPoles.length - 1; i >= 0; i--) {
+      const tp = this.topplingPoles[i];
+      tp.life -= dt;
+      if (tp.life <= 0) {
+        this.scene.remove(tp.mesh);
+        this.topplingPoles.splice(i, 1);
+        continue;
+      }
+      if (tp.angle < Math.PI * 0.48) {
+        tp.angVel += 6.8 * dt;
+        const step = Math.min(Math.PI * 0.48 - tp.angle, tp.angVel * dt);
+        tp.angle += step;
+        tp.mesh.rotateOnWorldAxis(tp.axis, step);
+        if (tp.angle >= Math.PI * 0.46 && !tp.sparkedGround) {
+          tp.sparkedGround = true;
+          this._spawnElectricSparks(tp.mesh.position.clone().add(tp.tipOffset), 10);
+        }
+      } else if (tp.life < 0.25) {
+        tp.mesh.scale.setScalar(Math.max(0.05, tp.life / 0.25));
       }
     }
   }

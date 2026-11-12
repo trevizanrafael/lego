@@ -1,4 +1,5 @@
 import { getSvgIcon, drawCanvasVectorIcon } from './TacticalIcons.js';
+import { TERRITORY_ZONES, FACTION_THEME } from '../world/FactionWarSystem.js';
 
 /**
  * Modal do Mapa Tatico Completo [M] (Overhaul Completo de UX — Zero Emojis):
@@ -47,7 +48,19 @@ function getInteractiveRegionsList(world) {
     color: '#38bdf8',
     icon: 'tower'
   };
-  return [...baseRegions, cddEntry, bankInteriorEntry, heroTowerInteriorEntry];
+  const metroCentralEntry = {
+    id: 'metro_central_subsolo',
+    number: 13,
+    num: 'M01',
+    name: 'LINHA 01 DO METRO LEGO (ESTACAO CENTRAL SUBSOLO)',
+    shortName: 'METRO CENTRAL (SUBSOLO)',
+    sub: 'Subsolo Entravel (-6.8m), Tunel Iluminado, Linha Elevada & 2 Trens LEGO',
+    bounds: { minX: -95, maxX: 95, minZ: -125, maxZ: -95, minY: -8, maxY: 0 },
+    spawn: { x: 0, y: -6.7, z: -105.5 },
+    color: '#06b6d4',
+    icon: 'metro'
+  };
+  return [...baseRegions, cddEntry, bankInteriorEntry, heroTowerInteriorEntry, metroCentralEntry];
 }
 
 export function populateFullMapSidebar(hud, world, controller) {
@@ -452,6 +465,48 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
     ctx.fillRect(toX(bld.x - bld.w * 0.5), toY(bld.z - bld.d * 0.5), bld.w * scale, bld.d * scale);
   }
 
+  // 6.5 LINHA 01 CIRCULAR DO METRÔ LEGO (Tracejada no Subsolo Y = -6.8m + Contínua no Elevado Y = +12.2m + 2 Trens ao Vivo!)
+  if (Array.isArray(world.metroLoopWaypoints) && world.metroLoopWaypoints.length > 2) {
+    const wps = world.metroLoopWaypoints;
+    for (let i = 0; i < wps.length; i++) {
+      const a = wps[i];
+      const b = wps[(i + 1) % wps.length];
+      const isUnderground = a.y < -0.5 && b.y < -0.5;
+      ctx.save();
+      if (isUnderground && typeof ctx.setLineDash === 'function') {
+        ctx.setLineDash([5, 4]);
+      }
+      ctx.strokeStyle = '#090a0d';
+      ctx.lineWidth = 4.4;
+      ctx.beginPath();
+      ctx.moveTo(toX(a.x), toY(a.z));
+      ctx.lineTo(toX(b.x), toY(b.z));
+      ctx.stroke();
+
+      ctx.strokeStyle = isUnderground ? '#06b6d4' : '#22d3ee';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(toX(a.x), toY(a.z));
+      ctx.lineTo(toX(b.x), toY(b.z));
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  if (world.metroSystem && Array.isArray(world.metroSystem.trains)) {
+    for (const tr of world.metroSystem.trains) {
+      const leadCar = tr.cars?.[1] || tr.cars?.[0];
+      if (!leadCar) continue;
+      const tx = toX(leadCar.pos.x);
+      const ty = toY(leadCar.pos.z);
+      ctx.fillStyle = tr.state === 'STOPPED' ? '#facc15' : '#22d3ee';
+      ctx.strokeStyle = '#090a0d';
+      ctx.lineWidth = 1.8;
+      ctx.fillRect(tx - 4.5, ty - 4.5, 9, 9);
+      ctx.strokeRect(tx - 4.5, ty - 4.5, 9, 9);
+    }
+  }
+
   // 7. Destaque Inteligente de Regiao APENAS no Hover (Sem retangulos cruzados fixos poluindo o mapa!)
   const allRegions = getInteractiveRegionsList(world);
   if (hud.hoveredRegionId) {
@@ -471,6 +526,90 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
       ctx.lineWidth = 3.2;
       ctx.fillRect(rx, ry, rw, rh);
       ctx.strokeRect(rx, ry, rw, rh);
+      ctx.restore();
+    }
+  }
+
+  // 7.2 CONTORNOS PONTILHADOS DAS 3 ZONAS DE FACÇÃO (CV, PCC e A.R.E.S.) + ÍCONE DA FACÇÃO DONA + 3 OUTPOSTS
+  const liveTerritories = world.livingCity?.factionWar?.territories;
+  for (const [zKey, zSpec] of Object.entries(TERRITORY_ZONES)) {
+    const liveState = liveTerritories?.[zKey];
+    const ownerKey = liveState?.ownerFaction || zSpec.defaultOwner;
+    const theme = FACTION_THEME[ownerKey] || FACTION_THEME.cv;
+    const b = zSpec.bounds;
+
+    const zx = toX(b.minX);
+    const zy = toY(b.minZ);
+    const zw = (b.maxX - b.minX) * scale;
+    const zh = (b.maxZ - b.minZ) * scale;
+
+    ctx.save();
+    ctx.fillStyle = `${theme.color}1c`;
+    ctx.fillRect(zx, zy, zw, zh);
+    if (typeof ctx.setLineDash === 'function') {
+      ctx.setLineDash([8, 6]);
+    }
+    ctx.strokeStyle = theme.color;
+    ctx.lineWidth = 2.6;
+    ctx.strokeRect(zx, zy, zw, zh);
+    ctx.restore();
+
+    // Emblema da Facção Dona do Território (CV / PCC / A.R.E.S.) + Sigla
+    const badgePos = zSpec.mapBadgePos || {
+      x: (b.minX + b.maxX) * 0.5,
+      z: (b.minZ + b.maxZ) * 0.5
+    };
+    const bx = toX(badgePos.x);
+    const by = toY(badgePos.z);
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(9, 10, 13, 0.92)';
+    ctx.strokeStyle = theme.color;
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.arc(bx, by, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    drawCanvasVectorIcon(ctx, theme.icon, bx, by, 10.5, theme.color);
+
+    const tagLabel = `DOMÍNIO: ${theme.shortTag}`;
+    ctx.font = '800 10px "JetBrains Mono", monospace';
+    const measuredW =
+      typeof ctx.measureText === 'function'
+        ? ctx.measureText(tagLabel).width
+        : tagLabel.length * 6.2;
+    const tw = measuredW + 12;
+    ctx.fillStyle = 'rgba(9, 10, 13, 0.92)';
+    ctx.fillRect(bx - tw * 0.5, by + 15, tw, 15);
+    ctx.strokeRect(bx - tw * 0.5, by + 15, tw, 15);
+    ctx.fillStyle = theme.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(tagLabel, bx, by + 26);
+    ctx.textAlign = 'left';
+    ctx.restore();
+
+    // Marcadores dos 3 Postos de Comando (P1, P2, P3) na cor da facção controladora daquele posto!
+    const outposts = liveState?.outposts || zSpec.outposts;
+    for (const op of outposts) {
+      const opOwner = op.ownerFaction || ownerKey;
+      const opTheme = FACTION_THEME[opOwner] || theme;
+      const ox = toX(op.x);
+      const oy = toY(op.z);
+
+      ctx.save();
+      ctx.fillStyle = '#090a0d';
+      ctx.strokeStyle = opTheme.color;
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = opTheme.color;
+      ctx.font = '800 8.5px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(op.code, ox, oy + 3);
+      ctx.textAlign = 'left';
       ctx.restore();
     }
   }

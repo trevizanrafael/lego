@@ -4,6 +4,8 @@ import {
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
+import { buildTerritoryInfrastructureForZone } from '../FactionWarSystem.js';
 
 /**
  * FUNÇÃO MATEMÁTICA CONTÍNUA DE RELEVO DO MORRO DA CIDADE DE DEUS (`getFavelaElevation(x, z)`):
@@ -89,6 +91,17 @@ export function getFavelaElevation(x, z) {
     h = THREE.MathUtils.lerp(h, 42.5, w);
   }
 
+  // 5. Corte Viário / Cânion estilo Linha Amarela em `Z = 0` (`|z| < 30`) para passagem limpa do Viaduto Expresso Oeste (`Y = +9.2m`)!
+  const absZ = Math.abs(z);
+  if (absZ < 30.0) {
+    if (absZ <= 14.5) {
+      return 0;
+    }
+    const passT = (absZ - 14.5) / 15.5;
+    const passWeight = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp(passT, 0, 1)));
+    h *= passWeight;
+  }
+
   return h;
 }
 
@@ -104,7 +117,7 @@ const WINDING_LADEIRAS = [
   { zStart: -382, amp1: -28, freq1: 0.015, amp2: 18, freq2: 0.008, hasStairs: false },
   { zStart: -250, amp1: 22, freq1: 0.017, amp2: -12, freq2: 0.010, hasStairs: true },
   { zStart: -117, amp1: -24, freq1: 0.014, amp2: -16, freq2: 0.008, hasStairs: false },
-  { zStart: 0,    amp1: 30, freq1: 0.015, amp2: 14, freq2: 0.009, hasStairs: true },
+  { zStart: 36,   amp1: 28, freq1: 0.015, amp2: 14, freq2: 0.009, hasStairs: true },
   { zStart: 134,  amp1: -22, freq1: 0.016, amp2: 15, freq2: 0.009, hasStairs: false },
   { zStart: 380,  amp1: 26, freq1: 0.015, amp2: -16, freq2: 0.008, hasStairs: true },
   { zStart: 540,  amp1: -24, freq1: 0.016, amp2: 12, freq2: 0.010, hasStairs: true }
@@ -173,11 +186,35 @@ class FavelaBatcher {
     this._registerMat('favela_blue_faded', 0x38bdf8, { roughness: 0.48 });
     this._registerMat('favela_yellow_faded', 0xfacc15, { roughness: 0.45 });
 
-    // 4. Caixas d'Água Azuis, Janelas, Sacos de Areia, Fiação e Neon do Baile
+    // 4. Caixas d'Água Azuis, Janelas Emissivas ("Presépio Urbano" Noturno!), Sacos de Areia, Fiação e Neon do Baile
     this._registerMat('water_tank_blue', 0x06b6d4, { roughness: 0.24 });
     this._registerMat('water_tank_lid', 0x0284c7, { roughness: 0.28 });
-    this._registerMat('window_lit', 0xfef08a, { basic: true });
+    this._registerMat('window_lit', 0x92400e, {
+      roughness: 0.22,
+      emissive: 0xfbbf24,
+      emissiveIntensity: 0.0
+    });
+    this._registerMat('window_orange', 0x7c2d12, {
+      roughness: 0.22,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.0
+    });
+    this._registerMat('window_tv_blue', 0x0c4a6e, {
+      roughness: 0.18,
+      emissive: 0xbae6fd,
+      emissiveIntensity: 0.0
+    });
     this._registerMat('window_dark', 0x1e293b, { roughness: 0.25 });
+    this._registerMat('favela_bulb_warm', 0xfef3c7, {
+      roughness: 0.2,
+      emissive: 0xfbbf24,
+      emissiveIntensity: 0.25
+    });
+    this._registerMat('floodlight_panel', 0xf8fafc, {
+      roughness: 0.16,
+      emissive: 0xe0f2fe,
+      emissiveIntensity: 0.2
+    });
     this._registerMat('sandbag_tan', 0xd6d3d1, { roughness: 0.75 });
     this._registerMat('wood_pole', 0x451a03, { roughness: 0.65 });
     this._registerMat('wire_black', 0x090a0d, { basic: true });
@@ -238,38 +275,23 @@ class FavelaBatcher {
  * Cria placas e murais de facção 3D (CV / CDD / Paredão / Caixa d'Água)
  */
 function addFavelaSignBoard(world, x, y, z, width, height, text, subText = '', opts = {}) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 160;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = opts.bgColor || '#991b1b';
-  ctx.fillRect(0, 0, 512, 160);
-
-  ctx.strokeStyle = opts.borderColor || '#090a0d';
-  ctx.lineWidth = 10;
-  ctx.strokeRect(5, 5, 502, 150);
-
-  ctx.fillStyle = opts.textColor || '#ffffff';
-  ctx.font = '900 44px "Chakra Petch", Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(text, 256, subText ? 72 : 95);
-
-  if (subText) {
-    ctx.fillStyle = opts.subColor || '#facc15';
-    ctx.font = '800 28px "Chakra Petch", Arial, sans-serif';
-    ctx.fillText(subText, 256, 124);
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  const depth = opts.depth || 0.7;
-  const w = opts.rotY ? depth : width;
-  const d = opts.rotY ? width : depth;
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(w, height, d),
-    new THREE.MeshBasicMaterial({ map: tex })
-  );
-  mesh.position.set(x, y, z);
+  const rotY = typeof opts.rotY === 'number' ? opts.rotY : opts.rotY ? Math.PI / 2 : 0;
+  const mesh = createSignBoardMesh({
+    x,
+    y,
+    z,
+    width,
+    height,
+    depth: opts.depth || 0.7,
+    rotY,
+    title: text,
+    subText,
+    bgColor: opts.bgColor || '#991b1b',
+    borderColor: opts.borderColor || '#090a0d',
+    textColor: opts.textColor || '#ffffff',
+    subColor: opts.subColor || '#facc15',
+    doubleSided: true
+  });
   world.scene.add(mesh);
 }
 
@@ -282,6 +304,21 @@ function addFavelaSignBoard(world, x, y, z, width, height, text, subText = '', o
  */
 export function buildFavelaCidadeDeDeus(world) {
   const batcher = new FavelaBatcher();
+  if (!world.nightLampRegistry) world.nightLampRegistry = [];
+  world.favelaEmissiveMats = {
+    windows: [
+      batcher.materials.get('window_lit'),
+      batcher.materials.get('window_orange'),
+      batcher.materials.get('window_tv_blue')
+    ],
+    bulbs: [
+      batcher.materials.get('favela_bulb_warm'),
+      batcher.materials.get('floodlight_panel')
+    ]
+  };
+  world.favelaSoccerFloodCones = [];
+  world.favelaBaileSkytrackers = [];
+  world.favelaSummitBeacons = [];
 
   world.favelaCDDData = {
     faction: 'CV',
@@ -326,6 +363,9 @@ export function buildFavelaCidadeDeDeus(world) {
 
   // 5. Mescla todas as geometrias estáticas em poucos Draw Calls mantendo 60 FPS!
   batcher.flush(world.scene);
+
+  // 6. Infraestrutura Oficial da Fortaleza do CV: Portões com Bandeira, 2 Garagens Exclusivas e 3 Outposts Táticos!
+  buildTerritoryInfrastructureForZone(world, 'cv');
 }
 
 /**
@@ -412,12 +452,16 @@ function buildContinuousSmoothHillMesh(world) {
  * Sobem serpenteando pela encosta contínua (`y = getFavelaElevation(x, z)`) desde Y = 0 até o cume!
  */
 function buildWindingHillsideRoadsAndStaircases(world, batcher) {
+  let ladeiraIdx = 0;
   for (const ladeira of WINDING_LADEIRAS) {
+    ladeiraIdx++;
     const xEast = getFavelaEastBorderX(ladeira.zStart);
     const xWest = -975;
     const stepX = 6.0;
+    let segCounter = 0;
 
     for (let x = xEast - 3; x >= xWest; x -= stepX) {
+      segCounter++;
       const z = getLadeiraZAtX(ladeira, x);
       const nextX = x - stepX;
       const nextZ = getLadeiraZAtX(ladeira, nextX);
@@ -445,6 +489,30 @@ function buildWindingHillsideRoadsAndStaircases(world, batcher) {
           batcher.addBox(curbMat, stepX + 0.6, 0.38, 0.42, midX, y + 0.12, midZ + side * (roadW * 0.5 - 0.2));
         }
       }
+
+      // Postes de Madeira & Gambiarras Luminosas nas 11 Ladeiras Tortas (a cada 30m!)
+      if (segCounter % 5 === 2 && y > 0.35) {
+        const poleSide = (segCounter + ladeiraIdx) % 2 === 0 ? 1 : -1;
+        const poleZ = midZ + poleSide * (roadW * 0.5 + 0.45);
+        const bulbZ = midZ + poleSide * (roadW * 0.5 - 0.9);
+        batcher.addBox('wood_pole', 0.32, 5.4, 0.32, midX, y + 2.7, poleZ);
+        batcher.addBox('wood_pole', 0.2, 0.2, 1.55, midX, y + 5.2, (poleZ + bulbZ) * 0.5);
+        batcher.addBox('favela_bulb_warm', 0.38, 0.28, 0.38, midX, y + 4.98, bulbZ);
+
+        // Gambiarra de fio preto cruzando o alto da ladeira com lâmpadas quentes
+        batcher.addBox('wire_black', 0.08, 0.08, roadW + 0.9, midX, y + 5.15, midZ);
+        batcher.addBox('favela_bulb_warm', 0.24, 0.24, 0.24, midX, y + 4.98, midZ);
+
+        world.nightLampRegistry.push({
+          x: midX,
+          y: y + 4.95,
+          z: bulbZ,
+          groundY: y + 0.1,
+          warm: true,
+          coneH: 4.9,
+          coneR: 3.8
+        });
+      }
     }
 
     world.favelaCDDData.staircasesCount += 3;
@@ -471,7 +539,7 @@ function buildCVBocasAndHeavyBarricades(world, batcher) {
     { x: -524, z: -382, label: 'BOCA NORTE-1 (CV)' },
     { x: -524, z: -250, label: 'BOCA CENTRAL-NORTE (CV)' },
     { x: -524, z: -117, label: 'BOCA PRINCIPAL CDD (CV)' },
-    { x: -524, z: 0,    label: 'BOCA CENTRAL CDD (CV)' },
+    { x: -524, z: 36,   label: 'BOCA CENTRAL CDD (CV)' },
     { x: -524, z: 134,  label: 'BOCA CAMPINHO (CV)' },
     { x: -524, z: 380,  label: 'BOCA SUL (CV)' },
     { x: -654, z: -640, label: 'BOCA SUBÚRBIO-OESTE (CV)' },
@@ -630,6 +698,49 @@ function buildCDDSoccerFieldVarzea(world, batcher, cx, yBase, cz) {
     { rotY: true, bgColor: '#dc2626', borderColor: '#ffffff', textColor: '#ffffff', subColor: '#facc15' }
   );
 
+  // 4 Torres de Refletores nos Cantos do Campinho acendendo feixes brancos sobre o gramado à noite!
+  const floodConeGeo = new THREE.ConeGeometry(11.5, 19.0, 14, 1, true);
+  floodConeGeo.translate(0, -9.5, 0);
+  const floodConeMat = new THREE.MeshBasicMaterial({
+    color: 0xe0f2fe,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
+  for (const [sx, sz] of [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1]
+  ]) {
+    const tx = cx + sx * (fieldW * 0.5 + 1.8);
+    const tz = cz + sz * (fieldD * 0.5 - 1.5);
+    batcher.addBox('rebar_iron', 0.55, 13.8, 0.55, tx, yBase + 6.9, tz);
+    batcher.addBox('cv_black', 2.6, 1.35, 0.65, tx, yBase + 13.8, tz);
+    batcher.addBox('floodlight_panel', 2.3, 1.05, 0.72, tx, yBase + 13.8, tz);
+
+    const cone = new THREE.Mesh(floodConeGeo, floodConeMat);
+    cone.position.set(tx, yBase + 13.5, tz);
+    cone.lookAt(cx, yBase + 0.2, cz + sz * 8.0);
+    cone.rotateX(Math.PI / 2);
+    cone.visible = false;
+    world.scene.add(cone);
+    world.favelaSoccerFloodCones.push({ mesh: cone, mat: floodConeMat });
+
+    world.nightLampRegistry?.push({
+      x: cx + sx * 8.0,
+      y: yBase + 11.5,
+      z: cz + sz * 14.0,
+      groundY: yBase + 0.12,
+      warm: false,
+      coneH: 11.4,
+      coneR: 8.5
+    });
+  }
+
   world.mapBuildings.push({
     x: cx,
     z: cz,
@@ -705,9 +816,10 @@ function buildCVBailePlazaAndGiantParedao(world, batcher, cx, yBase, cz) {
     }
   }
 
-  for (let mx = cx - 3; mx <= cx + 15; mx += 6.0) {
-    for (let mz = cz - 12; mz <= cz + 12; mz += 6.5) {
-      const tableMat = (Math.abs(mx + mz) % 2 === 0) ? 'cv_red' : 'favela_yellow_faded';
+  // Mesas de Plástico Vermelhas e Amarelas nas bordas Norte/Sul, deixando o centro da pista 100% livre pro Baile!
+  for (let mx = cx - 6; mx <= cx + 14; mx += 6.5) {
+    for (const mz of [cz - 17.5, cz + 17.5]) {
+      const tableMat = (Math.abs(Math.round(mx + mz)) % 2 === 0) ? 'cv_red' : 'favela_yellow_faded';
       batcher.addBox(tableMat, 1.6, 0.85, 1.6, mx, yBase + 0.42, mz);
       batcher.addBox(tableMat, 0.55, 0.5, 0.55, mx - 1.2, yBase + 0.25, mz);
       batcher.addBox(tableMat, 0.55, 0.5, 0.55, mx + 1.2, yBase + 0.25, mz);
@@ -722,6 +834,42 @@ function buildCVBailePlazaAndGiantParedao(world, batcher, cx, yBase, cz) {
       batcher.addBox('neon_gold', 0.35, 0.35, 0.35, lx + 2.2, yBase + 8.3, lz);
     }
   }
+
+  // 3 Feixes Skytracker (Rosa, Ciano e Amarelo) no topo do Paredão girando para o céu noturno!
+  const skyBeamGeo = new THREE.ConeGeometry(5.8, 72.0, 14, 1, true);
+  skyBeamGeo.translate(0, 36.0, 0);
+  const trackerSpecs = [
+    { dz: -7.5, hex: 0xec4899, phase: 0.0 },
+    { dz: 0.0, hex: 0x00f0ff, phase: 2.1 },
+    { dz: 7.5, hex: 0xfacc15, phase: 4.2 }
+  ];
+  for (const ts of trackerSpecs) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: ts.hex,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const pivot = new THREE.Group();
+    pivot.position.set(paredaoX, yBase + paredaoH + 1.35, cz + ts.dz);
+    const beam = new THREE.Mesh(skyBeamGeo, mat);
+    pivot.add(beam);
+    pivot.visible = false;
+    world.scene.add(pivot);
+    world.favelaBaileSkytrackers.push({ pivot, mat, phase: ts.phase });
+  }
+
+  world.nightLampRegistry?.push({
+    x: cx,
+    y: yBase + 8.2,
+    z: cz,
+    groundY: yBase + 0.15,
+    warm: true,
+    coneH: 8.0,
+    coneR: 7.5
+  });
 
   world.mapBuildings.push({
     x: cx,
@@ -766,6 +914,28 @@ function buildRedBaronSummitFortress(world, batcher, cx, yBase, cz) {
   batcher.addBox('rebar_iron', 0.6, 9.0, 0.6, towerX, towerY + 36.5, towerZ);
   batcher.addBox('neon_red', 1.2, 1.2, 1.2, towerX, towerY + 41.2, towerZ);
   world.addCollider(towerX, towerZ, 15.5, 15.5, towerY + towerH, towerY - 2);
+
+  // Luzes Vermelhas Aeronáuticas Piscantes no Topo da Caixa d'Água e Antena do Cume!
+  const aeroCoreMat = new THREE.MeshBasicMaterial({ color: 0xff1e42 });
+  const aeroHaloMat = new THREE.MeshBasicMaterial({
+    color: 0xef4444,
+    transparent: true,
+    opacity: 0.78,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  for (const [bx, by, bz, phase] of [
+    [towerX, towerY + 41.5, towerZ, 0.0],
+    [cx - 8, yBase + 25.9, cz - 5, 1.6]
+  ]) {
+    const bGroup = new THREE.Group();
+    bGroup.position.set(bx, by, bz);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.68, 10, 10), aeroCoreMat);
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(2.6, 12, 12), aeroHaloMat.clone());
+    bGroup.add(core, halo);
+    world.scene.add(bGroup);
+    world.favelaSummitBeacons.push({ group: bGroup, haloMat: halo.material, phase });
+  }
 
   addFavelaSignBoard(
     world,
@@ -925,7 +1095,16 @@ function createFavelaHouse(world, batcher, x, z, w, d, floors, seed, registerInd
       batcher.addBox('cv_black', w + 0.16, 0.72, d + 0.16, fx, curY + 0.45, z);
     }
 
-    const winMat = (seed + f) % 2 === 0 ? 'window_lit' : 'window_dark';
+    // 70% das janelas dos barracos/sobrados brilham à noite em Amarelo-Âmbar, Laranja-Lâmpada ou Branco-TV Azulado!
+    const winRoll = (seed * 5 + f * 11) % 10;
+    const winMat =
+      winRoll < 4
+        ? 'window_lit'
+        : winRoll < 6
+          ? 'window_orange'
+          : winRoll === 6
+            ? 'window_tv_blue'
+            : 'window_dark';
     batcher.addBox(winMat, w + 0.18, 0.9, d * 0.48, fx, curY + 2.05, z);
 
     if (f === floors - 1) {

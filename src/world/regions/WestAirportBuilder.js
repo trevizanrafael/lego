@@ -8,6 +8,7 @@ import {
   mergeBufferGeometries,
   makeTranslatedBox
 } from '../BuildingGenerator.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 /**
  * 8. REGIÃO OESTE — AEROPORTO METROPOLITANO & BASE MILITAR TERRESTRE (LAYOUT DENSO E MONUMENTAL)
@@ -629,26 +630,21 @@ function buildSingleGiantAtcTower(world, batcher, atcX, groundY, atcZ, towerInde
 }
 
 function addHighwayGreenSign(world, x, y, z, width, height, text) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#14532d';
-  ctx.fillRect(0, 0, 512, 128);
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 8;
-  ctx.strokeRect(8, 8, 496, 112);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '900 32px "Chakra Petch", Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(text, 256, 74);
-  const tex = new THREE.CanvasTexture(canvas);
-
-  const signMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1.4, height, width),
-    new THREE.MeshBasicMaterial({ map: tex })
-  );
-  signMesh.position.set(x, y, z);
+  const signMesh = createSignBoardMesh({
+    x,
+    y,
+    z,
+    width,
+    height,
+    depth: 1.1,
+    rotY: Math.PI / 2,
+    title: text,
+    bgColor: '#14532d',
+    borderColor: '#ffffff',
+    textColor: '#ffffff',
+    topStripeColor: '#facc15',
+    doubleSided: true
+  });
   world.scene.add(signMesh);
 }
 

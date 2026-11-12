@@ -56,6 +56,7 @@ body.title-or-loading-active #minimap-container,
 body.title-or-loading-active #crosshair,
 body.title-or-loading-active #pointer-prompt,
 body.title-or-loading-active #region-toast,
+body.title-or-loading-active #wanted-event-banner,
 body.title-or-loading-active #hero-wheel-overlay,
 body.title-or-loading-active #bottom-bar,
 body.title-or-loading-active #vehicle-prompt {
@@ -2232,6 +2233,8 @@ body.hero-wheel-active #crosshair {
 .title-slots-panel,
 .title-faction-panel {
   width: 100%;
+  max-height: 70vh;
+  overflow-y: auto;
   background: rgba(9, 10, 13, 0.96);
   border: 2px solid var(--idv-alert);
   padding: 18px 22px;
@@ -2481,8 +2484,6 @@ body.hero-wheel-active #crosshair {
   display: none !important;
 }
 
-#title-faction-panel,
-#btn-pause-switch-faction,
 #world-war-hud-panel,
 #hud-hp-bar-wrap,
 #hud-faction-badge,
@@ -2495,5 +2496,2472 @@ body.hero-wheel-active #crosshair {
   pointer-events: none !important;
 }
 
+
+
+
+
+/* ==========================================================================
+   LABORATÓRIO SUBTERRÂNEO DE CRIAÇÃO DE PERSONAGENS (OP-09) — IDV ANGULAR
+   ========================================================================== */
+#custom-hero-creator-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 880;
+  pointer-events: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  padding: 22px 26px;
+  box-sizing: border-box;
+  background: linear-gradient(90deg, rgba(9, 10, 13, 0.08) 0%, rgba(9, 10, 13, 0.25) 48%, rgba(9, 10, 13, 0.88) 100%);
+}
+
+#custom-hero-creator-modal.hidden {
+  display: none !important;
+}
+
+.creator-studio-turntable-controls {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 4vw;
+  margin-bottom: 18px;
+  background: #090a0d;
+  border: 2px solid #00f0ff;
+  padding: 10px 16px;
+  box-shadow: 6px 6px 0 #000000;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+.creator-studio-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #00f0ff;
+  letter-spacing: 0.08em;
+}
+
+.creator-side-panel {
+  width: 510px;
+  max-width: 48vw;
+  height: 100%;
+  background: #090a0d;
+  border: 2px solid #facc15;
+  border-left: 6px solid #00f0ff;
+  box-shadow: 10px 10px 0 #000000;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  box-sizing: border-box;
+  gap: 12px;
+}
+
+.creator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #1e293b;
+  padding-bottom: 10px;
+}
+
+.creator-title {
+  font-family: var(--font-display);
+  font-size: 2.05rem;
+  font-weight: 700;
+  color: #facc15;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+}
+
+.creator-tabs-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.creator-tab-btn {
+  background: #11131a;
+  color: #94a3b8;
+  border: 2px solid #262b38;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 9px 10px;
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+.creator-tab-btn.active {
+  background: #0f172a;
+  color: #00f0ff;
+  border-color: #00f0ff;
+}
+
+.creator-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+}
+
+.creator-sec {
+  background: #0e1118;
+  border: 1px solid #1e293b;
+  padding: 10px 12px;
+}
+
+.creator-lbl {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  font-weight: 800;
+  color: #facc15;
+  margin-bottom: 7px;
+  letter-spacing: 0.08em;
+}
+
+.creator-mini-sub {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: #94a3b8;
+  margin: 6px 0 4px 0;
+}
+
+.creator-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #050608;
+  border: 2px solid #38bdf8;
+  color: #f8fafc;
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 7px 10px;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.creator-swatches-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.creator-swatch {
+  width: 26px;
+  height: 26px;
+  border: 2px solid #090a0d;
+  outline: 1px solid #334155;
+  cursor: pointer;
+}
+
+.creator-swatch.active {
+  outline: 3px solid #facc15;
+  transform: scale(1.12);
+}
+
+.creator-chips-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.creator-chip {
+  background: #131722;
+  border: 1.5px solid #262b38;
+  color: #cbd5e1;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.creator-chip.active {
+  border-color: #00f0ff;
+  color: #00f0ff;
+  background: #0b192c;
+}
+
+.creator-pow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.creator-power-card {
+  background: #131722;
+  border: 2px solid #262b38;
+  border-left-width: 5px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.creator-power-card.active {
+  border-color: #facc15;
+  background: #18160c;
+}
+
+.creator-pow-title {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.creator-power-card.active .creator-pow-title {
+  color: #facc15;
+}
+
+.creator-pow-desc {
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.creator-footer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 10px;
+  border-top: 2px solid #1e293b;
+  padding-top: 10px;
+}
+
+/* =========================================================================
+   OFICINA "LS CUSTOMS // PRO TUNER" (ECU DIAGNOSTIC & DYNO SHOWROOM 3D)
+   ========================================================================= */
+body.customs-studio-open,
+body.customs-studio-open #game-container,
+body.customs-studio-open #game-container canvas {
+  cursor: default !important;
+}
+
+body.customs-studio-open #crosshair,
+body.customs-studio-open #vehicle-prompt,
+body.customs-studio-open #pointer-prompt,
+body.customs-studio-open #vehicle-speedometer,
+body.customs-studio-open #top-bar,
+body.customs-studio-open #bottom-bar,
+body.customs-studio-open #tiktok-hud-pill {
+  display: none !important;
+}
+
+#lego-customs-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 880;
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  padding: 0;
+  box-sizing: border-box;
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  font-family: 'Inter', 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0) 62%,
+    rgba(7, 9, 14, 0.78) 100%
+  );
+}
+
+#lego-customs-modal:active {
+  cursor: grabbing;
+}
+
+#lego-customs-modal.hidden {
+  display: none !important;
+}
+
+#lego-customs-modal button,
+#lego-customs-modal input {
+  pointer-events: auto;
+  font-family: inherit;
+}
+
+#lego-customs-modal button:not(:disabled) {
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------------
+   ZONA 1: Barra Superior Flutuante de Telemetria & Dinamômetro (Topo Esquerdo)
+   ------------------------------------------------------------------------- */
+.customs-telemetry-bar {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  right: 410px;
+  max-width: 760px;
+  z-index: 2;
+  background: rgba(11, 14, 20, 0.90);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 11px 15px 12px;
+  pointer-events: auto;
+  cursor: default;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48);
+}
+
+.customs-telemetry-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.customs-telemetry-ident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.customs-class-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(255, 107, 0, 0.16);
+  border: 1px solid rgba(255, 107, 0, 0.55);
+  color: #ff8533;
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.customs-title-stack {
+  min-width: 0;
+}
+
+.customs-car-title {
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-size: 1.18rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: #f8fafc;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customs-ecu-subtitle {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #00e5ff;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.customs-studs-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #131824;
+  border: 1px solid rgba(250, 204, 21, 0.34);
+  color: #facc15;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.customs-studs-wallet b {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #facc15;
+  letter-spacing: 0.03em;
+}
+
+.customs-studs-unit {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(250, 204, 21, 0.78);
+}
+
+.customs-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+}
+
+.customs-stat-box {
+  background: #131824;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 9px;
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.customs-stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.customs-stat-box span {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.customs-stat-box b {
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.customs-gauge-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.customs-gauge-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.customs-gauge-fill.fill-amber {
+  background: #ff6b00;
+  box-shadow: 0 0 8px rgba(255, 107, 0, 0.75);
+}
+
+.customs-gauge-fill.fill-cyan {
+  background: #00e5ff;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.75);
+}
+
+.customs-gauge-fill.fill-emerald {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.75);
+}
+
+.customs-gauge-fill.fill-violet {
+  background: #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.75);
+}
+
+/* -------------------------------------------------------------------------
+   ZONA 2: Pílula Flutuante de Controles de Showroom (Rodapé Esquerdo/Central)
+   ------------------------------------------------------------------------- */
+#lego-customs-modal .creator-studio-turntable-controls,
+.customs-showroom-controls {
+  position: absolute;
+  bottom: 22px;
+  left: 34%;
+  transform: translateX(-50%);
+  align-self: flex-end;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(11, 14, 20, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  pointer-events: auto;
+  cursor: default;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.52);
+  white-space: nowrap;
+}
+
+.customs-pill-sep {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 2px;
+}
+
+.customs-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: #131824;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.customs-pill-btn:hover {
+  background: #192030;
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.customs-pill-btn.active {
+  background: rgba(255, 107, 0, 0.16);
+  border-color: #ff6b00;
+  color: #ff8533;
+}
+
+.customs-pill-btn.accent-cyan {
+  border-color: rgba(0, 229, 255, 0.35);
+  color: #00e5ff;
+}
+
+.customs-pill-btn.accent-cyan:hover {
+  background: rgba(0, 229, 255, 0.14);
+  border-color: #00e5ff;
+  color: #e0fbff;
+}
+
+.customs-pill-btn.accent-amber {
+  border-color: rgba(255, 107, 0, 0.38);
+  color: #ff8533;
+}
+
+.customs-pill-btn.accent-amber:hover {
+  background: rgba(255, 107, 0, 0.16);
+  border-color: #ff6b00;
+  color: #fff7ed;
+}
+
+/* -------------------------------------------------------------------------
+   ZONA 3: Dock Lateral Direito Slim (375px — Pro Tuner / ECU Diagnostic)
+   ------------------------------------------------------------------------- */
+.customs-side-panel {
+  width: 375px;
+  max-width: 32vw;
+  height: calc(100vh - 36px);
+  margin: 18px 18px 18px auto;
+  border-radius: 16px;
+  background: rgba(11, 14, 20, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.62);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: default;
+  z-index: 3;
+}
+
+.customs-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.customs-dock-kicker {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #00e5ff;
+  text-transform: uppercase;
+}
+
+.customs-dock-title {
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-size: 1.06rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
+  text-transform: uppercase;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.customs-dock-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.customs-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 29px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: #131824;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.customs-icon-btn:hover {
+  background: #192030;
+  border-color: #ff6b00;
+  color: #ffffff;
+}
+
+.customs-icon-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+/* Abas de Navegação com Ícones SVG + Scrollbar Ultra-Fina */
+.customs-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 107, 0, 0.4) transparent;
+}
+
+.customs-tabs::-webkit-scrollbar {
+  height: 4px;
+  background: transparent;
+}
+
+.customs-tabs::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 0, 0.35);
+  border-radius: 999px;
+}
+
+.customs-tabs::-webkit-scrollbar-thumb:hover {
+  background: #ff6b00;
+}
+
+.customs-tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 4px;
+  border-radius: 9px;
+  background: #131824;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.customs-tab-btn:hover {
+  background: #192030;
+  color: #e2e8f0;
+}
+
+.customs-tab-btn.active {
+  background: rgba(255, 107, 0, 0.15);
+  border-color: #ff6b00;
+  color: #ff8533;
+  box-shadow: inset 0 0 12px rgba(255, 107, 0, 0.12);
+}
+
+.customs-feedback-banner {
+  margin: 8px 12px 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(0, 229, 255, 0.09);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-left: 3px solid #ff6b00;
+  color: #e0fbff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* Corpo Rolável do Dock com Scrollbar Ultra-Fina Customizada */
+.customs-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 107, 0, 0.4) transparent;
+}
+
+.customs-body::-webkit-scrollbar {
+  width: 5px;
+  background: transparent;
+}
+
+.customs-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.customs-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 0, 0.35);
+  border-radius: 999px;
+}
+
+.customs-body::-webkit-scrollbar-thumb:hover {
+  background: #ff6b00;
+}
+
+/* Cards Internos e Controles Pro Tuner */
+#lego-customs-modal .customs-upgrade-card {
+  background: #131824;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  padding: 10px 11px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+#lego-customs-modal .customs-upgrade-card:hover {
+  background: #192030;
+}
+
+#lego-customs-modal .creator-lbl {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+#lego-customs-modal .creator-pow-desc {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.customs-pro-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #0b0e14 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  font-size: 0.78rem !important;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.customs-pro-input:focus {
+  outline: none;
+  border-color: #ff6b00 !important;
+  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.2);
+}
+
+.customs-upg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.customs-lv-badge {
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.customs-lv-bar {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.customs-lv-seg {
+  height: 7px;
+  border-radius: 3px;
+  background: #0b0e14;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.customs-lv-seg.unlocked {
+  background: rgba(0, 229, 255, 0.22);
+  border-color: rgba(0, 229, 255, 0.55);
+}
+
+.customs-lv-seg.active {
+  background: #ff6b00;
+  border-color: #ff8533;
+  box-shadow: 0 0 7px rgba(255, 107, 0, 0.55);
+}
+
+.customs-upg-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.customs-step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: #0b0e14;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  flex-shrink: 0;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.customs-step-btn:hover:not(:disabled) {
+  background: rgba(255, 107, 0, 0.18);
+  border-color: #ff6b00;
+  color: #ff8533;
+}
+
+.customs-upg-controls button:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+
+.customs-unlock-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: rgba(255, 107, 0, 0.16);
+  border: 1px solid #ff6b00;
+  color: #ff8533;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.customs-unlock-btn:hover {
+  background: #ff6b00;
+  color: #0b0e14;
+}
+
+.customs-unlock-btn.locked-cost {
+  background: #0b0e14;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #64748b;
+}
+
+.customs-maxed-tag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #10b981;
+  text-transform: uppercase;
+}
+
+/* Paleta de Cores, Chips e Cards de Peças */
+.customs-swatches-grid {
+  display: grid !important;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+
+#lego-customs-modal .customs-swatch {
+  width: 100%;
+  height: 28px;
+  border-radius: 7px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+#lego-customs-modal .customs-swatch:hover {
+  transform: scale(1.06);
+  border-color: #ffffff;
+}
+
+#lego-customs-modal .customs-swatch.active {
+  border-color: #ff6b00;
+  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.45);
+}
+
+.customs-chips-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+#lego-customs-modal .customs-part-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: #0e131d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+#lego-customs-modal .customs-part-chip:hover {
+  background: #192030;
+  color: #ffffff;
+}
+
+#lego-customs-modal .customs-part-chip.active {
+  background: rgba(255, 107, 0, 0.14);
+  border-color: #ff6b00;
+  color: #ff8533;
+}
+
+#lego-customs-modal .customs-part-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #0e131d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid rgba(255, 255, 255, 0.16);
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+#lego-customs-modal .customs-part-card:hover {
+  background: #192030;
+}
+
+#lego-customs-modal .customs-part-card.active {
+  background: rgba(255, 107, 0, 0.13);
+  border-color: #ff6b00;
+  border-left-color: #ff6b00;
+}
+
+#lego-customs-modal .customs-part-card .creator-pow-title {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+#lego-customs-modal .customs-part-card.active .creator-pow-title {
+  color: #ffffff;
+}
+
+.customs-part-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #facc15;
+  white-space: nowrap;
+}
+
+.customs-part-owned {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #10b981;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.customs-part-free {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#lego-customs-modal .customs-garage-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  border-radius: 10px;
+  background: #0e131d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 11px;
+}
+
+#lego-customs-modal .customs-garage-slot.active {
+  border-color: rgba(0, 229, 255, 0.45);
+  background: rgba(19, 24, 36, 0.95);
+}
+
+.customs-slot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.customs-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 29px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: #131824;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.customs-action-chip:hover {
+  background: #192030;
+  border-color: #ff6b00;
+  color: #ffffff;
+}
+
+.customs-action-chip.primary {
+  background: rgba(0, 229, 255, 0.12);
+  border-color: rgba(0, 229, 255, 0.45);
+  color: #00e5ff;
+}
+
+.customs-action-chip.primary:hover {
+  background: #00e5ff;
+  border-color: #00e5ff;
+  color: #090d16;
+}
+
+.customs-dock-footer {
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.customs-confirm-btn {
+  width: 100%;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ff6b00 0%, #ff8533 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #090d16;
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 22px rgba(255, 107, 0, 0.32);
+  transition: filter 0.15s ease, transform 0.12s ease;
+}
+
+.customs-confirm-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+/* ============================================================================
+   SISTEMA DE PROCURADO ESCALÁVEL ESTILO GTA (1 A 5 ESTRELAS LEGO — IDV ANGULAR)
+   ============================================================================ */
+.hud-wanted-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  background: #090a0d;
+  border: 2px solid #facc15;
+  border-right: 5px solid #ef4444;
+  padding: 7px 14px 8px 16px;
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+  box-shadow: 5px 5px 0 #000000;
+  pointer-events: none;
+  min-width: 205px;
+}
+
+.hud-wanted-panel.hidden {
+  display: none !important;
+}
+
+.hud-wanted-panel.escaping-mode {
+  border-color: #38bdf8;
+  border-right-color: #64748b;
+}
+
+.hud-wanted-panel.antihero-mode {
+  border-color: #00f0ff;
+  border-right-color: #ef4444;
+  animation: wantedAntiHeroBorder 0.7s infinite alternate;
+}
+
+@keyframes wantedAntiHeroBorder {
+  0% { border-color: #00f0ff; border-right-color: #ef4444; }
+  100% { border-color: #ef4444; border-right-color: #facc15; }
+}
+
+.wanted-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.wanted-status-tag {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #facc15;
+  text-transform: uppercase;
+}
+
+.hud-wanted-panel.escaping-mode .wanted-status-tag {
+  color: #38bdf8;
+}
+
+.hud-wanted-panel.antihero-mode .wanted-status-tag {
+  color: #00f0ff;
+}
+
+.wanted-stars-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wanted-lego-star svg polygon {
+  fill: #1e293b;
+  stroke: #334155;
+  stroke-width: 2.2;
+  transition: fill 0.14s ease, transform 0.14s ease;
+}
+
+.wanted-lego-star svg .star-lego-stud {
+  fill: #0f172a;
+  stroke: #334155;
+  stroke-width: 1.4;
+}
+
+/* Estrela Acesa em Perseguição Ativa (Dourado LEGO + Giroflex Piscante!) */
+.wanted-lego-star.active svg polygon {
+  fill: #facc15;
+  stroke: #090a0d;
+  stroke-width: 2.6;
+}
+
+.wanted-lego-star.active svg .star-lego-stud {
+  fill: #fef08a;
+  stroke: #b45309;
+}
+
+.hud-wanted-panel:not(.escaping-mode) .wanted-lego-star.active {
+  animation: wantedStarActivePulse 0.65s infinite alternate;
+}
+
+@keyframes wantedStarActivePulse {
+  0% { filter: drop-shadow(0 0 3px rgba(250, 204, 21, 0.85)); transform: scale(1); }
+  100% { filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.95)); transform: scale(1.06); }
+}
+
+/* Estrela Piscando em Azul / Cinza durante o Cooldown de Fuga (Sem Linha de Visão!) */
+.hud-wanted-panel.escaping-mode .wanted-lego-star.active {
+  animation: wantedEscapeBlink 0.52s infinite alternate;
+}
+
+.hud-wanted-panel.escaping-mode .wanted-lego-star.active svg polygon {
+  fill: #38bdf8;
+  stroke: #090a0d;
+}
+
+.hud-wanted-panel.escaping-mode .wanted-lego-star.active svg .star-lego-stud {
+  fill: #e0f2fe;
+  stroke: #0284c7;
+}
+
+@keyframes wantedEscapeBlink {
+  0% { opacity: 1; filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.9)); }
+  100% { opacity: 0.34; filter: grayscale(0.85); }
+}
+
+.wanted-escape-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.wanted-escape-bar-wrap.hidden {
+  display: none !important;
+}
+
+.wanted-escape-track {
+  flex: 1;
+  height: 7px;
+  background: #1e293b;
+  border: 1px solid #475569;
+  overflow: hidden;
+}
+
+.wanted-escape-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #38bdf8;
+  transition: width 0.1s linear;
+}
+
+.wanted-escape-sec {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #e0f2fe;
+  min-width: 26px;
+  text-align: right;
+}
+
+/* Banner Central Tático de Eventos Policiais ("DETIDO!", "FUGA PERFEITA!", "5★ ANTI-HERÓI") */
+.wanted-event-banner {
+  position: fixed;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 22;
+  background: #090a0d;
+  border: 2px solid #facc15;
+  border-left: 7px solid #ef4444;
+  padding: 10px 26px;
+  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  box-shadow: 6px 6px 0 #000000;
+  text-align: center;
+  pointer-events: none;
+}
+
+.wanted-event-banner.hidden {
+  display: none !important;
+}
+
+.wanted-event-banner[data-variant="escaped"] {
+  border-color: #38bdf8;
+  border-left-color: #22c55e;
+}
+
+.wanted-event-banner[data-variant="busted"] {
+  border-color: #ef4444;
+  border-left-color: #2563eb;
+}
+
+.wanted-event-banner[data-variant="antihero"] {
+  border-color: #00f0ff;
+  border-left-color: #ef4444;
+}
+
+.wanted-banner-title {
+  font-family: var(--font-display, 'Teko', sans-serif);
+  font-size: 2.05rem;
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.06em;
+  color: #facc15;
+  text-transform: uppercase;
+}
+
+.wanted-event-banner[data-variant="escaped"] .wanted-banner-title {
+  color: #38bdf8;
+}
+
+.wanted-event-banner[data-variant="busted"] .wanted-banner-title {
+  color: #ef4444;
+}
+
+.wanted-banner-sub {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+}
+
+/* ============================================================================
+   RÁDIO DE MÚSICAS VIRAIS DO TIKTOK [P] (IDV ANGULAR + TIKTOK NEON #00F2FE / #FE0979)
+   ============================================================================ */
+body.tiktok-radio-open,
+body.tiktok-radio-open #game-container,
+body.tiktok-radio-open #game-container canvas {
+  cursor: default !important;
+}
+
+body.tiktok-radio-open #crosshair,
+body.tiktok-radio-open #pointer-prompt {
+  display: none !important;
+}
+
+@keyframes spotify-vinyl-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spotify-marquee-loop {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.hud-tiktok-radio-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: #121212;
+  border: 2px solid #1ed760;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65);
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.18s ease, transform 0.16s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.hud-tiktok-radio-pill:not(.playing):hover {
+  background: #1ed760;
+  transform: scale(1.07);
+  box-shadow: 0 6px 20px rgba(30, 215, 96, 0.38);
+}
+
+/* Quando está tocando música: o "P" dá lugar ao Álbum Girando + Nome da Música Rodando ao lado! */
+.hud-tiktok-radio-pill.playing {
+  width: auto;
+  height: 44px;
+  padding: 3px 14px 3px 3px;
+  gap: 10px;
+  background: rgba(18, 18, 18, 0.94);
+  border: 1.5px solid rgba(30, 215, 96, 0.72);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), 0 0 16px rgba(30, 215, 96, 0.22);
+}
+
+.hud-tiktok-radio-pill.playing:hover {
+  background: #181818;
+  border-color: #1ed760;
+  transform: scale(1.02);
+}
+
+.tiktok-pill-key {
+  color: #1ed760;
+  font-family: var(--font-body);
+  font-size: 0.96rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  transition: color 0.16s ease;
+}
+
+.hud-tiktok-radio-pill:not(.playing):hover .tiktok-pill-key {
+  color: #000000;
+}
+
+.hud-tiktok-radio-pill.playing .tiktok-pill-key {
+  display: none !important;
+}
+
+.hud-spotify-disc-wrap {
+  display: none;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid #1ed760;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #000000;
+  box-shadow: 0 0 10px rgba(30, 215, 96, 0.32);
+}
+
+.hud-tiktok-radio-pill.playing .hud-spotify-disc-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hud-spotify-disc-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  animation: spotify-vinyl-spin 6s linear infinite;
+}
+
+/* Furinho central de álbum/vinil para evidenciar o giro da capa */
+.hud-spotify-disc-spindle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #121212;
+  border: 1.5px solid #1ed760;
+  pointer-events: none;
+}
+
+.hud-spotify-title-viewport {
+  display: none;
+  align-items: center;
+  width: 164px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0px, #000 8px, #000 calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0px, #000 8px, #000 calc(100% - 12px), transparent 100%);
+}
+
+.hud-tiktok-radio-pill.playing .hud-spotify-title-viewport {
+  display: flex;
+}
+
+.hud-spotify-marquee-title {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* Marquee contínuo compartilhado (HUD + Player Inferior + Banner Principal) */
+.spotify-marquee-track {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.is-scrolling .spotify-marquee-track {
+  animation: spotify-marquee-loop var(--marquee-dur, 10s) linear infinite;
+}
+
+.is-scrolling .spotify-marquee-copy {
+  padding-right: 42px;
+}
+
+.is-scrolling .spotify-marquee-track::after {
+  content: attr(data-marquee);
+  padding-right: 42px;
+}
+
+/* Toast legado colapsado visualmente (já que o próprio álbum giratório no HUD mostra a música rodando!) */
+.tiktok-radio-toast {
+  position: absolute;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tiktok-radio-toast.hidden {
+  display: none !important;
+}
+
+.tiktok-toast-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #1ed760;
+  letter-spacing: 0.06em;
+}
+
+.tiktok-toast-title {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.spotify-svg-icon,
+.spotify-inline-svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   MODAL INTERATIVO ESTILO SPOTIFY DESKTOP OFICIAL (#tiktok-radio-modal [P])
+   Paleta Oficial: #000000 (Base) | #121212 (Cards) | #181818/#242424 | #1ed760 (Spotify Green) | #ffffff / #b3b3b3
+   ============================================================================ */
+#tiktok-radio-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 890;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.78);
+  pointer-events: auto;
+}
+
+#tiktok-radio-modal.hidden {
+  display: none !important;
+}
+
+.spotify-app-shell {
+  width: 1040px;
+  max-width: 96vw;
+  height: 672px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: #000000;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.spotify-upper-workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 244px 1fr;
+  padding: 8px 8px 0 8px;
+  gap: 8px;
+  background: #000000;
+}
+
+/* A) SIDEBAR ESQUERDA ESTILO SPOTIFY DESKTOP (SEM SCROLLBAR!) */
+.spotify-sidebar {
+  background: #121212;
+  border-radius: 12px;
+  border: none;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  overflow: hidden !important;
+}
+
+.spotify-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.spotify-brand-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.spotify-brand-title {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.spotify-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.spotify-nav-label {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #b3b3b3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 8px 4px;
+}
+
+.spotify-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #b3b3b3;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 7px 10px;
+  text-align: left;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.spotify-nav-btn:hover {
+  color: #ffffff;
+  background: #181818;
+}
+
+.spotify-nav-btn.active {
+  color: #ffffff;
+  background: #282828;
+}
+
+.spotify-nav-btn.active .spotify-svg-icon {
+  color: #1ed760;
+}
+
+.spotify-sidebar-cover-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: #181818;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.spotify-cover-frame {
+  position: relative;
+  width: 136px;
+  height: 136px;
+  background: #121212;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.spotify-featured-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.spotify-cover-overlay-btn {
+  position: absolute;
+  inset: auto 6px 6px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  text-align: center;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.spotify-cover-overlay-btn:hover {
+  background: #1ed760;
+  border-color: #1ed760;
+  color: #000000;
+  transform: scale(1.03);
+}
+
+.spotify-cover-caption {
+  font-family: var(--font-body);
+  font-size: 0.64rem;
+  color: #727272;
+}
+
+.spotify-sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spotify-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #242424;
+  color: #ffffff;
+  text-align: center;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.spotify-action-btn.primary {
+  background: #1ed760;
+  border: none;
+  color: #000000;
+  font-weight: 700;
+}
+
+.spotify-action-btn.primary:hover {
+  background: #1fdf64;
+  color: #000000;
+  transform: scale(1.02);
+}
+
+.spotify-action-btn.secondary {
+  background: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.spotify-action-btn.secondary:hover {
+  background: #282828;
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.spotify-action-btn.danger {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #b3b3b3;
+}
+
+.spotify-action-btn.danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: #f87171;
+  color: #f87171;
+}
+
+/* B) ÁREA PRINCIPAL DIREITA ESTILO SPOTIFY DESKTOP */
+.spotify-main-view {
+  background: #121212;
+  border-radius: 12px;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.spotify-playlist-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  background: linear-gradient(180deg, rgba(30, 215, 96, 0.28) 0%, rgba(18, 18, 18, 0.95) 85%, #121212 100%);
+  border-bottom: none;
+}
+
+.spotify-hero-left {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.spotify-hero-cover-img {
+  width: 112px;
+  height: 112px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+  background: #181818;
+}
+
+.spotify-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.spotify-hero-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tiktok-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #242424;
+  color: #b3b3b3;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.tiktok-status-badge.playing {
+  background: #1ed760;
+  color: #000000;
+}
+
+.spotify-count-badge {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b3b3b3;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.tiktok-now-title {
+  font-family: var(--font-body);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.08;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tiktok-now-title.is-scrolling {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0px, #000 8px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0px, #000 8px, #000 calc(100% - 16px), transparent 100%);
+}
+
+.tiktok-now-meta {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #b3b3b3;
+}
+
+.spotify-hero-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.spotify-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.spotify-close-btn:hover {
+  background: #242424;
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.03);
+}
+
+.spotify-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.spotify-search-icon {
+  position: absolute;
+  left: 12px;
+  color: #b3b3b3;
+  pointer-events: none;
+}
+
+.spotify-search-input {
+  width: 236px;
+  border-radius: 999px;
+  background: #242424;
+  border: 1px solid transparent;
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  padding: 8px 14px 8px 34px;
+  outline: none;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.spotify-search-input::placeholder {
+  color: #727272;
+}
+
+.spotify-search-input:focus {
+  border-color: #ffffff;
+  background: #2a2a2a;
+}
+
+/* Cabeçalho e Lista de Músicas Estilo Spotify */
+.spotify-table-header {
+  display: grid;
+  grid-template-columns: 38px 1fr 150px 158px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 24px;
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b3b3b3;
+}
+
+.spotify-table-header .col-actions {
+  text-align: right;
+}
+
+.spotify-track-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spotify-track-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.spotify-track-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.spotify-track-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.spotify-track-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.spotify-track-row {
+  display: grid;
+  grid-template-columns: 38px 1fr 150px 158px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  transition: background 0.12s ease;
+  cursor: pointer;
+}
+
+.spotify-track-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.spotify-track-row.active {
+  background: rgba(30, 215, 96, 0.12);
+}
+
+.spotify-row-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #b3b3b3;
+  text-align: center;
+}
+
+.spotify-track-row.active .spotify-row-num {
+  color: #1ed760;
+}
+
+.spotify-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.spotify-row-cover {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: none;
+  flex-shrink: 0;
+  background: #181818;
+}
+
+.spotify-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.spotify-row-title {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotify-track-row.active .spotify-row-title {
+  color: #1ed760;
+}
+
+.spotify-row-artist {
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotify-row-badge {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b3b3b3;
+  background: #242424;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  justify-self: start;
+  white-space: nowrap;
+}
+
+.spotify-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.spotify-row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 6px 9px;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+
+.spotify-row-action-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.spotify-row-action-btn.liked {
+  color: #1ed760;
+}
+
+.spotify-row-action-btn.photo-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.spotify-row-action-btn.delete-btn:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.14);
+}
+
+.spotify-empty-state {
+  margin: auto;
+  padding: 36px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #b3b3b3;
+}
+
+.spotify-empty-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.spotify-empty-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* C) BARRA INFERIOR FIXA DO PLAYER ESTILO SPOTIFY */
+.spotify-bottom-player {
+  height: 88px;
+  background: #000000;
+  border-top: none;
+  padding: 8px 18px;
+  display: grid;
+  grid-template-columns: 270px 1fr 270px;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.spotify-player-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.spotify-bottom-cover-img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: none;
+  flex-shrink: 0;
+  background: #181818;
+}
+
+.spotify-bottom-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.spotify-bottom-title {
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotify-bottom-title.is-scrolling {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0px, #000 6px, #000 calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0px, #000 6px, #000 calc(100% - 12px), transparent 100%);
+}
+
+.spotify-bottom-artist {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotify-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  padding: 0;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.spotify-icon-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.spotify-icon-btn.liked {
+  color: #1ed760;
+}
+
+.spotify-player-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.spotify-transport-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.spotify-transport-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  padding: 0;
+  transition: color 0.12s ease;
+}
+
+.spotify-transport-btn:hover {
+  color: #ffffff;
+}
+
+.spotify-transport-btn.active {
+  color: #1ed760;
+}
+
+.spotify-play-circle-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1ed760;
+  border: none;
+  color: #000000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.spotify-play-circle-btn:hover {
+  transform: scale(1.06);
+  background: #1fdf64;
+}
+
+.spotify-seek-row {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spotify-time-label {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b3b3b3;
+  min-width: 32px;
+  text-align: center;
+}
+
+.spotify-seek-slider,
+.spotify-vol-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: #4d4d4d;
+  accent-color: #1ed760;
+  outline: none;
+}
+
+.spotify-seek-slider {
+  flex: 1;
+}
+
+.spotify-seek-slider::-webkit-slider-thumb,
+.spotify-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.spotify-seek-slider:hover::-webkit-slider-thumb,
+.spotify-vol-slider:hover::-webkit-slider-thumb {
+  background: #1ed760;
+  transform: scale(1.12);
+}
+
+.spotify-player-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.spotify-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 6px 11px;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #b3b3b3;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.spotify-pill-btn:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #242424;
+}
+
+.spotify-pill-btn.active {
+  border-color: #1ed760;
+  color: #1ed760;
+  background: rgba(30, 215, 96, 0.12);
+}
+
+.spotify-vol-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spotify-vol-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #b3b3b3;
+}
+
+.spotify-vol-slider {
+  width: 78px;
+}
+
+.spotify-vol-val {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #b3b3b3;
+  min-width: 28px;
+}
+
+#tiktok-radio-modal button,
+#tiktok-radio-modal input {
+  pointer-events: auto;
+  cursor: pointer;
+}
 
 

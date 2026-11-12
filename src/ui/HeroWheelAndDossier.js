@@ -1,5 +1,6 @@
 import { soundFX } from '../audio/SoundFX.js';
 import { getSvgIcon } from './TacticalIcons.js';
+import { getOp09CatalogEntry, drawOp09Portrait2D } from '../entities/CustomHeroSystem.js';
 
 /**
  * Catálogo Oficial dos 5 Operadores Jogáveis para a Roda Tática [TAB] e Ficha Individual [H]
@@ -156,10 +157,17 @@ export const HERO_CATALOG = [
       { key: 'ESPAÇO', title: 'SALTO PREDATÓRIO SIMBIONTE', desc: 'Super-salto elástico que treme e racha o asfalto ao pousar na forma Monstruosa.' },
       { key: 'SHIFT', title: 'INVESTIDA SIMBIONTE', desc: 'Corrida predatória feroz com tentáculos ondulando nas costas.' }
     ]
-  }
+  },
+  getOp09CatalogEntry()
 ];
 
+export function syncOp09CatalogSlot() {
+  HERO_CATALOG[8] = getOp09CatalogEntry();
+  return HERO_CATALOG[8];
+}
+
 export function getHeroInfo(heroKey) {
+  syncOp09CatalogSlot();
   return HERO_CATALOG.find((h) => h.key === heroKey) || HERO_CATALOG[0];
 }
 
@@ -167,6 +175,10 @@ export function getHeroInfo(heroKey) {
  * Desenha o retrato 2D LEGO de qualquer herói em um contexto 2D de Canvas
  */
 export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
+  if (presetKey === 'op09') {
+    drawOp09Portrait2D(ctx, w, h);
+    return;
+  }
   ctx.clearRect(0, 0, w, h);
 
   ctx.fillStyle = '#0d1017';
@@ -888,6 +900,7 @@ export function renderHeroDossierModal(hud, heroKey) {
  */
 export function renderHeroWheelCanvas(canvas, selectedHeroKey, activeHeroKey) {
   if (!canvas) return;
+  syncOp09CatalogSlot();
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
   const h = canvas.height;

@@ -9,6 +9,14 @@ import {
   mergeBufferGeometries,
   makeTranslatedBox
 } from '../BuildingGenerator.js';
+import {
+  METRO_ISLAND_CUTOUTS,
+  sliceRectAroundCutouts,
+  getMetroCutoutFloorY
+} from '../MetroSystemBuilder.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
+import { SHARED_STUD_GEO } from '../../materials/LegoMaterials.js';
+import { buildLegoCustomsGarage } from '../StreetCustomGarage.js';
 
 /**
  * 2. COMPLEXO MONUMENTAL DA TORRE DOS HERÓIS (O Arranha-Céu Mais Alto da Ilha: 310m no Heliponto + 352m na Antena!)
@@ -101,20 +109,38 @@ export function buildHeroTowerComplex(world) {
   const glassGeos = [];
 
   // ============================================================================
-  // 1. PISO NOBRE DO QG DOS HERÓIS + EMBLEMA CENTRAL "H" + ESCADARIAS DE ENTRADA
+  // 1. PISO NOBRE DO QG DOS HERÓIS (RECORTADO NA ESCADARIA DO PORÃO OP-09!)
   // ============================================================================
-  darkGeos.push(makeTranslatedBox(bw, floorY, bd, tx, floorY * 0.5, tz));
+  const lobbyFloorSlices = sliceRectAroundCutouts(
+    { minX: tx - halfW, maxX: tx + halfW, minZ: tz - halfD, maxZ: tz + halfD },
+    METRO_ISLAND_CUTOUTS
+  );
+  for (const r of lobbyFloorSlices) {
+    const rw = r.maxX - r.minX;
+    const rd = r.maxZ - r.minZ;
+    if (rw > 0.05 && rd > 0.05) {
+      const rx = (r.minX + r.maxX) * 0.5;
+      const rz = (r.minZ + r.maxZ) * 0.5;
+      darkGeos.push(makeTranslatedBox(rw, floorY, rd, rx, floorY * 0.5, rz));
+      world.addCollider(rx, rz, rw, rd, floorY, -0.05);
+    }
+  }
 
-  // Malha de ladrilhos polidos no saguão (90m x 90m)
+  // Malha de ladrilhos polidos no saguão (90m x 90m, preservando a boca da escadaria do Porão em X=-306..-282, Z=-150.5..-141.5!)
   const tileStep = 6.0;
   for (let lx = -42; lx <= 42; lx += tileStep) {
     for (let lz = -42; lz <= 42; lz += tileStep) {
+      const wx = tx + lx;
+      const wz = tz + lz;
+      if (wx + 3.2 > -306.5 && wx - 3.2 < -281.5 && wz + 3.2 > -151.0 && wz - 3.2 < -141.0) {
+        continue;
+      }
       const ix = Math.round((lx + 42) / tileStep);
       const iz = Math.round((lz + 42) / tileStep);
       if ((ix + iz) % 2 === 0) {
-        slateGeos.push(makeTranslatedBox(tileStep - 0.18, 0.04, tileStep - 0.18, tx + lx, floorY + 0.02, tz + lz));
+        slateGeos.push(makeTranslatedBox(tileStep - 0.18, 0.04, tileStep - 0.18, wx, floorY + 0.02, wz));
       } else {
-        whiteGeos.push(makeTranslatedBox(tileStep - 0.35, 0.03, tileStep - 0.35, tx + lx, floorY + 0.015, tz + lz));
+        whiteGeos.push(makeTranslatedBox(tileStep - 0.35, 0.03, tileStep - 0.35, wx, floorY + 0.015, wz));
       }
     }
   }
@@ -489,22 +515,22 @@ export function buildHeroTowerComplex(world) {
     world.addCollider(podX, podZ, 4.4, 4.4, floorY + 8.4, floorY);
   }
 
-  // Bancada de Engenharia LEGO com Braços Robóticos Amarelos + Caixas de Suprimentos Quebráveis no Setor Sudeste Interno
-  const labX = tx + 26.0;
-  const labZ = tz + 22.0;
-  slateGeos.push(makeTranslatedBox(10.0, 2.0, 14.0, labX, floorY + 1.0, labZ));
+  // Bancada de Engenharia LEGO com Braços Robóticos Amarelos + Caixas de Suprimentos no Setor Leste Interno
+  const labX = tx + 34.0;
+  const labZ = tz + 4.0;
+  slateGeos.push(makeTranslatedBox(7.5, 2.0, 12.0, labX, floorY + 1.0, labZ));
   goldGeos.push(
-    makeTranslatedBox(1.2, 4.5, 1.2, labX - 3.0, floorY + 4.2, labZ - 4.0),
-    makeTranslatedBox(3.6, 0.9, 0.9, labX - 1.5, floorY + 6.2, labZ - 4.0),
-    makeTranslatedBox(1.2, 4.5, 1.2, labX + 3.0, floorY + 4.2, labZ + 4.0),
-    makeTranslatedBox(3.6, 0.9, 0.9, labX + 1.5, floorY + 6.2, labZ + 4.0)
+    makeTranslatedBox(1.2, 4.5, 1.2, labX - 2.2, floorY + 4.2, labZ - 3.5),
+    makeTranslatedBox(3.2, 0.9, 0.9, labX - 1.2, floorY + 6.2, labZ - 3.5),
+    makeTranslatedBox(1.2, 4.5, 1.2, labX + 2.2, floorY + 4.2, labZ + 3.5),
+    makeTranslatedBox(3.2, 0.9, 0.9, labX + 1.2, floorY + 6.2, labZ + 3.5)
   );
-  world.addCollider(labX, labZ, 10.0, 14.0, floorY + 2.5, floorY);
+  world.addCollider(labX, labZ, 7.5, 12.0, floorY + 2.5, floorY);
 
   // Caixas Táticas Quebráveis + Fileiras de Studs Dourados, Azuis e Roxos dentro do QG dos Heróis!
   for (let cIdx = 0; cIdx < 6; cIdx++) {
     const cx = tx + 16.0 + (cIdx % 2) * 4.2;
-    const cz = tz + 15.0 + Math.floor(cIdx / 2) * 4.5;
+    const cz = tz - 2.0 + Math.floor(cIdx / 2) * 4.2;
     const supplyCrate = createLegoBrick(2.2, 2.0, 2.2, cIdx % 2 === 0 ? 0x0284c7 : LEGO_COLORS.gold, {
       studs: true,
       studStep: 0.8,
@@ -528,6 +554,266 @@ export function buildHeroTowerComplex(world) {
     }
   }
 
+  // ==========================================================================
+  // 4.4) O "PORÃO DOS HERÓIS" — LABORATÓRIO SUBTERRÂNEO DE CRIAÇÃO OP-09 (Y = -8.2m!)
+  // ==========================================================================
+  const stairMinX = -306.0;
+  const stairMaxX = -282.0;
+  const stairMinZ = -150.5;
+  const stairMaxZ = -141.5;
+  const stairMidZ = (stairMinZ + stairMaxZ) * 0.5; // -146.0
+  const stairW = stairMaxZ - stairMinZ; // 9.0m
+  const labMinX = -356.0;
+  const labMaxX = -306.0;
+  const labMinZ = -196.0;
+  const labMaxZ = -138.0;
+  const labFloorY = -8.2;
+  const labCeilY = -0.8;
+
+  if (!world.undergroundFloors) world.undergroundFloors = [];
+  world.undergroundFloors.push({
+    id: 'hero_tower_customizer_lab',
+    minX: labMinX,
+    maxX: labMaxX,
+    minZ: labMinZ,
+    maxZ: labMaxZ,
+    floorY: labFloorY,
+    ceilingY: labCeilY
+  });
+
+  // Guarda-Corpo Dourado & Ciano no Saguão ao redor da Boca da Escadaria (deixando a entrada Leste X = -282 livre!)
+  goldGeos.push(
+    makeTranslatedBox(24.4, 1.25, 0.45, -294.0, floorY + 0.62, stairMinZ - 0.35),
+    makeTranslatedBox(24.4, 1.25, 0.45, -294.0, floorY + 0.62, stairMaxZ + 0.35),
+    makeTranslatedBox(0.45, 1.25, stairW + 1.1, stairMinX - 0.35, floorY + 0.62, stairMidZ)
+  );
+  cyanGeos.push(
+    makeTranslatedBox(24.5, 0.22, 0.52, -294.0, floorY + 1.32, stairMinZ - 0.35),
+    makeTranslatedBox(24.5, 0.22, 0.52, -294.0, floorY + 1.32, stairMaxZ + 0.35),
+    makeTranslatedBox(0.52, 0.22, stairW + 1.15, stairMinX - 0.35, floorY + 1.32, stairMidZ)
+  );
+  world.addCollider(-294.0, stairMinZ - 0.45, 24.4, 0.7, floorY + 1.45, labFloorY);
+  world.addCollider(-294.0, stairMaxZ + 0.45, 24.4, 0.7, floorY + 1.45, labFloorY);
+  // Parede de verga acima do portal subterrâneo em X = -306.0 (livre de Y = -8.2m até -0.8m, fechada de -0.8m até +1.6m!)
+  darkGeos.push(makeTranslatedBox(0.8, 2.4, stairW + 1.0, stairMinX - 0.3, 0.4, stairMidZ));
+  world.addCollider(stairMinX - 0.3, stairMidZ, 0.8, stairW + 1.0, floorY + 1.45, labCeilY);
+
+  // Letreiro Luminoso 3D na Entrada da Escadaria no Saguão!
+  const labEntrySign = createSignBoardMesh({
+    x: stairMaxX + 0.4,
+    y: floorY + 3.85,
+    z: stairMidZ,
+    width: 9.6,
+    height: 1.65,
+    depth: 0.42,
+    rotY: Math.PI / 2,
+    title: '▼ LABORATÓRIO DE CRIAÇÃO // OP-09',
+    subText: 'PORÃO BIO-GENÉTICO • DESÇA A ESCADARIA',
+    bgColor: '#090a0d',
+    borderColor: '#00f0ff',
+    topStripeColor: '#facc15',
+    textColor: '#f8fafc',
+    subColor: '#00f0ff',
+    doubleSided: true
+  });
+  world.scene.add(labEntrySign);
+  goldGeos.push(
+    makeTranslatedBox(0.55, 4.2, 0.55, stairMaxX + 0.4, floorY + 2.1, stairMinZ - 0.35),
+    makeTranslatedBox(0.55, 4.2, 0.55, stairMaxX + 0.4, floorY + 2.1, stairMaxZ + 0.35)
+  );
+
+  // Degraus Iluminados & Paredes Laterais da Escadaria (descendo de X=-282 em Y=0.36m até X=-306 em Y=-8.2m)
+  const stairSteps = 28;
+  for (let s = 0; s < stairSteps; s++) {
+    const u = (s + 0.5) / stairSteps;
+    const sx = THREE.MathUtils.lerp(stairMaxX, stairMinX, u);
+    const sy = THREE.MathUtils.lerp(floorY, labFloorY, u);
+    slateGeos.push(makeTranslatedBox(24.0 / stairSteps + 0.12, 1.2, stairW, sx, sy - 0.6, stairMidZ));
+    if (s % 2 === 0) {
+      cyanGeos.push(makeTranslatedBox(0.18, 0.08, stairW - 0.8, sx, sy + 0.02, stairMidZ));
+    }
+  }
+  darkGeos.push(
+    makeTranslatedBox(24.4, 9.5, 0.7, -294.0, -4.2, stairMinZ - 0.45),
+    makeTranslatedBox(24.4, 9.5, 0.7, -294.0, -4.2, stairMaxZ + 0.45)
+  );
+
+  // Salão Subterrâneo Bio-Genético LEGO (50m x 58m, Piso Y = -8.2m, Teto Y = -0.8m = 7.4m de pé-direito!)
+  const labW = labMaxX - labMinX; // 50m
+  const labD = labMaxZ - labMinZ; // 58m
+  const labCX = (labMinX + labMaxX) * 0.5; // -331
+  const labCZ = (labMinZ + labMaxZ) * 0.5; // -167
+  const labH = labCeilY - labFloorY; // 7.4m
+
+  whiteGeos.push(makeTranslatedBox(labW, 0.6, labD, labCX, labFloorY - 0.3, labCZ));
+  slateGeos.push(makeTranslatedBox(labW + 1.2, 0.55, labD + 1.2, labCX, labCeilY + 0.28, labCZ));
+
+  // Paredes perimetrais do Porão (Branco Hospitalar + Titânio + Frisos Ciano/Ouro)
+  whiteGeos.push(
+    makeTranslatedBox(0.9, labH, labD, labMinX, labFloorY + labH * 0.5, labCZ), // Parede Oeste
+    makeTranslatedBox(labW, labH, 0.9, labCX, labFloorY + labH * 0.5, labMinZ), // Parede Norte
+    makeTranslatedBox(labW, labH, 0.9, labCX, labFloorY + labH * 0.5, labMaxZ), // Parede Sul
+    // Parede Leste com abertura de 9.0m para a Escadaria (Z = -150.5..-141.5)
+    makeTranslatedBox(0.9, labH, 45.5, labMaxX, labFloorY + labH * 0.5, -173.25),
+    makeTranslatedBox(0.9, labH, 3.5, labMaxX, labFloorY + labH * 0.5, -139.75)
+  );
+  world.addCollider(labMinX, labCZ, 1.1, labD, labCeilY, labFloorY - 1.0);
+  world.addCollider(labCX, labMinZ, labW, 1.1, labCeilY, labFloorY - 1.0);
+  world.addCollider(labCX, labMaxZ, labW, 1.1, labCeilY, labFloorY - 1.0);
+  world.addCollider(labMaxX, -173.25, 1.1, 45.5, labCeilY, labFloorY - 1.0);
+  world.addCollider(labMaxX, -139.75, 1.1, 3.5, labCeilY, labFloorY - 1.0);
+
+  // Painéis Luminosos Hospitalares no Teto do Porão + Trilhas Ciano no Piso
+  for (let px = labMinX + 10; px <= labMaxX - 10; px += 14) {
+    for (let pz = labMinZ + 12; pz <= labMaxZ - 12; pz += 16) {
+      cyanGeos.push(makeTranslatedBox(5.6, 0.16, 2.4, px, labCeilY - 0.08, pz));
+    }
+  }
+  cyanGeos.push(
+    makeTranslatedBox(26.0, 0.06, 0.9, -319.0, labFloorY + 0.03, stairMidZ),
+    makeTranslatedBox(0.9, 0.06, 22.0, -332.0, labFloorY + 0.03, -156.5)
+  );
+
+  // 2 Grandes Tubos Cilíndricos de Vidro Bio-LEGO borbulhando energia luminosa nas laterais!
+  for (const [tubeZ, isCyan] of [
+    [-183.0, true],
+    [-151.0, false]
+  ]) {
+    const tubeX = -332.0;
+    darkGeos.push(
+      makeTranslatedBox(6.2, 0.85, 6.2, tubeX, labFloorY + 0.42, tubeZ),
+      makeTranslatedBox(6.2, 0.85, 6.2, tubeX, labCeilY - 0.45, tubeZ)
+    );
+    goldGeos.push(
+      makeTranslatedBox(6.6, 0.24, 6.6, tubeX, labFloorY + 0.9, tubeZ),
+      makeTranslatedBox(6.6, 0.24, 6.6, tubeX, labCeilY - 0.92, tubeZ)
+    );
+    const bioGlass = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.45, 2.45, 5.6, 20),
+      isCyan ? glassFacadeMat : bactaGlassMat
+    );
+    bioGlass.position.set(tubeX, labFloorY + 3.7, tubeZ);
+    world.scene.add(bioGlass);
+
+    // Bolhas de energia Bio-LEGO brilhando dentro dos tubos
+    for (let b = 0; b < 5; b++) {
+      const bSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.32 + (b % 2) * 0.18, 10, 10),
+        isCyan ? neonCyanMat : emeraldGlowMat
+      );
+      bSphere.position.set(
+        tubeX + Math.cos(b * 1.4) * 0.9,
+        labFloorY + 1.8 + b * 0.9,
+        tubeZ + Math.sin(b * 1.4) * 0.9
+      );
+      world.scene.add(bSphere);
+    }
+    world.addCollider(tubeX, tubeZ, 6.0, 6.0, labCeilY, labFloorY);
+  }
+
+  // Prateleiras nas Paredes com Peças de Minifiguras LEGO Coloridas (Capacetes, Perucas, Torsos)
+  const shelfPartColors = [0xef4444, 0x3b82f6, 0xfacc15, 0x22c55e, 0xa855f7, 0xf97316, 0x06b6d4];
+  for (let sRow = 0; sRow < 3; sRow++) {
+    const sy = labFloorY + 1.6 + sRow * 1.65;
+    slateGeos.push(makeTranslatedBox(1.8, 0.22, 34.0, labMinX + 1.4, sy, labCZ));
+    for (let p = 0; p < 9; p++) {
+      const pz = labCZ - 14.0 + p * 3.5;
+      const partCol = shelfPartColors[(p + sRow * 3) % shelfPartColors.length];
+      const sparePart = new THREE.Mesh(
+        p % 2 === 0 ? new THREE.CylinderGeometry(0.34, 0.34, 0.52, 12) : new THREE.BoxGeometry(0.68, 0.68, 0.42),
+        getLegoMaterial(partCol, { roughness: 0.22, clearcoat: 0.5 })
+      );
+      sparePart.position.set(labMinX + 1.5, sy + 0.42, pz);
+      const studTop = new THREE.Mesh(SHARED_STUD_GEO, getLegoMaterial(partCol));
+      studTop.position.set(labMinX + 1.5, sy + 0.75, pz);
+      world.scene.add(sparePart, studTop);
+    }
+  }
+  world.addCollider(labMinX + 1.4, labCZ, 2.0, 34.0, labFloorY + 5.5, labFloorY);
+
+  // PEDESTAL HOLOGRÁFICO DE CUSTOMIZAÇÃO LEGO NO CENTRO DA SALA + 2 BRAÇOS ROBÓTICOS AMARELOS + CONSOLE [E]
+  const pedX = -332.0;
+  const pedZ = -167.0;
+  const pedGroup = new THREE.Group();
+  pedGroup.position.set(pedX, labFloorY, pedZ);
+
+  const pedBase1 = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.6, 0.35, 24), darkTitaniumMat);
+  pedBase1.position.y = 0.18;
+  const pedBase2 = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 0.32, 24), goldMat);
+  pedBase2.position.y = 0.5;
+  const pedRing = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 1.85, 0.14, 24), neonCyanMat);
+  pedRing.position.y = 0.68;
+  const holoCyl = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.65, 1.65, 4.8, 20, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.18,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    })
+  );
+  holoCyl.position.y = 3.1;
+  pedGroup.add(pedBase1, pedBase2, pedRing, holoCyl);
+
+  // 2 Braços Robóticos Amarelos Articulados flanqueando o Pedestal
+  for (const sideZ of [-3.4, 3.4]) {
+    const rBase = createLegoBrick(1.1, 0.6, 1.1, 0x1e293b, { studs: false });
+    rBase.position.set(-1.2, 0.3, sideZ);
+    const rPillar = createLegoBrick(0.42, 2.8, 0.42, 0xfacc15, { studs: false });
+    rPillar.position.set(-1.2, 1.9, sideZ);
+    const rForearm = createLegoBrick(0.34, 0.34, 2.1, 0xfacc15, { studs: false });
+    rForearm.position.set(-0.6, 3.1, sideZ * 0.65);
+    rForearm.rotation.y = sideZ > 0 ? -0.45 : 0.45;
+    pedGroup.add(rBase, rPillar, rForearm);
+  }
+
+  // Console Interativo [E] na frente do Pedestal (X = pedX + 4.2 = -327.8)
+  const consoleGroup = new THREE.Group();
+  consoleGroup.position.set(4.2, 0, 0);
+  const cDesk = createLegoBrick(1.4, 1.25, 2.2, 0x0f172a, { studs: false });
+  cDesk.position.y = 0.62;
+  const cScreen = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.85, 1.85), neonCyanMat);
+  cScreen.position.set(0.2, 1.48, 0);
+  cScreen.rotation.z = 0.35;
+  consoleGroup.add(cDesk, cScreen);
+  pedGroup.add(consoleGroup);
+
+  world.scene.add(pedGroup);
+  world.addCollider(pedX + 4.2, pedZ, 1.5, 2.3, labFloorY + 1.8, labFloorY);
+
+  const pedBanner = createSignBoardMesh({
+    x: pedX - 4.2,
+    y: labFloorY + 5.3,
+    z: pedZ,
+    width: 11.5,
+    height: 1.75,
+    depth: 0.36,
+    rotY: Math.PI / 2,
+    title: 'CRIADOR BIO-GENÉTICO // OP-09',
+    subText: 'APERTE [E] NO CONSOLE PARA CUSTOMIZAR HERÓI E PODERES',
+    bgColor: '#090a0d',
+    borderColor: '#facc15',
+    topStripeColor: '#00f0ff',
+    textColor: '#f8fafc',
+    subColor: '#00f0ff',
+    doubleSided: true
+  });
+  world.scene.add(pedBanner);
+
+  world.customizerLabPedestal = {
+    pedestalPos: { x: pedX, y: labFloorY + 0.72, z: pedZ },
+    consolePos: { x: pedX + 4.2, y: labFloorY, z: pedZ },
+    exitPos: { x: pedX + 6.2, y: labFloorY + 0.05, z: pedZ }
+  };
+
+  if (!world.nightLampRegistry) world.nightLampRegistry = [];
+  world.nightLampRegistry.push(
+    { x: pedX, y: labCeilY - 0.3, z: pedZ, groundY: labFloorY, warm: false, coneH: 7.0, coneR: 6.5 },
+    { x: -316, y: labCeilY - 0.3, z: stairMidZ, groundY: labFloorY, warm: true, coneH: 7.0, coneR: 5.5 }
+  );
+
   if (world.destructibles) {
     // 24 Studs de Alto Valor (Azuis, Dourados e Roxos) espalhados pelo Saguão do QG dos Heróis!
     for (let sIdx = 0; sIdx < 12; sIdx++) {
@@ -535,7 +821,7 @@ export function buildHeroTowerComplex(world) {
       const sx = tx + Math.cos(ang) * 14.5;
       const sz = tz + Math.sin(ang) * 14.5;
       const kind = sIdx % 3 === 0 ? 'purple' : sIdx % 2 === 0 ? 'blue' : 'gold';
-      world.destructibles.spawnAmbientStud(new THREE.Vector3(sx, floorY + 0.55, sz), kind);
+      world.destructibles.spawnAmbientStud(sx, floorY + 0.55, sz, kind);
     }
   }
 
@@ -840,11 +1126,15 @@ export function buildDowntownSkyscrapersAndTransitionBlocks(world) {
     buildUrbanDowntownBlock(world, blk.x, blk.z, blk.w, blk.d, blk.layout, blk.baseH, idx + 1);
   });
 
-  // TRANSIÇÃO CENTRO NORTE (Z = -448): Quarteirões de Prédios Médios (30m a 48m) fechando a calçada
+  // TRANSIÇÃO CENTRO NORTE (Z = -448): Quarteirões de Prédios Médios (30m a 48m) + Oficina LEGO CUSTOMS em tx === 60!
   const transColsX = [-450, -318, -186, -60, 60, 186, 318, 450];
   transColsX.forEach((tx, idx) => {
     const tw = Math.abs(tx) === 60 ? 92 : 104;
     const td = 96;
+    if (tx === 60) {
+      buildLegoCustomsGarage(world, 60, -448, tw, td);
+      return;
+    }
     const innerW = tw - 10;
     const innerD = td - 10;
     world._addCityBlockSidewalk(tx, -448, tw, td, LEGO_COLORS.sidewalk);
@@ -858,7 +1148,8 @@ export function buildDowntownSkyscrapersAndTransitionBlocks(world) {
     world.createDetailedBuilding(tx + (lotW + 6) * 0.5, -448, lotW, 28 + ((idx + 1) % 3) * 5, innerD, s2, {
       seed: idx * 17 + 2
     });
-    world._addLegoTree(tx, 0.3, -448, 1.15);
+    const treeTY = world.getTerrainHeightAt ? world.getTerrainHeightAt(tx, -448) : 0;
+    world._addLegoTree(tx, treeTY + 0.3, -448, 1.15);
   });
 }
 
@@ -961,10 +1252,11 @@ export function buildUrbanDowntownBlock(world, bx, bz, W, D, layoutType, mainHei
       });
     });
 
+    const alleyTY = world.getTerrainHeightAt ? world.getTerrainHeightAt(bx, bz) : 0;
     const dumpster = createLegoBrick(2.4, 1.6, 1.8, LEGO_COLORS.green, { studStep: 0.8, castShadow: false });
-    dumpster.position.set(bx - 1.5, 0.28 + 0.8, bz);
+    dumpster.position.set(bx - 1.5, alleyTY + 0.28 + 0.8, bz);
     const crate = createLegoBrick(1.6, 1.4, 1.6, LEGO_COLORS.brown, { studStep: 0.8, castShadow: false });
-    crate.position.set(bx + 1.5, 0.28 + 0.7, bz);
+    crate.position.set(bx + 1.5, alleyTY + 0.28 + 0.7, bz);
     world.scene.add(dumpster, crate);
   } else if (layoutType === 3) {
     // MODELO 4: COMPLEXO CORPORATIVO EM "U" COM PRAÇA FRONTAL
@@ -1003,20 +1295,26 @@ export function buildUrbanDowntownBlock(world, bx, bz, W, D, layoutType, mainHei
     );
 
     const plazaZ = bz + innerD * 0.5 - wingD * 0.5;
+    const plazaTY = world.getTerrainHeightAt ? world.getTerrainHeightAt(bx, plazaZ) : 0;
     const fountainBase = createLegoBrick(9.5, 0.9, 9.5, LEGO_COLORS.lightGrey, { studStep: 1.5 });
-    fountainBase.position.set(bx, 0.28 + 0.45, plazaZ);
+    fountainBase.position.set(bx, plazaTY + 0.28 + 0.45, plazaZ);
     const fountainWater = new THREE.Mesh(
       new THREE.BoxGeometry(7.5, 0.95, 7.5),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
     );
-    fountainWater.position.set(bx, 0.28 + 0.5, plazaZ);
+    fountainWater.position.set(bx, plazaTY + 0.28 + 0.5, plazaZ);
     const statue = createLegoBrick(2.2, 5.2, 2.2, LEGO_COLORS.gold, { metalness: 0.7, roughness: 0.15 });
-    statue.position.set(bx, 0.28 + 2.6, plazaZ);
+    statue.position.set(bx, plazaTY + 0.28 + 2.6, plazaZ);
     world.scene.add(fountainBase, fountainWater, statue);
-    world.addCollider(bx, plazaZ, 9.5, 9.5, 4.5, 0.28);
+    world.addCollider(bx, plazaZ, 9.5, 9.5, plazaTY + 4.5, plazaTY + 0.28);
 
-    world._addLegoTree(bx - 11, 0.3, plazaZ + 6, 1.05);
-    world._addLegoTree(bx + 11, 0.3, plazaZ + 6, 1.05);
+    for (const dxTree of [-11, 11]) {
+      const txTree = bx + dxTree;
+      const tzTree = plazaZ + 6;
+      if (getMetroCutoutFloorY(txTree, tzTree) === null) {
+        world._addLegoTree(txTree, 0.3, tzTree, 1.05);
+      }
+    }
   } else {
     // MODELO 5: QUADRA TIMES SQUARE (NEON & TELÕES COLORIDOS)
     const alley = 4;
@@ -1043,8 +1341,9 @@ export function buildUrbanDowntownBlock(world, bx, bz, W, D, layoutType, mainHei
       const nMat = new THREE.MeshBasicMaterial({ color: nColor });
       const screenZ = b < 2 ? bz - innerD * 0.5 - 0.45 : bz + innerD * 0.5 + 0.45;
       const screenX = b % 2 === 0 ? bx - offX : bx + offX;
+      const screenTY = world.getTerrainHeightAt ? world.getTerrainHeightAt(screenX, screenZ) : 0;
       const screen = new THREE.Mesh(new THREE.BoxGeometry(lotW * 0.76, 9.5, 0.6), nMat);
-      screen.position.set(screenX, 16 + (b % 2) * 11, screenZ);
+      screen.position.set(screenX, screenTY + 16 + (b % 2) * 11, screenZ);
       world.scene.add(screen);
     }
   }

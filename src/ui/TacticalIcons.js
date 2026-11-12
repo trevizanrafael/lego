@@ -55,11 +55,20 @@ export function getSvgIcon(iconKey, color = 'currentColor', size = 16) {
         <path d="M2 21.5c2.5-2 5.5-2 8 0s5.5 2 8 0"/>
       ${close}`;
 
+    case 'cv':
     case 'cdd':
       // Cidade de Deus / CV (Coroa / Fortaleza no Morro)
       return `${baseOpen}
         <polygon points="3,18 5,7 9.5,12 12,5 14.5,12 19,7 21,18" fill="rgba(220,38,38,0.22)"/>
         <line x1="3" y1="21" x2="21" y2="21"/>
+      ${close}`;
+
+    case 'ares':
+      // Syndicato A.R.E.S. (Escudo Cyber + Visor em V)
+      return `${baseOpen}
+        <polygon points="12,2 21,6 19,17 12,22 5,17 3,6" fill="rgba(217,70,239,0.22)"/>
+        <polyline points="6.5,9.5 12,13.5 17.5,9.5"/>
+        <line x1="9" y1="16.5" x2="15" y2="16.5"/>
       ${close}`;
 
     case 'pcc':
@@ -102,6 +111,25 @@ export function getSvgIcon(iconKey, color = 'currentColor', size = 16) {
         <circle cx="7.5" cy="11.5" r="2"/>
         <circle cx="16.5" cy="11.5" r="2"/>
         <line x1="9" y1="19" x2="15" y2="19"/>
+      ${close}`;
+
+    case 'metro':
+      // Trem de Metro LEGO / Trilhos (Subsolo + Linha Elevada)
+      return `${baseOpen}
+        <rect x="5" y="3" width="14" height="14" fill="rgba(6,182,212,0.18)"/>
+        <line x1="5" y1="11" x2="19" y2="11"/>
+        <circle cx="8.5" cy="14" r="1.2" fill="${color}"/>
+        <circle cx="15.5" cy="14" r="1.2" fill="${color}"/>
+        <line x1="8" y1="17" x2="5" y2="21"/>
+        <line x1="16" y1="17" x2="19" y2="21"/>
+      ${close}`;
+
+    case 'customs':
+    case 'wrench':
+      // Chave Inglesa + Engrenagem Dourada (Oficina LEGO Customs)
+      return `${baseOpen}
+        <polygon points="12,2 15,4 19,4 20,8 22,11 20,14 19,18 15,18 12,20 9,18 5,18 4,14 2,11 4,8 5,4 9,4" fill="rgba(250,204,21,0.18)"/>
+        <path d="M14.5 7.5a3.5 3.5 0 0 0-4.6 4.6L6 16l2 2 3.9-3.9a3.5 3.5 0 0 0 4.6-4.6l-2 2-1.8-1.8 1.8-2.2z" fill="${color}"/>
       ${close}`;
 
     case 'waypoint':
@@ -200,6 +228,7 @@ export function drawCanvasVectorIcon(ctx, iconKey, cx, cy, radius = 8, color = '
       break;
     }
 
+    case 'cv':
     case 'cdd': {
       // Coroa de 3 Pontas (Cidade de Deus / CV)
       ctx.beginPath();
@@ -211,6 +240,25 @@ export function drawCanvasVectorIcon(ctx, iconKey, cx, cy, radius = 8, color = '
       ctx.lineTo(r * 0.65, -r * 0.55);
       ctx.lineTo(r * 0.8, r * 0.55);
       ctx.closePath();
+      ctx.stroke();
+      break;
+    }
+
+    case 'ares': {
+      // Escudo Cyber Angular + Visor em V (Syndicato A.R.E.S.)
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.88);
+      ctx.lineTo(r * 0.78, -r * 0.48);
+      ctx.lineTo(r * 0.62, r * 0.42);
+      ctx.lineTo(0, r * 0.88);
+      ctx.lineTo(-r * 0.62, r * 0.42);
+      ctx.lineTo(-r * 0.78, -r * 0.48);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.48, -r * 0.16);
+      ctx.lineTo(0, r * 0.22);
+      ctx.lineTo(r * 0.48, -r * 0.16);
       ctx.stroke();
       break;
     }
@@ -299,6 +347,44 @@ export function drawCanvasVectorIcon(ctx, iconKey, cx, cy, radius = 8, color = '
       ctx.arc(-r * 0.35, 0.05, r * 0.18, 0, Math.PI * 2);
       ctx.arc(r * 0.35, 0.05, r * 0.18, 0, Math.PI * 2);
       ctx.fill();
+      break;
+    }
+
+    case 'metro': {
+      // Vagao Frontal de Metro LEGO + Trilhos
+      ctx.strokeRect(-r * 0.62, -r * 0.78, r * 1.24, r * 1.18);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.62, -r * 0.08);
+      ctx.lineTo(r * 0.62, -r * 0.08);
+      ctx.moveTo(-r * 0.38, r * 0.42);
+      ctx.lineTo(-r * 0.68, r * 0.88);
+      ctx.moveTo(r * 0.38, r * 0.42);
+      ctx.lineTo(r * 0.68, r * 0.88);
+      ctx.stroke();
+      break;
+    }
+
+    case 'customs':
+    case 'wrench': {
+      // Engrenagem Octogonal + Chave Inglesa Diagonal Dourada (LEGO Customs)
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        const rad = i % 2 === 0 ? r * 0.92 : r * 0.68;
+        const px = Math.cos(ang) * rad;
+        const py = Math.sin(ang) * rad;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.55, r * 0.55);
+      ctx.lineTo(r * 0.35, -r * 0.35);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(r * 0.42, -r * 0.42, r * 0.24, 0.2 * Math.PI, 1.55 * Math.PI);
+      ctx.stroke();
       break;
     }
 
