@@ -5,7 +5,8 @@
 //   MetroStationProps.js        — placas, catracas, máquinas de bilhete e totens
 //   MetroUndergroundStations.js — estações subterrâneas e túnel
 //   MetroElevatedStations.js    — estações elevadas
-//   MetroTrackAndViaduct.js     — trilhos, rampas e estrutura elevada
+//   MetroTrackAndViaduct.js     — trilhos, rampas, estrutura elevada e pilares
+//   MetroSupportPlanner.js      — onde ficam os pilares (pórticos nas calçadas, nunca na pista)
 //   MetroTrainMesh.js           — modelo 3D dos vagões
 //   MetroRuntime.js             — movimento dos trens
 //   MetroBoarding.js            — interação do jogador com os vagões
@@ -15,7 +16,10 @@ import { createMetroBatcher } from './metro/MetroBatcher.js';
 import { buildInteractiveMetroMapTotem } from './metro/MetroStationProps.js';
 import { buildUndergroundStationsAndTunnel } from './metro/MetroUndergroundStations.js';
 import { buildThreeElevatedMetroStations } from './metro/MetroElevatedStations.js';
-import { buildTrackBedAndElevatedManhattanStructure } from './metro/MetroTrackAndViaduct.js';
+import {
+  buildTrackBedAndElevatedManhattanStructure,
+  buildElevatedSupports
+} from './metro/MetroTrackAndViaduct.js';
 import { MetroSystemRuntime } from './metro/MetroRuntime.js';
 
 export {
@@ -40,6 +44,7 @@ export function buildMetroSystem(world) {
   buildUndergroundStationsAndTunnel(world, batcher);
   buildTrackBedAndElevatedManhattanStructure(world, batcher, spline);
   buildThreeElevatedMetroStations(world, batcher);
+  buildElevatedSupports(world, batcher, spline);
 
   const totems = [];
   for (let i = 0; i < METRO_STATIONS.length; i++) {
