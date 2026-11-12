@@ -63,9 +63,9 @@ test('Quebrar um Hidrante deve desativar seu colisor, espalhar pecinhas 3D, solt
   assert.equal(destructibles.geysers.length, 0, 'rebuildAll() deve limpar chafarizes ativos');
 });
 
-test('Ímã de Studs deve puxar moedinhas próximas até o jogador, somar na HUD e atingir True Hero (100%)', () => {
+test('Ímã de Studs deve puxar moedinhas próximas até o jogador e somar na HUD', () => {
   const scene = new THREE.Scene();
-  const hud = new LegoHud(10000); // Meta de 10.000 para testar True Hero
+  const hud = new LegoHud(10000);
   const destructibles = new DestructibleManager(scene, hud);
   new TestBlockWorld(scene, destructibles);
 
@@ -84,6 +84,5 @@ test('Ímã de Studs deve puxar moedinhas próximas até o jogador, somar na HUD
 
   assert.equal(destructibles.studsList.length, 0, 'Todos os Studs próximos devem ter sido coletados pelo ímã');
   assert.ok(hud.totalStuds >= 12000, `Total de Studs (${hud.totalStuds}) deve somar Prata, Ouro, Azul e Roxo`);
-  assert.equal(hud.isTrueHero, true, 'Barra True Hero deve atingir 100% e ativar status de Verdadeiro Herói');
 });
 

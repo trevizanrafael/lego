@@ -2472,6 +2472,7 @@ export class ThirdPersonController {
     this.vehicleAirborne = false;
     this.vehiclePitch = 0;
     this.vehicleWheeliePitch = 0;
+    this._vehicleWheelieLiftY = 0;
     this.vehicleBank = 0;
     this.vehicleHeading = carObj.mesh.rotation.y;
     this.vehicleSteerAngle = 0;
@@ -2525,6 +2526,7 @@ export class ThirdPersonController {
     this.vehicleVerticalSpeed = 0;
     this.vehiclePitch = 0;
     this.vehicleWheeliePitch = 0;
+    this._vehicleWheelieLiftY = 0;
     this.vehicleBank = 0;
 
     // Esconde chamas de Turbo e zera inclinação ao sair (pousando a roda dianteira da moto no chão)
@@ -2949,7 +2951,9 @@ export class ThirdPersonController {
     }
 
     // CARROS E VEÍCULOS TERRESTRES NÃO ANDAM NA ÁGUA PROFUNDA E RESPEITAM MÚLTIPLOS NÍVEIS (VIADUTOS vs RUA ABAIXO)!
-    const curCarY = carObj.mesh.position.y;
+    // Desconta a elevação visual da empinada (wheelie) aplicada no frame anterior,
+    // senão a física enxerga a moto empinada como "no ar" e cancela a empinada a cada frame.
+    const curCarY = carObj.mesh.position.y - (this._vehicleWheelieLiftY || 0);
     const sampleSurface = (sx, sz, refY) =>
       this.world?.getSurfaceHeightAt
         ? this.world.getSurfaceHeightAt(sx, sz, refY)
@@ -3045,6 +3049,7 @@ export class ThirdPersonController {
     const rearAxleZ = spec.rearAxleZ ?? 1.38;
     const wheelieAngle = Math.max(0, -this.vehicleWheeliePitch);
     const wheelieLiftY = isMoto ? rearAxleZ * Math.sin(wheelieAngle) : 0;
+    this._vehicleWheelieLiftY = wheelieLiftY;
 
     const visualCarYaw = this.vehicleHeading + this.vehicleDriftAngle;
     const targetPitch = roadSlopePitch + this.vehicleWheeliePitch;

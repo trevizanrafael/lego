@@ -299,6 +299,19 @@ export function setupTestEnvironment() {
     };
   }
 
+  // Permite que cada teste remonte a cidade do zero sem acumular listeners antigos
+  // (cada listener segura o mundo/controle inteiro e impede o GC entre montagens).
+  globalThis.__resetTestListeners = () => {
+    for (const key of Object.keys(winListeners)) delete winListeners[key];
+    for (const el of elementsById.values()) {
+      if (el && el._listeners) el._listeners = {};
+    }
+  };
+
   globalThis.__testEnvReady = true;
+}
+
+export function resetTestListeners() {
+  globalThis.__resetTestListeners?.();
 }
 
