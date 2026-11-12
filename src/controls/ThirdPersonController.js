@@ -3072,13 +3072,16 @@ export class ThirdPersonController {
       ? this.world.getCollidersNear((curX + nextX) * 0.5, (curZ + nextZ) * 0.5, driveQueryR)
       : (this.world?.colliders || []);
 
+    // Base REAL do carro: o chão no destino ou a altura em que o carro já está (pulando/voando por cima de
+    // um obstáculo baixo, ele passa — antes a colisão era testada sempre no chão e virava "parede até o céu").
     const candTerrainYX = sampleSurface(nextX, curZ, curCarY);
+    const carBottomX = Math.max(candTerrainYX, curCarY);
     let blockedX = Boolean(this.world?.isDeepWaterAt?.(nextX, curZ, { forCar: true }));
     if (!blockedX) {
       for (const col of driveNearCols) {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
-        if (col.maxY <= candTerrainYX + 0.38 || colMinY > candTerrainYX + 2.2) continue;
+        if (col.maxY <= carBottomX + 0.38 || colMinY > carBottomX + 2.2) continue;
         if (
           nextX + carRadius > col.minX &&
           nextX - carRadius < col.maxX &&
@@ -3094,12 +3097,13 @@ export class ThirdPersonController {
     const finalX = blockedX ? curX : nextX;
 
     const candTerrainYZ = sampleSurface(finalX, nextZ, curCarY);
+    const carBottomZ = Math.max(candTerrainYZ, curCarY);
     let blockedZ = Boolean(this.world?.isDeepWaterAt?.(finalX, nextZ, { forCar: true }));
     if (!blockedZ) {
       for (const col of driveNearCols) {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
-        if (col.maxY <= candTerrainYZ + 0.38 || colMinY > candTerrainYZ + 2.2) continue;
+        if (col.maxY <= carBottomZ + 0.38 || colMinY > carBottomZ + 2.2) continue;
         if (
           finalX + carRadius > col.minX &&
           finalX - carRadius < col.maxX &&

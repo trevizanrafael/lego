@@ -961,6 +961,10 @@ function addViaductSupports(world, batcher, cfg) {
   return placed;
 }
 
+// Largura das avenidas principais (28m): viadutos e rampas usam a mesma largura para encaixar na rua.
+const AVENUE_WIDTH = 28.0;
+const CENTRAL_RAMP_HALF_W = AVENUE_WIDTH * 0.5;
+
 function buildSegmentedExpressViaduct(world, batcher, cfg) {
   const {
     id,
@@ -1089,7 +1093,7 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
     const isLowEmbankment = clearanceAboveGround < 1.35;
 
     for (const side of [-1, 1]) {
-      if (id === 'viaduct_ew_north' && side === 1 && cm > -9.2 && cm < 9.2) {
+      if (id === 'viaduct_ew_north' && side === 1 && cm > -CENTRAL_RAMP_HALF_W && cm < CENTRAL_RAMP_HALF_W) {
         continue;
       }
 
@@ -1172,8 +1176,8 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
     deckThickness,
     railW,
     railH,
-    // Junção com as rampas centrais do Viaduto 1: mureta do lado +Z aberta em |x| < 9.2
-    railGaps: id === 'viaduct_ew_north' ? [{ side: 1, c0: -9.2, c1: 9.2 }] : []
+    // Junção com as rampas centrais do Viaduto 1: mureta do lado +Z aberta na largura da rampa
+    railGaps: id === 'viaduct_ew_north' ? [{ side: 1, c0: -CENTRAL_RAMP_HALF_W, c1: CENTRAL_RAMP_HALF_W }] : []
   });
 
   // 5) APOIOS FORA DA RUA: onde o tabuleiro está alto, PÓRTICO com um pilar em cada calçada de verdade e
@@ -1200,9 +1204,9 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
 }
 
 function buildViaduct1CentralAccessRamps(world, batcher, junctionDeckTopY) {
-  const zTop = -374;
+  const zTop = -382 + AVENUE_WIDTH * 0.5; // encosta na borda sul do Viaduto 1 (largura da avenida)
   const zBot = -282;
-  const totalW = 16.4;
+  const totalW = AVENUE_WIDTH; // mesma largura da Av. X = 0: a rampa encaixa 100% na rua
   const halfW = totalW * 0.5;
   const botGroundY = getUrbanCityReliefY(0, zBot);
 
@@ -1324,7 +1328,7 @@ export function buildViaductsAndNaturalRelief(world) {
     clearanceTarget: 12.4,
     startGroundY: getUrbanCityReliefY(-465, -382),
     endGroundY: getUrbanCityReliefY(465, -382),
-    deckWidth: 16.0,
+    deckWidth: AVENUE_WIDTH, // mesma largura da avenida embaixo: a rampa encaixa 100% na rua
     blockedPillarCoords: [-384, -252, -120, 0, 120, 252, 384],
     gantries: [
       { c: -318, text: 'ELEVADO METROPOLITANO', sub: 'ALTO COMERCIAL • PONTE LESTE' },
@@ -1346,7 +1350,7 @@ export function buildViaductsAndNaturalRelief(world) {
     clearanceTarget: 12.4,
     startGroundY: getUrbanCityReliefY(252, -84),
     endGroundY: getUrbanCityReliefY(252, 520),
-    deckWidth: 16.0,
+    deckWidth: AVENUE_WIDTH, // mesma largura da avenida embaixo: a rampa encaixa 100% na rua
     blockedPillarCoords: [0, 134, 187, 268, 349, 402],
     gantries: [
       { c: 65, text: 'VIADUTO PANORÂMICO LAGO', sub: 'PARQUE CENTRAL • PRAIA SUL' },
@@ -1366,7 +1370,7 @@ export function buildViaductsAndNaturalRelief(world) {
     clearanceTarget: 12.4,
     startGroundY: 0.28,
     endGroundY: getUrbanCityReliefY(-466, 0),
-    deckWidth: 16.0,
+    deckWidth: AVENUE_WIDTH, // mesma largura da avenida embaixo: a rampa encaixa 100% na rua
     blockedPillarCoords: [-1020, -516],
     gantries: [
       { c: -890, text: 'EXPRESSO AEROPORTO • CENTRO', sub: 'CORREDOR CIDADE DE DEUS' },
