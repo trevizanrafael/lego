@@ -7,9 +7,9 @@
 import * as THREE from 'three';
 
 export const PROFILE_CONFIG = {
-  minClearance: 9.0,   // Vão livre mínimo entre o fundo da viga e o chão (m)
+  minClearance: 16.0,  // Vão livre mínimo entre o fundo da viga e o chão sobre a rua (m) — ~4 ônibus
   structureDepth: 2.39, // Topo do trilho até o fundo da viga do pórtico (1.09 tabuleiro + 1.3 viga)
-  lateralReach: 16,    // Mede o chão até esta distância para cada lado do trilho (pista + calçadas)
+  lateralReach: 26,    // Mede o chão até esta distância para cada lado do trilho (todo o asfalto + calçadas)
   maxGrade: 0.04,      // Inclinação máxima das rampas criadas (4%)
   elevatedBaseY: 12,   // Pontos com altura de projeto >= isto fazem parte da linha elevada
   sampleStep: 4,       // Densidade dos pontos do perfil (m)
@@ -36,6 +36,8 @@ export function densifyClosedPolyline(points, step) {
  * Ajusta a altura dos pontos da linha elevada para respeitar o vão livre sobre o chão.
  * @param points   polilinha fechada (já com as curvas suavizadas)
  * @param getGroundY(x, z)
+ * @param config.isStreet(x, z) -> true se o ponto é rua; só exige vão livre onde a linha passa sobre rua
+ *        (sem isso, exige em toda a linha elevada)
  * @param stations lista de estações `{ kind, trackPos: {x, z} }`
  * @returns nova polilinha densa
  */
@@ -64,10 +66,14 @@ export function adjustMetroVerticalProfile(points, getGroundY, stations = [], co
     tx /= tl;
     tz /= tl;
     let gMax = -Infinity;
+    let overStreet = !cfg.isStreet;
     for (let o = -cfg.lateralReach; o <= cfg.lateralReach; o += 2) {
-      gMax = Math.max(gMax, getGroundY(pts[i].x - tz * o, pts[i].z + tx * o));
+      const sx = pts[i].x - tz * o;
+      const sz = pts[i].z + tx * o;
+      gMax = Math.max(gMax, getGroundY(sx, sz));
+      if (!overStreet && Math.abs(o) <= 16 && cfg.isStreet(sx, sz)) overStreet = true;
     }
-    req[i] = Math.max(0, gMax) + cfg.minClearance + cfg.structureDepth;
+    if (overStreet) req[i] = Math.max(0, gMax) + cfg.minClearance + cfg.structureDepth;
   }
 
   // 2) Trechos planos das estações elevadas
@@ -125,6 +131,38 @@ export function adjustMetroVerticalProfile(points, getGroundY, stations = [], co
     limitGrade();
   }
   flattenStations();
+
+  // 4) Rampas dos portais (saída do túnel acima do chão): sobem em linha reta até a nova altura da linha,
+  //    sem degrau na junção com o trecho elevado
+  const isRamp = (i) => !elevated[i] && baseY[i] >= -0.01;
+  for (let i = 0; i < n; i++) {
+    if (!isRamp(i) || isRamp((i - 1 + n) % n)) continue; // início de um trecho de rampa
+    const run = [];
+    let j = i;
+    while (isRamp(j) && run.length < n) {
+      run.push(j);
+      j = (j + 1) % n;
+    }
+    const before = (i - 1 + n) % n;
+    const after = j;
+    const fromElev = elevated[before];
+    const toElev = elevated[after];
+    if (fromElev === toElev) continue;
+    // Distâncias acumuladas ao longo do trecho (incluindo a junção com a linha elevada)
+    const chain = toElev ? [...run, after] : [before, ...run];
+    const acc = [0];
+    for (let k = 1; k < chain.length; k++) acc.push(acc[k - 1] + ds[chain[k - 1]]);
+    const total = acc[acc.length - 1] || 1;
+    if (toElev) {
+      const y0 = y[run[0]];
+      const y1 = y[after];
+      for (let k = 0; k < run.length; k++) y[run[k]] = y0 + (y1 - y0) * (acc[k] / total);
+    } else {
+      const y0 = y[before];
+      const y1 = y[run[run.length - 1]];
+      for (let k = 1; k < chain.length; k++) y[chain[k]] = y0 + (y1 - y0) * (acc[k] / total);
+    }
+  }
 
   for (let i = 0; i < n; i++) pts[i].y = y[i];
   return pts;
