@@ -904,6 +904,10 @@ export class TestBlockWorld {
   update(dt, playerPos = null, controller = null) {
     if (this.metroSystem) {
       this.metroSystem.update(dt, playerPos);
+      // Herói sentado no vagão acompanha o trem no mesmo quadro (sem atraso de 1 frame).
+      if (controller?.activeRide?.type === 'metro') {
+        controller._applyRideSeatAndCamera?.(0);
+      }
     }
     if (this.customsRuntime) {
       this.customsRuntime.update(dt);
