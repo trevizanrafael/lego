@@ -1,6 +1,7 @@
 // Leito dos trilhos, rampas dos portais e estrutura elevada.
 import * as THREE from 'three';
 import { planElevatedSupports, SUPPORT_CONFIG } from './MetroSupportPlanner.js';
+import { makeFootingLookup, isBuildingAt } from '../StreetPortalPlanner.js';
 
 // ============================================================================
 // 6. TRILHOS CONTÍNUOS, LINHA ELEVADA (`Y = +14.2m`) & 3 ESTAÇÕES ELEVADAS GRANDES
@@ -166,51 +167,8 @@ function isSpotBlocked(world, x, z, half, minY = -Infinity, maxY = Infinity) {
   return false;
 }
 
-/**
- * Consulta rápida (grade de 32m): o ponto está em chão que NÃO é rua?
- * Calçadas dos quarteirões (`world.mapSidewalks`) e blocos não-viários do mapa (`world.mapBlocks`:
- * calçadão da praia, praças, parques, quadras). O resto da base da ilha é asfalto = rua.
- */
-export function makeSidewalkLookup(world) {
-  const cell = 32;
-  const grid = new Map();
-  const rects = [
-    ...(world.mapSidewalks || []),
-    ...(world.mapBlocks || []).map((b) => ({
-      minX: b.x - b.w * 0.5,
-      maxX: b.x + b.w * 0.5,
-      minZ: b.z - b.d * 0.5,
-      maxZ: b.z + b.d * 0.5
-    }))
-  ];
-  for (const r of rects) {
-    for (let gx = Math.floor(r.minX / cell); gx <= Math.floor(r.maxX / cell); gx++) {
-      for (let gz = Math.floor(r.minZ / cell); gz <= Math.floor(r.maxZ / cell); gz++) {
-        const k = `${gx},${gz}`;
-        if (!grid.has(k)) grid.set(k, []);
-        grid.get(k).push(r);
-      }
-    }
-  }
-  return (x, z) => {
-    const list = grid.get(`${Math.floor(x / cell)},${Math.floor(z / cell)}`);
-    if (!list) return false;
-    for (const r of list) if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
-    return false;
-  };
-}
-
-/** Prédio (collider grande que nasce no chão) no ponto: fim da varredura lateral do asfalto. */
-function isBuildingAt(world, x, z) {
-  const cols = world.getCollidersNear ? world.getCollidersNear(x, z, 0.5) : world.colliders || [];
-  for (const col of cols) {
-    if (col.disabled) continue;
-    if ((col.minY ?? 0) > 2.0 || col.maxY < 3.0) continue;
-    if ((col.maxX - col.minX) * (col.maxZ - col.minZ) < 9) continue; // postes, árvores, placas não contam
-    if (x >= col.minX && x <= col.maxX && z >= col.minZ && z <= col.maxZ) return true;
-  }
-  return false;
-}
+/** Chão que não é rua (calçada, calçadão, praça, parque) — ver `StreetPortalPlanner.makeFootingLookup`. */
+export const makeSidewalkLookup = (world) => makeFootingLookup(world);
 
 export function buildElevatedSupports(world, batcher, spline) {
   const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
