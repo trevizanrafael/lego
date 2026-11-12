@@ -383,6 +383,39 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     metro._syncTrainCarsTransform(train, true);
   });
 
+  it('5c. Linha elevada sem pilar na pista: pórticos nas calçadas e vãos máximos controlados', async () => {
+    const { isInsideAnyRoad, SUPPORT_CONFIG } = await import('../src/world/metro/MetroSupportPlanner.js');
+    const bents = world.metroSupports;
+    assert.ok(Array.isArray(bents) && bents.length >= 100, `Apoios suficientes na linha elevada (${bents?.length})`);
+    assert.ok(bents.filter((b) => b.kind === 'portal').length >= 100, 'Maioria dos apoios é pórtico sobre a rua');
+
+    for (const b of bents) {
+      for (const c of b.cols) {
+        assert.ok(
+          !isInsideAnyRoad(world.mapRoads, c.x, c.z, SUPPORT_CONFIG.colHalf),
+          `Pilar em (${c.x.toFixed(1)}, ${c.z.toFixed(1)}) não pode ficar dentro de pista`
+        );
+        assert.ok(b.beamY - SUPPORT_CONFIG.beamH * 0.5 > c.groundY + 3, 'Pilar com altura real até a viga');
+      }
+      if (b.kind === 'portal') {
+        // A viga do pórtico passa por baixo do tabuleiro: vão livre para carros/caminhões embaixo
+        assert.ok(b.beamY - SUPPORT_CONFIG.beamH * 0.5 > 8, `Viga alta o suficiente (y=${b.beamY.toFixed(1)})`);
+      }
+    }
+
+    // Nenhum vão gigante sem apoio na linha elevada
+    let maxGap = 0;
+    for (let i = 1; i < bents.length; i++) maxGap = Math.max(maxGap, bents[i].s - bents[i - 1].s);
+    const elevStart = bents[0].s;
+    assert.ok(elevStart >= 0 && maxGap <= 85, `Maior vão entre apoios ${maxGap.toFixed(1)}m`);
+
+    // As 3 estações elevadas têm apoio por baixo da plataforma
+    for (const st of world.metroSystem.stations.filter((x) => x.kind === 'elevated')) {
+      const under = bents.filter((b) => Math.abs(b.s - st.stopS) <= 31);
+      assert.ok(under.length >= 2, `Estação ${st.code} apoiada por ${under.length} pórticos`);
+    }
+  });
+
   it('6. SignBoardHelper gera placas com proporção real (aspect = W/H) e array de 6 materiais sem esticar bordas', () => {
     const wideSign = createSignBoardMesh({
       width: 20.0,

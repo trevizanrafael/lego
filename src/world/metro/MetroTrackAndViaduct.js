@@ -1,5 +1,6 @@
 // Leito dos trilhos, rampas dos portais e estrutura elevada.
 import * as THREE from 'three';
+import { planElevatedSupports, SUPPORT_CONFIG } from './MetroSupportPlanner.js';
 
 // ============================================================================
 // 6. TRILHOS CONTÍNUOS, LINHA ELEVADA (`Y = +14.2m`) & 3 ESTAÇÕES ELEVADAS GRANDES
@@ -10,9 +11,6 @@ export function buildTrackBedAndElevatedManhattanStructure(world, batcher, splin
   const posA = new THREE.Vector3();
   const posB = new THREE.Vector3();
   const tan = new THREE.Vector3();
-
-  const crossAvenuesX = [-516, -384, -252, -120, 0, 120, 252, 384, 516];
-  const crossAvenuesZ = [-250, -117, 0, 134, 402, 556, 710];
 
   for (let i = 0; i < count; i++) {
     const s0 = i * step;
@@ -93,23 +91,77 @@ export function buildTrackBedAndElevatedManhattanStructure(world, batcher, splin
         );
       }
 
-      if (my >= 8.0 && i % 6 === 0) {
-        const mostlyAlongZ = Math.abs(dz) > Math.abs(dx);
-        const hitsCrossRoad = mostlyAlongZ
-          ? crossAvenuesZ.some((cz) => Math.abs(mz - cz) < 15.0)
-          : crossAvenuesX.some((cx) => Math.abs(mx - cx) < 15.0);
-
-        if (!hitsCrossRoad) {
-          const groundY = world.getTerrainHeightAt ? Math.max(0, world.getTerrainHeightAt(mx, mz)) : 0;
-          const topColY = my - 1.02;
-          const colH = topColY - groundY;
-          if (colH > 3.0) {
-            batcher.addOrientedBox('ny_truss_green', 7.6, 0.95, 1.2, mx, topColY - 0.35, mz, 0, rotY, 0);
-            batcher.addBox('ny_truss_charcoal', 1.65, colH + 2.0, 1.65, mx, groundY + colH * 0.5 - 1.0, mz);
-            world.addCollider(mx, mz, 1.7, 1.7, topColY, groundY);
-          }
-        }
-      }
     }
   }
+}
+
+// ============================================================================
+// APOIOS DA LINHA ELEVADA: PÓRTICOS NAS CALÇADAS + PILAR ÚNICO FORA DAS RUAS
+// (posições decididas em `MetroSupportPlanner.js` — nenhum pilar em pista de carro)
+// ============================================================================
+function isDeckInRange(world, x, z, half, minY, maxY) {
+  const r = half + 0.3;
+  // Escadas, rampas e passarelas (decks) com altura entre `minY` e `maxY` no local
+  for (const deck of world.elevatedDecks || []) {
+    if (x + r <= deck.minX || x - r >= deck.maxX || z + r <= deck.minZ || z - r >= deck.maxZ) continue;
+    const cx = THREE.MathUtils.clamp(x, deck.minX, deck.maxX);
+    const cz = THREE.MathUtils.clamp(z, deck.minZ, deck.maxZ);
+    const dy = deck.getDeckY ? deck.getDeckY(cx, cz) : 0;
+    if (dy === null || dy === undefined) continue;
+    if (dy >= minY && dy <= maxY) return true;
+  }
+  return false;
+}
+
+function isSpotBlocked(world, x, z, half, minY = -Infinity, maxY = Infinity) {
+  if (isDeckInRange(world, x, z, half, minY, maxY)) return true;
+  const r = half + 0.3;
+  const cols = world.getCollidersNear ? world.getCollidersNear(x, z, r + 1) : world.colliders || [];
+  for (const col of cols) {
+    if (col.disabled) continue;
+    if ((col.minY ?? 0) > 6.0 || col.maxY < 0.8) continue; // ignora coisas no alto (ex.: tabuleiros) e pisos
+    if (x + r > col.minX && x - r < col.maxX && z + r > col.minZ && z - r < col.maxZ) return true;
+  }
+  return false;
+}
+
+export function buildElevatedSupports(world, batcher, spline) {
+  const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
+  const bents = planElevatedSupports(spline, roads, {
+    isBlocked: (x, z, half, minY, maxY) => isSpotBlocked(world, x, z, half, minY, maxY),
+    isDeckInRange: (x, z, half, minY, maxY) => isDeckInRange(world, x, z, half, minY, maxY),
+    getGroundY: (x, z) => (world.getTerrainHeightAt ? Math.max(0, world.getTerrainHeightAt(x, z)) : 0)
+  });
+
+  const colW = SUPPORT_CONFIG.colHalf * 2;
+  const beamH = SUPPORT_CONFIG.beamH;
+  for (const bent of bents) {
+    const beamBottom = bent.beamY - beamH * 0.5;
+    for (const c of bent.cols) {
+      const h = beamBottom - c.groundY;
+      batcher.addBox('ny_truss_charcoal', colW, h + 1.0, colW, c.x, c.groundY + h * 0.5 - 0.5, c.z);
+      // Base com faixa de segurança amarela/preta (visível para quem passa na calçada)
+      batcher.addBox('subway_stripe_gold', colW + 0.24, 0.9, colW + 0.24, c.x, c.groundY + 0.45, c.z);
+      batcher.addBox('tunnel_dark', colW + 0.26, 0.26, colW + 0.26, c.x, c.groundY + 0.98, c.z);
+      world.addCollider(c.x, c.z, colW + 0.1, colW + 0.1, beamBottom, c.groundY);
+    }
+
+    if (bent.kind === 'portal') {
+      const { x1, z1, x2, z2 } = bent.beam;
+      const len = Math.hypot(x2 - x1, z2 - z1) + colW;
+      const cx = (x1 + x2) * 0.5;
+      const cz = (z1 + z2) * 0.5;
+      const sx = bent.alongZ ? len : 1.6;
+      const sz = bent.alongZ ? 1.6 : len;
+      batcher.addBox('ny_truss_green', sx, beamH, sz, cx, bent.beamY, cz);
+      world.addCollider(cx, cz, sx, sz, bent.beamY + beamH * 0.5, beamBottom);
+    } else {
+      const c = bent.cols[0];
+      const sx = bent.alongZ ? 7.6 : 1.6;
+      const sz = bent.alongZ ? 1.6 : 7.6;
+      batcher.addBox('ny_truss_green', sx, beamH, sz, c.x, bent.beamY, c.z);
+    }
+  }
+  world.metroSupports = bents;
+  return bents;
 }
