@@ -5,7 +5,17 @@ import { planElevatedSupports, SUPPORT_CONFIG } from './MetroSupportPlanner.js';
 // ============================================================================
 // 6. TRILHOS CONTÍNUOS, LINHA ELEVADA (`Y = +14.2m`) & 3 ESTAÇÕES ELEVADAS GRANDES
 // ============================================================================
+const PARAPET_OFFSET = 3.6; // Eixo do guarda-corpo (coincide com a mureta com colisão do piso andável)
+const PARAPET_H = 1.0;
+const STATION_CLEAR = 34; // Sem guarda-corpo junto às plataformas (embarque)
+
 export function buildTrackBedAndElevatedManhattanStructure(world, batcher, spline) {
+  const isNearStation = (s) =>
+    (spline.stationStops || []).some((st) => {
+      let d = Math.abs(st.stopS - s);
+      d = Math.min(d, spline.totalLength - d);
+      return d < STATION_CLEAR;
+    });
   const step = 6.0;
   const count = Math.floor(spline.totalLength / step);
   const posA = new THREE.Vector3();
@@ -71,26 +81,57 @@ export function buildTrackBedAndElevatedManhattanStructure(world, batcher, splin
       }
     }
 
-    // 3) ESTRUTURA ELEVADA ESTILO MANHATTAN (`my >= 4.5m` até `+14.2m`)
+    // 3) VIADUTO FERROVIÁRIO ELEVADO (`my >= 4.5m`): laje de concreto LEGO + viga-caixão + friso amarelo,
+    //    lastro entre os trilhos e guarda-corpo de tijolos com pinos (fora das estações)
     if (my >= 4.5) {
-      batcher.addOrientedBox('ny_truss_green', 7.2, 1.05, segLen, mx, my - 0.56, mz, rotX, rotY, 0);
-      batcher.addOrientedBox('ny_truss_charcoal', 7.6, 0.26, segLen, mx, my - 0.06, mz, rotX, rotY, 0);
+      // Laje (topo em y-0.06) e viga-caixão (fundo em y-1.09, onde apoiam os pórticos)
+      batcher.addOrientedBox('viaduct_deck', 7.8, 0.3, segLen, mx, my - 0.21, mz, rotX, rotY, 0);
+      batcher.addOrientedBox('viaduct_girder', 5.4, 0.73, segLen, mx, my - 0.725, mz, rotX, rotY, 0);
+      batcher.addOrientedBox('track_ballast', 3.6, 0.08, segLen, mx, my - 0.02, mz, rotX, rotY, 0);
 
-      for (const gSide of [-3.55, 3.55]) {
+      for (const side of [-1, 1]) {
+        // Friso amarelo de segurança na face lateral da laje
         batcher.addOrientedBox(
-          'ny_truss_charcoal',
-          0.28,
-          0.92,
+          'subway_stripe_gold',
+          0.08,
+          0.14,
           segLen,
-          mx + perpX * gSide,
-          my + 0.46,
-          mz + perpZ * gSide,
+          mx + perpX * side * 3.93,
+          my - 0.2,
+          mz + perpZ * side * 3.93,
           rotX,
           rotY,
           0
         );
       }
 
+      if (!isNearStation((s0 + s1) * 0.5)) {
+        for (const side of [-1, 1]) {
+          const off = side * PARAPET_OFFSET;
+          batcher.addOrientedBox(
+            'viaduct_deck',
+            0.36,
+            PARAPET_H,
+            segLen,
+            mx + perpX * off,
+            my - 0.06 + PARAPET_H * 0.5,
+            mz + perpZ * off,
+            rotX,
+            rotY,
+            0
+          );
+          // Pinos LEGO amarelos no topo do guarda-corpo (1 por metro)
+          const studs = Math.max(1, Math.round(horizLen));
+          for (let k = 0; k < studs; k++) {
+            const t = (k + 0.5) / studs;
+            batcher.studPositions.push([
+              posA.x + dx * t + perpX * off,
+              posA.y + dy * t - 0.06 + PARAPET_H + 0.1,
+              posA.z + dz * t + perpZ * off
+            ]);
+          }
+        }
+      }
     }
   }
 }
@@ -191,7 +232,9 @@ export function buildElevatedSupports(world, batcher, spline) {
     const beamBottom = bent.beamY - beamH * 0.5;
     for (const c of bent.cols) {
       const h = beamBottom - c.groundY;
-      batcher.addBox('ny_truss_charcoal', colW, h + 1.0, colW, c.x, c.groundY + h * 0.5 - 0.5, c.z);
+      batcher.addBox('viaduct_deck', colW, h + 1.0, colW, c.x, c.groundY + h * 0.5 - 0.5, c.z);
+      // Capitel cinza-escuro sob a viga
+      batcher.addBox('viaduct_girder', colW + 0.5, 0.55, colW + 0.5, c.x, beamBottom - 0.27, c.z);
       // Base com faixa de segurança amarela/preta (visível para quem passa na calçada)
       batcher.addBox('subway_stripe_gold', colW + 0.24, 0.9, colW + 0.24, c.x, c.groundY + 0.45, c.z);
       batcher.addBox('tunnel_dark', colW + 0.26, 0.26, colW + 0.26, c.x, c.groundY + 0.98, c.z);
@@ -205,13 +248,25 @@ export function buildElevatedSupports(world, batcher, spline) {
       const cz = (z1 + z2) * 0.5;
       const sx = bent.alongZ ? len : 1.6;
       const sz = bent.alongZ ? 1.6 : len;
-      batcher.addBox('ny_truss_green', sx, beamH, sz, cx, bent.beamY, cz);
+      batcher.addBox('viaduct_girder', sx, beamH, sz, cx, bent.beamY, cz);
       world.addCollider(cx, cz, sx, sz, bent.beamY + beamH * 0.5, beamBottom);
     } else {
       const c = bent.cols[0];
       const sx = bent.alongZ ? 7.6 : 1.6;
       const sz = bent.alongZ ? 1.6 : 7.6;
-      batcher.addBox('ny_truss_green', sx, beamH, sz, c.x, bent.beamY, c.z);
+      batcher.addBox('viaduct_girder', sx, beamH, sz, c.x, bent.beamY, c.z);
+    }
+
+    // Junta de dilatação do tabuleiro sobre cada apoio (faixa preta no topo e nas faces laterais)
+    const jp = new THREE.Vector3();
+    const jt = new THREE.Vector3();
+    spline.sampleAtS(bent.s, jp, jt);
+    const jRotY = Math.atan2(jt.x, jt.z);
+    const jpx = Math.cos(jRotY);
+    const jpz = -Math.sin(jRotY);
+    batcher.addOrientedBox('joint_black', 7.0, 0.05, 0.22, jp.x, jp.y - 0.035, jp.z, 0, jRotY, 0);
+    for (const side of [-1, 1]) {
+      batcher.addOrientedBox('joint_black', 0.06, 1.04, 0.22, jp.x + jpx * side * 3.92, jp.y - 0.57, jp.z + jpz * side * 3.92, 0, jRotY, 0);
     }
   }
   world.metroSupports = bents;

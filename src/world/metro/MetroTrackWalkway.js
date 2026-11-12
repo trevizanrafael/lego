@@ -12,7 +12,7 @@ export const WALKWAY_CONFIG = {
   minY: 1.0,          // Só a partir desta altura do trilho (rampas dos portais já fora do chão)
   halfWidth: 3.4,     // Meia largura do piso andável (dentro das muretas)
   surfaceOffset: 0.18, // Topo dos dormentes acima do topo de referência do trilho
-  wallOffset: 3.55,   // Eixo das muretas laterais
+  wallOffset: 3.6,    // Eixo das muretas laterais (= guarda-corpo visual do viaduto)
   wallChunk: 24,      // Comprimento máximo de cada collider de mureta (m)
   stationClear: 34    // Sem mureta com colisão a esta distância (ao longo da linha) de uma estação
 };
@@ -138,7 +138,7 @@ export function buildTrackWalkway(world, spline, config = {}) {
         const wc = g.cross + side * cfg.wallOffset;
         const cx = alongZ ? wc : mid;
         const cz = alongZ ? mid : wc;
-        world.addCollider(cx, cz, alongZ ? 0.3 : len, alongZ ? len : 0.3, yMax + 1.1, yMin + 0.1);
+        world.addCollider(cx, cz, alongZ ? 0.36 : len, alongZ ? len : 0.36, yMax + 1.1, yMin + 0.1);
       }
       chunk = [];
     };

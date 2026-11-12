@@ -23,7 +23,12 @@ export function createMetroBatcher() {
     ny_entrance_green: getLegoMaterial(0x15803d, { roughness: 0.26, clearcoat: 0.45 }),
     fluorescent_white: new THREE.MeshBasicMaterial({ color: 0xffffff }),
     globe_emerald: new THREE.MeshBasicMaterial({ color: 0x4ade80 }),
-    safety_yellow_glow: new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+    safety_yellow_glow: new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+    // Viaduto ferroviário (Etapa 3): concreto LEGO cinza-claro, vigas cinza-escuro, lastro e juntas
+    viaduct_deck: getLegoMaterial(0xa0a5a9, { roughness: 0.3, clearcoat: 0.35 }),
+    viaduct_girder: getLegoMaterial(0x5a5f66, { roughness: 0.32, clearcoat: 0.3 }),
+    track_ballast: new THREE.MeshStandardMaterial({ color: 0x3f3f46, roughness: 0.85 }),
+    joint_black: getLegoMaterial(0x111214, { roughness: 0.4 })
   };
 
   const buckets = new Map();
@@ -56,7 +61,9 @@ export function createMetroBatcher() {
         'ny_truss_green',
         'ny_truss_charcoal',
         'ny_entrance_green',
-        'platform_floor'
+        'platform_floor',
+        'viaduct_deck',
+        'viaduct_girder'
       ]);
       for (const [key, geos] of buckets.entries()) {
         if (geos.length === 0) continue;
