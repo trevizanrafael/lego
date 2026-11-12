@@ -270,81 +270,117 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     ]);
     assert.ok(Math.abs(controller.position.y - 14.85) < 0.08, 'Plataforma Elevada da Estação 05 em +14.85m');
 
-    // (C) Embarque direto sem buraco (borda a 2.38m + overlap 0.28m): Subsolo (Estação 01) e Elevado (Estação 03 -> Viagem -> Desembarque na Estação 04)!
-    const train = world.metroSystem.trains[0];
-    const st01 = world.metroSystem.spline.stationStops[0];
-    train.s = st01.stopS;
-    train.state = 'STOPPED';
-    train.currentStation = st01;
-    train.stopTimer = 4.0;
-    world.metroSystem._setTrainDoors(train, 1.0, st01.doorSide);
-    world.metroSystem._syncTrainCarsTransform(train, true);
-
+    // (C) Embarque SENTADO com [E] (Estação 03) -> Viagem -> Desembarque na plataforma (Estação 04)
+    const metro = world.metroSystem;
+    const train = metro.trains[0];
     const car1 = train.cars[1];
-    const door1X = car1.pos.x + Math.sin(car1.rotY) * 2.85;
-    const minBoardY01 = simulateControllerWalk([
-      { x: door1X, y: -10.5, z: -111.5 },
-      { x: door1X, y: -10.5, z: -116.0 }
-    ]);
-    assert.ok(minBoardY01 >= -10.55, `Jogador NUNCA deve cair nos trilhos ao embarcar na Estação 01 (minY=${minBoardY01.toFixed(3)})`);
-    assert.equal(
-      world.metroSystem.findSupportingCarAt(controller.position.x, controller.position.z, controller.position.y)?.zone,
-      'interior'
-    );
+    const stopTrainAt = (st) => {
+      train.s = st.stopS;
+      train.state = 'STOPPED';
+      train.currentStation = st;
+      train.stopTimer = 4.0;
+      metro._setTrainDoors(train, 1.0, st.doorSide);
+      metro._syncTrainCarsTransform(train, true);
+    };
+    const toLocal = (car, p) => metro._worldToCarLocal(car, p.x, p.z);
 
-    // Embarca na Estação Elevada 03, viaja com o trem em movimento e desembarca caminhando na Estação 04!
-    const st03 = world.metroSystem.spline.stationStops[2];
-    train.s = st03.stopS;
-    train.state = 'STOPPED';
-    train.currentStation = st03;
-    train.stopTimer = 4.0;
-    world.metroSystem._setTrainDoors(train, 1.0, st03.doorSide);
-    world.metroSystem._syncTrainCarsTransform(train, true);
+    const st03 = metro.spline.stationStops[2];
+    stopTrainAt(st03);
+    const doorOut = metro._carLocalToWorld(car1, car1.halfW + 1.0, 2.85);
+    controller.activeRide = null;
+    controller.currentVehicle = null;
+    controller.position.set(doorOut.wx, 14.85, doorOut.wz);
+    assert.ok(metro.findBoardableCar(controller.position), 'Porta aberta ao alcance do [E] na plataforma');
 
-    const door3Z = car1.pos.z + Math.cos(car1.rotY) * 2.85;
-    const minBoardY03 = simulateControllerWalk([
-      { x: -384.2, y: 14.85, z: door3Z },
-      { x: -388.5, y: 14.85, z: door3Z }
-    ]);
-    assert.ok(minBoardY03 >= 14.8, `Jogador NUNCA deve cair nos trilhos ao embarcar na Estação Elevada 03 (minY=${minBoardY03.toFixed(3)})`);
-    assert.equal(
-      world.metroSystem.findSupportingCarAt(controller.position.x, controller.position.z, controller.position.y)?.zone,
-      'interior'
-    );
+    // Portas fechadas: não embarca e o vagão é sólido (não entra andando)
+    metro._setTrainDoors(train, 0, 'both');
+    assert.equal(metro.findBoardableCar(controller.position), null, 'Sem embarque com portas fechadas');
+    controller.position.set(doorOut.wx, 14.85, doorOut.wz);
+    controller.velocity.set(0, 0, 0);
+    for (let step = 0; step < 60; step++) {
+      const dx = car1.pos.x - controller.position.x;
+      const dz = car1.pos.z - controller.position.z;
+      const d = Math.hypot(dx, dz) || 1;
+      controller.velocity.x = (dx / d) * 7.5;
+      controller.velocity.z = (dz / d) * 7.5;
+      controller.velocity.y = Math.max(controller.velocity.y - 28 * 0.04, -18);
+      controller._moveAndCollide(0.04);
+    }
+    assert.ok(Math.abs(toLocal(car1, controller.position).lx) >= car1.halfW, 'Vagão é sólido: não entra andando');
+    assert.ok(controller.position.y >= 14.8, 'Continua na plataforma');
+    metro._setTrainDoors(train, 1.0, st03.doorSide);
+    controller.position.set(doorOut.wx, 14.85, doorOut.wz);
+    controller.velocity.set(0, 0, 0);
 
-    // Fecha portas, viaja e verifica transporte físico contínuo sem cair!
-    world.metroSystem._setTrainDoors(train, 0, 'both');
+    assert.equal(controller.toggleVehicleInteraction(), true);
+    assert.equal(controller.activeRide?.type, 'metro', 'Herói sentado no vagão');
+    controller.update(0.05);
+    const seatedLocal = toLocal(car1, controller.position);
+    assert.ok(Math.abs(seatedLocal.lx) < car1.halfW && Math.abs(seatedLocal.lz) < car1.halfL, 'Assento dentro do vagão');
+
+    // Viagem: o herói acompanha o vagão e [E] em movimento NÃO desembarca
+    metro._setTrainDoors(train, 0, 'both');
     train.state = 'MOVING';
     train.departCooldown = 3.5;
     train.stopTimer = 0;
     train.speed = 24.0;
     const beforeRide = controller.position.clone();
     for (let step = 0; step < 15; step++) {
-      world.update(0.05, controller.position, controller);
       controller.update(0.05);
-      assert.ok(controller.position.y >= 14.75, 'Jogador permanece firme dentro do vagão durante a viagem');
+      world.update(0.05, controller.position, controller);
+      const loc = toLocal(car1, controller.position);
+      assert.ok(Math.abs(loc.lx) < car1.halfW && Math.abs(loc.lz) < car1.halfL, 'Herói continua dentro do vagão em movimento');
+      assert.ok(Math.abs(controller.position.y - (car1.pos.y + car1.floorOffsetY + 0.3)) < 0.35, 'Herói na altura do banco');
+      const cam = toLocal(car1, camera.position);
+      assert.ok(Math.abs(cam.lx) <= car1.halfW && Math.abs(cam.lz) <= car1.halfL, 'Câmera fica dentro do vagão');
     }
     const rideDist = Math.hypot(controller.position.x - beforeRide.x, controller.position.z - beforeRide.z);
-    assert.ok(rideDist > 6.0, `Trem transportou fisicamente o jogador por ${rideDist.toFixed(2)}m`);
+    assert.ok(rideDist > 6.0, `Trem levou o herói por ${rideDist.toFixed(2)}m`);
+    controller.toggleVehicleInteraction();
+    assert.equal(controller.activeRide?.type, 'metro', '[E] com o trem andando não desembarca');
 
-    // Chega na Estação 04 (Praia Sul), abre portas e desembarca caminhando para a plataforma!
-    const st04 = world.metroSystem.spline.stationStops[3];
-    const prevCarPos = car1.pos.clone();
-    train.s = st04.stopS;
-    train.state = 'STOPPED';
-    train.currentStation = st04;
-    train.stopTimer = 4.0;
-    world.metroSystem._setTrainDoors(train, 1.0, st04.doorSide);
-    world.metroSystem._syncTrainCarsTransform(train, true);
-    const door4Z = car1.pos.z + Math.cos(car1.rotY) * 2.85;
-    controller.position.set(car1.pos.x, car1.pos.y + car1.floorOffsetY, door4Z);
-    assert.notEqual(prevCarPos.z, car1.pos.z);
-
-    const minAlightY04 = simulateControllerWalk([
-      { x: car1.pos.x, y: 14.85, z: door4Z },
-      { x: -118.0, y: 14.85, z: door4Z }
+    // Chega na Estação 04 e desembarca com [E] direto na plataforma (+14.85m), fora do vagão
+    const st04 = metro.spline.stationStops[3];
+    stopTrainAt(st04);
+    world.update(0.0, controller.position, controller);
+    controller.toggleVehicleInteraction();
+    assert.equal(controller.activeRide, null, 'Desembarcou');
+    assert.ok(Math.abs(controller.position.y - 14.85) < 0.05, `Desembarque na plataforma (y=${controller.position.y.toFixed(2)})`);
+    const outLocal = toLocal(car1, controller.position);
+    assert.ok(Math.abs(outLocal.lx) > car1.halfW, 'Desembarque fora do vagão, do lado da porta');
+    const minAfterExit = simulateControllerWalk([
+      { x: controller.position.x, y: controller.position.y, z: controller.position.z },
+      { x: controller.position.x, y: 14.85, z: controller.position.z + 4.0 }
     ]);
-    assert.ok(minAlightY04 >= 14.8, `Desembarque na Estação 04 sem cair nos trilhos (minY=${minAlightY04.toFixed(3)})`);
+    assert.ok(minAfterExit >= 14.8, `Anda na plataforma depois de desembarcar (minY=${minAfterExit.toFixed(3)})`);
+  });
+
+  it('5b. Metrô não "gruda" quem está na rua: teto só é apoio bem acima do chão e vagão é sólido', () => {
+    const metro = world.metroSystem;
+    const train = metro.trains[1];
+    const car = train.cars[1];
+    controller.activeRide = null;
+
+    // Teto do vagão quase na altura da rua (rampa do portal): não pode virar apoio de quem está no chão
+    car.pos.set(-82, -5.0, -150);
+    car.rotY = 0;
+    car.rotX = 0;
+    const roofY = car.pos.y + car.roofOffsetY;
+    assert.equal(metro.findSupportingCarAt(car.pos.x, car.pos.z, roofY, roofY - 0.2), null);
+
+    // Teto bem acima do chão: continua andável (heróis no teto do trem)
+    assert.equal(metro.findSupportingCarAt(car.pos.x, car.pos.z, roofY, roofY - 6.0)?.zone, 'roof');
+
+    // Piso interno não é mais apoio (sem andar dentro do vagão)
+    assert.equal(metro.findSupportingCarAt(car.pos.x, car.pos.z, car.pos.y + car.floorOffsetY, -Infinity), null);
+
+    // Colisão: quem encosta no vagão é empurrado para fora, mesmo com as portas abertas
+    car.leftOpenRatio = 1;
+    car.rightOpenRatio = 1;
+    const p = new THREE.Vector3(car.pos.x + car.halfW - 0.2, car.pos.y + 1.0, car.pos.z + 2.85);
+    metro.resolveHorizontalCarCollision(p, 0.45);
+    assert.ok(p.x - car.pos.x >= car.halfW + 0.44, 'Empurrado para fora pela lateral');
+    metro._syncTrainCarsTransform(train, true);
   });
 
   it('6. SignBoardHelper gera placas com proporção real (aspect = W/H) e array de 6 materiais sem esticar bordas', () => {

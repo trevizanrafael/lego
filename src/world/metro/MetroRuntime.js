@@ -7,7 +7,10 @@ import {
   worldToCarLocal,
   carLocalToWorld,
   findSupportingCarAt,
-  resolveHorizontalCarCollision
+  resolveHorizontalCarCollision,
+  findBoardableCar,
+  getMetroSeatTransform,
+  getMetroDisembarkPoint
 } from './MetroBoarding.js';
 
 export class MetroSystemRuntime {
@@ -244,12 +247,43 @@ export class MetroSystemRuntime {
     return carLocalToWorld(car, lx, lz);
   }
 
-  findSupportingCarAt(x, z, currentY) {
-    return findSupportingCarAt(this.trains, x, z, currentY);
+  findSupportingCarAt(x, z, currentY, groundY = -Infinity) {
+    return findSupportingCarAt(this.trains, x, z, currentY, groundY);
   }
 
   resolveHorizontalCarCollision(pos, playerRadius = 0.45) {
     resolveHorizontalCarCollision(this.trains, pos, playerRadius);
+  }
+
+  /** Vagão parado com porta aberta ao alcance do [E] (estado de viagem pronto para `activeRide`). */
+  findBoardableCar(pos) {
+    return findBoardableCar(this.trains, pos);
+  }
+
+  getRideSeatTransform(ride) {
+    return getMetroSeatTransform(ride);
+  }
+
+  getDisembarkPoint(ride) {
+    return getMetroDisembarkPoint(ride);
+  }
+
+  /** Próxima estação à frente do trem (a atual, se estiver parado). */
+  getNextStation(train) {
+    if (!train) return null;
+    if (train.state === 'STOPPED' && train.currentStation) return train.currentStation;
+    const totalLen = this.spline.totalLength;
+    let best = null;
+    let bestAhead = Infinity;
+    for (const st of this.stations) {
+      let ahead = st.stopS - train.s;
+      if (ahead <= 0.5) ahead += totalLen;
+      if (ahead < bestAhead) {
+        bestAhead = ahead;
+        best = st;
+      }
+    }
+    return best;
   }
 
   getLiveTrainMapMarkers() {

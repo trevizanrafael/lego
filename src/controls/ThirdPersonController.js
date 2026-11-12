@@ -2324,6 +2324,51 @@ export class ThirdPersonController {
     return null;
   }
 
+  /**
+   * Posiciona o herói no assento da atração/vagão do metrô e coloca a câmera em volta dele.
+   * Retorna true quando há assento ativo. Também é chamado pelo mundo logo após o trem andar,
+   * para o herói não ficar um quadro atrás do vagão.
+   */
+  _applyRideSeatAndCamera(dt) {
+    if (this.activeRide && (this.activeRide.type === 'metro' ? this.world?.metroSystem : this.world?.attractions)) {
+      const seat = this.activeRide.type === 'metro'
+        ? this.world.metroSystem.getRideSeatTransform(this.activeRide)
+        : this.world.attractions.getRideSeatTransform(this.activeRide);
+      if (seat) {
+        this.position.copy(seat.pos);
+        this.facingAngle = seat.yaw;
+        this.minifigure.root.position.copy(seat.pos);
+        if (seat.quat) {
+          this.minifigure.root.quaternion.copy(seat.quat);
+          // Transfere a inclinação (bank) real do trilho da Montanha-Russa para o vetor UP da câmera, mantendo visão 360° no mouse!
+          const trackUp = new THREE.Vector3(0, 1, 0).applyQuaternion(seat.quat).normalize();
+          this.camera.up.lerp(trackUp, Math.min(1, dt * 8));
+        } else {
+          this.camera.up.set(0, 1, 0);
+          this.minifigure.root.rotation.set(0, seat.yaw, 0);
+        }
+
+        const camDist = seat.camDist || 9.0;
+        const horiz = camDist * Math.cos(this.pitch);
+        const vert = camDist * Math.sin(this.pitch);
+        const shakeX = this.cameraShakeTimer > 0 ? (Math.random() - 0.5) * 0.45 : 0;
+        const shakeY = this.cameraShakeTimer > 0 ? (Math.random() - 0.5) * 0.45 : 0;
+        if (this.cameraShakeTimer > 0) this.cameraShakeTimer = Math.max(0, this.cameraShakeTimer - dt);
+
+        const targetFocus = new THREE.Vector3(seat.pos.x, seat.pos.y + 1.35, seat.pos.z);
+        this.camera.position.set(
+          targetFocus.x + Math.sin(this.yaw) * horiz + shakeX,
+          Math.max(1.2, targetFocus.y + vert + (seat.camHeight || 2.2) * 0.35 + shakeY),
+          targetFocus.z + Math.cos(this.yaw) * horiz
+        );
+        if (seat.clampCamera) seat.clampCamera(this.camera.position);
+        this.camera.lookAt(targetFocus);
+        return true;
+      }
+    }
+    return false;
+  }
+
   _findNearbyMetroTotem() {
     const totems = this.world?.metroTotems;
     if (!Array.isArray(totems)) return null;
@@ -2370,6 +2415,42 @@ export class ThirdPersonController {
     return true;
   }
 
+  /**
+   * Embarque SENTADO no Metrô LEGO: o herói senta no banco do vagão e é levado pelo trem
+   * até apertar [E] com o trem parado numa estação.
+   */
+  enterMetroRide(ride) {
+    if (!ride) return false;
+    this.minifigure?.stopEmote?.();
+    this._stopGrapple();
+    this.isFlying = false;
+    this.isSupersonic = false;
+    this.ridingMetroCar = null;
+    this.velocity.set(0, 0, 0);
+    this.currentSpeed = 0;
+    this.activeRide = ride;
+    if (this.minifigure?.setSeatedInVehicle) {
+      this.minifigure.setSeatedInVehicle(true, 0, true, false, 0);
+    }
+    if (typeof soundFX.playMetroDingDong === 'function') {
+      soundFX.playMetroDingDong(0.6);
+    } else {
+      soundFX.playStudCollect(600);
+    }
+    return true;
+  }
+
+  /** Desembarca na plataforma se o trem estiver parado com as portas abertas; senão, continua sentado. */
+  exitMetroRide() {
+    const ride = this.activeRide;
+    if (!ride || ride.type !== 'metro') return false;
+    const exit = this.world?.metroSystem?.getDisembarkPoint?.(ride);
+    if (!exit) return false;
+    this.activeRide = { ...ride, exitPos: exit.pos };
+    this.facingAngle = exit.yaw;
+    return this.exitAmusementRide();
+  }
+
   exitAmusementRide() {
     if (!this.activeRide) return false;
     const ex = this.activeRide.exitPos;
@@ -2395,6 +2476,11 @@ export class ThirdPersonController {
 
   toggleVehicleInteraction() {
     if (this.activeRide) {
+      if (this.activeRide.type === 'metro') {
+        // Em movimento o [E] é ignorado: só desembarca parado na estação.
+        this.exitMetroRide();
+        return true;
+      }
       return this.exitAmusementRide();
     }
     const customsHit = this._findNearbyLegoCustoms();
@@ -2424,6 +2510,10 @@ export class ThirdPersonController {
     const attrHit = this.world?.attractions?.findNearbyAttraction(this.position);
     if (attrHit) {
       return this.enterAmusementRide(attrHit);
+    }
+    const metroRide = this.world?.metroSystem?.findBoardableCar?.(this.position);
+    if (metroRide) {
+      return this.enterMetroRide(metroRide);
     }
     const car = this.findNearbyVehicle();
     if (car) {
@@ -2678,7 +2768,16 @@ export class ThirdPersonController {
     if (!this.vehiclePromptEl || !this.vehiclePromptTextEl) return;
 
     if (this.activeRide) {
-      this.vehiclePromptTextEl.textContent = 'SAIR DA ATRAÇÃO';
+      if (this.activeRide.type === 'metro') {
+        const metro = this.world?.metroSystem;
+        const exit = metro?.getDisembarkPoint?.(this.activeRide);
+        const next = metro?.getNextStation?.(this.activeRide.train);
+        this.vehiclePromptTextEl.textContent = exit
+          ? `DESEMBARCAR — ${exit.stationName}`
+          : `PRÓXIMA ESTAÇÃO: ${next?.shortName || 'METRÔ'}`;
+      } else {
+        this.vehiclePromptTextEl.textContent = 'SAIR DA ATRAÇÃO';
+      }
       this.vehiclePromptEl.classList.remove('hidden');
       return;
     }
@@ -2712,6 +2811,15 @@ export class ThirdPersonController {
     const attrHit = this.world?.attractions?.findNearbyAttraction(this.position);
     if (attrHit) {
       this.vehiclePromptTextEl.textContent = attrHit.label;
+      this.vehiclePromptEl.classList.remove('hidden');
+      return;
+    }
+
+    const metroRide = this.world?.metroSystem?.findBoardableCar?.(this.position);
+    if (metroRide) {
+      const next = this.world.metroSystem.getNextStation?.(metroRide.train);
+      this.vehiclePromptTextEl.textContent = 'EMBARCAR NO METRÔ';
+      if (next) this.vehiclePromptTextEl.textContent = `EMBARCAR NO METRÔ (PARADO EM ${next.shortName})`;
       this.vehiclePromptEl.classList.remove('hidden');
       return;
     }
@@ -3315,7 +3423,7 @@ export class ThirdPersonController {
       : (this.world?.getSurfaceHeightAt
         ? this.world.getSurfaceHeightAt(x, z, currentY)
         : (this.world?.getTerrainHeightAt?.(x, z) ?? 0));
-    const metroHit = this.world?.metroSystem?.findSupportingCarAt?.(x, z, currentY);
+    const metroHit = this.world?.metroSystem?.findSupportingCarAt?.(x, z, currentY, supportY);
     if (metroHit && metroHit.supportY > supportY) {
       supportY = metroHit.supportY;
     }
@@ -3805,39 +3913,9 @@ export class ThirdPersonController {
 
     this._updateVehiclePrompt();
 
-    // Se estiver embarcado em uma das 3 Atrações do Mega Píer (Montanha-Russa, Roda-Gigante 73m ou Big Drop 58m)!
-    if (this.activeRide && this.world?.attractions) {
-      const seat = this.world.attractions.getRideSeatTransform(this.activeRide);
-      if (seat) {
-        this.position.copy(seat.pos);
-        this.facingAngle = seat.yaw;
-        this.minifigure.root.position.copy(seat.pos);
-        if (seat.quat) {
-          this.minifigure.root.quaternion.copy(seat.quat);
-          // Transfere a inclinação (bank) real do trilho da Montanha-Russa para o vetor UP da câmera, mantendo visão 360° no mouse!
-          const trackUp = new THREE.Vector3(0, 1, 0).applyQuaternion(seat.quat).normalize();
-          this.camera.up.lerp(trackUp, Math.min(1, dt * 8));
-        } else {
-          this.camera.up.set(0, 1, 0);
-          this.minifigure.root.rotation.set(0, seat.yaw, 0);
-        }
-
-        const camDist = seat.camDist || 9.0;
-        const horiz = camDist * Math.cos(this.pitch);
-        const vert = camDist * Math.sin(this.pitch);
-        const shakeX = this.cameraShakeTimer > 0 ? (Math.random() - 0.5) * 0.45 : 0;
-        const shakeY = this.cameraShakeTimer > 0 ? (Math.random() - 0.5) * 0.45 : 0;
-        if (this.cameraShakeTimer > 0) this.cameraShakeTimer = Math.max(0, this.cameraShakeTimer - dt);
-
-        const targetFocus = new THREE.Vector3(seat.pos.x, seat.pos.y + 1.35, seat.pos.z);
-        this.camera.position.set(
-          targetFocus.x + Math.sin(this.yaw) * horiz + shakeX,
-          Math.max(1.2, targetFocus.y + vert + (seat.camHeight || 2.2) * 0.35 + shakeY),
-          targetFocus.z + Math.cos(this.yaw) * horiz
-        );
-        this.camera.lookAt(targetFocus);
-        return;
-      }
+    // Se estiver embarcado numa Atração do Mega Píer ou sentado no Metrô LEGO, a posição vem do assento!
+    if (this._applyRideSeatAndCamera(dt)) {
+      return;
     }
 
     if (this.energyNetSlowTimer > 0) {
@@ -4589,7 +4667,8 @@ export class ThirdPersonController {
     const metroHit = this.world?.metroSystem?.findSupportingCarAt?.(
       this.position.x,
       this.position.z,
-      this.position.y
+      this.position.y,
+      supportY
     );
     if (metroHit && metroHit.supportY >= supportY - 0.02) {
       supportY = metroHit.supportY;
