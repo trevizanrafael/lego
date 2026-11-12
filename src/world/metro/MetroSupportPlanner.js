@@ -2,7 +2,9 @@
 //
 // Regra (Etapa 2 do remodel): NENHUM pilar dentro de pista de carro.
 //   - Trecho da linha que corre AO LONGO de uma rua/avenida -> PÓRTICO:
-//     um pilar em cada calçada (logo após o meio-fio) + viga atravessando a rua por cima.
+//     a partir do trilho varre TODO o asfalto para os dois lados até achar a calçada de verdade
+//     (a dos quarteirões, junto aos prédios); o pilar fica em cima dessa calçada e a viga atravessa
+//     a rua inteira por cima. Se encontrar prédio antes de calçada, não põe apoio ali.
 //   - Trecho fora de ruas (praças, quadras) -> pilar único sob o eixo do trilho.
 //   - Em cima de cruzamentos/ruas transversais -> nenhum apoio (vão livre).
 //   - Cada pilar também evita prédios/objetos já existentes.
@@ -16,7 +18,10 @@ export const SUPPORT_CONFIG = {
   minGap: 18,           // Distância mínima entre dois apoios aceitos (m)
   minTrackY: 4.5,       // Só a partir desta altura do trilho existe estrutura elevada com pilares
   colHalf: 0.7,         // Meia largura do pilar quadrado (1.4m)
-  curbOffsets: [1.5, 2.5, 3.5, 4.5, 6.0], // Centro do pilar a partir do meio-fio (tenta o mais perto primeiro)
+  scanStep: 0.5,        // Passo da varredura lateral do asfalto (m)
+  maxScan: 60,          // Distância lateral máxima procurando a calçada (m)
+  sidewalkInset: 0.35,  // Folga entre a borda da calçada (meio-fio) e a face do pilar
+  sidewalkSlide: 4.0,   // Quanto o pilar pode entrar na calçada procurando lugar livre (m)
   roadMargin: 0.25,     // Folga extra entre pilar e asfalto
   crossRoadMargin: 3.0, // Folga para considerar "em cima de rua transversal"
   minColumnH: 3.0,      // Abaixo disso não precisa de pilar
@@ -84,6 +89,8 @@ function onCrossRoad(roads, x, z, alongZ, margin) {
  * @param roads    `world.mapRoads`
  * @param opts.isBlocked(x, z, half, minY, maxY) -> true se há prédio/objeto no local, ou escada/passarela com altura em [minY, maxY]
  * @param opts.isDeckInRange(x, z, half, minY, maxY) -> true se há escada/passarela com altura em [minY, maxY] (checado ao longo da viga)
+ * @param opts.isSidewalk(x, z)      -> true se o ponto está em calçada de verdade (quarteirões)
+ * @param opts.isBuildingAt(x, z)    -> true se há prédio no ponto (fim da varredura lateral)
  * @param opts.getGroundY(x, z)      -> altura do chão
  * @returns lista de apoios: { kind: 'portal'|'single', s, trackY, beamY, cols: [{x, z, groundY}], beam: {x1,z1,x2,z2} }
  */
@@ -92,6 +99,8 @@ export function planElevatedSupports(spline, roads, opts = {}) {
   const isBlocked = opts.isBlocked || (() => false);
   const isDeckInRange = opts.isDeckInRange || (() => false);
   const getGroundY = opts.getGroundY || (() => 0);
+  const isSidewalk = opts.isSidewalk || (() => false);
+  const isBuildingAt = opts.isBuildingAt || (() => false);
   const pos = new THREE.Vector3();
   const tan = new THREE.Vector3();
   const tanA = new THREE.Vector3();
@@ -136,12 +145,34 @@ export function planElevatedSupports(spline, roads, opts = {}) {
     if (corridor) {
       kind = 'portal';
       cols = [];
-      // Cada pilar tenta ficar logo após o meio-fio; se a calçada estiver ocupada (escada, banca...), afasta mais
-      for (const [edge, dir] of [[corridor.lo, -1], [corridor.hi, 1]]) {
+      const cross0 = alongZ ? x : z;
+      const pt = (c) => (alongZ ? { x: c, z } : { x, z: c });
+      const footOnSidewalk = (c) => {
+        const h = cfg.colHalf;
+        const corners = alongZ
+          ? [[c - h, z - h], [c + h, z - h], [c - h, z + h], [c + h, z + h], [c, z]]
+          : [[x - h, c - h], [x + h, c - h], [x - h, c + h], [x + h, c + h], [x, c]];
+        return corners.every(([px, pz]) => isSidewalk(px, pz) && !isInsideAnyRoad(roads, px, pz, cfg.roadMargin));
+      };
+      for (const dir of [-1, 1]) {
+        // 1) Varre o asfalto até a calçada de verdade (prédio antes = sem apoio aqui)
+        let curb = null;
+        for (let d = cfg.scanStep; d <= cfg.maxScan; d += cfg.scanStep) {
+          const c = cross0 + dir * d;
+          const p = pt(c);
+          if (isSidewalk(p.x, p.z) && !isInsideAnyRoad(roads, p.x, p.z, 0)) {
+            curb = c;
+            break;
+          }
+          if (isBuildingAt(p.x, p.z)) break;
+        }
+        if (curb === null) return null;
+        // 2) Pilar inteiro em cima da calçada, livre de objetos/escadas
         let placed = null;
-        for (const off of cfg.curbOffsets) {
-          const cross = edge + dir * off;
-          const c = alongZ ? { x: cross, z } : { x, z: cross };
+        for (let k = cfg.colHalf + cfg.sidewalkInset; k <= cfg.colHalf + cfg.sidewalkInset + cfg.sidewalkSlide; k += 0.25) {
+          const cc = curb + dir * k;
+          if (!footOnSidewalk(cc)) continue;
+          const c = pt(cc);
           if (fits(c)) {
             placed = c;
             break;

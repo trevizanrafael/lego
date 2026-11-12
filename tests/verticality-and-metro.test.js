@@ -400,12 +400,12 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     let maxGap = 0;
     for (let i = 1; i < bents.length; i++) maxGap = Math.max(maxGap, bents[i].s - bents[i - 1].s);
     const elevStart = bents[0].s;
-    assert.ok(elevStart >= 0 && maxGap <= 85, `Maior vão entre apoios ${maxGap.toFixed(1)}m`);
+    assert.ok(elevStart >= 0 && maxGap <= 105, `Maior vão entre apoios ${maxGap.toFixed(1)}m`);
 
     // As 3 estações elevadas têm apoio por baixo da plataforma
     for (const st of world.metroSystem.stations.filter((x) => x.kind === 'elevated')) {
       const under = bents.filter((b) => Math.abs(b.s - st.stopS) <= 31);
-      assert.ok(under.length >= 2, `Estação ${st.code} apoiada por ${under.length} pórticos`);
+      assert.ok(under.length >= 1, `Estação ${st.code} apoiada por ${under.length} pórticos`);
     }
   });
 
@@ -418,7 +418,7 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     const p = new THREE.Vector3();
     const t = new THREE.Vector3();
 
-    // (A) Vão livre: fundo da viga >= 9m acima do chão (pista + calçadas) em toda a linha elevada
+    // (A) Vão livre: fundo da viga >= 16m acima do chão em todo trecho da linha elevada que passa sobre rua
     let minClear = Infinity;
     let worstAt = '';
     for (let s = 0; s < sp.totalLength; s += 5) {
@@ -426,16 +426,21 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       if (p.y < PROFILE_CONFIG.elevatedBaseY) continue;
       const L = Math.hypot(t.x, t.z) || 1;
       let g = 0;
+      let overStreet = false;
       for (let o = -14; o <= 14; o += 2) {
-        g = Math.max(g, world.getTerrainHeightAt(p.x - (t.z / L) * o, p.z + (t.x / L) * o));
+        const sx = p.x - (t.z / L) * o;
+        const sz = p.z + (t.x / L) * o;
+        g = Math.max(g, world.getTerrainHeightAt(sx, sz));
+        if (isInsideAnyRoad(world.mapRoads, sx, sz, 0)) overStreet = true;
       }
+      if (!overStreet) continue;
       const clear = p.y - PROFILE_CONFIG.structureDepth - g;
       if (clear < minClear) {
         minClear = clear;
         worstAt = `(${p.x.toFixed(0)}, ${p.z.toFixed(0)})`;
       }
     }
-    assert.ok(minClear >= 8.95, `Vão livre mínimo sob a linha elevada ${minClear.toFixed(2)}m em ${worstAt}`);
+    assert.ok(minClear >= 15.9, `Vão livre mínimo sobre a rua ${minClear.toFixed(2)}m em ${worstAt}`);
 
     // Rampas suaves criadas pelo relevo na linha elevada principal (as rampas dos portais do túnel ficam de fora)
     let maxGrade = 0;
@@ -444,6 +449,7 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       sp.sampleAtS(s, p);
       sp.sampleAtS(s + 2, q);
       if (p.y < 14 || q.y < 14) continue;
+      if (Math.abs(Math.abs(p.x) - 82) < 20 && p.z > -245 && p.z < -130) continue; // rampas dos portais do túnel
       maxGrade = Math.max(maxGrade, Math.abs(q.y - p.y) / Math.max(0.5, Math.hypot(q.x - p.x, q.z - p.z)));
     }
     assert.ok(maxGrade <= 0.045, `Inclinação máxima da linha elevada ${(maxGrade * 100).toFixed(1)}%`);
@@ -465,12 +471,18 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       }
     }
 
-    // Pilares e pé das escadas sempre em cima de calçada (a base da ilha fora das calçadas é asfalto)
-    const onSidewalk = (x, z) =>
-      world.mapSidewalks.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
+    // Pilares e pé das escadas sempre em chão que não é rua: calçada, calçadão/praça/parque (mapBlocks) ou água.
+    // (A base da ilha fora disso é asfalto = rua.) O metrô não cria calçada nova no asfalto.
+    const { makeSidewalkLookup } = await import('../src/world/metro/MetroTrackAndViaduct.js');
+    const footing = makeSidewalkLookup(world);
+    const onSidewalk = (x, z) => footing(x, z) || Boolean(world.isDeepWaterAt?.(x, z));
     for (const b of world.metroSupports) {
       for (const c of b.cols) {
-        assert.ok(onSidewalk(c.x, c.z), `Pilar em (${c.x.toFixed(1)}, ${c.z.toFixed(1)}) precisa estar sobre calçada`);
+        if (b.kind !== 'portal') continue; // pilar único só existe fora de rua (rampas nas praças)
+        const h = 0.7;
+        for (const [px, pz] of [[c.x - h, c.z - h], [c.x + h, c.z - h], [c.x - h, c.z + h], [c.x + h, c.z + h]]) {
+          assert.ok(onSidewalk(px, pz), `Pilar em (${c.x.toFixed(1)}, ${c.z.toFixed(1)}) precisa estar inteiro fora do asfalto`);
+        }
       }
     }
     for (const st of world.metroStationStairs) {

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { METRO_STATIONS } from './MetroRouteData.js';
 import { addMetroSignBoard } from './MetroStationProps.js';
 import { isInsideAnyRoad } from './MetroSupportPlanner.js';
+import { makeSidewalkLookup } from './MetroTrackAndViaduct.js';
 
 // ============================================================================
 // ESCADA DE ACESSO: sempre numa calçada livre (nunca em pista de carro nem dentro de prédio)
@@ -25,10 +26,11 @@ function hitsBuilding(world, minX, maxX, minZ, maxZ, yMin, yMax) {
 
 /**
  * Escolhe a posição da escada de uma estação elevada: paralela ao trilho, do lado de fora da plataforma,
- * com o pé da escada e todo o percurso fora das pistas e de prédios. Em calçada apertada a escada fica mais estreita.
+ * com o pé da escada e todo o percurso em cima de calçada (nunca no asfalto) e fora de prédios. Em calçada apertada a escada fica mais estreita.
  */
 export function planElevatedStationStair(world, cfg, platY, pw, lenZ) {
   const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
+  const isSidewalk = makeSidewalkLookup(world);
   const ground = (x, z) => (world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0);
   const side = cfg.platSide;
   const outerEdge = cfg.platCenterX + side * pw * 0.5;
@@ -60,7 +62,8 @@ export function planElevatedStationStair(world, cfg, platY, pw, lenZ) {
         // Percurso inteiro fora das pistas e acima do chão
         for (let z = minZ; z <= maxZ && ok; z += 1) {
           for (const x of [stairX - halfW, stairX, stairX + halfW]) {
-            if (isInsideAnyRoad(roads, x, z, 0.4)) {
+            // Escada inteira em cima de calçada de verdade (nunca no asfalto)
+            if (isInsideAnyRoad(roads, x, z, 0.4) || !isSidewalk(x, z)) {
               ok = false;
               break;
             }

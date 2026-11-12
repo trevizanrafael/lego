@@ -46,7 +46,12 @@ export function buildClosedMetroLoopSpline(world = null) {
   }
 
   if (world?.getTerrainHeightAt) {
-    smoothPts = adjustMetroVerticalProfile(smoothPts, (x, z) => world.getTerrainHeightAt(x, z), METRO_STATIONS);
+    const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
+    const isStreet = (x, z) =>
+      roads.some((r) => Math.abs(x - r.x) <= r.w * 0.5 && Math.abs(z - r.z) <= r.d * 0.5);
+    smoothPts = adjustMetroVerticalProfile(smoothPts, (x, z) => world.getTerrainHeightAt(x, z), METRO_STATIONS, {
+      isStreet
+    });
   }
 
   const cumLengths = [0];
