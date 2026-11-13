@@ -1,6 +1,6 @@
 # 🏦⚔️ Plano — Mega Assalto ao Super Banco & Guerra de Território 2.0
 
-> Status: **PROPOSTA — aguardando aprovação do usuário** (nada foi programado ainda).
+> Status: **IMPLEMENTADO — aguardando teste do usuário na tela.** Veja a seção 7 para o que mudou em relação à proposta.
 > Segue `AGENTS.md`, `IDV.md` e o Passo 8 do `PASSO_A_PASSO.md`.
 
 ---
@@ -144,3 +144,40 @@ O que vale copiar (mecânicas, não visual nem nomes):
 3. **Frequência padrão** do contra-ataque: a cada ~8 min, ~12 min ou ~20 min?
 4. **Reféns civis** no saguão: pode ter, ou prefere sem?
 5. **Chefe Mestre do Cofre jogável** já nesta leva, ou fica para o Passo 8 completo?
+
+---
+
+## 7. ✅ O que foi implementado (e decisões tomadas)
+
+### Visual dos soldados (adendo do usuário)
+- Novo `src/entities/FactionSoldierBuilder.js`: cada facção tem kit próprio por classe (fuzileiro, pesado com escudo, médico, especialista e chefão), mais o BOPE aliado.
+  - **CV:** regata com "CV", corrente de ouro, boné virado, bandana, calça camuflada, AK. O pesado usa capacete de moto e uma **porta de carro como escudo**. O especialista leva **RPG**.
+  - **PCC:** balaclava, colete com "PCC", headset, submetralhadora. O pesado tem capacete SWAT e escudo balístico. O especialista é **demolidor de C4**.
+  - **A.R.E.S.:** capacete cyber com viseira neon, ombreiras, rifle laser. O pesado é um exo-esqueleto com reator e escudo de energia. O especialista é **operador de drone**.
+  - **BOPE:** boina preta, caveira no peito e escudo com faixa amarela.
+- Corrigido: o **tronco dos soldados não aparecia** (material múltiplo numa geometria fundida sem grupos) e os rostos estavam nas costas da cabeça.
+
+### Invasão em sequência (A1–A3)
+- Ordem P1 → P2 → P3 → Pátio do Chefe, com anel LEGO de captura no chão e estado contestado.
+- Relógio de 4:00, com +1:30 por posto. Se zerar, ou se você cair, a invasão falha e os postos voltam ao dono.
+- Defensores recuam para o próximo ponto. Os reforços chegam no ponto ativo.
+- Especialistas: o RPG do CV causa dano em área, o C4 do PCC corre até você e explode, e o drone da A.R.E.S. dispara rajadas.
+
+### Contra-Ataque (A4)
+- **Decisão (pergunta 2):** se você não aparecer, a guarnição luta sozinha. A chance de segurar cresce com o nível dela (35% no nível 0, até 89% no nível 3).
+- **Decisão (pergunta 3):** primeiro contra-ataque 10 min depois da conquista e os seguintes a cada 12 min. Configurável em `COUNTER_ATTACK_RULES`.
+- **Simplificação:** perder a defesa devolve o **território inteiro**, em vez de 1 posto por vez. A regra fica mais fácil de entender: retome com uma nova invasão.
+
+### Mega Assalto (B1–B5)
+- **Decisão (pergunta 1):** quem assalta é sempre uma facção **rival** sua. É o PCC por padrão, ou o CV se você for do PCC. O BOPE chega para ajudar você.
+- **Decisão (pergunta 4):** tem reféns civis, em versão leve estilo LEGO. Basta encostar neles para libertar.
+- **Decisão (pergunta 5):** o chefe é só luta por enquanto. Deixá-lo jogável fica para o Passo 8 completo.
+- Bloco Dourado: novo contador salvo no slot, mostrado em faixa na tela.
+- Os presos aparecem em fila no Pátio de Banho de Sol da Ilha da Prisão e também são salvos.
+
+### Para testar rápido (console do navegador)
+```js
+const fw = __legoGame.world.livingCity.factionWar;
+fw.debugBankHeist();        // começa o Mega Assalto agora
+fw.debugCounterAttack();    // contra-ataque no 1º território conquistado
+```
