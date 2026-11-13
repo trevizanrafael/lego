@@ -114,6 +114,8 @@ describe('🏦 MEGA ASSALTO AO SUPER BANCO CENTRAL', () => {
     assert.equal(heist.state, 'IDLE', 'Assalto impedido');
     assert.equal(hud.goldenBricks, 1, 'Bloco Dourado ganho');
     assert.ok((world.prisonIslandData?.prisonersInCellsCount ?? 0) > prisonBefore, 'Bandidos vão para a Ilha da Prisão');
+    assert.ok(world.prisonRoster.total > 0 && world.prisonRoster.meshes.length > 0, 'Presos aparecem no pátio da prisão');
+    assert.ok(fw.getTerritoryMeta()._prisoners.pcc > 0, 'Presos vão para o save');
     assert.equal(fw.activeMode, 'PEACEFUL_CITY');
     assert.equal(livingCity.combatNpcs.length, 0, 'Tropas recolhidas no fim');
   });

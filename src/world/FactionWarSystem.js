@@ -16,6 +16,7 @@ import { buildFactionSquad } from './events/WaveDirector.js';
 import { ObjectiveHud } from '../ui/ObjectiveHud.js';
 import { TerritoryCounterAttack } from './events/TerritoryCounterAttack.js';
 import { BankHeistEvent, BANK_LAYOUT } from './events/BankHeistEvent.js';
+import { PrisonRoster } from './events/PrisonRoster.js';
 
 // Temas extras (não são territórios): polícia aliada no Mega Assalto
 const EXTRA_THEMES = {
@@ -984,6 +985,7 @@ export class FactionWarSystem {
     this._lastController = null;
     this.counterAttack = new TerritoryCounterAttack(this);
     this.bankHeist = new BankHeistEvent(this);
+    if (!this.world.prisonRoster) this.world.prisonRoster = new PrisonRoster(this.scene);
     this._bankZoneState = {
       id: 'bank',
       spec: {
@@ -1065,7 +1067,7 @@ export class FactionWarSystem {
 
   /** Dados extras do território para o save (nível da guarnição e tempo até o próximo contra-ataque) */
   getTerritoryMeta() {
-    const meta = {};
+    const meta = { _prisoners: this.world.prisonRoster?.exportState?.() || null };
     for (const [k, st] of Object.entries(this.territories)) {
       if (!st.conqueredByPlayer) continue;
       meta[k] = {
@@ -1078,6 +1080,7 @@ export class FactionWarSystem {
 
   applyTerritoryMeta(meta = null) {
     if (!meta || typeof meta !== 'object') return;
+    if (meta._prisoners) this.world.prisonRoster?.importState?.(meta._prisoners);
     for (const [k, m] of Object.entries(meta)) {
       const st = this.territories[k];
       if (!st || !st.conqueredByPlayer || !m) continue;
