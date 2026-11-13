@@ -107,6 +107,13 @@ class Batcher {
     this._push(key, g);
   }
 
+  torus(key, R, tube, x, y, z, rotX = 0, seg = 40) {
+    const g = new THREE.TorusGeometry(R, tube, 10, seg);
+    if (rotX) g.rotateX(rotX);
+    g.translate(x, y, z);
+    this._push(key, g);
+  }
+
   cone(key, r, h, x, y, z, seg = 4) {
     const g = new THREE.ConeGeometry(r, h, seg);
     if (seg === 4) g.rotateY(Math.PI / 4);
@@ -499,7 +506,7 @@ function buildFloorsRampsAndElevator(world, B) {
   });
 
   // Teto do 4º andar (laje da cobertura)
-  B.box('cream', W, 1.2, D, 0, S.roofY - 0.6, midZ);
+  B.box('cream', W, 0.7, D, 0, S.roofY - 0.85, midZ);
   for (let lx = -56; lx <= 56; lx += 16) {
     for (let lz = -150; lz >= -218; lz -= 17) B.box('lightPanel', 5.5, 0.12, 2.4, lx, S.roofY - 1.26, lz);
   }
@@ -803,12 +810,16 @@ function buildVaultFloor(world, B) {
   const hw = S.vaultDoorHalfW;
   const wallH = S.roofY - fy - 1.2;
 
-  // Piso nobre com faixas douradas
-  for (let i = 0; i < 8; i++) B.box('gold', 132, 0.04, 0.4, 0, fy + 0.03, -146 - i * 7.6);
+  // Piso nobre de mármore com faixas douradas
+  B.box('marble', S.innerMaxX - S.innerMinX - 12, 0.05, 58, 6, fy + 0.03, -175.5);
+  for (let i = 0; i < 8; i++) B.box('gold', 120, 0.04, 0.4, 6, fy + 0.07, -150 - i * 7.6);
+  B.box('velvet', 10, 0.05, 52, 0, fy + 0.08, -178);
   // Parede blindada do cofre com abertura circular no centro
-  B.box('steelDark', S.innerMaxX - hw, wallH, 2.8, (S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
-  B.box('steelDark', S.innerMaxX - hw, wallH, 2.8, -(S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
-  B.box('steelDark', hw * 2, wallH - 10.6, 2.8, 0, fy + 10.6 + (wallH - 10.6) / 2, vz);
+  B.box('steel', S.innerMaxX - hw, wallH, 2.8, (S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
+  B.box('steel', S.innerMaxX - hw, wallH, 2.8, -(S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
+  B.box('steel', hw * 2, wallH - 10.6, 2.8, 0, fy + 10.6 + (wallH - 10.6) / 2, vz);
+  B.box('gold', S.innerMaxX * 2, 0.5, 3.0, 0, fy + wallH - 0.4, vz);
+  B.box('gold', S.innerMaxX * 2, 0.5, 3.0, 0, fy + 0.3, vz);
   world.addCollider((S.innerMaxX + hw) / 2, vz, S.innerMaxX - hw, 2.8, fy + wallH, fy);
   world.addCollider(-(S.innerMaxX + hw) / 2, vz, S.innerMaxX - hw, 2.8, fy + wallH, fy);
   world.addCollider(0, vz, hw * 2, 2.8, fy + wallH, fy + 10.6);
@@ -817,9 +828,9 @@ function buildVaultFloor(world, B) {
     if (Math.abs(x) < hw + 2) continue;
     B.box('chrome', 0.5, wallH - 1, 0.3, x, fy + wallH / 2, vz + 1.5);
   }
-  // Moldura circular da porta
-  B.cyl('chrome', 6.6, 6.6, 0.8, 0, fy + 5.6, vz + 1.6, 40, Math.PI / 2);
-  B.cyl('steelDark', 5.6, 5.6, 0.85, 0, fy + 5.6, vz + 1.65, 40, Math.PI / 2);
+  // Moldura circular da porta (anel cromado + anel dourado)
+  B.torus('chrome', 6.1, 0.55, 0, fy + 5.6, vz + 1.5);
+  B.torus('gold', 6.75, 0.22, 0, fy + 5.6, vz + 1.55);
   // Grades de laser na frente do cofre (só visual)
   for (const ly of [1.0, 2.2, 3.4]) {
     B.cyl('laser', 0.05, 0.05, 30, 0, fy + ly, vz + 7, 6, 0, Math.PI / 2);
