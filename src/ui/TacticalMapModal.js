@@ -30,8 +30,8 @@ function getInteractiveRegionsList(world) {
     num: 'BNC',
     name: 'SUPER BANCO CENTRAL (INTERIOR)',
     shortName: 'SUPER BANCO (INTERIOR)',
-    sub: 'Saguao Monumental de Marmore & Porta do Cofre',
-    bounds: { minX: -65, maxX: 65, minZ: -235, maxZ: -120, minY: 0, maxY: 45 },
+    sub: '4 Andares: Saguao, Escritorios, Seguranca e Cofre',
+    bounds: { minX: -76, maxX: 76, minZ: -235, maxZ: -120, minY: 0, maxY: 45 },
     spawn: { x: 0, y: 0.4, z: -150 },
     color: '#facc15',
     icon: 'bank'

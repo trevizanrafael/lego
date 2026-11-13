@@ -512,7 +512,7 @@ export class LivingCityManager {
         const hd = (bld.d || 0) * 0.5;
         if (hw < 1.5 || hd < 1.5) continue;
         // O interior térreo do Super Banco Central é aberto, e Estações Elevadas / Mirante não bloqueiam o térreo!
-        if (Math.abs(bld.x) < 56 && bld.z > -230 && bld.z < -128) continue;
+        if (Math.abs(bld.x) < 76 && bld.z > -231 && bld.z < -128) continue;
         if (bld.label && (bld.label.startsWith('METRÔ') || bld.label.startsWith('MIRANTE'))) continue;
         boxes.push({
           minX: bld.x - hw,

@@ -805,8 +805,7 @@ export function buildStreetProps(world) {
   // --------------------------------------------------------------------------
   const atmSpots = [
     // Centro Financeiro & Super Banco arredores
-    [-32, -133.5, 0], [32, -133.5, 0],
-    [-58, -133.5, 0], [58, -133.5, 0],
+    // (os 4 caixas da calçada do Super Banco foram para dentro do saguão)
     [-85, -100.5, Math.PI], [85, -100.5, Math.PI],
     [-185, -133.5, 0], [185, -133.5, 0],
     [-185, -266.5, 0], [185, -266.5, 0],

@@ -37,6 +37,20 @@ export const SOLDIER_CLASS_INFO = {
     special: 'DEMOLIDOR C4',
     boss: 'BLINDADO SUPREMO Z-15'
   },
+  guard: {
+    rifleman: 'SEGURANÇA DO BANCO',
+    tank: 'SEGURANÇA DE ESCOPETA',
+    medic: 'BRIGADISTA',
+    special: 'SEGURANÇA',
+    boss: 'CHEFE DA SEGURANÇA'
+  },
+  pf: {
+    rifleman: 'AGENTE FEDERAL',
+    tank: 'ESCUDEIRO FEDERAL',
+    medic: 'SOCORRISTA FEDERAL',
+    special: 'ATIRADOR FEDERAL',
+    boss: 'DELEGADO FEDERAL'
+  },
   bope: {
     rifleman: 'OPERADOR DO BOPE',
     tank: 'ESCUDEIRO DO BOPE',
@@ -68,6 +82,22 @@ const PALETTE = {
     dark: 0x0b1226,
     black: 0x0a0b0f,
     accent: 0x38bdf8,
+    metal: 0x1f2937,
+    skin: 0xfacc15
+  },
+  guard: {
+    main: 0xf1f5f9,
+    dark: 0x1f2937,
+    black: 0x111827,
+    accent: 0xfacc15,
+    metal: 0x2b2f36,
+    skin: 0xfacc15
+  },
+  pf: {
+    main: 0x0f1d3a,
+    dark: 0x0b1226,
+    black: 0x0a0b0f,
+    accent: 0xfacc15,
     metal: 0x1f2937,
     skin: 0xfacc15
   },
@@ -315,6 +345,40 @@ function torsoDecalTexture(faction, role) {
 
     if (role === 'medic') {
       cross(faction === 'cv' ? '#dc2626' : faction === 'pcc' ? '#38bdf8' : faction === 'bope' ? '#facc15' : '#d946ef');
+      return;
+    }
+
+    if (faction === 'guard') {
+      // Colete preto "SEGURANÇA" sobre camisa branca + gravata
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(14, 40, 100, 74);
+      ctx.fillStyle = '#1e3a8a';
+      ctx.beginPath();
+      ctx.moveTo(58, 8);
+      ctx.lineTo(70, 8);
+      ctx.lineTo(68, 40);
+      ctx.lineTo(60, 40);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = 'bold 19px Teko, Impact, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#facc15';
+      ctx.fillText('SEGURANÇA', 64, 84);
+      ctx.fillRect(40, 96, 48, 4);
+      return;
+    }
+    if (faction === 'pf') {
+      // Colete tático "POLÍCIA FEDERAL" com PF grande em amarelo
+      ctx.fillStyle = '#0b1226';
+      ctx.fillRect(16, 14, 96, 100);
+      ctx.font = 'bold 50px Teko, Impact, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#facc15';
+      ctx.fillText('PF', 64, 70);
+      ctx.font = 'bold 14px Teko, Impact, sans-serif';
+      ctx.fillText('POLÍCIA FEDERAL', 64, 96);
+      ctx.fillStyle = '#1e293b';
+      for (let i = 0; i < 3; i++) ctx.fillRect(26 + i * 27, 100, 22, 12);
       return;
     }
 
@@ -669,6 +733,20 @@ function buildBlueprint(faction, role) {
     legMat = plastic(0x111827);
     faceKey = isMedic ? 'medic_calm' : isBoss ? 'boss_grin' : 'pcc_mask';
     weaponKind = isTank ? 'smg' : isMedic ? 'healgun' : isSpecial ? 'detonator' : isBoss ? 'minigun' : 'smg';
+  } else if (faction === 'guard') {
+    torsoHex = 0xf1f5f9;
+    sleeveHex = 0xf1f5f9;
+    hipHex = 0x111827;
+    legMat = plastic(0x111827);
+    faceKey = isMedic ? 'medic_calm' : 'default';
+    weaponKind = isTank ? 'shotgun' : isMedic ? 'healgun' : 'smg';
+  } else if (faction === 'pf') {
+    torsoHex = p.main;
+    sleeveHex = 0x111827;
+    hipHex = p.black;
+    legMat = plastic(0x1f2937);
+    faceKey = isMedic ? 'medic_calm' : 'default';
+    weaponKind = isMedic ? 'healgun' : isTank ? 'smg' : isBoss ? 'minigun' : 'ak';
   } else if (faction === 'bope') {
     torsoHex = p.main;
     sleeveHex = p.dark;
@@ -689,7 +767,9 @@ function buildBlueprint(faction, role) {
   const torsoMat = plastic(torsoHex);
   const sleeveMat = plastic(sleeveHex);
   const hipMat = plastic(hipHex);
-  const handMat = plastic(faction === 'ares' ? 0x1e293b : faction === 'pcc' || faction === 'bope' ? 0x111827 : 0xfacc15);
+  const handMat = plastic(
+    faction === 'ares' ? 0x1e293b : faction === 'pcc' || faction === 'bope' || faction === 'pf' ? 0x111827 : 0xfacc15
+  );
   const accentMat = plastic(p.accent);
   const mainMat = plastic(p.main);
   const blackMat = plastic(p.black);
@@ -775,6 +855,23 @@ function buildBlueprint(faction, role) {
       H.cyl(0.08, 0.08, 0.06, blackMat, [-0.3, 0.26, 0], [0, 0, Math.PI / 2], 10);
       H.cyl(0.08, 0.08, 0.06, blackMat, [0.3, 0.26, 0], [0, 0, Math.PI / 2], 10);
       H.box(0.03, 0.03, 0.2, blackMat, [0.3, 0.14, 0.12], [0.4, 0, 0]);
+    }
+  } else if (faction === 'guard') {
+    // Quepe azul-marinho de segurança com aba e distintivo dourado
+    H.cyl(0.3, 0.29, 0.16, plastic(0x1e3a8a), [0, headTopY + 0.0, 0], [0, 0, 0], 16);
+    H.box(0.38, 0.04, 0.22, blackMat, [0, headTopY - 0.07, 0.3]);
+    H.box(0.1, 0.1, 0.03, gold, [0, headTopY + 0.02, 0.3]);
+  } else if (faction === 'pf') {
+    if (isTank) {
+      H.sphere(0.34, blackMat, [0, 0.36, 0], [1, 0.85, 1], 16);
+      H.box(0.48, 0.16, 0.1, glass(0x0b0b0b, 0.7), [0, 0.32, 0.29]);
+      H.box(0.3, 0.08, 0.03, accentMat, [0, 0.52, 0.27]);
+    } else {
+      // Boné preto "PF" com óculos táticos
+      H.cyl(0.29, 0.29, 0.14, blackMat, [0, headTopY - 0.02, 0], [0, 0, 0], 16);
+      H.box(0.36, 0.04, 0.24, blackMat, [0, headTopY - 0.08, 0.3]);
+      H.box(0.18, 0.07, 0.03, accentMat, [0, headTopY - 0.0, 0.29]);
+      H.box(0.5, 0.08, 0.05, glass(0x0b0b0b, 0.8), [0, 0.32, 0.275]);
     }
   } else if (faction === 'bope') {
     if (isTank) {
@@ -918,6 +1015,10 @@ function buildBlueprint(faction, role) {
       O.box(0.4, 0.14, 0.11, glass(p.accent, 0.6), [0, 0.42, 0]);
       O.box(0.84, 0.08, 0.11, accentMat, [0, 0.12, 0]);
       O.box(0.84, 0.08, 0.11, accentMat, [0, -0.6, 0]);
+    } else if (faction === 'guard' || faction === 'pf') {
+      O.box(0.84, 1.3, 0.1, blackMat, [0, -0.05, 0]);
+      O.box(0.4, 0.14, 0.11, glass(0x93c5fd, 0.6), [0, 0.42, 0]);
+      O.box(0.84, 0.1, 0.11, accentMat, [0, 0.1, 0]);
     } else if (faction === 'bope') {
       O.box(0.84, 1.3, 0.1, blackMat, [0, -0.05, 0]);
       O.box(0.4, 0.14, 0.11, glass(0x93c5fd, 0.6), [0, 0.42, 0]);

@@ -1,1100 +1,1137 @@
 import * as THREE from 'three';
-import {
-  LEGO_COLORS,
-  getLegoMaterial,
-  createLegoBrick
-} from '../../materials/LegoMaterials.js';
-import {
-  mergeBufferGeometries,
-  makeTranslatedBox
-} from '../BuildingGenerator.js';
+import { LEGO_COLORS, getLegoMaterial, createLegoBrick } from '../../materials/LegoMaterials.js';
+import { mergeBufferGeometries } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 /**
- * SUPER BANCO CENTRAL MONUMENTAL (Quarteirão Nobre Exclusivo no Coração do Centro Financeiro)
- * - Localizado em X: 0, Z: -180 (frente voltada para a Grande Praça e Avenida Central Z = -117)
- * - Único prédio do jogo com interior 100% aberto sem tela de loading!
- * - Pé-direito altíssimo de 36 unidades livres (conforto total para câmera 3ª pessoa e voo interno)
- * - Exterior: Mármore Branco/Creme, Granito Escuro, Ouro Brilhante LEGO, Grande Escadaria Frontal,
- *   8 Colunas Clássicas Gigantes (base + capitel), 2 Estátuas Douradas LEGO nas pontas, Letreiro 3D
- *   "BANCO CENTRAL" em ouro, Terraço com Heliponto (H), Cofres de Ventilação e Claraboia de Vidro!
- * - Interior: Portas Duplas de Vidro/Ouro abertas, Piso de Mármore Quadriculado Reflexivo + Tapete Vermelho,
- *   2 Fileiras de Colunas Internas de Mármore quebráveis, Lustres Dourados no teto alto, Balcões de Atendimento
- *   com Guichês de Vidro, Computadores LEGO, Cadeiras de Espera, Divisórias de Cordão Vermelho, Corredor de
- *   Segurança com Grades, Feixes de Laser Vermelhos e Câmeras/Alarmes piscando!
- * - Cofre Forte no Fundo: Parede Blindada de Aço Escuro, Porta Circular Gigante com Volante Dourado e
- *   Engrenagens Grossas, Sala do Cofre com Prateleiras Metálicas, Barras de Ouro Brilhantes, Pilhas de
- *   Cédulas Verdes LEGO, Maletas Prateadas quebráveis, Caixas-Fortes nas paredes e dezenas de Studs
- *   Dourados, Azuis e Roxos!
+ * SUPER BANCO CENTRAL — TORRE DE 4 ANDARES (X: -74..+74, Z: -229..-136)
+ * ---------------------------------------------------------------------------
+ * Único prédio do jogo com interior aberto, agora em 4 andares ligados por
+ * RAMPAS largas (dá para subir de carro) e por um ELEVADOR [E]:
+ *   1º andar (Y 0.36)  — Grande Saguão de mármore, guichês, caixas eletrônicos
+ *   2º andar (Y 10.36) — Câmbio & Escritórios (mesas, computadores, sala de vidro)
+ *   3º andar (Y 20.36) — Centro de Segurança (parede de monitores, armários, servidores)
+ *   4º andar (Y 30.36) — COFRE: parede blindada, porta circular gigante e sala do ouro
+ *   Terraço  (Y 40.96) — Heliponto, claraboia em pirâmide, jardins, antena e torres douradas
+ * Rampas: R1 (oeste, 1º→2º), R2 (leste, 2º→3º), R3 (oeste, 3º→4º) — 9m de largura.
+ * As laterais (X = ±82) são ocupadas pela rampa do metrô, por isso as entradas
+ * ficam na FRENTE (3 portas, a central larga para carros) e no FUNDO (2 portas).
  */
+
+export const BANK_SPEC = {
+  x: 0,
+  minX: -74,
+  maxX: 74,
+  frontZ: -136, // face externa da fachada
+  backZ: -229,
+  innerMinX: -71,
+  innerMaxX: 71,
+  innerFrontZ: -139,
+  innerBackZ: -226,
+  floors: [0.36, 10.36, 20.36, 30.36],
+  floorHeight: 10,
+  roofY: 40.96,
+  wallTopY: 42.4,
+  ramps: [
+    // R1: 1º -> 2º (oeste), sobe indo para o fundo (-Z)
+    { id: 'R1', minX: -70.6, maxX: -61.4, zLow: -146, zHigh: -196, fromFloor: 0 },
+    // R2: 2º -> 3º (leste), sobe indo para a frente (+Z)
+    { id: 'R2', minX: 61.4, maxX: 70.6, zLow: -196, zHigh: -146, fromFloor: 1 },
+    // R3: 3º -> 4º (oeste)
+    { id: 'R3', minX: -70.6, maxX: -61.4, zLow: -146, zHigh: -196, fromFloor: 2 }
+  ],
+  elevator: { minX: 52, maxX: 60, minZ: -150, maxZ: -142, callX: 48.6, callZ: -146 },
+  vaultWallZ: -206,
+  vaultDoorHalfW: 6,
+  goldPile: { x: 0, z: -215 }
+};
+
+const FLOOR_T = 0.6;
+
+function rampY(ramp, z) {
+  const base = BANK_SPEC.floors[ramp.fromFloor];
+  const t = THREE.MathUtils.clamp((z - ramp.zLow) / (ramp.zHigh - ramp.zLow), 0, 1);
+  return base + t * BANK_SPEC.floorHeight;
+}
+
+/** Buracos nas lajes por onde as rampas chegam */
+function holeForFloor(floorIdx) {
+  // A laje do andar N tem buraco sobre a rampa que chega nela (fromFloor = N-1)
+  return BANK_SPEC.ramps.find((r) => r.fromFloor === floorIdx - 1) || null;
+}
+
+function insideRect(x, z, r, pad = 0) {
+  return x >= r.minX - pad && x <= r.maxX + pad && z >= Math.min(r.zLow, r.zHigh) - pad && z <= Math.max(r.zLow, r.zHigh) + pad;
+}
+
+// ----------------------------------------------------------------------------
+// Lote de geometria por material (poucas draw calls)
+// ----------------------------------------------------------------------------
+class Batcher {
+  constructor() {
+    this.mats = new Map();
+    this.geos = new Map();
+  }
+
+  mat(key, factory) {
+    if (!this.mats.has(key)) this.mats.set(key, factory());
+    return key;
+  }
+
+  _push(key, geo) {
+    if (!this.geos.has(key)) this.geos.set(key, []);
+    this.geos.get(key).push(geo);
+  }
+
+  box(key, w, h, d, x, y, z, rotY = 0, rotX = 0, rotZ = 0) {
+    const g = new THREE.BoxGeometry(w, h, d);
+    if (rotZ) g.rotateZ(rotZ);
+    if (rotX) g.rotateX(rotX);
+    if (rotY) g.rotateY(rotY);
+    g.translate(x, y, z);
+    this._push(key, g);
+  }
+
+  cyl(key, rt, rb, h, x, y, z, seg = 16, rotX = 0, rotZ = 0) {
+    const g = new THREE.CylinderGeometry(rt, rb, h, seg);
+    if (rotX) g.rotateX(rotX);
+    if (rotZ) g.rotateZ(rotZ);
+    g.translate(x, y, z);
+    this._push(key, g);
+  }
+
+  sphere(key, r, x, y, z, sy = 1, phiLen = Math.PI * 2, thetaLen = Math.PI) {
+    const g = new THREE.SphereGeometry(r, 18, 12, 0, phiLen, 0, thetaLen);
+    g.scale(1, sy, 1);
+    g.translate(x, y, z);
+    this._push(key, g);
+  }
+
+  cone(key, r, h, x, y, z, seg = 4) {
+    const g = new THREE.ConeGeometry(r, h, seg);
+    if (seg === 4) g.rotateY(Math.PI / 4);
+    g.translate(x, y, z);
+    this._push(key, g);
+  }
+
+  flush(scene, noShadowKeys = new Set()) {
+    for (const [key, list] of this.geos) {
+      if (!list.length) continue;
+      const merged = mergeBufferGeometries(list);
+      const mesh = new THREE.Mesh(merged, this.mats.get(key));
+      mesh.castShadow = !noShadowKeys.has(key);
+      mesh.receiveShadow = true;
+      mesh.name = `bank_${key}`;
+      scene.add(mesh);
+    }
+    this.geos.clear();
+  }
+}
+
 export function buildSuperBancoCentral(world) {
-  const bx = 0;
-  const bz = -180;
-  const bw = 98;
-  const bd = 88;
-  const wallH = 36.0; // Pé-direito altíssimo de 36 unidades livres (entre 32 e 42 un)!
-  const floorY = 0.36;
-  const roofBottomY = floorY + wallH; // 36.36m
-  const roofThickness = 2.8;
-  const roofTopY = roofBottomY + roofThickness; // 39.16m
+  const S = BANK_SPEC;
+  const B = new Batcher();
+  const scene = world.scene;
 
-  // Calçada Nobre do Quarteirão do Banco (X: -54..+54, Z: -229..-131)
-  world._addCityBlockSidewalk(bx, bz, 108, 98, LEGO_COLORS.sidewalk);
-
-  // Materiais nobres compartilhados
-  const marbleWhiteMat = getLegoMaterial(0xf8fafc, {
-    roughness: 0.12,
-    metalness: 0.06,
-    clearcoat: 0.88
-  });
-  const marbleCreamMat = getLegoMaterial(0xfef3c7, {
-    roughness: 0.18,
-    metalness: 0.05,
-    clearcoat: 0.72
-  });
-  const graniteDarkMat = getLegoMaterial(0x1e293b, {
-    roughness: 0.24,
-    metalness: 0.18,
-    clearcoat: 0.55
-  });
-  const steelVaultMat = getLegoMaterial(0x0f172a, {
-    roughness: 0.22,
-    metalness: 0.65,
-    clearcoat: 0.6
-  });
-  const silverMat = getLegoMaterial(LEGO_COLORS.silver, {
-    roughness: 0.16,
-    metalness: 0.78,
-    clearcoat: 0.85
-  });
-  const goldMat = getLegoMaterial(LEGO_COLORS.gold, {
-    roughness: 0.14,
-    metalness: 0.72,
-    clearcoat: 0.88,
-    emissive: 0xb45309,
-    emissiveIntensity: 0.18
-  });
-  const glassSkyMat = new THREE.MeshPhysicalMaterial({
-    color: 0xbae6fd,
-    roughness: 0.08,
-    metalness: 0.05,
-    transparent: true,
-    opacity: 0.42,
-    clearcoat: 0.9
-  });
-  const redVelvetMat = getLegoMaterial(0xb91c1c, { roughness: 0.45 });
-  const cashGreenMat = getLegoMaterial(0x16a34a, { roughness: 0.3 });
-
-  // ============================================================================
-  // 1. PISO DE MÁRMORE QUADRICULADO REFLEXIVO + TAPETE VERMELHO IMPERIAL
-  // ============================================================================
-  buildCheckeredMarbleFloorAndCarpet(world, bx, bz, bw, bd, floorY, marbleWhiteMat, marbleCreamMat, goldMat, redVelvetMat);
-
-  // ============================================================================
-  // 2. GRANDE ESCADARIA FRONTAL, 8 COLUNAS CLÁSSICAS GIGANTES & ESTÁTUAS DOURADAS
-  // ============================================================================
-  buildMonumentalExteriorAndFacade(
-    world,
-    bx,
-    bz,
-    bw,
-    bd,
-    wallH,
-    floorY,
-    marbleWhiteMat,
-    marbleCreamMat,
-    graniteDarkMat,
-    goldMat,
-    glassSkyMat,
-    redVelvetMat
+  // ---- Paleta de materiais
+  B.mat('marble', () => getLegoMaterial(0xf8fafc, { roughness: 0.12, metalness: 0.06, clearcoat: 0.88 }));
+  B.mat('cream', () => getLegoMaterial(0xfef3c7, { roughness: 0.18, metalness: 0.05, clearcoat: 0.72 }));
+  B.mat('granite', () => getLegoMaterial(0x1e293b, { roughness: 0.24, metalness: 0.18, clearcoat: 0.55 }));
+  B.mat('graniteBlack', () => getLegoMaterial(0x0b0f17, { roughness: 0.2, metalness: 0.25, clearcoat: 0.7 }));
+  B.mat('gold', () => getLegoMaterial(0xfacc15, { roughness: 0.16, metalness: 0.78, clearcoat: 0.7 }));
+  B.mat('steel', () => getLegoMaterial(0x334155, { roughness: 0.28, metalness: 0.65 }));
+  B.mat('steelDark', () => getLegoMaterial(0x0f172a, { roughness: 0.25, metalness: 0.7 }));
+  B.mat('chrome', () => getLegoMaterial(0xcbd5e1, { roughness: 0.12, metalness: 0.85 }));
+  B.mat('velvet', () => getLegoMaterial(0xb91c1c, { roughness: 0.55, clearcoat: 0.2 }));
+  B.mat('carpetBlue', () => getLegoMaterial(0x1e3a8a, { roughness: 0.6, clearcoat: 0.1 }));
+  B.mat('wood', () => getLegoMaterial(0x7c4a1e, { roughness: 0.4 }));
+  B.mat('black', () => getLegoMaterial(0x111827, { roughness: 0.3 }));
+  B.mat('white', () => getLegoMaterial(0xf1f5f9, { roughness: 0.3 }));
+  B.mat('plant', () => getLegoMaterial(0x16a34a, { roughness: 0.4 }));
+  B.mat('pot', () => getLegoMaterial(0x92400e, { roughness: 0.45 }));
+  B.mat('cash', () => getLegoMaterial(0x22c55e, { roughness: 0.5 }));
+  B.mat('concrete', () => getLegoMaterial(0x64748b, { roughness: 0.5 }));
+  B.mat('yellowLine', () => getLegoMaterial(0xfacc15, { roughness: 0.4 }));
+  B.mat('glass', () =>
+    new THREE.MeshPhysicalMaterial({
+      color: 0x7dd3fc,
+      roughness: 0.05,
+      metalness: 0.2,
+      clearcoat: 1,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false
+    })
   );
-
-  // ============================================================================
-  // 3. TETO COM CLARABOIA DE VIDRO (OLHANDO PRO SAGUÃO), HELIPONTO (H) E VENTILAÇÃO
-  // ============================================================================
-  buildRoofSkylightHelipadAndHvac(
-    world,
-    bx,
-    bz,
-    bw,
-    bd,
-    roofBottomY,
-    roofThickness,
-    roofTopY,
-    graniteDarkMat,
-    goldMat,
-    silverMat,
-    glassSkyMat
+  B.mat('windowGlass', () =>
+    getLegoMaterial(0x1d4ed8, { roughness: 0.06, metalness: 0.55, clearcoat: 1 })
   );
+  B.mat('lightPanel', () => new THREE.MeshBasicMaterial({ color: 0xfff7d6 }));
+  B.mat('screen', () => new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+  B.mat('screenGreen', () => new THREE.MeshBasicMaterial({ color: 0x4ade80 }));
+  B.mat('ledRed', () => new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+  B.mat('laser', () => new THREE.MeshBasicMaterial({ color: 0xff1f1f, transparent: true, opacity: 0.75 }));
 
-  // ============================================================================
-  // 4. SAGUÃO INTERNO: COLUNAS QUEBRÁVEIS, LUSTRES, ATENDIMENTO & LASERS DE SEGURANÇA
-  // ============================================================================
-  buildGrandLobbyInteriorAndSecurity(
-    world,
-    bx,
-    bz,
-    wallH,
-    floorY,
-    roofBottomY,
-    marbleWhiteMat,
-    marbleCreamMat,
-    graniteDarkMat,
-    goldMat,
-    silverMat,
-    glassSkyMat,
-    redVelvetMat
-  );
+  const noShadow = new Set(['glass', 'lightPanel', 'screen', 'screenGreen', 'ledRed', 'laser']);
 
-  // ============================================================================
-  // 5. COFRE FORTE GIGANTE NO FUNDO: PORTA CIRCULAR + SALA DE OURO, NOTAS E STUDS!
-  // ============================================================================
-  buildGiantVaultDoorAndTreasureRoom(
-    world,
-    bx,
-    bz,
-    bw,
-    wallH,
-    floorY,
-    steelVaultMat,
-    silverMat,
-    goldMat,
-    cashGreenMat
-  );
+  // Calçada nobre ao redor (até as praças do metrô em X = ±77)
+  world._addCityBlockSidewalk(S.x, (S.frontZ + S.backZ) / 2 + 1, 152, 100, LEGO_COLORS.sidewalk);
 
-  // Registra metadados para inspeção e testes automatizados
+  buildExteriorShell(world, B);
+  buildFloorsRampsAndElevator(world, B);
+  buildGroundLobby(world, B);
+  buildOfficeFloor(world, B);
+  buildSecurityFloor(world, B);
+  const vault = buildVaultFloor(world, B);
+  buildRooftop(world, B);
+
+  B.flush(scene, noShadow);
+
+  const gates = buildRampGates(world);
+  const elevator = createBankElevator(world);
+
+  // Registra o banco no Mapa 2D [M] e Radar (1 entrada só — as paredes não aparecem soltas)
+  world.mapBuildings.push({
+    x: S.x,
+    z: (S.frontZ + S.backZ) / 2,
+    w: S.maxX - S.minX,
+    d: S.frontZ - S.backZ,
+    height: S.wallTopY + 6,
+    styleKey: 'black_granite_gold',
+    color: '#facc15',
+    label: 'BANCO CENTRAL'
+  });
+
+  world.bankElevator = elevator;
   world.superBankData = {
-    x: bx,
-    z: bz,
-    width: bw,
-    depth: bd,
-    interiorHeight: wallH,
-    roofTopY,
+    x: S.x,
+    z: (S.frontZ + S.backZ) / 2,
+    width: S.maxX - S.minX,
+    depth: S.frontZ - S.backZ,
+    floorsCount: 4,
+    floors: [...S.floors],
+    interiorHeight: S.roofY - S.floors[0],
+    roofTopY: S.roofY,
     frontColumnsCount: 8,
     goldenStatuesCount: 2,
     hasSkylight: true,
-    hasRooftopHelipad: true
+    hasRooftopHelipad: true,
+    rampsCount: S.ramps.length,
+    hasElevator: true,
+    vaultFloor: 3,
+    vaultDoor: vault.vaultDoor,
+    goldPile: { x: S.goldPile.x, y: S.floors[3], z: S.goldPile.z },
+    gates,
+    setGateOpen(idx, open) {
+      const g = gates[idx];
+      if (!g) return;
+      g.open = open;
+      g.collider.disabled = open;
+    },
+    setAllGates(open) {
+      gates.forEach((g, i) => this.setGateOpen(i, open));
+    },
+    isInside(x, y, z) {
+      return x > S.innerMinX && x < S.innerMaxX && z < S.innerFrontZ && z > S.innerBackZ && y < S.roofY - 0.5;
+    },
+    floorAt(y) {
+      let idx = 0;
+      for (let i = 0; i < S.floors.length; i++) if (y >= S.floors[i] - 1.5) idx = i;
+      return idx;
+    },
+    update(dt) {
+      for (const g of gates) {
+        const target = g.open ? g.floorY - 4.2 : g.floorY + 2.2;
+        g.mesh.position.y += (target - g.mesh.position.y) * Math.min(1, dt * 4);
+        g.mesh.visible = g.mesh.position.y > g.floorY - 4.0;
+      }
+      elevator.update(dt);
+    }
   };
 }
 
-/**
- * 1. PISO DE MÁRMORE QUADRICULADO REFLEXIVO + TAPETE VERMELHO CENTRAL
- */
-function buildCheckeredMarbleFloorAndCarpet(world, bx, bz, bw, bd, floorY, marbleWhiteMat, marbleCreamMat, goldMat, redVelvetMat) {
-  // Base principal de mármore branco polido
-  const baseFloor = new THREE.Mesh(new THREE.BoxGeometry(bw, floorY, bd), marbleWhiteMat);
-  baseFloor.position.set(bx, floorY * 0.5, bz);
-  baseFloor.receiveShadow = true;
-  world.scene.add(baseFloor);
+// ============================================================================
+// 1. CASCA EXTERNA: fachada clássica + torre de 4 andares
+// ============================================================================
+function buildExteriorShell(world, B) {
+  const S = BANK_SPEC;
+  const T = 3; // espessura das paredes
+  const top = S.wallTopY;
+  const fz = S.frontZ - T / 2; // centro da parede frontal (-137.5)
+  const bz = S.backZ + T / 2; // centro da parede de fundo (-227.5)
+  const sxW = S.minX + T / 2; // -72.5
+  const sxE = S.maxX - T / 2; // +72.5
+  const depth = S.frontZ - S.backZ;
+  const midZ = (S.frontZ + S.backZ) / 2;
+  const F = S.floors;
 
-  // Malha de ladrilhos quadriculados em mármore creme/dourado (mesclada em 1 único Mesh para 60 FPS!)
-  const tileGeos = [];
-  const tileSize = 6.0;
-  for (let tx = -42; tx <= 42; tx += tileSize) {
-    for (let tz = -216; tz <= -140; tz += tileSize) {
-      const ix = Math.round((tx + 42) / tileSize);
-      const iz = Math.round((tz + 216) / tileSize);
-      if ((ix + iz) % 2 === 0) {
-        tileGeos.push(makeTranslatedBox(tileSize - 0.15, 0.04, tileSize - 0.15, tx, floorY + 0.01, tz));
-      }
-    }
-  }
-  const checkeredTiles = new THREE.Mesh(mergeBufferGeometries(tileGeos), marbleCreamMat);
-  checkeredTiles.receiveShadow = true;
-  world.scene.add(checkeredTiles);
+  const wall = (x, z, w, d, y0, y1, mat = 'cream') => {
+    B.box(mat, w, y1 - y0, d, x, (y0 + y1) / 2, z);
+    world.addCollider(x, z, w, d, y1, y0);
+  };
 
-  // Tapete Vermelho Imperial com bordas de Ouro LEGO levando da Escadaria até a Porta do Cofre
-  const carpetLen = 68.0;
-  const carpetZ = bz + 3.0;
-  const carpet = new THREE.Mesh(new THREE.BoxGeometry(10.5, 0.06, carpetLen), redVelvetMat);
-  carpet.position.set(bx, floorY + 0.03, carpetZ);
-  carpet.receiveShadow = true;
-  world.scene.add(carpet);
+  // --- Paredes laterais (inteiras: o metrô passa do lado de fora)
+  wall(sxW, midZ, T, depth, 0, top);
+  wall(sxE, midZ, T, depth, 0, top);
 
-  const trimGeos = [
-    makeTranslatedBox(0.45, 0.07, carpetLen, bx - 5.2, floorY + 0.035, carpetZ),
-    makeTranslatedBox(0.45, 0.07, carpetLen, bx + 5.2, floorY + 0.035, carpetZ)
+  // --- Fachada frontal: 1º andar com 3 portas; acima, parede inteira
+  const frontDoors = [
+    { x0: -14, x1: 14, h: 8.6 }, // portal central (carros)
+    { x0: -52, x1: -40, h: 6.4 },
+    { x0: 40, x1: 52, h: 6.4 }
   ];
-  world.scene.add(new THREE.Mesh(mergeBufferGeometries(trimGeos), goldMat));
-}
+  const segs = [
+    [S.minX, -52],
+    [-40, -14],
+    [14, 40],
+    [52, S.maxX]
+  ];
+  for (const [a, b] of segs) wall((a + b) / 2, fz, b - a, T, 0, F[1]);
+  for (const d of frontDoors) {
+    wall((d.x0 + d.x1) / 2, fz, d.x1 - d.x0, T, F[0] + d.h, F[1]);
+    // Moldura dourada das portas
+    B.box('gold', d.x1 - d.x0 + 1.2, 0.6, T + 0.6, (d.x0 + d.x1) / 2, F[0] + d.h + 0.3, fz);
+    B.box('gold', 0.6, d.h, T + 0.6, d.x0 - 0.3, F[0] + d.h / 2, fz);
+    B.box('gold', 0.6, d.h, T + 0.6, d.x1 + 0.3, F[0] + d.h / 2, fz);
+    // Portas de vidro abertas (folhas encostadas para dentro)
+    const leafW = (d.x1 - d.x0) / 4;
+    B.box('glass', leafW, d.h - 0.6, 0.25, d.x0 + leafW / 2 + 0.3, F[0] + d.h / 2, fz - T / 2 - leafW / 2, Math.PI / 2);
+    B.box('glass', leafW, d.h - 0.6, 0.25, d.x1 - leafW / 2 - 0.3, F[0] + d.h / 2, fz - T / 2 - leafW / 2, Math.PI / 2);
+  }
+  wall(0, fz, S.maxX - S.minX, T, F[1], top);
 
-/**
- * 2. EXTERIOR MONUMENTAL: ESCADARIA, 8 COLUNAS GIGANTES, 2 ESTÁTUAS DOURADAS E PORTAS ABERTAS
- */
-function buildMonumentalExteriorAndFacade(
-  world,
-  bx,
-  bz,
-  bw,
-  bd,
-  wallH,
-  floorY,
-  marbleWhiteMat,
-  marbleCreamMat,
-  graniteDarkMat,
-  goldMat,
-  glassSkyMat,
-  redVelvetMat
-) {
-  const halfW = bw * 0.5; // 49
-  const halfD = bd * 0.5; // 44
-  const frontZ = bz + halfD; // -136
-  const backZ = bz - halfD;  // -224
+  // --- Fachada do fundo: 2 portas de serviço
+  const backSegs = [
+    [S.minX, -36],
+    [-24, 24],
+    [36, S.maxX]
+  ];
+  for (const [a, b] of backSegs) wall((a + b) / 2, bz, b - a, T, 0, F[1]);
+  for (const x0 of [-36, 24]) {
+    wall(x0 + 6, bz, 12, T, F[0] + 6.4, F[1]);
+    B.box('gold', 13.2, 0.6, T + 0.6, x0 + 6, F[0] + 6.7, bz);
+  }
+  wall(0, bz, S.maxX - S.minX, T, F[1], top);
 
-  // Paredes Externas Maciças de 36m de altura (Mármore Creme, Granito Escuro e Frisos de Ouro)
-  // Parede Oeste (X = -47.5)
-  world.addBuildingBox(bx - halfW + 1.5, bz, 3.0, wallH, bd, 0xfef3c7, {
-    yBase: floorY,
-    studs: false,
-    mapColor: '#eab308',
-    label: 'SUPER BANCO CENTRAL'
-  });
-  // Parede Leste (X = +47.5)
-  world.addBuildingBox(bx + halfW - 1.5, bz, 3.0, wallH, bd, 0xfef3c7, {
-    yBase: floorY,
-    studs: false,
-    mapColor: '#eab308'
-  });
-  // Parede Traseira Blindada (Z = -222.5)
-  world.addBuildingBox(bx, backZ + 1.5, bw, wallH, 3.0, 0x1e293b, {
-    yBase: floorY,
-    studs: false,
-    mapColor: '#eab308'
-  });
+  // --- Rodapé de granito escuro + faixas douradas entre os andares
+  B.box('granite', S.maxX - S.minX + 1.4, 1.4, 0.8, 0, 0.7, S.frontZ + 0.2);
+  B.box('granite', S.maxX - S.minX + 1.4, 1.4, 0.8, 0, 0.7, S.backZ - 0.2);
+  B.box('granite', 0.8, 1.4, depth + 1.4, S.minX - 0.2, 0.7, midZ);
+  B.box('granite', 0.8, 1.4, depth + 1.4, S.maxX + 0.2, 0.7, midZ);
+  for (let i = 1; i <= 4; i++) {
+    const y = i < 4 ? F[i] : S.roofY;
+    B.box('gold', S.maxX - S.minX + 1.6, 0.55, 1.0, 0, y, S.frontZ + 0.3);
+    B.box('gold', S.maxX - S.minX + 1.6, 0.55, 1.0, 0, y, S.backZ - 0.3);
+    B.box('gold', 1.0, 0.55, depth + 1.6, S.minX - 0.3, y, midZ);
+    B.box('gold', 1.0, 0.55, depth + 1.6, S.maxX + 0.3, y, midZ);
+  }
 
-  // Fachada Frontal Esquerda e Direita (Z = -137.5), deixando Portal Central Francamente Aberto de 24m (X: -12..+12)!
-  world.addBuildingBox(bx - 30.5, frontZ - 1.5, 37, wallH, 3.0, 0xfef3c7, {
-    yBase: floorY,
-    studs: false,
-    mapColor: '#eab308'
-  });
-  world.addBuildingBox(bx + 30.5, frontZ - 1.5, 37, wallH, 3.0, 0xfef3c7, {
-    yBase: floorY,
-    studs: false,
-    mapColor: '#eab308'
-  });
-
-  // Lintel Superior Acima da Entrada Principal (de Y = 22.0m até Y = 36.36m -> 22m de vão livre na porta!)
-  const portalHeight = 22.0;
-  const lintelH = wallH - portalHeight; // 14.0m
-  const lintel = createLegoBrick(24, lintelH, 3.4, LEGO_COLORS.gold, {
-    metalness: 0.68,
-    roughness: 0.16,
-    studs: false
-  });
-  lintel.position.set(bx, floorY + portalHeight + lintelH * 0.5, frontZ - 1.5);
-  world.scene.add(lintel);
-  world.addCollider(bx, frontZ - 1.5, 24, 3.4, floorY + wallH, floorY + portalHeight);
-
-  // Detalhamento Arquitetônico das Fachadas Externas (Plinto de Granito, Pilastras de Mármore e Cornijas de Ouro)
-  const graniteGeos = [];
-  const marbleExtGeos = [];
-  const goldExtGeos = [];
-
-  // Plinto Inferior de Granito Cinza-Escuro ao redor do Banco
-  graniteGeos.push(
-    makeTranslatedBox(3.6, 5.2, bd + 0.6, bx - halfW + 1.5, floorY + 2.6, bz),
-    makeTranslatedBox(3.6, 5.2, bd + 0.6, bx + halfW - 1.5, floorY + 2.6, bz),
-    makeTranslatedBox(bw + 0.6, 5.2, 3.6, bx, floorY + 2.6, backZ + 1.5),
-    makeTranslatedBox(37.4, 5.2, 3.6, bx - 30.5, floorY + 2.6, frontZ - 1.5),
-    makeTranslatedBox(37.4, 5.2, 3.6, bx + 30.5, floorY + 2.6, frontZ - 1.5)
-  );
-
-  // Pilastras e Janelões Blindados nas Fachadas Laterais (Oeste e Leste)
-  for (let pz = bz - 32; pz <= bz + 32; pz += 16) {
-    for (const side of [-1, 1]) {
-      const wx = bx + side * (halfW + 0.25);
-      marbleExtGeos.push(makeTranslatedBox(0.9, wallH - 6, 3.2, wx, floorY + 3 + (wallH - 6) * 0.5, pz));
-      if (pz < bz + 32) {
-        const winZ = pz + 8;
-        graniteGeos.push(makeTranslatedBox(0.6, 20, 8.5, wx, floorY + 16, winZ));
-        goldExtGeos.push(
-          makeTranslatedBox(0.8, 0.7, 9.2, wx, floorY + 6.0, winZ),
-          makeTranslatedBox(0.8, 0.9, 9.2, wx, floorY + 26.2, winZ),
-          makeTranslatedBox(0.75, 20, 0.35, wx, floorY + 16, winZ - 2.2),
-          makeTranslatedBox(0.75, 20, 0.35, wx, floorY + 16, winZ + 2.2)
-        );
+  // --- Janelas: grade de vidro azul com caixilho dourado em todos os andares de cima
+  const addWindowRow = (axis, fixed, from, to, y0, outward) => {
+    const span = to - from;
+    const n = Math.floor(span / 6.5);
+    const step = span / n;
+    for (let i = 0; i < n; i++) {
+      const c = from + step * (i + 0.5);
+      const w = step - 2.2;
+      const h = 6.2;
+      const yc = y0 + 4.6;
+      if (axis === 'z') {
+        B.box('windowGlass', w, h, 0.3, c, yc, fixed + outward * 0.1);
+        B.box('gold', w + 0.6, 0.35, 0.5, c, yc - h / 2 - 0.15, fixed + outward * 0.2);
+        B.box('cream', 0.5, h, 0.6, c - w / 2 - 0.25, yc, fixed + outward * 0.25);
+      } else {
+        B.box('windowGlass', 0.3, h, w, fixed + outward * 0.1, yc, c);
+        B.box('gold', 0.5, 0.35, w + 0.6, fixed + outward * 0.2, yc - h / 2 - 0.15, c);
+        B.box('cream', 0.6, h, 0.5, fixed + outward * 0.25, yc, c - w / 2 - 0.25);
       }
+    }
+  };
+  for (let f = 1; f < 4; f++) {
+    addWindowRow('z', S.frontZ, S.minX + 4, S.maxX - 4, F[f], 1);
+    addWindowRow('z', S.backZ, S.minX + 4, S.maxX - 4, F[f], -1);
+    addWindowRow('x', S.minX, S.backZ + 4, S.frontZ - 4, F[f], -1);
+    addWindowRow('x', S.maxX, S.backZ + 4, S.frontZ - 4, F[f], 1);
+  }
+  // Janelas do térreo nas laterais e no fundo
+  addWindowRow('x', S.minX, S.backZ + 4, S.frontZ - 4, F[0] + 0.4, -1);
+  addWindowRow('x', S.maxX, S.backZ + 4, S.frontZ - 4, F[0] + 0.4, 1);
+
+  // --- 4 Torres de canto (pilastras largas com cúpula dourada)
+  for (const cx of [S.minX - 1, S.maxX + 1]) {
+    for (const cz of [S.frontZ + 1, S.backZ - 1]) {
+      B.box('marble', 6, top + 3, 6, cx, (top + 3) / 2, cz);
+      world.addCollider(cx, cz, 6, 6, top + 3, 0);
+      for (let f = 0; f < 4; f++) B.box('gold', 6.6, 0.6, 6.6, cx, F[f] + 9.6, cz);
+      B.box('granite', 7.2, 1.2, 7.2, cx, top + 3.6, cz);
+      B.sphere('gold', 3.2, cx, top + 4.2, cz, 1.1, Math.PI * 2, Math.PI / 2);
+      B.cyl('gold', 0.18, 0.18, 3.4, cx, top + 9.2, cz, 8);
+      B.sphere('gold', 0.55, cx, top + 11.1, cz);
     }
   }
 
-  // Cornijas e Frisos Dourados Monumentais no Topo das 4 Fachadas (Y = 34m..39m)
-  goldExtGeos.push(
-    makeTranslatedBox(bw + 3.2, 1.4, bd + 3.2, bx, floorY + wallH - 0.5, bz),
-    makeTranslatedBox(bw + 4.4, 1.6, bd + 4.4, bx, floorY + wallH + 2.4, bz),
-    // Moldura Dourada Monumental ao redor do Portal de Entrada (24m x 22m)
-    makeTranslatedBox(1.8, portalHeight + 1.5, 4.2, bx - 12.2, floorY + portalHeight * 0.5, frontZ - 1.2),
-    makeTranslatedBox(1.8, portalHeight + 1.5, 4.2, bx + 12.2, floorY + portalHeight * 0.5, frontZ - 1.2),
-    makeTranslatedBox(26.8, 2.2, 4.4, bx, floorY + portalHeight + 0.6, frontZ - 1.2)
-  );
-
-  // PORTAS DUPLAS GIGANTES DE VIDRO E OURO TOTALMENTE ABERTAS (Escancaradas nas laterais do vão!)
-  for (const side of [-1, 1]) {
-    const doorPivotX = bx + side * 11.2;
-    const doorCenterZ = frontZ - 4.8;
-    // Moldura de Ouro da Folha Gigante Aberta (20m de altura x 6.5m de profundidade aberta para dentro)
-    goldExtGeos.push(
-      makeTranslatedBox(0.55, 20.0, 0.55, doorPivotX, floorY + 10.0, frontZ - 1.5),
-      makeTranslatedBox(0.55, 20.0, 0.55, doorPivotX, floorY + 10.0, frontZ - 8.0),
-      makeTranslatedBox(0.55, 0.65, 6.8, doorPivotX, floorY + 19.8, doorCenterZ),
-      makeTranslatedBox(0.55, 0.65, 6.8, doorPivotX, floorY + 10.0, doorCenterZ),
-      makeTranslatedBox(0.55, 0.65, 6.8, doorPivotX, floorY + 0.4, doorCenterZ),
-      // Puxador Cilíndrico Vertical de Ouro
-      makeTranslatedBox(0.85, 4.5, 0.35, doorPivotX - side * 0.35, floorY + 5.0, frontZ - 7.0)
-    );
-    const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(0.28, 19.2, 6.2), glassSkyMat);
-    doorGlass.position.set(doorPivotX, floorY + 10.0, doorCenterZ);
-    world.scene.add(doorGlass);
+  // --- Escadaria frontal larga (3 degraus rasos — carros passam por cima)
+  for (let s = 0; s < 3; s++) {
+    B.box(s === 2 ? 'marble' : 'cream', S.maxX - S.minX - 4 - s * 2, 0.14 + s * 0.12, 1.8, 0, 0.07 + s * 0.06, S.frontZ + 4.2 - s * 1.6);
   }
+  B.box('velvet', 26, 0.06, 6.6, 0, 0.33, S.frontZ + 3.1);
 
-  // GRANDE ESCADARIA FRONTAL (Subindo da Calçada Z = -130.2 até o Pórtico Z = -136.0)
-  // Degraus largos e suaves (sem colisor alto para o boneco subir caminhando suavemente!)
-  const stairsWidth = 54.0;
-  for (let s = 0; s < 5; s++) {
-    const stepD = 6.2 - s * 1.1;
-    const stepY = 0.06 + s * 0.06;
-    const stepZ = frontZ + 2.8 - s * 0.55;
-    marbleExtGeos.push(makeTranslatedBox(stairsWidth, 0.08, stepD, bx, stepY, stepZ));
-    goldExtGeos.push(makeTranslatedBox(stairsWidth + 0.2, 0.04, 0.18, bx, stepY + 0.03, stepZ + stepD * 0.5));
+  // --- Colunata clássica: 8 colunas gigantes até o 3º andar + entablamento + frontão
+  const colZ = S.frontZ + 2.6;
+  const colTop = F[3] - 0.4;
+  const colXs = [-66, -58, -34, -20, 20, 34, 58, 66];
+  for (const cx of colXs) {
+    B.box('granite', 4.2, 1.4, 4.2, cx, 0.7, colZ);
+    B.cyl('marble', 1.55, 1.75, colTop - 1.4, cx, 1.4 + (colTop - 1.4) / 2, colZ, 20);
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      B.box('cream', 0.32, colTop - 2.4, 0.32, cx + Math.cos(a) * 1.62, 1.4 + (colTop - 1.4) / 2, colZ + Math.sin(a) * 1.62);
+    }
+    B.box('gold', 4.4, 1.2, 4.4, cx, colTop + 0.2, colZ);
+    world.addCollider(cx, colZ, 3.4, 3.4, colTop, 0);
   }
-  const stairsCarpet = new THREE.Mesh(new THREE.BoxGeometry(10.5, 0.09, 6.6), redVelvetMat);
-  stairsCarpet.position.set(bx, 0.33, frontZ + 2.6);
-  world.scene.add(stairsCarpet);
-
-  // ============================================================================
-  // 8 COLUNAS CLÁSSICAS GIGANTES NA FACHADA (Base Quadrada + Fuste Cilíndrico + Capitel Dourado!)
-  // ============================================================================
-  const colXPositions = [-41, -31, -21, -13.5, 13.5, 21, 31, 41];
-  const colZ = frontZ + 2.2; // Z = -133.8
-  const colShaftH = wallH - 3.6;
-
-  for (const cx of colXPositions) {
-    // 1. Base Clássica Escalonada (Granito Escuro + Mármore + Anel Dourado)
-    graniteGeos.push(makeTranslatedBox(3.8, 1.4, 3.8, bx + cx, floorY + 0.7, colZ));
-    marbleExtGeos.push(makeTranslatedBox(3.3, 0.8, 3.3, bx + cx, floorY + 1.8, colZ));
-    goldExtGeos.push(makeTranslatedBox(3.0, 0.45, 3.0, bx + cx, floorY + 2.4, colZ));
-
-    // 2. Fuste Cilíndrico Gigante de Mármore Branco
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.32, 1.52, colShaftH, 20), marbleWhiteMat);
-    shaft.position.set(bx + cx, floorY + 2.6 + colShaftH * 0.5, colZ);
-    shaft.castShadow = true;
-    shaft.receiveShadow = true;
-    world.scene.add(shaft);
-
-    // 3. Capitel Clássico Coríntio/Jônico em Ouro Brilhante e Mármore no Topo
-    const capY = floorY + wallH - 1.2;
-    goldExtGeos.push(
-      makeTranslatedBox(3.2, 0.9, 3.2, bx + cx, capY, colZ),
-      makeTranslatedBox(3.9, 0.65, 3.9, bx + cx, capY + 0.75, colZ)
-    );
-    marbleExtGeos.push(makeTranslatedBox(3.6, 0.5, 3.6, bx + cx, capY + 1.25, colZ));
-
-    world.addCollider(bx + cx, colZ, 3.2, 3.2, floorY + wallH, floorY);
+  // Entablamento apoiado nas colunas
+  B.box('marble', S.maxX - S.minX + 4, 2.6, 6.2, 0, colTop + 2.1, colZ - 0.6);
+  B.box('gold', S.maxX - S.minX + 4.4, 0.5, 6.6, 0, colTop + 0.9, colZ - 0.6);
+  B.box('gold', S.maxX - S.minX + 4.4, 0.5, 6.6, 0, colTop + 3.5, colZ - 0.6);
+  // Frontão triangular com moeda dourada
+  const pedBase = colTop + 3.8;
+  for (let i = 0; i < 6; i++) {
+    const w = 82 - i * 13;
+    B.box('cream', w, 1.4, 3, 0, pedBase + 0.7 + i * 1.4, colZ - 1.2);
   }
+  B.cyl('gold', 3.4, 3.4, 0.8, 0, pedBase + 4.4, colZ + 0.5, 28, Math.PI / 2);
+  B.cyl('granite', 2.4, 2.4, 0.9, 0, pedBase + 4.4, colZ + 0.6, 28, Math.PI / 2);
+  B.box('gold', 0.6, 3.2, 1.0, 0, pedBase + 4.4, colZ + 1.0);
 
-  // Frontão Clássico / Entablamento Monumental no Topo da Fachada Frontal (Z = -133.8)
-  marbleExtGeos.push(makeTranslatedBox(92.0, 3.4, 5.2, bx, floorY + wallH + 1.5, colZ - 1.2));
-  goldExtGeos.push(
-    makeTranslatedBox(93.0, 0.8, 5.6, bx, floorY + wallH + 3.4, colZ - 1.2),
-    // Frontão Escalonado Central (Pedimento Clássico) acima do Letreiro
-    makeTranslatedBox(54.0, 2.2, 4.2, bx, floorY + wallH + 9.8, colZ - 1.0),
-    makeTranslatedBox(38.0, 2.0, 4.2, bx, floorY + wallH + 11.8, colZ - 1.0),
-    makeTranslatedBox(20.0, 2.0, 4.2, bx, floorY + wallH + 13.8, colZ - 1.0),
-    makeTranslatedBox(6.0, 2.4, 4.2, bx, floorY + wallH + 15.8, colZ - 1.0)
-  );
-
-  // ============================================================================
-  // 2 ESTÁTUAS DOURADAS DE LEGO NAS PONTAS DA ESCADARIA FRONTAL!
-  // ============================================================================
-  for (const side of [-1, 1]) {
-    const sx = bx + side * 27.5;
-    const sz = frontZ + 4.8; // Z = -131.2 (nas duas pontas da Grande Escadaria Frontal!)
-    buildGoldenLegoGuardianStatue(world, sx, floorY, sz, side, graniteGeos, marbleExtGeos, goldExtGeos, goldMat);
-  }
-
-  // Adiciona as malhas externas mescladas à cena
-  const graniteMesh = new THREE.Mesh(mergeBufferGeometries(graniteGeos), graniteDarkMat);
-  graniteMesh.castShadow = true;
-  graniteMesh.receiveShadow = true;
-  const marbleExtMesh = new THREE.Mesh(mergeBufferGeometries(marbleExtGeos), marbleWhiteMat);
-  marbleExtMesh.castShadow = true;
-  marbleExtMesh.receiveShadow = true;
-  const goldExtMesh = new THREE.Mesh(mergeBufferGeometries(goldExtGeos), goldMat);
-  goldExtMesh.castShadow = true;
-  goldExtMesh.receiveShadow = true;
-  world.scene.add(graniteMesh, marbleExtMesh, goldExtMesh);
-
-  // ============================================================================
-  // LETREIRO LUMINOSO 3D EM OURO NO TOPO DA FACHADA: "BANCO CENTRAL"
-  // ============================================================================
-  const signY = floorY + wallH + 6.2;
-  const signZ = colZ + 0.6;
-  // Caixa 3D de Ouro Brilhante + Placa Luminosa Frontal "BANCO CENTRAL" (Zero distorção de aspecto!)
-  const signFrame = createLegoBrick(48.0, 6.6, 1.8, LEGO_COLORS.gold, {
-    metalness: 0.75,
-    roughness: 0.14,
-    studStep: 2.0
-  });
-  signFrame.position.set(bx, signY, signZ - 0.5);
+  // Letreiro no entablamento
   const signBoard = createSignBoardMesh({
-    x: bx,
-    y: signY,
-    z: signZ + 0.5,
-    width: 46.4,
-    height: 5.6,
-    depth: 0.5,
+    x: 0,
+    y: colTop + 2.1,
+    z: colZ + 2.55,
+    width: 52,
+    height: 2.2,
+    depth: 0.4,
     title: 'SUPER BANCO CENTRAL',
     bgColor: '#090a0d',
     borderColor: '#facc15',
     textColor: '#facc15',
     doubleSided: false
   });
-  world.scene.add(signFrame, signBoard);
+  world.scene.add(signBoard);
 
-  // Registra o Super Banco Central no Mapa 2D [M] e Radar
-  world.mapBuildings.push({
-    x: bx,
-    z: bz,
-    w: bw,
-    d: bd,
-    height: floorY + wallH + 16,
-    styleKey: 'black_granite_gold',
-    color: '#facc15',
-    label: 'BANCO CENTRAL'
+  // --- 2 Estátuas douradas de guardião LEGO nas pontas da escadaria
+  // (entre as colunas de ±20 e ±34, onde a fachada não tem porta)
+  for (const side of [-1, 1]) buildGoldenGuardianStatue(world, B, side * 27, S.frontZ + 3.4);
+}
+
+function buildGoldenGuardianStatue(world, B, x, z) {
+  B.box('granite', 4.6, 2.2, 4.6, x, 1.1, z);
+  B.box('gold', 2.0, 1.6, 1.2, x, 3.0, z); // pernas
+  B.box('gold', 2.2, 1.8, 1.2, x, 4.7, z); // tronco
+  B.cyl('gold', 0.7, 0.7, 1.2, x, 6.2, z, 16); // cabeça
+  B.cyl('gold', 0.3, 0.3, 0.3, x, 6.95, z, 10); // pino
+  B.box('gold', 0.5, 1.8, 0.5, x - 1.4, 4.9, z); // braço c/ cetro
+  B.cyl('gold', 0.12, 0.12, 5.2, x - 1.4, 5.6, z + 0.4, 8);
+  B.sphere('gold', 0.45, x - 1.4, 8.3, z + 0.4);
+  B.box('gold', 1.6, 2.2, 0.3, x + 1.5, 4.6, z + 0.4); // escudo
+  world.addCollider(x, z, 4.6, 4.6, 7.2, 0);
+}
+
+// ============================================================================
+// 2. LAJES DOS ANDARES, RAMPAS (com corrimão) E NÚCLEO DO ELEVADOR
+// ============================================================================
+function buildFloorsRampsAndElevator(world, B) {
+  const S = BANK_SPEC;
+  const W = S.innerMaxX - S.innerMinX;
+  const D = S.innerFrontZ - S.innerBackZ;
+  const midZ = (S.innerFrontZ + S.innerBackZ) / 2;
+
+  S.floors.forEach((fy, idx) => {
+    const hole = holeForFloor(idx);
+    // Pisos (piso andável)
+    world.elevatedDecks.push({
+      id: `bank_floor_${idx + 1}`,
+      minX: S.innerMinX,
+      maxX: S.innerMaxX,
+      minZ: S.innerBackZ,
+      maxZ: S.innerFrontZ,
+      thresholdBelow: 2.4,
+      getDeckY: (x, z) => (hole && insideRect(x, z, hole, -0.15) ? null : fy)
+    });
+
+    if (idx > 0) {
+      // Laje visível (em pedaços em volta do buraco da rampa)
+      const slabY = fy - FLOOR_T / 2;
+      const floorKey = idx === 1 ? 'carpetBlue' : idx === 2 ? 'concrete' : 'graniteBlack';
+      if (hole) {
+        const hz0 = Math.min(hole.zLow, hole.zHigh);
+        const hz1 = Math.max(hole.zLow, hole.zHigh);
+        const westHole = hole.minX < 0;
+        // Faixa larga ao lado do buraco
+        const restX0 = westHole ? hole.maxX : S.innerMinX;
+        const restX1 = westHole ? S.innerMaxX : hole.minX;
+        B.box(floorKey, restX1 - restX0, FLOOR_T, D, (restX0 + restX1) / 2, slabY, midZ);
+        // Frente e fundo do buraco
+        B.box(floorKey, hole.maxX - hole.minX, FLOOR_T, S.innerFrontZ - hz1, (hole.minX + hole.maxX) / 2, slabY, (S.innerFrontZ + hz1) / 2);
+        B.box(floorKey, hole.maxX - hole.minX, FLOOR_T, hz0 - S.innerBackZ, (hole.minX + hole.maxX) / 2, slabY, (hz0 + S.innerBackZ) / 2);
+        // Corrimão em volta do buraco (menos na chegada da rampa)
+        const railX = westHole ? hole.maxX : hole.minX;
+        const arrivalZ = hole.zHigh;
+        const otherZ = hole.zLow;
+        B.box('chrome', 0.3, 1.1, hz1 - hz0, railX, fy + 0.55, (hz0 + hz1) / 2);
+        B.box('gold', 0.4, 0.14, hz1 - hz0, railX, fy + 1.12, (hz0 + hz1) / 2);
+        world.addCollider(railX, (hz0 + hz1) / 2, 0.5, hz1 - hz0, fy + 1.3, fy - 0.2);
+        B.box('chrome', hole.maxX - hole.minX, 1.1, 0.3, (hole.minX + hole.maxX) / 2, fy + 0.55, otherZ);
+        world.addCollider((hole.minX + hole.maxX) / 2, otherZ, hole.maxX - hole.minX, 0.5, fy + 1.3, fy - 0.2);
+        void arrivalZ;
+      } else {
+        B.box(floorKey, W, FLOOR_T, D, 0, slabY, midZ);
+      }
+      // Forro com painéis de luz do andar de baixo
+      for (let lx = -56; lx <= 56; lx += 16) {
+        for (let lz = -150; lz >= -218; lz -= 17) {
+          if (hole && insideRect(lx, lz, hole, 2)) continue;
+          B.box('lightPanel', 5.5, 0.12, 2.4, lx, fy - FLOOR_T - 0.08, lz);
+        }
+      }
+    }
   });
-}
 
-/**
- * Constrói uma Estátua Monumental Dourada de LEGO (Guardião Imperial com Cetro e Escudo)
- */
-function buildGoldenLegoGuardianStatue(world, sx, floorY, sz, side, graniteGeos, marbleExtGeos, goldExtGeos, goldMat) {
-  // Pedestal Clássico de Granito Escuro, Mármore e Ouro (4.8m de altura)
-  graniteGeos.push(makeTranslatedBox(4.8, 2.2, 4.8, sx, floorY + 1.1, sz));
-  marbleExtGeos.push(makeTranslatedBox(4.0, 2.0, 4.0, sx, floorY + 3.2, sz));
-  goldExtGeos.push(makeTranslatedBox(4.4, 0.5, 4.4, sx, floorY + 4.45, sz));
-
-  const baseStatueY = floorY + 4.7;
-  // Pernas Douradas LEGO
-  goldExtGeos.push(
-    makeTranslatedBox(1.1, 2.8, 1.2, sx - 0.65, baseStatueY + 1.4, sz),
-    makeTranslatedBox(1.1, 2.8, 1.2, sx + 0.65, baseStatueY + 1.4, sz),
-    // Quadril e Torso Imperial Dourado
-    makeTranslatedBox(2.6, 0.7, 1.4, sx, baseStatueY + 3.15, sz),
-    makeTranslatedBox(3.0, 3.2, 1.6, sx, baseStatueY + 5.1, sz),
-    // Ombreiras e Braços Articulados Dourados
-    makeTranslatedBox(0.95, 2.8, 1.1, sx - 1.95, baseStatueY + 5.0, sz + 0.3),
-    makeTranslatedBox(0.95, 2.8, 1.1, sx + 1.95, baseStatueY + 5.0, sz + 0.3),
-    // Escudo de Ouro na mão interna + Cetro Solar Dourado alto na mão externa!
-    makeTranslatedBox(2.0, 3.2, 0.35, sx - side * 1.8, baseStatueY + 4.6, sz + 1.1),
-    makeTranslatedBox(0.32, 7.5, 0.32, sx + side * 1.95, baseStatueY + 6.8, sz + 0.9),
-    makeTranslatedBox(1.1, 1.1, 1.1, sx + side * 1.95, baseStatueY + 10.8, sz + 0.9)
-  );
-
-  // Cabeça Cilíndrica Clássica de LEGO em Ouro Brilhante + Pino (Stud) Superior!
-  const headCyl = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 1.9, 18), goldMat);
-  headCyl.position.set(sx, baseStatueY + 7.75, sz);
-  const headStud = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.45, 16), goldMat);
-  headStud.position.set(sx, baseStatueY + 8.9, sz);
-  world.scene.add(headCyl, headStud);
-
-  world.addCollider(sx, sz, 4.8, 4.8, baseStatueY + 11.0, floorY);
-}
-
-/**
- * 3. TERRAÇO NO TOPO DO BANCO: CLARABOIA DE VIDRO (OLHANDO PRO SAGUÃO), HELIPONTO (H) E VENTILAÇÃO
- */
-function buildRoofSkylightHelipadAndHvac(
-  world,
-  bx,
-  bz,
-  bw,
-  bd,
-  roofBottomY,
-  roofThickness,
-  roofTopY,
-  graniteDarkMat,
-  goldMat,
-  silverMat,
-  glassSkyMat
-) {
-  // O Teto possui uma ABERTURA CENTRAL REAL de 28m x 26m (X: -14..+14, Z: -188..-162)
-  // coberta pela Claraboia de Vidro, permitindo olhar do terraço direto para o saguão lá embaixo!
-  const skyMinX = -14;
-  const skyMaxX = 14;
-  const skyMinZ = -188;
-  const skyMaxZ = -162;
-
-  const roofPieces = [
-    // Faixa Oeste do Teto (X: -49..-14, largura 35m, profundidade 88m)
-    { x: -31.5, z: bz, w: 35, d: bd },
-    // Faixa Leste do Teto (X: +14..+49, largura 35m, profundidade 88m)
-    { x: 31.5, z: bz, w: 35, d: bd },
-    // Faixa Sul/Frontal entre o vão (X: -14..+14, Z: -162..-136, profundidade 26m)
-    { x: 0, z: -149, w: 28, d: 26 },
-    // Faixa Norte/Fundo entre o vão (X: -14..+14, Z: -224..-188, profundidade 36m)
-    { x: 0, z: -206, w: 28, d: 36 }
-  ];
-
-  for (const rp of roofPieces) {
-    const slab = createLegoBrick(rp.w, roofThickness, rp.d, LEGO_COLORS.darkGrey, { studStep: 3.5 });
-    slab.position.set(rp.x, roofBottomY + roofThickness * 0.5, rp.z);
-    world.scene.add(slab);
-    world.addCollider(rp.x, rp.z, rp.w, rp.d, roofTopY, roofBottomY - 0.2);
+  // Teto do 4º andar (laje da cobertura)
+  B.box('cream', W, 1.2, D, 0, S.roofY - 0.6, midZ);
+  for (let lx = -56; lx <= 56; lx += 16) {
+    for (let lz = -150; lz >= -218; lz -= 17) B.box('lightPanel', 5.5, 0.12, 2.4, lx, S.roofY - 1.26, lz);
   }
 
-  // CLARABOIA DE VIDRO MONUMENTAL NO CENTRO DO TETO (X = 0, Z = -175, 28m x 26m)
-  const skyCenterZ = (skyMinZ + skyMaxZ) * 0.5; // -175
-  const skyW = skyMaxX - skyMinX; // 28m
-  const skyD = skyMaxZ - skyMinZ; // 26m
-
-  // Vidro translúcido da Claraboia (sustenta o boneco se ele caminhar sobre o vidro, mas deixa ver todo o saguão!)
-  const skylightGlass = new THREE.Mesh(new THREE.BoxGeometry(skyW, 0.45, skyD), glassSkyMat);
-  skylightGlass.position.set(bx, roofTopY + 0.35, skyCenterZ);
-  world.scene.add(skylightGlass);
-  world.addCollider(bx, skyCenterZ, skyW, skyD, roofTopY + 0.6, roofTopY - 0.4);
-
-  // Treliça e Arcos Dourados da Claraboia de Vidro
-  const skyFrameGeos = [
-    makeTranslatedBox(skyW + 1.6, 1.2, 1.0, bx, roofTopY + 0.6, skyMinZ),
-    makeTranslatedBox(skyW + 1.6, 1.2, 1.0, bx, roofTopY + 0.6, skyMaxZ),
-    makeTranslatedBox(1.0, 1.2, skyD + 1.6, skyMinX, roofTopY + 0.6, skyCenterZ),
-    makeTranslatedBox(1.0, 1.2, skyD + 1.6, skyMaxX, roofTopY + 0.6, skyCenterZ)
-  ];
-  for (let gx = skyMinX + 7; gx < skyMaxX; gx += 7) {
-    skyFrameGeos.push(makeTranslatedBox(0.55, 1.4, skyD, gx, roofTopY + 0.75, skyCenterZ));
-  }
-  for (let gz = skyMinZ + 6.5; gz < skyMaxZ; gz += 6.5) {
-    skyFrameGeos.push(makeTranslatedBox(skyW, 1.4, 0.55, bx, roofTopY + 0.75, gz));
-  }
-  world.scene.add(new THREE.Mesh(mergeBufferGeometries(skyFrameGeos), goldMat));
-
-  // HELIPONTO DEMARCADO ("H") NO TERRAÇO OESTE (X = -31, Z = -180)
-  const heliX = -31.5;
-  const heliZ = -180;
-  const heliPad = createLegoBrick(24, 0.6, 24, 0x334155, { studs: false });
-  heliPad.position.set(heliX, roofTopY + 0.3, heliZ);
-  world.scene.add(heliPad);
-  world.addCollider(heliX, heliZ, 24, 24, roofTopY + 0.6, roofTopY);
-
-  const heliRing = new THREE.Mesh(
-    new THREE.RingGeometry(8.2, 9.4, 28),
-    new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
-  );
-  heliRing.rotation.x = -Math.PI / 2;
-  heliRing.position.set(heliX, roofTopY + 0.64, heliZ);
-  world.scene.add(heliRing);
-
-  // Letra "H" em blocos amarelos brilhantes no centro do Heliponto
-  const hMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-  const hGeos = [
-    makeTranslatedBox(1.8, 0.12, 9.5, heliX - 3.2, roofTopY + 0.64, heliZ),
-    makeTranslatedBox(1.8, 0.12, 9.5, heliX + 3.2, roofTopY + 0.64, heliZ),
-    makeTranslatedBox(6.4, 0.12, 1.8, heliX, roofTopY + 0.64, heliZ)
-  ];
-  world.scene.add(new THREE.Mesh(mergeBufferGeometries(hGeos), hMat));
-
-  // COFRES E UNIDADES DE VENTILAÇÃO (HVAC) NO TERRAÇO LESTE (X = +31, Z = -165..-198)
-  const hvacGeos = [];
-  for (const hz of [-160, -178, -196]) {
-    hvacGeos.push(
-      makeTranslatedBox(10.0, 4.2, 8.0, 31.5, roofTopY + 2.1, hz),
-      makeTranslatedBox(3.2, 1.2, 3.2, 29.0, roofTopY + 4.8, hz),
-      makeTranslatedBox(3.2, 1.2, 3.2, 34.0, roofTopY + 4.8, hz),
-      // Dutos metálicos conectando as centrais de ventilação
-      makeTranslatedBox(1.8, 1.6, 18.0, 31.5, roofTopY + 1.4, hz + 5.0)
-    );
-    world.addCollider(31.5, hz, 10.2, 8.2, roofTopY + 5.2, roofTopY);
-  }
-  const hvacMesh = new THREE.Mesh(mergeBufferGeometries(hvacGeos), silverMat);
-  hvacMesh.castShadow = true;
-  world.scene.add(hvacMesh);
-}
-
-/**
- * 4. GRANDE SAGUÃO INTERNO: 2 FILEIRAS DE COLUNAS QUEBRÁVEIS, LUSTRES ALTOS,
- * GUICHÊS DE ATENDIMENTO COM COMPUTADORES, CADEIRAS, CORDÃO VERMELHO E CORREDOR DE LASERS!
- */
-function buildGrandLobbyInteriorAndSecurity(
-  world,
-  bx,
-  bz,
-  wallH,
-  floorY,
-  roofBottomY,
-  marbleWhiteMat,
-  marbleCreamMat,
-  graniteDarkMat,
-  goldMat,
-  silverMat,
-  glassSkyMat,
-  redVelvetMat
-) {
-  // ============================================================================
-  // 4A. DUAS FILEIRAS DE COLUNAS INTERNAS DE MÁRMORE QUEBRÁVEIS (8 Colunas no Saguão!)
-  // ============================================================================
-  const internalColCoords = [
-    [-16.5, -146], [16.5, -146],
-    [-16.5, -158], [16.5, -158],
-    [-16.5, -170], [16.5, -170],
-    [-16.5, -182], [16.5, -182]
-  ];
-  const intColH = 26.0;
-
-  for (const [px, pz] of internalColCoords) {
-    const colGroup = new THREE.Group();
-    colGroup.position.set(px, floorY, pz);
-
-    const base = createLegoBrick(3.4, 1.4, 3.4, LEGO_COLORS.gold, { studStep: 1.0 });
-    base.position.y = 0.7;
-    const shaft = createLegoBrick(2.6, intColH - 2.8, 2.6, LEGO_COLORS.white, { studStep: 1.1 });
-    shaft.position.y = 1.4 + (intColH - 2.8) * 0.5;
-    const capital = createLegoBrick(3.6, 1.4, 3.6, LEGO_COLORS.gold, { studStep: 1.0 });
-    capital.position.y = intColH - 0.7;
-
-    colGroup.add(base, shaft, capital);
-    world.scene.add(colGroup);
-
-    const col = world.addCollider(px, pz, 3.2, 3.2, floorY + intColH, floorY);
-    if (world.destructibles) {
-      world.destructibles.registerDestructible({
-        mesh: colGroup,
-        type: 'newsstand',
-        hp: 45,
-        radius: 2.3,
-        height: intColH,
-        colliders: [col],
-        debrisColors: [LEGO_COLORS.white, LEGO_COLORS.gold, LEGO_COLORS.lightGrey],
-        studDrops: { silver: 6, gold: 8, blue: 2, purple: 0 },
-        groundY: floorY
-      });
+  // Rampas largas (andáveis e dirigíveis)
+  for (const r of S.ramps) {
+    const zl = r.zLow;
+    const zh = r.zHigh;
+    const len = Math.abs(zh - zl);
+    const y0 = rampY(r, zl);
+    const y1 = rampY(r, zh);
+    const ang = Math.atan2(y1 - y0, len);
+    const midRz = (zl + zh) / 2;
+    const cx = (r.minX + r.maxX) / 2;
+    const w = r.maxX - r.minX;
+    const dir = zh < zl ? 1 : -1; // inclinação no eixo X local
+    B.box('granite', w, 0.45, Math.hypot(len, y1 - y0), cx, (y0 + y1) / 2 - 0.25, midRz, 0, dir * ang);
+    // Faixas amarelas de segurança na rampa
+    for (let k = 0; k < 6; k++) {
+      const t = (k + 0.5) / 6;
+      const z = zl + (zh - zl) * t;
+      B.box('yellowLine', w - 1.2, 0.06, 0.5, cx, rampY(r, z) + 0.02, z);
     }
+    world.elevatedDecks.push({
+      id: `bank_ramp_${r.id}`,
+      minX: r.minX,
+      maxX: r.maxX,
+      minZ: Math.min(zl, zh),
+      maxZ: Math.max(zl, zh),
+      thresholdBelow: 1.6,
+      getDeckY: (x, z) => rampY(r, z)
+    });
+    // Parede de apoio + corrimão no lado de dentro (segmentos para colisão)
+    const innerX = r.minX < 0 ? r.maxX + 0.25 : r.minX - 0.25;
+    const segs = 10;
+    for (let k = 0; k < segs; k++) {
+      const za = zl + ((zh - zl) * k) / segs;
+      const zb = zl + ((zh - zl) * (k + 1)) / segs;
+      const ya = rampY(r, za);
+      const yb = rampY(r, zb);
+      const ymax = Math.max(ya, yb);
+      const base = S.floors[r.fromFloor];
+      const zc = (za + zb) / 2;
+      const segLen = Math.abs(zb - za);
+      B.box('marble', 0.5, ymax - base, segLen, innerX, base + (ymax - base) / 2, zc);
+      B.box('chrome', 0.25, 1.0, segLen, innerX, ymax + 0.5, zc);
+      world.addCollider(innerX, zc, 0.5, segLen, ymax + 1.1, base);
+    }
+    B.box('gold', 0.4, 0.14, len, innerX, (y0 + y1) / 2 + 1.05, midRz, 0, dir * ang);
   }
 
-  // ============================================================================
-  // 4B. GRANDES LUSTRES DOURADOS PENDURADOS NO TETO ALTO (Y = 30.5m — 30m livres abaixo!)
-  // ============================================================================
-  const crystalMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-  const chandelierPositions = [
-    [-16.5, -152], [16.5, -152],
-    [-16.5, -176], [16.5, -176],
-    [0, -144],     [0, -193]
-  ];
-  for (const [cx, cz] of chandelierPositions) {
-    const chandGroup = new THREE.Group();
-    chandGroup.position.set(cx, roofBottomY - 5.8, cz); // Y = 30.56m!
-
-    const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 5.6, 8), goldMat);
-    chain.position.y = 2.8;
-    const ringOuter = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 0.75, 20), goldMat);
-    const ringInner = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 1.2, 16), crystalMat);
-    ringInner.position.y = -0.5;
-    chandGroup.add(chain, ringOuter, ringInner);
-    world.scene.add(chandGroup);
-  }
-
-  // ============================================================================
-  // 4C. ÁREA DE ATENDIMENTO NAS LATERAIS: BALCÕES, GUICHÊS DE VIDRO, COMPUTADORES LEGO,
-  //     CADEIRAS DE ESPERA E DIVISÓRIAS DE CORDÃO VERMELHO!
-  // ============================================================================
-  const screenMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-  const darkPcMat = getLegoMaterial(LEGO_COLORS.black);
-
-  const counterSpecs = [
-    { x: -34, z: -152, side: -1 },
-    { x: 34,  z: -152, side: 1 },
-    { x: -34, z: -174, side: -1 },
-    { x: 34,  z: -174, side: 1 }
-  ];
-
-  for (const cfg of counterSpecs) {
-    const tellerGroup = new THREE.Group();
-    tellerGroup.position.set(cfg.x, floorY, cfg.z);
-
-    // Base longa de Madeira Nobre e Topo de Mármore Branco (16m de comprimento!)
-    const woodBase = createLegoBrick(3.4, 1.3, 16.0, LEGO_COLORS.brown, { studs: false });
-    woodBase.position.y = 0.65;
-    const marbleTop = createLegoBrick(3.8, 0.3, 16.4, LEGO_COLORS.white, { studStep: 1.2 });
-    marbleTop.position.y = 1.45;
-    tellerGroup.add(woodBase, marbleTop);
-
-    // Guichês de Vidro Blindado com divisórias douradas + 3 Computadores LEGO por balcão!
-    for (const gz of [-5.2, 0, 5.2]) {
-      const glassPane = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.1, 4.4), glassSkyMat);
-      glassPane.position.set(-cfg.side * 1.1, 2.65, gz);
-      const goldPost = new THREE.Mesh(new THREE.BoxGeometry(0.35, 2.3, 0.35), goldMat);
-      goldPost.position.set(-cfg.side * 1.1, 2.65, gz + 2.35);
-
-      // Computador LEGO (Monitor + Tela Luminosa + Teclado)
-      const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.95, 1.35), darkPcMat);
-      monitor.position.set(cfg.side * 0.2, 2.15, gz);
-      const screen = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.75, 1.15), screenMat);
-      screen.position.set(cfg.side * 0.25, 2.15, gz);
-      const keyboard = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.12, 1.1), darkPcMat);
-      keyboard.position.set(cfg.side * 0.85, 1.66, gz);
-
-      tellerGroup.add(glassPane, goldPost, monitor, screen, keyboard);
-    }
-
-    world.scene.add(tellerGroup);
-    const col = world.addCollider(cfg.x, cfg.z, 3.8, 16.4, floorY + 3.8, floorY);
-
-    if (world.destructibles) {
-      world.destructibles.registerDestructible({
-        mesh: tellerGroup,
-        type: 'newsstand',
-        hp: 35,
-        radius: 5.5,
-        height: 3.8,
-        colliders: [col],
-        debrisColors: [LEGO_COLORS.brown, LEGO_COLORS.white, LEGO_COLORS.gold, 0x38bdf8],
-        studDrops: { silver: 6, gold: 7, blue: 2, purple: 0 },
-        groundY: floorY
-      });
-    }
-  }
-
-  // Cadeiras / Poltronas de Espera nas Laterais do Saguão (X = -25 e X = +25)
-  const chairGeosRed = [];
-  const chairGeosGold = [];
-  for (const side of [-1, 1]) {
-    const chX = side * 25.0;
-    for (const chZ of [-148, -155, -170, -177]) {
-      chairGeosGold.push(makeTranslatedBox(1.8, 0.35, 4.2, chX, floorY + 0.18, chZ));
-      chairGeosRed.push(
-        makeTranslatedBox(1.6, 0.45, 4.0, chX, floorY + 0.55, chZ),
-        makeTranslatedBox(0.45, 1.1, 4.0, chX + side * 0.6, floorY + 1.2, chZ)
-      );
-      world.addCollider(chX, chZ, 1.8, 4.2, floorY + 1.8, floorY);
-    }
-  }
-  world.scene.add(
-    new THREE.Mesh(mergeBufferGeometries(chairGeosRed), redVelvetMat),
-    new THREE.Mesh(mergeBufferGeometries(chairGeosGold), goldMat)
-  );
-
-  // Divisórias de Cordão Vermelho (Stanchions Quebráveis) organizando a fila do Saguão!
-  const stanchionCoords = [
-    [-8.5, -148], [8.5, -148],
-    [-8.5, -162], [8.5, -162],
-    [-8.5, -176], [8.5, -176]
-  ];
-  for (const [sx, sz] of stanchionCoords) {
-    const stGroup = new THREE.Group();
-    stGroup.position.set(sx, floorY, sz);
-
-    const postA = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.25, 1.3, 12), goldMat);
-    postA.position.set(0, 0.65, -2.2);
-    const postB = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.25, 1.3, 12), goldMat);
-    postB.position.set(0, 0.65, 2.2);
-    const rope = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 4.4), redVelvetMat);
-    rope.position.set(0, 1.05, 0);
-
-    stGroup.add(postA, postB, rope);
-    world.scene.add(stGroup);
-    const col = world.addCollider(sx, sz, 0.7, 4.6, floorY + 1.35, floorY);
-
-    if (world.destructibles) {
-      world.destructibles.registerDestructible({
-        mesh: stGroup,
-        type: 'fence',
-        hp: 12,
-        radius: 2.3,
-        height: 1.35,
-        colliders: [col],
-        debrisColors: [LEGO_COLORS.gold, LEGO_COLORS.red],
-        studDrops: { silver: 4, gold: 2, blue: 0, purple: 0 },
-        groundY: floorY
-      });
-    }
-  }
-
-  // ============================================================================
-  // 4D. SISTEMA DE SEGURANÇA ANTES DO COFRE (Corredor com Grades Laterais, Feixes de
-  //     Laser Vermelhos Horizontais + Câmeras e Alarmes Vermelhos Piscando!)
-  // ============================================================================
-  const secCorridorZ = -193.5; // Entre Z = -188 e Z = -199 (antes da porta do cofre em Z = -200)
-  const secBarGeos = [];
-  const secGoldGeos = [];
-
-  for (const side of [-1, 1]) {
-    const gx = side * 9.5;
-    // Grades metálicas laterais formando o Corredor Blindado de Segurança até a Porta do Cofre
-    secGoldGeos.push(
-      makeTranslatedBox(0.6, 8.5, 0.6, gx, floorY + 4.25, -187.5),
-      makeTranslatedBox(0.6, 8.5, 0.6, gx, floorY + 4.25, -199.0),
-      makeTranslatedBox(0.5, 0.5, 12.0, gx, floorY + 8.3, secCorridorZ),
-      makeTranslatedBox(0.5, 0.5, 12.0, gx, floorY + 4.2, secCorridorZ)
-    );
-    for (let bzBar = -188.5; bzBar >= -198.5; bzBar -= 1.25) {
-      secBarGeos.push(makeTranslatedBox(0.24, 8.2, 0.24, gx, floorY + 4.1, bzBar));
-    }
-    world.addCollider(gx, secCorridorZ, 0.8, 12.0, floorY + 8.5, floorY);
-  }
-  world.scene.add(
-    new THREE.Mesh(mergeBufferGeometries(secBarGeos), silverMat),
-    new THREE.Mesh(mergeBufferGeometries(secGoldGeos), goldMat)
-  );
-
-  // Feixes de Laser Vermelhos Horizontais atravessando o corredor antes do Cofre!
-  const laserMat = new THREE.MeshBasicMaterial({ color: 0xff1133 });
-  for (const lz of [-190.5, -194.0, -197.0]) {
-    for (const ly of [1.1, 2.3, 3.6, 5.0]) {
-      const laserBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 18.4, 8), laserMat);
-      laserBeam.rotation.z = Math.PI / 2;
-      laserBeam.position.set(bx, floorY + ly, lz);
-      world.scene.add(laserBeam);
-    }
-  }
-
-  // Câmeras de Vigilância 3D + Sirenes/Alarmes Vermelhos Giratórios Piscando nas paredes!
-  const alarmGlowMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-  for (const side of [-1, 1]) {
-    const camX = side * 9.2;
-    const camZ = -188.0;
-    const camBody = createLegoBrick(0.9, 0.7, 1.6, LEGO_COLORS.white, { studs: false });
-    camBody.position.set(camX, floorY + 8.8, camZ);
-    camBody.rotation.y = side * 0.45;
-    camBody.rotation.x = 0.35;
-    world.scene.add(camBody);
-
-    // Giroflex / Alarme Vermelho Giratório acima da entrada do corredor e ao lado do Cofre
-    for (const az of [-188.0, -198.8]) {
-      const alarmGroup = new THREE.Group();
-      alarmGroup.position.set(side * 8.8, floorY + 9.6, az);
-      const beacon = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.65, 0.45), alarmGlowMat);
-      alarmGroup.add(beacon);
-      world.scene.add(alarmGroup);
-      world.rotatingElements.push({ mesh: alarmGroup, axis: 'y', speed: 6.5 });
-    }
+  // Núcleo do elevador (do térreo ao terraço) com portas em cada andar
+  const E = S.elevator;
+  const ex = (E.minX + E.maxX) / 2;
+  const ez = (E.minZ + E.maxZ) / 2;
+  B.box('graniteBlack', E.maxX - E.minX, S.roofY, E.maxZ - E.minZ, ex, S.roofY / 2, ez);
+  world.addCollider(ex, ez, E.maxX - E.minX, E.maxZ - E.minZ, S.roofY, 0);
+  for (const fy of S.floors) {
+    B.box('chrome', 0.3, 5.0, 3.0, E.minX - 0.15, fy + 2.5, ez - 1.55);
+    B.box('chrome', 0.3, 5.0, 3.0, E.minX - 0.15, fy + 2.5, ez + 1.55);
+    B.box('gold', 0.4, 0.5, 6.8, E.minX - 0.2, fy + 5.3, ez);
+    B.box('screen', 0.2, 0.6, 1.4, E.minX - 0.3, fy + 6.0, ez);
+    B.box('gold', 0.25, 0.5, 0.35, E.minX - 0.25, fy + 1.5, ez + 3.6);
+    // Marca amarela no chão ([E] chamar elevador)
+    B.box('yellowLine', 3.2, 0.04, 4.0, E.callX, fy + 0.03, E.callZ);
   }
 }
 
-/**
- * 5. PAREDE BLINDADA, PORTA CIRCULAR GIGANTE DO COFRE & SALA DO TESOURO!
- */
-function buildGiantVaultDoorAndTreasureRoom(
-  world,
-  bx,
-  bz,
-  bw,
-  wallH,
-  floorY,
-  steelVaultMat,
-  silverMat,
-  goldMat,
-  cashGreenMat
-) {
-  const vaultWallZ = -200.0; // Z = -200 (exigido pelos testes!)
+// ============================================================================
+// 3. 1º ANDAR — GRANDE SAGUÃO
+// ============================================================================
+function buildGroundLobby(world, B) {
+  const S = BANK_SPEC;
+  const fy = S.floors[0];
 
-  // Parede Blindada de Aço Escuro dividindo o Saguão da Sala Forte do Cofre (36m de altura!)
-  world.addBuildingBox(bx - 27.0, vaultWallZ, 41.0, wallH, 2.8, LEGO_COLORS.charcoal, {
-    yBase: floorY,
-    studs: false,
-    registerMap: false
+  // Piso de mármore quadriculado + tapete vermelho central
+  B.box('marble', S.innerMaxX - S.innerMinX, fy, S.innerFrontZ - S.innerBackZ, 0, fy / 2, (S.innerFrontZ + S.innerBackZ) / 2);
+  for (let tx = -66; tx <= 66; tx += 6) {
+    for (let tz = -142; tz >= -224; tz -= 6) {
+      const ix = Math.round((tx + 66) / 6);
+      const iz = Math.round((-142 - tz) / 6);
+      if ((ix + iz) % 2 === 0) B.box('cream', 5.85, 0.04, 5.85, tx, fy + 0.01, tz);
+    }
+  }
+  B.box('velvet', 10, 0.05, 56, 0, fy + 0.04, -168);
+  B.box('gold', 10.6, 0.04, 56.6, 0, fy + 0.025, -168);
+  // Brasão dourado no piso
+  B.cyl('gold', 6, 6, 0.05, 0, fy + 0.07, -160, 32);
+  B.cyl('graniteBlack', 4.8, 4.8, 0.06, 0, fy + 0.08, -160, 32);
+  B.box('gold', 0.8, 0.07, 6, 0, fy + 0.1, -160);
+
+  // 8 colunas internas de mármore (quebráveis)
+  const pillarPositions = [
+    [-44, -158], [44, -158], [-44, -184], [44, -184],
+    [-22, -158], [22, -158], [-22, -184], [22, -184]
+  ];
+  for (const [px, pz] of pillarPositions) {
+    const group = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.3, 9.2, 18), getLegoMaterial(0xf8fafc, { roughness: 0.12, clearcoat: 0.88 }));
+    shaft.position.y = 4.6;
+    const cap = createLegoBrick(3.0, 0.8, 3.0, LEGO_COLORS.gold, { metalness: 0.7, roughness: 0.18, studStep: 0.75 });
+    cap.position.y = 9.5;
+    const base = createLegoBrick(3.0, 0.8, 3.0, 0x1e293b, { studs: false });
+    base.position.y = 0.4;
+    group.add(shaft, cap, base);
+    group.position.set(px, fy, pz);
+    group.traverse((o) => {
+      if (o.isMesh) o.castShadow = true;
+    });
+    world.scene.add(group);
+    const col = world.addCollider(px, pz, 2.4, 2.4, fy + 9.9, fy);
+    world.destructibles?.registerDestructible({
+      mesh: group,
+      type: 'marble_pillar',
+      hp: 140,
+      radius: 1.6,
+      height: 9.9,
+      colliders: [col],
+      debrisColors: [LEGO_COLORS.white, 0xfef3c7, LEGO_COLORS.gold],
+      studDrops: { silver: 6, gold: 4, blue: 1, purple: 0 },
+      groundY: fy
+    });
+  }
+
+  // Guichês: balcão longo com vidros e 8 computadores
+  const cz = -200;
+  B.box('wood', 84, 1.3, 2.4, 0, fy + 0.65, cz);
+  B.box('marble', 85, 0.2, 2.8, 0, fy + 1.4, cz);
+  world.addCollider(0, cz, 84, 2.4, fy + 1.5, fy);
+  for (let i = 0; i < 8; i++) {
+    const x = -36.75 + i * 10.5;
+    B.box('glass', 9.4, 2.6, 0.2, x, fy + 2.8, cz + 1.1);
+    B.box('gold', 0.3, 2.8, 0.4, x - 5.1, fy + 2.8, cz + 1.1);
+    B.box('black', 1.4, 1.0, 0.25, x, fy + 2.1, cz - 0.5);
+    B.box('screenGreen', 1.2, 0.8, 0.05, x, fy + 2.1, cz - 0.36);
+    B.box('ledRed', 0.4, 0.3, 0.3, x + 3.6, fy + 1.65, cz + 0.6); // botão de alarme
+  }
+  B.box('gold', 0.3, 2.8, 0.4, 47.25, fy + 2.8, cz + 1.1);
+  // Placa "GUICHÊS"
+  B.box('graniteBlack', 30, 2.2, 0.4, 0, fy + 7.4, cz - 1.0);
+  B.box('gold', 30.6, 0.3, 0.5, 0, fy + 6.25, cz - 1.0);
+
+  // Parede de caixas eletrônicos (lado leste, perto da entrada)
+  for (let i = 0; i < 5; i++) {
+    const z = -152 - i * 4.2;
+    B.box('steel', 1.6, 3.2, 2.6, 46, fy + 1.6, z);
+    B.box('screen', 0.06, 0.9, 1.4, 45.18, fy + 2.3, z);
+    B.box('gold', 0.1, 0.3, 2.6, 45.15, fy + 3.05, z);
+    world.addCollider(46, z, 1.6, 2.6, fy + 3.2, fy);
+  }
+
+  // Recepção circular "INFORMAÇÕES"
+  B.cyl('wood', 4.2, 4.2, 1.3, -30, fy + 0.65, -148, 24);
+  B.cyl('marble', 4.5, 4.5, 0.2, -30, fy + 1.4, -148, 24);
+  world.addCollider(-30, -148, 8, 8, fy + 1.5, fy);
+
+  // Bancos de espera, plantas e cordões de fila
+  for (const bx of [-12, 12]) {
+    for (let r = 0; r < 3; r++) {
+      const z = -170 - r * 5;
+      B.box('wood', 9, 0.5, 1.6, bx, fy + 0.9, z);
+      B.box('wood', 9, 1.4, 0.3, bx, fy + 1.6, z - 0.75);
+      B.box('steel', 0.3, 0.7, 1.2, bx - 4, fy + 0.35, z);
+      B.box('steel', 0.3, 0.7, 1.2, bx + 4, fy + 0.35, z);
+    }
+  }
+  for (let i = 0; i < 6; i++) {
+    const x = -15 + i * 6;
+    B.cyl('gold', 0.18, 0.25, 2.0, x, fy + 1.0, -194, 10);
+    B.sphere('gold', 0.3, x, fy + 2.1, -194);
+    if (i < 5) B.box('velvet', 5.6, 0.2, 0.2, x + 3, fy + 1.7, -194);
+  }
+  addPlant(B, -66, fy, -142);
+  addPlant(B, 66, fy, -142);
+  addPlant(B, -56, fy, -222);
+  addPlant(B, 56, fy, -222);
+
+  // Lustres dourados pendurados no teto do térreo
+  for (const [lx, lz] of [[-30, -168], [0, -176], [30, -168]]) {
+    B.cyl('gold', 0.12, 0.12, 1.6, lx, S.floors[1] - 1.4, lz, 8);
+    B.cyl('gold', 2.4, 1.2, 0.9, lx, S.floors[1] - 2.6, lz, 16);
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      B.sphere('lightPanel', 0.35, lx + Math.cos(a) * 2.2, S.floors[1] - 3.2, lz + Math.sin(a) * 2.2);
+    }
+  }
+
+  // Câmeras e sirenes vermelhas (perto das rampas e do elevador)
+  for (const [ax, az] of [[-60, -144], [60, -144], [0, -224]]) {
+    B.box('white', 0.9, 0.7, 1.6, ax, S.floors[1] - 1.5, az);
+    B.box('ledRed', 0.9, 0.5, 0.5, ax, S.floors[1] - 2.2, az + 0.9);
+  }
+}
+
+function addPlant(B, x, y, z) {
+  B.cyl('pot', 1.1, 0.8, 1.6, x, y + 0.8, z, 12);
+  B.sphere('plant', 1.6, x, y + 2.8, z, 1.3);
+  B.sphere('plant', 1.1, x + 0.6, y + 4.2, z - 0.3, 1.2);
+}
+
+// ============================================================================
+// 4. 2º ANDAR — CÂMBIO & ESCRITÓRIOS
+// ============================================================================
+function buildOfficeFloor(world, B) {
+  const S = BANK_SPEC;
+  const fy = S.floors[1];
+  // Fileiras de mesas com computadores (baixas: servem de cobertura)
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 6; col++) {
+      const x = -40 + col * 16;
+      const z = -154 - row * 13;
+      B.box('white', 6.4, 0.25, 3.2, x, fy + 1.2, z);
+      B.box('steel', 0.3, 1.2, 3.0, x - 3.0, fy + 0.6, z);
+      B.box('steel', 0.3, 1.2, 3.0, x + 3.0, fy + 0.6, z);
+      B.box('black', 1.6, 1.1, 0.2, x - 1.4, fy + 1.9, z - 0.9);
+      B.box('screen', 1.4, 0.9, 0.05, x - 1.4, fy + 1.9, z - 0.78);
+      B.box('black', 1.6, 1.1, 0.2, x + 1.4, fy + 1.9, z - 0.9);
+      B.box('screen', 1.4, 0.9, 0.05, x + 1.4, fy + 1.9, z - 0.78);
+      B.box('carpetBlue', 6.6, 1.6, 0.25, x, fy + 2.1, z - 1.7); // divisória
+      B.box('black', 1.1, 0.9, 1.1, x - 1.4, fy + 0.45, z + 2.0); // cadeiras
+      B.box('black', 1.1, 0.9, 1.1, x + 1.4, fy + 0.45, z + 2.0);
+      world.addCollider(x, z, 6.4, 3.4, fy + 1.4, fy);
+    }
+  }
+  // Sala de reunião de vidro (fundo)
+  B.box('glass', 30, 6, 0.3, 0, fy + 3, -206);
+  B.box('glass', 0.3, 6, 14, -15, fy + 3, -213);
+  B.box('glass', 0.3, 6, 14, 15, fy + 3, -213);
+  B.box('wood', 18, 0.4, 5, 0, fy + 1.4, -214);
+  B.box('gold', 30.4, 0.3, 0.4, 0, fy + 6.1, -206);
+  // Balcão de câmbio com painel de cotações
+  B.box('wood', 30, 1.3, 2.4, 0, fy + 0.65, -144.5);
+  world.addCollider(0, -144.5, 30, 2.4, fy + 1.4, fy);
+  B.box('graniteBlack', 24, 3.2, 0.4, 0, fy + 6.5, -140.4);
+  for (let i = 0; i < 6; i++) B.box(i % 2 ? 'screenGreen' : 'ledRed', 3.0, 0.5, 0.1, -9 + i * 3.6, fy + 6.5, -140.15);
+  // Arquivos e plantas
+  for (let i = 0; i < 6; i++) B.box('steel', 2.2, 3.2, 1.4, -30 + i * 2.4, fy + 1.6, -224.5);
+  addPlant(B, 30, fy, -224);
+  addPlant(B, 40, fy, -140.6);
+  addPlant(B, -40, fy, -140.6);
+  // Bebedouros
+  for (const x of [-50, 50]) {
+    B.box('white', 1.2, 2.6, 1.2, x, fy + 1.3, -224.5);
+    B.cyl('glass', 0.5, 0.5, 1.4, x, fy + 3.2, -224.5, 12);
+  }
+}
+
+// ============================================================================
+// 5. 3º ANDAR — CENTRO DE SEGURANÇA
+// ============================================================================
+function buildSecurityFloor(world, B) {
+  const S = BANK_SPEC;
+  const fy = S.floors[2];
+  // Parede de monitores (fundo)
+  B.box('graniteBlack', 70, 8, 1.0, 0, fy + 4.6, -224.8);
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 10; c++) {
+      B.box((r + c) % 3 === 0 ? 'screenGreen' : 'screen', 5.6, 2.0, 0.1, -31.5 + c * 7, fy + 2.4 + r * 2.4, -224.25);
+    }
+  }
+  B.box('steel', 40, 1.2, 3, 0, fy + 0.6, -218);
+  world.addCollider(0, -218, 40, 3, fy + 1.3, fy);
+  // Racks de servidores com LEDs
+  for (let i = 0; i < 6; i++) {
+    for (const x of [-46, 46]) {
+      const z = -160 - i * 9;
+      B.box('black', 3.2, 6.5, 2.2, x, fy + 3.25, z);
+      for (let k = 0; k < 5; k++) B.box(k % 2 ? 'screenGreen' : 'ledRed', 0.1, 0.2, 1.6, x + (x < 0 ? 1.62 : -1.62), fy + 1.2 + k * 1.1, z);
+      world.addCollider(x, z, 3.2, 2.2, fy + 6.5, fy);
+    }
+  }
+  // Barricadas de sacos de areia / caixotes blindados (cobertura)
+  for (const [x, z] of [[-24, -160], [24, -160], [-12, -185], [12, -185], [-30, -200], [30, -200]]) {
+    B.box('concrete', 8, 2.0, 1.8, x, fy + 1.0, z);
+    B.box('yellowLine', 8.2, 0.25, 1.9, x, fy + 2.05, z);
+    world.addCollider(x, z, 8, 1.8, fy + 2.1, fy);
+  }
+  // Detectores de metal (pórticos)
+  for (const x of [-10, 0, 10]) {
+    B.box('steel', 0.5, 4.2, 1.0, x - 1.6, fy + 2.1, -146);
+    B.box('steel', 0.5, 4.2, 1.0, x + 1.6, fy + 2.1, -146);
+    B.box('steel', 3.7, 0.5, 1.0, x, fy + 4.35, -146);
+    B.box('ledRed', 0.3, 0.3, 0.3, x, fy + 4.75, -146);
+  }
+  // Armários do arsenal
+  for (let i = 0; i < 8; i++) {
+    B.box('steelDark', 2.0, 4.0, 1.2, -18 + i * 2.2, fy + 2.0, -140.6);
+    B.box('gold', 0.1, 0.5, 0.1, -17.4 + i * 2.2, fy + 2.2, -140.0);
+  }
+  // Faixas de alerta no chão
+  for (let i = 0; i < 10; i++) B.box('yellowLine', 2.4, 0.03, 0.6, -45 + i * 10, fy + 0.03, -192, 0.6);
+}
+
+// ============================================================================
+// 6. 4º ANDAR — COFRE
+// ============================================================================
+function buildVaultFloor(world, B) {
+  const S = BANK_SPEC;
+  const fy = S.floors[3];
+  const vz = S.vaultWallZ;
+  const hw = S.vaultDoorHalfW;
+  const wallH = S.roofY - fy - 1.2;
+
+  // Piso nobre com faixas douradas
+  for (let i = 0; i < 8; i++) B.box('gold', 132, 0.04, 0.4, 0, fy + 0.03, -146 - i * 7.6);
+  // Parede blindada do cofre com abertura circular no centro
+  B.box('steelDark', S.innerMaxX - hw, wallH, 2.8, (S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
+  B.box('steelDark', S.innerMaxX - hw, wallH, 2.8, -(S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
+  B.box('steelDark', hw * 2, wallH - 10.6, 2.8, 0, fy + 10.6 + (wallH - 10.6) / 2, vz);
+  world.addCollider((S.innerMaxX + hw) / 2, vz, S.innerMaxX - hw, 2.8, fy + wallH, fy);
+  world.addCollider(-(S.innerMaxX + hw) / 2, vz, S.innerMaxX - hw, 2.8, fy + wallH, fy);
+  world.addCollider(0, vz, hw * 2, 2.8, fy + wallH, fy + 10.6);
+  // Rebites e faixas de aço
+  for (let x = -66; x <= 66; x += 6) {
+    if (Math.abs(x) < hw + 2) continue;
+    B.box('chrome', 0.5, wallH - 1, 0.3, x, fy + wallH / 2, vz + 1.5);
+  }
+  // Moldura circular da porta
+  B.cyl('chrome', 6.6, 6.6, 0.8, 0, fy + 5.6, vz + 1.6, 40, Math.PI / 2);
+  B.cyl('steelDark', 5.6, 5.6, 0.85, 0, fy + 5.6, vz + 1.65, 40, Math.PI / 2);
+  // Grades de laser na frente do cofre (só visual)
+  for (const ly of [1.0, 2.2, 3.4]) {
+    B.cyl('laser', 0.05, 0.05, 30, 0, fy + ly, vz + 7, 6, 0, Math.PI / 2);
+  }
+  B.box('steel', 0.6, 4, 0.6, -15, fy + 2, vz + 7);
+  B.box('steel', 0.6, 4, 0.6, 15, fy + 2, vz + 7);
+
+  // PORTA CIRCULAR GIGANTE (destrutível)
+  const door = new THREE.Group();
+  const disc = new THREE.Mesh(
+    new THREE.CylinderGeometry(5.4, 5.4, 1.4, 40),
+    getLegoMaterial(0x94a3b8, { metalness: 0.85, roughness: 0.18 })
+  );
+  disc.rotation.x = Math.PI / 2;
+  door.add(disc);
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.28, 10, 32), getLegoMaterial(0xfacc15, { metalness: 0.8, roughness: 0.15 }));
+  wheel.position.z = 0.9;
+  door.add(wheel);
+  for (let k = 0; k < 4; k++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.3, 0.3), getLegoMaterial(0xfacc15, { metalness: 0.8, roughness: 0.15 }));
+    spoke.rotation.z = (k / 4) * Math.PI;
+    spoke.position.z = 0.9;
+    door.add(spoke);
+  }
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.6, 10), getLegoMaterial(0x334155, { metalness: 0.7 }));
+    bolt.rotation.x = Math.PI / 2;
+    bolt.position.set(Math.cos(a) * 4.6, Math.sin(a) * 4.6, 0.8);
+    door.add(bolt);
+  }
+  door.position.set(0, fy + 5.6, vz + 0.6);
+  door.traverse((o) => {
+    if (o.isMesh) o.castShadow = true;
   });
-  world.addBuildingBox(bx + 27.0, vaultWallZ, 41.0, wallH, 2.8, LEGO_COLORS.charcoal, {
-    yBase: floorY,
-    studs: false,
-    registerMap: false
-  });
-  // Bloco blindado superior acima da Porta Circular do Cofre (de Y = 12.0m até Y = 36.36m)
-  const headerH = wallH - 11.6;
-  const vaultHeader = createLegoBrick(14.0, headerH, 2.8, LEGO_COLORS.charcoal, { studs: false });
-  vaultHeader.position.set(bx, floorY + 11.6 + headerH * 0.5, vaultWallZ);
-  world.scene.add(vaultHeader);
-  world.addCollider(bx, vaultWallZ, 14.0, 2.8, floorY + wallH, floorY + 11.6);
-
-  // Moldura Circular Permanente de Aço e Ouro + Dobradiça Colossal na Parede do Cofre
-  const portalFrameRing = new THREE.Mesh(new THREE.TorusGeometry(5.8, 0.65, 14, 32), goldMat);
-  portalFrameRing.position.set(bx, floorY + 5.8, vaultWallZ + 1.45);
-  const hingePillar = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 10.5, 16), silverMat);
-  hingePillar.position.set(bx + 6.4, floorY + 5.6, vaultWallZ + 1.6);
-  world.scene.add(portalFrameRing, hingePillar);
-
-  // ============================================================================
-  // A PORTA CIRCULAR GIGANTE DO COFRE (Destrutível: type = 'bank_vault_door' em Z = -200!)
-  // Equipada com Disco de Aço Prateado, Volante de Tranca Dourado e Engrenagens Grossas!
-  // ============================================================================
-  const vaultDoorGroup = new THREE.Group();
-  vaultDoorGroup.position.set(bx, floorY, vaultWallZ);
-
-  // Disco principal blindado de 10.8m de diâmetro
-  const doorDisc = new THREE.Mesh(new THREE.CylinderGeometry(5.4, 5.4, 1.4, 32), silverMat);
-  doorDisc.rotation.x = Math.PI / 2;
-  doorDisc.position.y = 5.6;
-  vaultDoorGroup.add(doorDisc);
-
-  // Anel de Ouro e 4 Engrenagens Grossas Aparentes na face da Porta Circular!
-  const gearPositions = [
-    [-2.3, 7.4], [2.3, 7.4],
-    [-2.3, 3.8], [2.3, 3.8]
-  ];
-  for (const [gx, gy] of gearPositions) {
-    const gear = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 1.65, 12), goldMat);
-    gear.rotation.x = Math.PI / 2;
-    gear.position.set(gx, gy, 0.15);
-    vaultDoorGroup.add(gear);
-  }
-
-  // Volante Central de Tranca Dourado com 8 Raios e Travas Cilíndricas
-  const goldWheel = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 1.8, 20), goldMat);
-  goldWheel.rotation.x = Math.PI / 2;
-  goldWheel.position.set(0, 5.6, 0.25);
-  vaultDoorGroup.add(goldWheel);
-
-  for (let r = 0; r < 4; r++) {
-    const spoke = new THREE.Mesh(new THREE.BoxGeometry(9.6, 0.42, 1.75), goldMat);
-    spoke.position.set(0, 5.6, 0.2);
-    spoke.rotation.z = (r / 4) * Math.PI;
-    vaultDoorGroup.add(spoke);
-  }
-
-  world.scene.add(vaultDoorGroup);
-  const vaultCol = world.addCollider(bx, vaultWallZ, 10.8, 1.8, floorY + 11.2, floorY);
-
+  world.scene.add(door);
+  const doorCol = world.addCollider(0, vz, hw * 2, 3.0, fy + 10.6, fy);
+  let vaultDoor = null;
   if (world.destructibles) {
-    world.destructibles.registerDestructible({
-      mesh: vaultDoorGroup,
+    vaultDoor = world.destructibles.registerDestructible({
+      mesh: door,
       type: 'bank_vault_door',
       hp: 75,
       radius: 5.5,
-      height: 11.0,
-      colliders: [vaultCol],
+      height: 11,
+      colliders: [doorCol],
       debrisColors: [LEGO_COLORS.silver, LEGO_COLORS.gold, LEGO_COLORS.charcoal],
       studDrops: { silver: 0, gold: 14, blue: 10, purple: 5 },
-      groundY: floorY,
+      groundY: fy,
       goldOnly: false
     });
   }
 
-  // ============================================================================
-  // DENTRO DA SALA DO COFRE (Z = -202 a Z = -221, X = -45 a +45):
-  // 1. Caixas-Fortes nas Paredes (Safe Deposit Boxes)
-  // 2. Prateleiras Metálicas cheias de Barras de Ouro Brilhantes e Pilhas de Cédulas Verdes
-  // 3. 4 Grandes Pallets de Barras de Ouro LEGO (Z = -211) + 2 Pallets Extras (Z = -217)
-  // 4. 8 Maletas Prateadas Quebráveis
-  // 5. 36 Studs Dourados, Azuis e Roxos girando prontos para coletar!
-  // ============================================================================
-  const shelfSteelGeos = [];
-  const goldBarGeos = [];
-  const cashStackGeos = [];
-
-  // 1. Caixas-Fortes nas Paredes Laterais da Sala do Cofre (X = -44.8 e X = +44.8)
-  for (const side of [-1, 1]) {
-    const wallX = side * 44.8;
-    shelfSteelGeos.push(makeTranslatedBox(1.2, 14.0, 18.0, wallX, floorY + 7.0, -211.0));
-    for (let rowY = 1.5; rowY <= 12.5; rowY += 2.2) {
-      for (let colZ = -218.5; colZ <= -203.5; colZ += 2.5) {
-        goldBarGeos.push(makeTranslatedBox(1.35, 1.6, 2.0, wallX, floorY + rowY, colZ));
-      }
+  // SALA DO OURO (Z -226..-207)
+  const roomZ0 = vz - 1.4;
+  // Prateleiras de cédulas nas paredes laterais
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 5; i++) {
+      const z = roomZ0 - 2 - i * 3.8;
+      B.box('steel', 2.0, 6.4, 3.2, sx * 64, fy + 3.2, z);
+      for (let k = 0; k < 4; k++) B.box('cash', 1.6, 0.8, 2.6, sx * 64, fy + 0.9 + k * 1.5, z);
     }
   }
-
-  // 2. Prateleiras Metálicas Pesadas (Esquerda, Direita e Fundo da Sala do Cofre)
-  // Forradas de Barras de Ouro Brilhantes e Pilhas de Cédulas Verdes LEGO!
-  const rackXList = [-34, -23, 23, 34];
-  for (const rx of rackXList) {
-    const rz = -211.0;
-    // Colunas e 4 níveis de prateleiras metálicas
-    shelfSteelGeos.push(
-      makeTranslatedBox(4.2, 0.35, 14.0, rx, floorY + 1.2, rz),
-      makeTranslatedBox(4.2, 0.35, 14.0, rx, floorY + 3.4, rz),
-      makeTranslatedBox(4.2, 0.35, 14.0, rx, floorY + 5.6, rz),
-      makeTranslatedBox(4.2, 0.35, 14.0, rx, floorY + 7.8, rz),
-      makeTranslatedBox(0.4, 8.4, 0.4, rx - 1.9, floorY + 4.2, rz - 6.6),
-      makeTranslatedBox(0.4, 8.4, 0.4, rx + 1.9, floorY + 4.2, rz - 6.6),
-      makeTranslatedBox(0.4, 8.4, 0.4, rx - 1.9, floorY + 4.2, rz + 6.6),
-      makeTranslatedBox(0.4, 8.4, 0.4, rx + 1.9, floorY + 4.2, rz + 6.6)
-    );
-    world.addCollider(rx, rz, 4.2, 14.0, floorY + 8.4, floorY);
-
-    // Lingotes de Ouro Brilhantes + Pacotes de Cédulas Verdes em cada prateleira!
-    for (const sy of [1.4, 3.6, 5.8, 8.0]) {
-      for (let sz = rz - 5.0; sz <= rz + 5.0; sz += 2.5) {
-        if (Math.abs(rx) > 28) {
-          goldBarGeos.push(makeTranslatedBox(2.6, 0.9, 1.6, rx, floorY + sy + 0.45, sz));
-        } else {
-          cashStackGeos.push(makeTranslatedBox(2.6, 1.0, 1.7, rx, floorY + sy + 0.5, sz));
-        }
-      }
+  // Caixas-fortes na parede do fundo
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 16; c++) {
+      B.box('chrome', 3.6, 1.8, 0.3, -27 + c * 3.6, fy + 1.2 + r * 2.0, S.innerBackZ + 0.4);
+      B.cyl('gold', 0.18, 0.18, 0.2, -27 + c * 3.6 + 1.2, fy + 1.2 + r * 2.0, S.innerBackZ + 0.6, 8, Math.PI / 2);
     }
   }
-
-  world.scene.add(
-    new THREE.Mesh(mergeBufferGeometries(shelfSteelGeos), steelVaultMat),
-    new THREE.Mesh(mergeBufferGeometries(goldBarGeos), goldMat),
-    new THREE.Mesh(mergeBufferGeometries(cashStackGeos), cashGreenMat)
-  );
-
-  // 3. AS 4 GRANDES PILHAS CENTRAIS DE BARRAS DE OURO DESTRUTÍVEIS (Z = -211, exigidas pelo Teste 2!)
-  const goldStackPositions = [-12, -4, 4, 12];
-  for (const gx of goldStackPositions) {
-    const goldStack = createLegoBrick(3.6, 2.6, 3.0, LEGO_COLORS.gold, {
-      metalness: 0.78,
-      roughness: 0.12,
-      studStep: 0.65
+  // 4 pilhas grandes de barras de ouro (destrutíveis só com raio solar) em Z = -211
+  for (const gx of [-12, -4, 4, 12]) addGoldStack(world, gx, fy, -211, 3.6, 2.6, 3.0);
+  // 2 pilhas extras + pedestal central do "Ouro Lendário"
+  addGoldStack(world, -24, fy, -219, 3.2, 2.2, 2.6);
+  addGoldStack(world, 24, fy, -219, 3.2, 2.2, 2.6);
+  B.box('graniteBlack', 6, 1.4, 6, S.goldPile.x, fy + 0.7, S.goldPile.z - 4);
+  B.box('gold', 3.6, 1.6, 2.2, S.goldPile.x, fy + 2.2, S.goldPile.z - 4);
+  B.box('gold', 2.4, 1.0, 1.6, S.goldPile.x, fy + 3.5, S.goldPile.z - 4);
+  // Maletas prateadas
+  for (const [mx, mz] of [[-16, -208.5], [16, -208.5], [-8, -223], [8, -223]]) {
+    const brief = createLegoBrick(1.6, 1.0, 0.6, LEGO_COLORS.silver, { metalness: 0.7, roughness: 0.2, studs: false });
+    brief.position.set(mx, fy + 0.5, mz);
+    world.scene.add(brief);
+    world.destructibles?.registerDestructible({
+      mesh: brief,
+      type: 'crate',
+      hp: 20,
+      radius: 1.0,
+      height: 1.0,
+      colliders: [],
+      debrisColors: [LEGO_COLORS.silver, LEGO_COLORS.gold],
+      studDrops: { silver: 4, gold: 6, blue: 2, purple: 1 },
+      groundY: fy
     });
-    goldStack.position.set(bx + gx, floorY + 1.3, bz - 31); // z = -211
-    world.scene.add(goldStack);
-    const gCol = world.addCollider(bx + gx, bz - 31, 3.6, 3.0, floorY + 2.6, floorY);
-
-    if (world.destructibles) {
-      world.destructibles.registerDestructible({
-        mesh: goldStack,
-        type: 'gold_vault',
-        hp: 40,
-        radius: 2.3,
-        height: 2.6,
-        colliders: [gCol],
-        debrisColors: [LEGO_COLORS.gold, LEGO_COLORS.yellow],
-        studDrops: { silver: 0, gold: 12, blue: 8, purple: 5 },
-        groundY: floorY,
-        goldOnly: true
-      });
+  }
+  // 36 Studs girando na sala do cofre
+  if (world.destructibles?.spawnAmbientStud) {
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const r = 6 + (i % 3) * 3;
+      const tier = i % 6 === 0 ? 'purple' : i % 3 === 0 ? 'blue' : 'gold';
+      world.destructibles.spawnAmbientStud(Math.cos(a) * r, fy + 0.9, -216 + Math.sin(a) * r * 0.45, tier);
     }
   }
 
-  // 4. OITO MALETAS PRATEADAS QUEBRÁVEIS DENTRO DA SALA DO COFRE!
-  const briefcaseCoords = [
-    [-16, -206], [-8, -206], [8, -206], [16, -206],
-    [-16, -217], [-8, -217], [8, -217], [16, -217]
-  ];
-  for (const [mcx, mcz] of briefcaseCoords) {
-    const caseMesh = createLegoBrick(1.8, 1.2, 1.1, LEGO_COLORS.silver, {
-      metalness: 0.8,
-      roughness: 0.15,
-      studStep: 0.55
-    });
-    caseMesh.position.set(mcx, floorY + 0.6, mcz);
-    world.scene.add(caseMesh);
-    const cCol = world.addCollider(mcx, mcz, 1.8, 1.1, floorY + 1.2, floorY);
+  return { vaultDoor };
+}
 
-    if (world.destructibles) {
-      world.destructibles.registerDestructible({
-        mesh: caseMesh,
-        type: 'crate',
-        hp: 18,
-        radius: 1.3,
-        height: 1.2,
-        colliders: [cCol],
-        debrisColors: [LEGO_COLORS.silver, 0x16a34a, LEGO_COLORS.gold],
-        studDrops: { silver: 4, gold: 8, blue: 4, purple: 1 },
-        groundY: floorY
-      });
-    }
+function addGoldStack(world, x, fy, z, w, h, d) {
+  const stack = createLegoBrick(w, h, d, LEGO_COLORS.gold, { metalness: 0.78, roughness: 0.12, studStep: 0.65 });
+  stack.position.set(x, fy + h / 2, z);
+  world.scene.add(stack);
+  const col = world.addCollider(x, z, w, d, fy + h, fy);
+  world.destructibles?.registerDestructible({
+    mesh: stack,
+    type: 'gold_vault',
+    hp: 40,
+    radius: Math.max(w, d) * 0.65,
+    height: h,
+    colliders: [col],
+    debrisColors: [LEGO_COLORS.gold, LEGO_COLORS.yellow],
+    studDrops: { silver: 0, gold: 12, blue: 8, purple: 5 },
+    groundY: fy,
+    goldOnly: true
+  });
+}
+
+// ============================================================================
+// 7. TERRAÇO: heliponto, claraboia em pirâmide, jardins, antena e máquinas
+// ============================================================================
+function buildRooftop(world, B) {
+  const S = BANK_SPEC;
+  const ry = S.roofY;
+  const W = S.maxX - S.minX;
+  const D = S.frontZ - S.backZ;
+  const midZ = (S.frontZ + S.backZ) / 2;
+
+  // Laje do terraço (andável) + parapeito com pinos LEGO
+  B.box('concrete', W, 0.5, D, 0, ry - 0.25, midZ);
+  world.elevatedDecks.push({
+    id: 'bank_roof',
+    minX: S.minX,
+    maxX: S.maxX,
+    minZ: S.backZ,
+    maxZ: S.frontZ,
+    thresholdBelow: 2.4,
+    getDeckY: () => ry
+  });
+  const parH = S.wallTopY - ry;
+  for (let x = S.minX + 2; x <= S.maxX - 2; x += 1.6) {
+    B.cyl('gold', 0.28, 0.28, 0.25, x, S.wallTopY + 0.12, S.frontZ - 1.5, 8);
+    B.cyl('gold', 0.28, 0.28, 0.25, x, S.wallTopY + 0.12, S.backZ + 1.5, 8);
+  }
+  void parH;
+
+  // Heliponto (oeste)
+  const hx = -40;
+  const hz = -195;
+  B.cyl('graniteBlack', 13, 13, 0.6, hx, ry + 0.3, hz, 40);
+  B.cyl('yellowLine', 12, 12, 0.62, hx, ry + 0.31, hz, 40);
+  B.cyl('graniteBlack', 11.2, 11.2, 0.64, hx, ry + 0.32, hz, 40);
+  B.box('white', 1.4, 0.05, 9, hx - 2.8, ry + 0.66, hz);
+  B.box('white', 1.4, 0.05, 9, hx + 2.8, ry + 0.66, hz);
+  B.box('white', 4.2, 0.05, 1.4, hx, ry + 0.66, hz);
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    B.box('ledRed', 0.5, 0.3, 0.5, hx + Math.cos(a) * 12.6, ry + 0.75, hz + Math.sin(a) * 12.6);
   }
 
-  // 5. DEZENAS DE STUDS DOURADOS, AZUIS E ROXOS ESPALHADOS PELA SALA DO COFRE PARA COLETAR!
-  if (world.destructibles && typeof world.destructibles.spawnAmbientStud === 'function') {
-    const studRowsZ = [-204.5, -208.0, -214.5, -218.5];
-    const studColsX = [-18, -14, -10, -6, -2, 2, 6, 10, 14, 18];
-    let idx = 0;
-    for (const sz of studRowsZ) {
-      for (const sx of studColsX) {
-        const tier = idx % 5 === 0 ? 'purple' : idx % 2 === 0 ? 'blue' : 'gold';
-        world.destructibles.spawnAmbientStud(sx, floorY + 0.22, sz, tier);
-        idx++;
+  // Claraboia em pirâmide de vidro (centro) com moldura dourada
+  B.box('gold', 22, 0.8, 22, 10, ry + 0.4, -168);
+  B.cone('glass', 15.2, 9, 10, ry + 5.3, -168, 4);
+  for (const [dx, dz] of [[-10.5, -10.5], [10.5, -10.5], [-10.5, 10.5], [10.5, 10.5]]) {
+    B.box('gold', 0.4, 0.4, 14.5, 10 + dx * 0.5, ry + 5, -168 + dz * 0.5, Math.atan2(dx, dz), 0.85);
+  }
+  world.addCollider(10, -168, 22, 22, ry + 3.5, ry);
+
+  // Jardins suspensos (canteiros com árvores LEGO) e bancos
+  for (const [gx, gz] of [[46, -150], [46, -212], [-12, -150], [-12, -214]]) {
+    B.box('wood', 14, 1.2, 6, gx, ry + 0.6, gz);
+    B.box('plant', 13.4, 0.4, 5.4, gx, ry + 1.3, gz);
+    for (let t = -1; t <= 1; t++) {
+      B.cyl('pot', 0.25, 0.3, 2.4, gx + t * 4.5, ry + 2.5, gz, 8);
+      B.sphere('plant', 1.6, gx + t * 4.5, ry + 4.4, gz, 1.1);
+    }
+    world.addCollider(gx, gz, 14, 6, ry + 1.5, ry);
+  }
+
+  // Máquinas de ar-condicionado com ventoinhas
+  for (let i = 0; i < 4; i++) {
+    const x = 32 + (i % 2) * 9;
+    const z = -180 - Math.floor(i / 2) * 9;
+    B.box('chrome', 7, 3, 6, x, ry + 1.5, z);
+    B.cyl('black', 2.2, 2.2, 0.2, x, ry + 3.05, z, 20);
+    B.box('steel', 3.8, 0.1, 0.4, x, ry + 3.2, z, i * 0.7);
+    world.addCollider(x, z, 7, 6, ry + 3, ry);
+  }
+
+  // Caixa d'água + gerador
+  B.cyl('steel', 4, 4, 6, -62, ry + 5.2, -218, 20);
+  B.cone('steel', 4.4, 2, -62, ry + 9.2, -218, 20);
+  for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) B.box('steelDark', 0.5, 2.2, 0.5, -62 + dx, ry + 1.1, -218 + dz);
+  world.addCollider(-62, -218, 8.4, 8.4, ry + 8.2, ry);
+  B.box('yellowLine', 8, 3.4, 4, -62, ry + 1.7, -150);
+  B.box('black', 8.2, 0.6, 4.2, -62, ry + 3.6, -150);
+  world.addCollider(-62, -150, 8, 4, ry + 3.9, ry);
+
+  // Antena de comunicação com luz vermelha
+  B.box('steelDark', 2.4, 1, 2.4, 60, ry + 0.5, -222);
+  B.cyl('chrome', 0.35, 0.6, 18, 60, ry + 10, -222, 10);
+  for (let k = 0; k < 4; k++) B.box('chrome', 3.2 - k * 0.6, 0.15, 0.15, 60, ry + 6 + k * 3, -222);
+  B.sphere('ledRed', 0.6, 60, ry + 19.4, -222);
+
+  // Letreiro dourado no topo da fachada (de frente para a avenida)
+  const roofSign = createSignBoardMesh({
+    x: 0,
+    y: S.wallTopY + 3.4,
+    z: S.frontZ - 2.2,
+    width: 44,
+    height: 5.2,
+    depth: 0.5,
+    title: '$ SUPER BANCO $',
+    bgColor: '#090a0d',
+    borderColor: '#facc15',
+    textColor: '#facc15',
+    doubleSided: true
+  });
+  world.scene.add(roofSign);
+  B.box('steelDark', 0.6, 3.6, 0.6, -18, S.wallTopY + 0.4, S.frontZ - 2.2);
+  B.box('steelDark', 0.6, 3.6, 0.6, 18, S.wallTopY + 0.4, S.frontZ - 2.2);
+
+  // Bandeiras nas torres da frente
+  for (const fx of [S.minX - 1, S.maxX + 1]) {
+    B.cyl('chrome', 0.15, 0.15, 6, fx, S.wallTopY + 14, S.frontZ + 1, 8);
+  }
+}
+
+// ============================================================================
+// 8. PORTÕES DE SEGURANÇA NO PÉ DE CADA RAMPA (fecham durante o assalto)
+// ============================================================================
+function buildRampGates(world) {
+  const S = BANK_SPEC;
+  const gateMat = getLegoMaterial(0x334155, { metalness: 0.7, roughness: 0.25 });
+  const stripeMat = getLegoMaterial(0xfacc15, { roughness: 0.4 });
+  return S.ramps.map((r, idx) => {
+    const floorY = S.floors[r.fromFloor];
+    const w = r.maxX - r.minX;
+    const cx = (r.minX + r.maxX) / 2;
+    const gz = r.zLow + (r.zHigh < r.zLow ? 1.4 : -1.4);
+    const mesh = new THREE.Group();
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(w, 4.4, 0.4), gateMat);
+    mesh.add(plate);
+    for (let k = 0; k < 4; k++) {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, 0.45), stripeMat);
+      s.position.y = -1.6 + k * 1.1;
+      mesh.add(s);
+    }
+    mesh.position.set(cx, floorY - 4.2, gz);
+    mesh.visible = false;
+    mesh.userData.skipStaticMerge = true;
+    world.scene.add(mesh);
+    const collider = world.addCollider(cx, gz, w, 0.6, floorY + 4.4, floorY + 0.05, { isDynamic: true });
+    collider.disabled = true;
+    return { idx, rampId: r.id, floorIdx: r.fromFloor, floorY, mesh, collider, open: true };
+  });
+}
+
+// ============================================================================
+// 9. ELEVADOR [E]: leva ao próximo andar (no topo, volta ao térreo)
+// ============================================================================
+function createBankElevator(world) {
+  const S = BANK_SPEC;
+  const E = S.elevator;
+  const elevator = {
+    callX: E.callX,
+    callZ: E.callZ,
+    radius: 3.6,
+    cooldown: 0,
+    /** Gancho do assalto: retorna mensagem de bloqueio ou null */
+    canTravel: null,
+    nearestFloor(pos) {
+      if (Math.hypot(pos.x - E.callX, pos.z - E.callZ) > this.radius) return -1;
+      let best = -1;
+      for (let i = 0; i < S.floors.length; i++) {
+        if (Math.abs(pos.y - S.floors[i]) < 2.5) best = i;
       }
+      return best;
+    },
+    /** Usado pelo [E] do controle. Retorna true se tratou a interação. */
+    tryUse(controller) {
+      if (!controller?.position || controller.currentVehicle) return false;
+      const from = this.nearestFloor(controller.position);
+      if (from < 0 || this.cooldown > 0) return from >= 0;
+      const to = from >= S.floors.length - 1 ? 0 : from + 1;
+      const block = this.canTravel ? this.canTravel(from, to) : null;
+      const hud = world.destructibles?.hud;
+      if (block) {
+        hud?.showWantedBanner?.('ELEVADOR BLOQUEADO', block, 'busted', 2000);
+        return true;
+      }
+      const y = S.floors[to] + 0.05;
+      controller.position.set(E.callX, y, E.callZ);
+      controller.velocity?.set(0, 0, 0);
+      if (controller.minifigure?.root) controller.minifigure.root.position.copy(controller.position);
+      this.cooldown = 1.2;
+      const names = ['1º ANDAR // SAGUÃO', '2º ANDAR // ESCRITÓRIOS', '3º ANDAR // SEGURANÇA', '4º ANDAR // COFRE'];
+      hud?.showWantedBanner?.('ELEVADOR', names[to], 'escaped', 1600);
+      return true;
+    },
+    update(dt) {
+      if (this.cooldown > 0) this.cooldown -= dt;
     }
-  }
+  };
+  return elevator;
 }

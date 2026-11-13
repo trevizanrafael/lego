@@ -10,7 +10,7 @@ const { DestructibleManager } = await import('../src/world/DestructibleManager.j
 const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
 const { ThirdPersonController } = await import('../src/controls/ThirdPersonController.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
-const { BANK_HEIST_RULES, BANK_LAYOUT } = await import('../src/world/events/BankHeistEvent.js');
+const { BANK_HEIST_RULES, BANK_FLOOR_PLAN } = await import('../src/world/events/BankHeistEvent.js');
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.65, 2200);
@@ -31,117 +31,120 @@ const controller = new ThirdPersonController(
 hud.onSelectFaction = (factionKey, conquered) => livingCity.setPlayerFaction(factionKey, controller, conquered);
 const fw = livingCity.factionWar;
 const heist = fw.bankHeist;
-const FAR = new THREE.Vector3(0, 0.5, 240); // Parque Central (longe do banco)
-const DOOR = new THREE.Vector3(0, 0.5, -126);
+const bank = world.superBankData;
+const F = bank.floors;
 
 function step(dt = 0.5) {
   livingCity.playerHp = livingCity.playerMaxHp;
   livingCity.update(dt, controller.position, controller);
 }
-const killWhere = (pred) => {
+const killEnemies = () => {
   for (const npc of [...livingCity.combatNpcs]) {
-    if (pred(npc) && npc.destructible && !npc.destructible.destroyed) {
+    if (!npc.isAllied && npc.destructible && !npc.destructible.destroyed) {
       destructibles.damageObject(npc.destructible, 1e12, controller.position, false, { fromEnemyNpc: true });
     }
   }
 };
-const vaultDoor = () => destructibles.objects.find((o) => o.type === 'bank_vault_door');
+const enemies = () => livingCity.combatNpcs.filter((n) => !n.isAllied && !n.destructible.destroyed);
+const allies = () => livingCity.combatNpcs.filter((n) => n.isAllied && !n.destructible.destroyed);
 
-describe('🏦 MEGA ASSALTO AO SUPER BANCO CENTRAL', () => {
-  it('1. Alarme: facção rival assalta, painel e marcador no mapa; sem você lá eles levam o ouro', () => {
+describe('🏦 ASSALTO AO SUPER BANCO (você é o assaltante, 4 andares)', () => {
+  it('1. Entrar no banco começa o assalto: seguranças no 1º andar, seu time chega e os andares de cima ficam trancados', () => {
     hud.setPlayerFaction('cv', true);
-    controller.position.copy(FAR);
-    assert.ok(fw.debugBankHeist());
-    assert.equal(heist.state, 'ALARM');
-    assert.equal(heist.robberFaction, 'pcc', 'Jogador CV -> quem assalta é o PCC');
-    assert.equal(fw.objectiveHud.visible, true);
-    assert.ok(fw.activeWarzones.some((w) => w.outpostId === 'bank_heist'));
-    assert.equal(livingCity.combatNpcs.length, 0, 'Longe do banco: nenhuma tropa nasce');
-
-    for (let t = 0; t < BANK_HEIST_RULES.c4Time + 2; t += 1) step(1);
-    assert.equal(heist.state, 'ESCAPE', 'C4 completou sozinho: cofre explodiu');
-    assert.equal(vaultDoor().destroyed, true, 'Porta do cofre destruída');
-    for (let t = 0; t < 25; t += 1) step(1);
-    assert.equal(heist.state, 'IDLE', 'Assalto terminou');
-    assert.ok(heist.timer >= BANK_HEIST_RULES.cooldownMin, 'Cooldown até o próximo assalto');
-    assert.equal(fw.objectiveHud.visible, false);
-    destructibles._restoreObject(vaultDoor());
-  });
-
-  it('2. Você chega: tropas, reféns e BOPE aparecem; matar o técnico pausa o C4; limpar tudo traz o chefe', () => {
-    hud.goldenBricks = 0;
-    const prisonBefore = world.prisonIslandData?.prisonersInCellsCount ?? 0;
-    fw.debugBankHeist();
-    controller.position.copy(DOOR);
-    step(0.1);
-    assert.equal(fw.activeMode, 'BANK_HEIST');
-    const robbers = livingCity.combatNpcs.filter((n) => !n.isAllied);
-    const bope = livingCity.combatNpcs.filter((n) => n.isAllied);
-    assert.ok(robbers.length >= 10, 'Assaltantes na fachada e no saguão');
-    assert.ok(robbers.every((n) => n.faction === 'pcc'));
-    assert.ok(bope.length >= 4 && bope.every((n) => n.faction === 'bope'), 'BOPE chega como aliado');
-    assert.equal(heist.hostages.length, 6, 'Reféns no saguão');
-
-    // Libertar refém encostando nele
-    const h = heist.hostages[0];
-    controller.position.set(h.x, 0.5, h.z);
-    step(0.1);
-    assert.equal(h.freed, true, 'Refém libertado');
-
-    // Técnico no cofre faz o C4 subir; derrubado, a barra para
-    const tech = heist.techUnit;
-    tech.visual.root.position.set(BANK_LAYOUT.vaultDoor.x, tech.visual.root.position.y, BANK_LAYOUT.vaultDoor.z + 2.4);
-    tech.destructible.hp = 1e9;
-    step(0.5);
-    step(0.5);
-    const c4 = heist.c4Progress;
-    assert.ok(c4 > 0, 'C4 subindo com o técnico no cofre');
-    destructibles.damageObject(tech.destructible, 1e12, controller.position, false, { fromEnemyNpc: true });
-    step(0.5);
-    step(0.5);
-    assert.ok(Math.abs(heist.c4Progress - c4) < 1e-6 || heist.techUnit !== tech, 'C4 para sem técnico');
-
-    // Limpa todos os assaltantes (inclusive técnicos novos)
-    for (let i = 0; i < 20 && heist.state === 'ALARM'; i++) {
-      killWhere((n) => !n.isAllied);
-      controller.position.copy(DOOR);
-      step(0.5);
-    }
-    assert.equal(heist.state, 'BOSS', 'Chefe aparece');
-    assert.ok(heist.boss && heist.boss.isBoss, 'Mestre do Cofre no saguão');
-    killWhere((n) => n === heist.boss);
-    step(0.5);
-    assert.equal(heist.state, 'IDLE', 'Assalto impedido');
-    assert.equal(hud.goldenBricks, 1, 'Bloco Dourado ganho');
-    assert.ok((world.prisonIslandData?.prisonersInCellsCount ?? 0) > prisonBefore, 'Bandidos vão para a Ilha da Prisão');
-    assert.ok(world.prisonRoster.total > 0 && world.prisonRoster.meshes.length > 0, 'Presos aparecem no pátio da prisão');
-    assert.ok(fw.getTerritoryMeta()._prisoners.pcc > 0, 'Presos vão para o save');
-    assert.equal(fw.activeMode, 'PEACEFUL_CITY');
-    assert.equal(livingCity.combatNpcs.length, 0, 'Tropas recolhidas no fim');
-  });
-
-  it('3. Cofre explode com você lá: carregadores de ouro fogem e derrubá-los recupera o ouro', () => {
-    fw.debugBankHeist();
-    controller.position.copy(DOOR);
-    step(0.1);
-    heist.c4Progress = 0.9999;
-    const t = heist.techUnit;
-    t.visual.root.position.set(BANK_LAYOUT.vaultDoor.x, t.visual.root.position.y, BANK_LAYOUT.vaultDoor.z + 2.4);
-    t.destructible.hp = 1e9;
-    step(0.5);
-    assert.equal(heist.state, 'ESCAPE');
-    assert.equal(heist.carriers.length, 3, '3 carregadores com sacos de ouro');
-    assert.ok(heist.carriers.every((c) => c.goldBag), 'Saco de ouro nas costas');
-    killWhere((n) => heist.carriers.includes(n));
-    step(0.5);
-    assert.equal(heist.bagsRecovered, 3, 'Ouro recuperado');
-    step(0.5);
-    assert.equal(heist.state, 'BOSS');
-    killWhere(() => true);
-    step(0.5);
-    killWhere(() => true);
-    step(0.5);
+    controller.position.set(0, F[0] + 0.05, -110); // na rua: nada acontece
+    step(0.2);
     assert.equal(heist.state, 'IDLE');
-    destructibles._restoreObject(vaultDoor());
+
+    controller.position.set(0, F[0] + 0.05, -150);
+    step(0.2);
+    assert.equal(heist.state, 'FLOORS', 'Assalto começou ao entrar');
+    assert.equal(fw.activeMode, 'BANK_HEIST');
+    assert.equal(heist.floor, 0);
+    assert.equal(enemies().length, BANK_FLOOR_PLAN[0].units.length);
+    assert.ok(enemies().every((n) => n.faction === 'guard'), '1º andar: seguranças');
+    assert.ok(allies().length >= 3 && allies().every((n) => n.faction === 'cv'), 'Reforço do seu time');
+    assert.equal(bank.gates[0].collider.disabled, false, 'Portão da rampa do 1º andar fechado');
+
+    controller.position.set(world.bankElevator.callX, F[0] + 0.05, world.bankElevator.callZ);
+    world.bankElevator.cooldown = 0;
+    world.bankElevator.tryUse(controller);
+    assert.ok(controller.position.y < F[0] + 1, 'Elevador bloqueado até limpar o andar');
+  });
+
+  it('2. Cada andar limpo abre o próximo: Polícia Federal, monstrões e a elite do cofre (no andar certo)', () => {
+    const expected = [
+      { floor: 1, faction: 'pf', heavy: null },
+      { floor: 2, faction: 'bope', heavy: 'brute' },
+      { floor: 3, faction: 'bope', heavy: 'elite' }
+    ];
+    for (const exp of expected) {
+      const alliesBefore = allies().length;
+      killEnemies();
+      step(0.3);
+      assert.equal(heist.floor, exp.floor, `Subiu para o andar ${exp.floor + 1}`);
+      assert.equal(bank.gates[exp.floor - 1].collider.disabled, true, 'Portão do andar limpo abriu');
+      const list = enemies();
+      assert.equal(list.length, BANK_FLOOR_PLAN[exp.floor].units.length);
+      assert.ok(list.every((n) => n.faction === exp.faction));
+      if (exp.heavy) assert.ok(list.every((n) => n.heavyClass === exp.heavy), `Classe ${exp.heavy}`);
+      assert.ok(
+        list.every((n) => Math.abs(n.visual.root.position.y - F[exp.floor]) < 1.0),
+        'Inimigos nascem no andar certo'
+      );
+      assert.ok(allies().length > alliesBefore, 'Chega reforço do seu time');
+    }
+    assert.equal(enemies().length, 3, '3 elites no 4º andar');
+    assert.ok(enemies()[0].destructible.maxHp >= 1000, 'Elites são parrudos');
+  });
+
+  it('3. Inimigo de outro andar não atira em você através da laje', () => {
+    const elite = enemies()[0];
+    controller.position.set(elite.visual.root.position.x, F[0] + 0.05, elite.visual.root.position.z);
+    livingCity.playerHp = livingCity.playerMaxHp;
+    for (let i = 0; i < 6; i++) livingCity.update(0.3, controller.position, controller);
+    assert.equal(livingCity.playerHp, livingCity.playerMaxHp, 'Nenhum tiro atravessou os andares');
+  });
+
+  it('4. Limpar o 4º andar abre o cofre; pegar o ouro inicia a fuga com a polícia', () => {
+    killEnemies();
+    controller.position.set(0, F[3] + 0.05, -190);
+    step(0.3);
+    assert.equal(heist.state, 'VAULT');
+    assert.equal(bank.vaultDoor.destroyed, true, 'Porta do cofre explodiu');
+
+    const bricks = hud.goldenBricks || 0;
+    controller.position.set(bank.goldPile.x, F[3] + 0.05, bank.goldPile.z);
+    step(0.3);
+    assert.equal(heist.state, 'ESCAPE', 'Pegou o ouro: fuga');
+    assert.equal(hud.goldenBricks, bricks + 1, 'Bloco Dourado');
+    assert.equal(livingCity.wantedSystem.stars, BANK_HEIST_RULES.escapeStars, 'Polícia atrás de você');
+    assert.equal(fw.activeMode, 'PEACEFUL_CITY');
+    assert.ok(bank.gates.every((g) => g.collider.disabled), 'Portões liberados');
+
+    const studs = hud.totalStuds;
+    livingCity.wantedSystem.clearWanted('escaped');
+    step(0.3);
+    assert.equal(heist.state, 'IDLE', 'Despistou: assalto concluído');
+    assert.ok(hud.totalStuds > studs, 'Bônus de studs');
+    assert.ok(heist.timer >= BANK_HEIST_RULES.cooldown - 1, 'Espera para o próximo assalto');
+  });
+
+  it('5. Cair durante o assalto ou sair do banco cancela', () => {
+    assert.ok(fw.debugBankHeist());
+    controller.position.set(0, F[0] + 0.05, -150);
+    step(0.2);
+    fw._damagePlayerInInvasion(1e9, controller, fw._bankZoneState);
+    assert.equal(heist.state, 'IDLE');
+    assert.ok(controller.position.z > bank.z + 40, 'Volta para a frente do banco');
+    assert.equal(livingCity.combatNpcs.length, 0);
+    assert.equal(bank.vaultDoor.destroyed, false, 'Cofre volta a fechar para a próxima tentativa');
+
+    fw.debugBankHeist();
+    controller.position.set(0, F[0] + 0.05, -150);
+    step(0.2);
+    controller.position.set(0, 0.5, -60);
+    step(0.2);
+    assert.equal(heist.state, 'IDLE', 'Saiu do banco: abortado');
+    assert.equal(fw.activeMode, 'PEACEFUL_CITY');
   });
 });

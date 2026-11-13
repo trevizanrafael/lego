@@ -2475,6 +2475,10 @@ export class ThirdPersonController {
   }
 
   toggleVehicleInteraction() {
+    // Elevador do Super Banco (a pé, perto da marca amarela)
+    if (!this.currentVehicle && !this.activeRide && this.world?.bankElevator?.tryUse(this)) {
+      return true;
+    }
     if (this.activeRide) {
       if (this.activeRide.type === 'metro') {
         // Em movimento o [E] é ignorado: só desembarca parado na estação.
