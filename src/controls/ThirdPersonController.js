@@ -3076,7 +3076,11 @@ export class ThirdPersonController {
     // um obstáculo baixo, ele passa — antes a colisão era testada sempre no chão e virava "parede até o céu").
     const candTerrainYX = sampleSurface(nextX, curZ, curCarY);
     const carBottomX = Math.max(candTerrainYX, curCarY);
-    let blockedX = Boolean(this.world?.isDeepWaterAt?.(nextX, curZ, { forCar: true }));
+    // Água profunda só bloqueia o carro perto do nível da água (em cima de viaduto/ponte sobre o lago, passa)
+    const isWaterBlockAt = (wx, wz, surfaceY) =>
+      Boolean(this.world?.isDeepWaterAt?.(wx, wz, { forCar: true })) &&
+      surfaceY < (this.world?.getWaterSurfaceY ? this.world.getWaterSurfaceY(wx, wz) : 0) + 1.0;
+    let blockedX = isWaterBlockAt(nextX, curZ, candTerrainYX);
     if (!blockedX) {
       for (const col of driveNearCols) {
         if (col.disabled) continue;
@@ -3098,7 +3102,7 @@ export class ThirdPersonController {
 
     const candTerrainYZ = sampleSurface(finalX, nextZ, curCarY);
     const carBottomZ = Math.max(candTerrainYZ, curCarY);
-    let blockedZ = Boolean(this.world?.isDeepWaterAt?.(finalX, nextZ, { forCar: true }));
+    let blockedZ = isWaterBlockAt(finalX, nextZ, candTerrainYZ);
     if (!blockedZ) {
       for (const col of driveNearCols) {
         if (col.disabled) continue;
@@ -3422,11 +3426,13 @@ export class ThirdPersonController {
   }
 
   _findGroundSupportAt(x, z, currentY) {
+    const surfaceY = this.world?.getSurfaceHeightAt
+      ? this.world.getSurfaceHeightAt(x, z, currentY)
+      : (this.world?.getTerrainHeightAt?.(x, z) ?? 0);
+    // Sobre água profunda vale a água, a menos que haja um viaduto/ponte por cima (aí vale o tabuleiro)
     let supportY = this.world?.isDeepWaterAt?.(x, z, { forCar: true })
-      ? (this.world.getWaterSurfaceY(x, z))
-      : (this.world?.getSurfaceHeightAt
-        ? this.world.getSurfaceHeightAt(x, z, currentY)
-        : (this.world?.getTerrainHeightAt?.(x, z) ?? 0));
+      ? Math.max(this.world.getWaterSurfaceY(x, z), surfaceY)
+      : surfaceY;
     const metroHit = this.world?.metroSystem?.findSupportingCarAt?.(x, z, currentY, supportY);
     if (metroHit && metroHit.supportY > supportY) {
       supportY = metroHit.supportY;
