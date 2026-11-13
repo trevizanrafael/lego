@@ -15,6 +15,23 @@ import { CaptureZone } from './events/CaptureZone.js';
 import { buildFactionSquad } from './events/WaveDirector.js';
 import { ObjectiveHud } from '../ui/ObjectiveHud.js';
 import { TerritoryCounterAttack } from './events/TerritoryCounterAttack.js';
+import { BankHeistEvent, BANK_LAYOUT } from './events/BankHeistEvent.js';
+
+// Temas extras (não são territórios): polícia aliada no Mega Assalto
+const EXTRA_THEMES = {
+  bope: {
+    id: 'bope',
+    shortTag: 'BOPE',
+    name: 'BOPE',
+    color: '#facc15',
+    hex: 0x15161a,
+    darkHex: 0x0b0c0f,
+    secondaryHex: 0x1f2328,
+    accentHex: 0xfacc15,
+    convoyVehicles: ['suv_pcc'],
+    bossTitle: 'CAPITÃO DO BOPE'
+  }
+};
 
 // Regras da Invasão em Sequência (Gardens & Graveyards)
 export const INVASION_RULES = {
@@ -966,6 +983,20 @@ export class FactionWarSystem {
     this.objectiveHud = new ObjectiveHud();
     this._lastController = null;
     this.counterAttack = new TerritoryCounterAttack(this);
+    this.bankHeist = new BankHeistEvent(this);
+    this._bankZoneState = {
+      id: 'bank',
+      spec: {
+        title: 'SUPER BANCO CENTRAL',
+        bossCourtyard: { x: 0, z: -165 },
+        safeExitGate: { x: BANK_LAYOUT.policeArrival.x, z: BANK_LAYOUT.policeArrival.z + 6 }
+      },
+      outposts: [],
+      captureZones: [],
+      activeIndex: 0,
+      conqueredByPlayer: true,
+      bossPhaseTriggered: false
+    };
 
     this._animClock = 0;
   }
@@ -993,7 +1024,30 @@ export class FactionWarSystem {
   }
 
   getFactionTheme(factionKey) {
-    return FACTION_THEME[factionKey] || FACTION_THEME.cv;
+    return FACTION_THEME[factionKey] || EXTRA_THEMES[factionKey] || FACTION_THEME.cv;
+  }
+
+  /** Depuração: força o Mega Assalto agora (console: __legoGame.world.livingCity.factionWar.debugBankHeist()) */
+  debugBankHeist(robberFaction = null) {
+    return this.bankHeist.start(robberFaction);
+  }
+
+  _enterBankHeistMode() {
+    this._cleanupActiveZoneUnits();
+    this.activeZoneId = 'bank';
+    this.activeMode = 'BANK_HEIST';
+    this.isInvasionActive = true;
+    this.bankHeist._setMapMarker(true);
+  }
+
+  _leaveBankHeistMode() {
+    this._cleanupActiveZoneUnits();
+    if (this.activeZoneId === 'bank') {
+      this.activeZoneId = null;
+      this.activeMode = 'PEACEFUL_CITY';
+      this.isInvasionActive = false;
+    }
+    if (this.bankHeist.isActive) this.bankHeist._setMapMarker(true);
   }
 
   /** Território volta para a facção que contra-atacou */
@@ -1180,10 +1234,10 @@ export class FactionWarSystem {
   // ============================================================================
   // CRIAÇÃO DE SOLDADOS MINIFIGURA LEGO ARTICULADOS & BOSSES BIG-FIG COLOSSAIS
   // ============================================================================
-  _spawnCombatUnit({ faction, role = 'rifleman', x, z, outpostId = null, patrolAnchor = null }) {
+  _spawnCombatUnit({ faction, role = 'rifleman', x, z, outpostId = null, patrolAnchor = null, forceAllied = null }) {
     const geos = ensureSharedWarGeometries();
-    const theme = FACTION_THEME[faction] || FACTION_THEME.cv;
-    const isAllied = faction === this.playerFaction;
+    const theme = this.getFactionTheme(faction);
+    const isAllied = forceAllied ?? faction === this.playerFaction;
     const isBoss = role === 'boss';
     const isTank = role === 'tank';
     const isMedic = role === 'medic';
@@ -1271,6 +1325,7 @@ export class FactionWarSystem {
     };
 
     destructible.onShattered = () => {
+      if (npc.isBankRobber) this.bankHeist.onRobberDefeated(npc);
       if (isBoss && !isAllied && this.activeZoneId) {
         const zState = this.territories[this.activeZoneId];
         if (zState && zState.enemyBoss === npc) {
@@ -1814,6 +1869,15 @@ export class FactionWarSystem {
       }
     }
 
+    // 🏦 Mega Assalto ao Super Banco (roda no Centro, fora dos territórios)
+    this.bankHeist.tick(dt, playerPos);
+    if (this.bankHeist.isEngaged) {
+      this._updateConvoyDrops(dt);
+      this._updateCombatUnitsAndHealBeams(dt, playerPos, controller, this._bankZoneState);
+      this._updateProjectilesAndShockwaves(dt, playerPos, controller, this._bankZoneState);
+      return;
+    }
+
     // Modo Livre sem facção escolhida -> apenas cidade pacífica
     if (!FACTION_THEME[this.playerFaction]) {
       if (this.activeZoneId) {
@@ -2202,7 +2266,11 @@ export class FactionWarSystem {
       // Movimento tático (Aliados avançam junto com o jogador quando sem alvo próximo)
       let moveTarget = bestTargetPos;
       let stopRange = npc.isBoss ? 14.0 : 16.5;
-      if (!moveTarget && npc.isAllied && zoneState && this.activeMode === 'COUNTER_ATTACK') {
+      if (!moveTarget && npc.isAllied && this.activeMode === 'BANK_HEIST') {
+        // BOPE avança para dentro do saguão
+        moveTarget = { x: npc.patrolAnchor.x * 0.3, z: -152 };
+        stopRange = 5;
+      } else if (!moveTarget && npc.isAllied && zoneState && this.activeMode === 'COUNTER_ATTACK') {
         // Defesa da bandeira: aliados seguram o pátio
         moveTarget = npc.patrolAnchor || zoneState.spec.bossCourtyard;
         stopRange = 4.5;
@@ -2506,6 +2574,22 @@ export class FactionWarSystem {
 
     if (this.livingCity.playerHp <= 0) {
       if (controller) this._lastController = controller;
+      if (this.activeMode === 'BANK_HEIST' && this.bankHeist.isActive) {
+        const c = this._lastController;
+        const sx = BANK_LAYOUT.policeArrival.x;
+        const sz = BANK_LAYOUT.policeArrival.z + 10;
+        this.bankHeist._disengage();
+        this.livingCity.playerHp = this.livingCity.playerMaxHp;
+        this.hud?.setPlayerHealth(this.livingCity.playerMaxHp, this.livingCity.playerMaxHp, false);
+        if (c?.position) {
+          if (c.currentVehicle) c.exitVehicle?.();
+          c.position.set(sx, this._groundAt(sx, sz, 1) + 0.5, sz);
+          c.velocity?.set(0, 0, 0);
+          if (c.minifigure?.root) c.minifigure.root.position.copy(c.position);
+        }
+        this.hud?.showWantedBanner?.('VOCÊ CAIU!', 'O BOPE TE PUXOU PARA FORA // VOLTE PARA O BANCO', 'busted', 3000);
+        return;
+      }
       if (this.activeMode === 'COUNTER_ATTACK' && this.counterAttack.isActive) {
         this.counterAttack._lose('VOCÊ CAIU DEFENDENDO A BANDEIRA');
         return;

@@ -37,6 +37,13 @@ export const SOLDIER_CLASS_INFO = {
     special: 'DEMOLIDOR C4',
     boss: 'BLINDADO SUPREMO Z-15'
   },
+  bope: {
+    rifleman: 'OPERADOR DO BOPE',
+    tank: 'ESCUDEIRO DO BOPE',
+    medic: 'SOCORRISTA TÁTICO',
+    special: 'ATIRADOR DO BOPE',
+    boss: 'CAPITÃO DO BOPE'
+  },
   ares: {
     rifleman: 'TROOPER LASER',
     tank: 'EXO-GUARDIÃO',
@@ -62,6 +69,14 @@ const PALETTE = {
     black: 0x0a0b0f,
     accent: 0x38bdf8,
     metal: 0x1f2937,
+    skin: 0xfacc15
+  },
+  bope: {
+    main: 0x15161a,
+    dark: 0x1f2328,
+    black: 0x0b0c0f,
+    accent: 0xfacc15,
+    metal: 0x2b2f36,
     skin: 0xfacc15
   },
   ares: {
@@ -299,7 +314,35 @@ function torsoDecalTexture(faction, role) {
     };
 
     if (role === 'medic') {
-      cross(faction === 'cv' ? '#dc2626' : faction === 'pcc' ? '#38bdf8' : '#d946ef');
+      cross(faction === 'cv' ? '#dc2626' : faction === 'pcc' ? '#38bdf8' : faction === 'bope' ? '#facc15' : '#d946ef');
+      return;
+    }
+
+    if (faction === 'bope') {
+      // Faca na caveira: emblema do BOPE em branco
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.arc(64, 50, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(50, 62, 28, 18);
+      ctx.fillStyle = '#0b0c0f';
+      ctx.beginPath();
+      ctx.arc(55, 50, 6, 0, Math.PI * 2);
+      ctx.arc(73, 50, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(56, 70, 3, 10);
+      ctx.fillRect(63, 70, 3, 10);
+      ctx.fillRect(70, 70, 3, 10);
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(30, 22);
+      ctx.lineTo(98, 90);
+      ctx.stroke();
+      ctx.font = 'bold 22px Teko, Impact, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#facc15';
+      ctx.fillText('BOPE', 64, 112);
       return;
     }
 
@@ -626,6 +669,13 @@ function buildBlueprint(faction, role) {
     legMat = plastic(0x111827);
     faceKey = isMedic ? 'medic_calm' : isBoss ? 'boss_grin' : 'pcc_mask';
     weaponKind = isTank ? 'smg' : isMedic ? 'healgun' : isSpecial ? 'detonator' : isBoss ? 'minigun' : 'smg';
+  } else if (faction === 'bope') {
+    torsoHex = p.main;
+    sleeveHex = p.dark;
+    hipHex = p.black;
+    legMat = plastic(0x1f2328);
+    faceKey = isMedic ? 'medic_calm' : 'default';
+    weaponKind = isMedic ? 'healgun' : isTank ? 'shotgun' : isBoss ? 'minigun' : 'ak';
   } else {
     torsoHex = isMedic ? 0xe2e8f0 : p.main;
     sleeveHex = isMedic ? 0xe2e8f0 : p.dark;
@@ -639,7 +689,7 @@ function buildBlueprint(faction, role) {
   const torsoMat = plastic(torsoHex);
   const sleeveMat = plastic(sleeveHex);
   const hipMat = plastic(hipHex);
-  const handMat = plastic(faction === 'ares' ? 0x1e293b : faction === 'pcc' ? 0x111827 : 0xfacc15);
+  const handMat = plastic(faction === 'ares' ? 0x1e293b : faction === 'pcc' || faction === 'bope' ? 0x111827 : 0xfacc15);
   const accentMat = plastic(p.accent);
   const mainMat = plastic(p.main);
   const blackMat = plastic(p.black);
@@ -725,6 +775,16 @@ function buildBlueprint(faction, role) {
       H.cyl(0.08, 0.08, 0.06, blackMat, [-0.3, 0.26, 0], [0, 0, Math.PI / 2], 10);
       H.cyl(0.08, 0.08, 0.06, blackMat, [0.3, 0.26, 0], [0, 0, Math.PI / 2], 10);
       H.box(0.03, 0.03, 0.2, blackMat, [0.3, 0.14, 0.12], [0.4, 0, 0]);
+    }
+  } else if (faction === 'bope') {
+    if (isTank) {
+      H.sphere(0.34, blackMat, [0, 0.36, 0], [1, 0.85, 1], 16);
+      H.box(0.48, 0.16, 0.1, glass(0x0b0b0b, 0.7), [0, 0.32, 0.29]);
+    } else {
+      // Boina preta inclinada com brasão amarelo
+      H.cyl(0.33, 0.3, 0.12, blackMat, [0.05, headTopY + 0.02, 0], [0, 0, -0.18], 16);
+      H.stud(blackMat, [0.08, headTopY + 0.08, 0]);
+      H.box(0.1, 0.1, 0.03, accentMat, [-0.12, headTopY + 0.0, 0.3]);
     }
   } else {
     // A.R.E.S. — todos com capacete cyber e viseira neon
@@ -858,6 +918,10 @@ function buildBlueprint(faction, role) {
       O.box(0.4, 0.14, 0.11, glass(p.accent, 0.6), [0, 0.42, 0]);
       O.box(0.84, 0.08, 0.11, accentMat, [0, 0.12, 0]);
       O.box(0.84, 0.08, 0.11, accentMat, [0, -0.6, 0]);
+    } else if (faction === 'bope') {
+      O.box(0.84, 1.3, 0.1, blackMat, [0, -0.05, 0]);
+      O.box(0.4, 0.14, 0.11, glass(0x93c5fd, 0.6), [0, 0.42, 0]);
+      O.box(0.84, 0.1, 0.11, accentMat, [0, 0.1, 0]);
     } else {
       // Escudo de energia hexagonal
       O.cyl(0.66, 0.66, 0.05, glass(p.accent, 0.38), [0, 0.0, 0], [Math.PI / 2, 0, 0], 6);
