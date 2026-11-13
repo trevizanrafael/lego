@@ -67,7 +67,7 @@ export function buildTrackBedAndElevatedManhattanStructure(world, batcher, splin
       if (my >= -0.5) {
         for (const gSide of [-3.65, 3.65]) {
           batcher.addOrientedBox(
-            'ny_truss_green',
+            'viaduct_girder',
             0.45,
             1.35,
             segLen,

@@ -21,22 +21,26 @@ export class MetroSystemRuntime {
     this.stations = spline.stationStops;
     this.trains = [];
 
+    // Visual moderno (IDV): carroceria branca, faixa amarela de alerta, janelas escuras, truques pretos
     const materials = {
-      silver: getLegoMaterial(0xe2e8f0, { roughness: 0.18, metalness: 0.62, clearcoat: 0.75 }),
-      cyan: getLegoMaterial(0x06b6d4, { roughness: 0.22, clearcoat: 0.55 }),
+      white: getLegoMaterial(0xf4f4f5, { roughness: 0.22, clearcoat: 0.6 }),
+      grey: getLegoMaterial(0x52525b, { roughness: 0.34, clearcoat: 0.35 }),
+      roof: getLegoMaterial(0xa0a5a9, { roughness: 0.28, clearcoat: 0.45 }),
       yellow: getLegoMaterial(0xfacc15, { roughness: 0.22, clearcoat: 0.55 }),
-      dark: getLegoMaterial(0x18181b, { roughness: 0.42 }),
-      seatBlue: getLegoMaterial(0x1d4ed8, { roughness: 0.28 }),
+      dark: getLegoMaterial(0x111214, { roughness: 0.4 }),
+      seat: getLegoMaterial(0x3f3f46, { roughness: 0.32 }),
+      floor: getLegoMaterial(0x71717a, { roughness: 0.4 }),
       glass: new THREE.MeshPhysicalMaterial({
-        color: 0xbae6fd,
-        roughness: 0.08,
+        color: 0x1e293b,
+        roughness: 0.06,
         transparent: true,
-        opacity: 0.32,
-        clearcoat: 0.9
+        opacity: 0.42,
+        clearcoat: 1.0
       }),
       interiorLight: new THREE.MeshBasicMaterial({ color: 0xfef9c3 }),
       headlight: new THREE.MeshBasicMaterial({ color: 0xffffff }),
-      taillight: new THREE.MeshBasicMaterial({ color: 0xef4444 })
+      taillight: new THREE.MeshBasicMaterial({ color: 0xef4444 }),
+      signGlow: new THREE.MeshBasicMaterial({ color: 0xfacc15 })
     };
 
     const startOffsets = [

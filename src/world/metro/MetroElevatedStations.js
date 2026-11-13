@@ -151,7 +151,7 @@ export function buildThreeElevatedMetroStations(world, batcher) {
     });
 
     // Laje larga de 12.5m x 62m + Faixa Amarela Tátil colada a 2.38m do eixo do trilho!
-    batcher.addBox('ny_truss_green', pw + 0.4, 1.05, lenZ, px, platY - 0.72, cfg.trackZ);
+    batcher.addBox('viaduct_girder', pw + 0.4, 1.05, lenZ, px, platY - 0.72, cfg.trackZ);
     batcher.addBox('platform_floor', pw, 0.44, lenZ, px, platY - 0.22, cfg.trackZ);
     const trackEdgeX = px - side * (pw * 0.5 - 0.36);
     batcher.addBox('subway_stripe_gold', 0.52, 0.06, lenZ - 2, trackEdgeX, platY + 0.03, cfg.trackZ);
@@ -165,21 +165,21 @@ export function buildThreeElevatedMetroStations(world, batcher) {
     if (gapMinZ > platMinZ + 0.3) {
       const seg1Len = gapMinZ - platMinZ;
       const seg1CZ = (platMinZ + gapMinZ) * 0.5;
-      batcher.addBox('ny_truss_green', 0.38, 1.15, seg1Len, outerX, platY + 0.58, seg1CZ);
+      batcher.addBox('viaduct_girder', 0.38, 1.15, seg1Len, outerX, platY + 0.58, seg1CZ);
       world.addCollider(outerX, seg1CZ, 0.5, seg1Len, platY + 1.25, platY);
     }
     if (platMaxZ > gapMaxZ + 0.3) {
       const seg2Len = platMaxZ - gapMaxZ;
       const seg2CZ = (gapMaxZ + platMaxZ) * 0.5;
-      batcher.addBox('ny_truss_green', 0.38, 1.15, seg2Len, outerX, platY + 0.58, seg2CZ);
+      batcher.addBox('viaduct_girder', 0.38, 1.15, seg2Len, outerX, platY + 0.58, seg2CZ);
       world.addCollider(outerX, seg2CZ, 0.5, seg2Len, platY + 1.25, platY);
     }
 
     // Cobertura Monumental Arejada em `roofY = +23.65m` (8.8m livres acima da plataforma!)
     const canopyW = pw + 7.4;
     const canopyCX = (px + cfg.trackX) * 0.5 + side * 1.6;
-    batcher.addBox('ny_truss_green', canopyW, 0.75, lenZ + 3, canopyCX, roofY, cfg.trackZ);
-    batcher.addBox('subway_stripe_blue', canopyW + 0.3, 0.28, lenZ + 3.2, canopyCX, roofY + 0.48, cfg.trackZ);
+    batcher.addBox('viaduct_girder', canopyW, 0.75, lenZ + 3, canopyCX, roofY, cfg.trackZ);
+    batcher.addBox('subway_stripe_gold', canopyW + 0.3, 0.28, lenZ + 3.2, canopyCX, roofY + 0.48, cfg.trackZ);
 
     // Pilares esbeltos fora do vão de 6.0m da escada + Luminárias altas + Bancos recuados
     for (let cz = cfg.trackZ - 24; cz <= cfg.trackZ + 24; cz += 16) {
@@ -193,10 +193,10 @@ export function buildThreeElevatedMetroStations(world, batcher) {
     }
 
     // Guarda-corpos nas cabeceiras Norte/Sul da plataforma (recortados caso a escada encoste na cabeceira)
-    batcher.addBox('ny_truss_green', pw, 1.15, 0.38, px, platY + 0.58, platMinZ);
+    batcher.addBox('viaduct_girder', pw, 1.15, 0.38, px, platY + 0.58, platMinZ);
     world.addCollider(px, platMinZ, pw, 0.5, platY + 1.3, platY);
     if (Math.abs(platMaxZ - cfg.stairZTop) > 3.2) {
-      batcher.addBox('ny_truss_green', pw, 1.15, 0.38, px, platY + 0.58, platMaxZ);
+      batcher.addBox('viaduct_girder', pw, 1.15, 0.38, px, platY + 0.58, platMaxZ);
       world.addCollider(px, platMaxZ, pw, 0.5, platY + 1.3, platY);
     }
 
@@ -211,7 +211,7 @@ export function buildThreeElevatedMetroStations(world, batcher) {
       st.name,
       `PLATAFORMA ELEVADA (+${platY.toFixed(1)}M)`,
       side > 0 ? Math.PI / 2 : -Math.PI / 2,
-      '#14532d',
+      '#090a0d',
       true
     );
 
@@ -223,7 +223,7 @@ export function buildThreeElevatedMetroStations(world, batcher) {
     const bridgeMaxX = Math.max(bridgeInnerX, bridgeOuterX);
     const bw = bridgeMaxX - bridgeMinX;
     const bx = (bridgeMinX + bridgeMaxX) * 0.5;
-    batcher.addBox('ny_truss_green', bw, 0.6, 6.0, bx, platY - 0.3, cfg.stairZTop);
+    batcher.addBox('viaduct_girder', bw, 0.6, 6.0, bx, platY - 0.3, cfg.stairZTop);
     batcher.addBox('platform_floor', bw, 0.22, 5.8, bx, platY - 0.08, cfg.stairZTop);
     world.elevatedDecks.push({
       id: `${st.id}_bridge`,
@@ -258,8 +258,8 @@ export function buildThreeElevatedMetroStations(world, batcher) {
       const stepLen = Math.abs(cfg.stairZBot - cfg.stairZTop) / stairSteps + 0.05;
       const hw = cfg.stairHalfW;
       batcher.addBox('platform_floor', hw * 2 - 0.4, 0.45, stepLen, cfg.stairX, sy - 0.2, sz);
-      batcher.addBox('ny_truss_green', 0.2, 1.1, stepLen, cfg.stairX - hw + 0.15, sy + 0.48, sz);
-      batcher.addBox('ny_truss_green', 0.2, 1.1, stepLen, cfg.stairX + hw - 0.15, sy + 0.48, sz);
+      batcher.addBox('viaduct_girder', 0.2, 1.1, stepLen, cfg.stairX - hw + 0.15, sy + 0.48, sz);
+      batcher.addBox('viaduct_girder', 0.2, 1.1, stepLen, cfg.stairX + hw - 0.15, sy + 0.48, sz);
     }
 
     const midStairZ = (cfg.stairZTop + cfg.stairZBot) * 0.5;

@@ -201,6 +201,21 @@ export function renderMinimapRadar(
       }
     }
 
+    // 5.3b ESTAÇÕES DO METRÔ (quadrado amarelo alerta com contorno preto — IDV)
+    if (Array.isArray(world.metroStationMarkers)) {
+      for (const st of world.metroStationMarkers) {
+        const sx = relX(st.x);
+        const sy = relY(st.z);
+        ctx.fillStyle = '#facc15';
+        ctx.strokeStyle = '#090a0d';
+        ctx.lineWidth = 1.6;
+        ctx.fillRect(sx - 4.5, sy - 4.5, 9, 9);
+        ctx.strokeRect(sx - 4.5, sy - 4.5, 9, 9);
+        ctx.fillStyle = '#090a0d';
+        ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+      }
+    }
+
     // 5.4 CONTORNOS PONTILHADOS DOS 3 TERRITÓRIOS DE FACÇÃO (CV, PCC e A.R.E.S.) + 3 OUTPOSTS
     const liveTerritories = world.livingCity?.factionWar?.territories;
     for (const [zKey, zSpec] of Object.entries(TERRITORY_ZONES)) {

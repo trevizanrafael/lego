@@ -12,6 +12,7 @@
 //   MetroTrainMesh.js           — modelo 3D dos vagões
 //   MetroRuntime.js             — movimento dos trens
 //   MetroBoarding.js            — interação do jogador com os vagões
+import * as THREE from 'three';
 import { METRO_STATIONS } from './metro/MetroRouteData.js';
 import { buildClosedMetroLoopSpline } from './metro/MetroSpline.js';
 import { createMetroBatcher } from './metro/MetroBatcher.js';
@@ -59,6 +60,23 @@ export function buildMetroSystem(world) {
   batcher.flush(world.scene);
 
   world.metroSystem = new MetroSystemRuntime(world, spline, totems);
+
+  // Linha e estações para o minimapa e o mapa tático (traçado real, com as alturas finais da linha)
+  const tmp = new THREE.Vector3();
+  world.metroLoopWaypoints = [];
+  for (let s = 0; s < spline.totalLength; s += 8) {
+    spline.sampleAtS(s, tmp);
+    world.metroLoopWaypoints.push({ x: tmp.x, y: tmp.y, z: tmp.z });
+  }
+  world.metroStationMarkers = spline.stationStops.map((st) => ({
+    id: st.id,
+    code: st.code,
+    name: st.shortName,
+    kind: st.kind,
+    x: st.trackPos.x,
+    z: st.trackPos.z,
+    entrance: st.streetEntrance ? { x: st.streetEntrance.x, z: st.streetEntrance.z } : null
+  }));
   world.metroData = {
     stationsCount: METRO_STATIONS.length,
     undergroundStationsCount: 2,
