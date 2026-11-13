@@ -2550,6 +2550,7 @@ export class ThirdPersonController {
   }
 
   enterVehicle(carObj) {
+    this._lastDryCarPos = null; // último ponto seco é por viagem (usado se um pulo cair na água)
     if (!carObj || carObj.destroyed) return;
     this.currentVehicle = carObj;
     carObj.isDriven = true;
@@ -3076,11 +3077,19 @@ export class ThirdPersonController {
     // um obstáculo baixo, ele passa — antes a colisão era testada sempre no chão e virava "parede até o céu").
     const candTerrainYX = sampleSurface(nextX, curZ, curCarY);
     const carBottomX = Math.max(candTerrainYX, curCarY);
-    // Água profunda só bloqueia o carro perto do nível da água (em cima de viaduto/ponte sobre o lago, passa)
-    const isWaterBlockAt = (wx, wz, surfaceY) =>
-      Boolean(this.world?.isDeepWaterAt?.(wx, wz, { forCar: true })) &&
-      surfaceY < (this.world?.getWaterSurfaceY ? this.world.getWaterSurfaceY(wx, wz) : 0) + 1.0;
-    let blockedX = isWaterBlockAt(nextX, curZ, candTerrainYX);
+    // Água profunda (lago, canal, rio, mar) bloqueia o carro andando no chão, MAS não bloqueia:
+    //  - com ponte/viaduto embaixo do carro (o piso no destino é um tabuleiro acima do terreno);
+    //  - com o carro no ar acima da água (pulo por cima do canal/rio).
+    // Se o pulo terminar dentro d'água, o carro volta para o último ponto seco (ver abaixo).
+    const terrainAt = (wx, wz) => (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(wx, wz) : 0);
+    const isWaterBlockAt = (wx, wz, surfaceY, carBottom) => {
+      if (!this.world?.isDeepWaterAt?.(wx, wz, { forCar: true })) return false;
+      if (surfaceY > terrainAt(wx, wz) + 0.5) return false; // tabuleiro de ponte/viaduto
+      const waterY = this.world?.getWaterSurfaceY ? this.world.getWaterSurfaceY(wx, wz) : 0;
+      if (this.vehicleAirborne && carBottom >= Math.max(waterY, terrainAt(wx, wz)) + 0.6) return false;
+      return true;
+    };
+    let blockedX = isWaterBlockAt(nextX, curZ, candTerrainYX, carBottomX);
     if (!blockedX) {
       for (const col of driveNearCols) {
         if (col.disabled) continue;
@@ -3098,11 +3107,11 @@ export class ThirdPersonController {
       }
     }
 
-    const finalX = blockedX ? curX : nextX;
+    let finalX = blockedX ? curX : nextX;
 
     const candTerrainYZ = sampleSurface(finalX, nextZ, curCarY);
     const carBottomZ = Math.max(candTerrainYZ, curCarY);
-    let blockedZ = isWaterBlockAt(finalX, nextZ, candTerrainYZ);
+    let blockedZ = isWaterBlockAt(finalX, nextZ, candTerrainYZ, carBottomZ);
     if (!blockedZ) {
       for (const col of driveNearCols) {
         if (col.disabled) continue;
@@ -3120,7 +3129,7 @@ export class ThirdPersonController {
       }
     }
 
-    const finalZ = blockedZ ? curZ : nextZ;
+    let finalZ = blockedZ ? curZ : nextZ;
 
     if (blockedX || blockedZ) {
       this.vehicleSpeed *= spec.collisionRecoilFactor ?? -0.25;
@@ -3144,6 +3153,25 @@ export class ThirdPersonController {
     } else {
       this.vehicleAirVelY = 0;
       this.vehicleAirborne = false;
+    }
+
+    // Pouso dentro d'água (pulo curto por cima do canal/rio): volta para o último ponto seco, parado.
+    // Em terra firme (ou em cima de ponte/viaduto), guarda esse ponto como o último seco.
+    if (!this.vehicleAirborne) {
+      const landedInWater =
+        Boolean(this.world?.isDeepWaterAt?.(finalX, finalZ, { forCar: true })) &&
+        groundY <= terrainAt(finalX, finalZ) + 0.5;
+      if (landedInWater && this._lastDryCarPos) {
+        finalX = this._lastDryCarPos.x;
+        finalZ = this._lastDryCarPos.z;
+        groundY = this._lastDryCarPos.y;
+        finalCarY = groundY;
+        this.vehicleSpeed = 0;
+        this.cameraShakeTimer = Math.max(this.cameraShakeTimer || 0, 0.25);
+      } else if (!landedInWater) {
+        if (!this._lastDryCarPos) this._lastDryCarPos = new THREE.Vector3();
+        this._lastDryCarPos.set(finalX, groundY, finalZ);
+      }
     }
     this.vehicleVerticalSpeed = this.vehicleAirVelY;
 
