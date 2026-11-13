@@ -10,6 +10,9 @@ import { mergeBufferGeometries } from './BuildingGenerator.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from './VehicleFleetBuilder.js';
 import { createSignBoardMesh } from '../utils/SignBoardHelper.js';
 import { soundFX } from '../audio/SoundFX.js';
+import { createFactionSoldierVisual, animateFactionSoldier, AIM_POSE } from '../entities/FactionSoldierBuilder.js';
+
+const ALLY_MARKER_MAT = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
 
 // ============================================================================
 // TEMA VISUAL E CATÁLOGO OFICIAL DOS 3 TERRITÓRIOS DE FACÇÃO
@@ -1092,125 +1095,24 @@ export class FactionWarSystem {
     bodyRig.scale.setScalar(unitScale);
     root.add(bodyRig);
 
-    const primaryHex = isMedic ? 0xf8fafc : theme.hex;
-    const legHex = faction === 'ares' ? 0x334155 : 0x0f172a;
-    const vestMats = getTacticalVestMaterials(faction, role, primaryHex);
-    const legMat = getLegoMaterial(legHex, { roughness: 0.3 });
-    const armMat = getLegoMaterial(isMedic ? theme.hex : theme.darkHex, { roughness: 0.26 });
-    const skinHex = faction === 'pcc' || faction === 'ares' ? 0x111827 : LEGO_COLORS.yellow;
-    const handMat = getLegoMaterial(0x111827, { roughness: 0.3 });
-
-    const hip = new THREE.Mesh(geos.hipGeo, legMat);
-    hip.position.y = 0.72;
-    const torso = new THREE.Mesh(geos.torsoGeo, vestMats);
-    torso.position.y = 1.16;
-    torso.castShadow = true;
-
-    const leftLeg = new THREE.Mesh(geos.legGeo, legMat);
-    leftLeg.position.set(-0.2, 0.66, 0);
-    const rightLeg = new THREE.Mesh(geos.legGeo, legMat);
-    rightLeg.position.set(0.2, 0.66, 0);
-
-    const leftArm = new THREE.Group();
-    leftArm.position.set(-0.56, 1.44, 0);
-    const lArmMesh = new THREE.Mesh(geos.armGeo, armMat);
-    const lHand = new THREE.Mesh(geos.handGeo, handMat);
-    lHand.position.set(0, -0.55, 0.03);
-    leftArm.add(lArmMesh, lHand);
-
-    const rightArm = new THREE.Group();
-    rightArm.position.set(0.56, 1.44, 0);
-    const rArmMesh = new THREE.Mesh(geos.armGeo, armMat);
-    const rHand = new THREE.Mesh(geos.handGeo, handMat);
-    rHand.position.set(0, -0.55, 0.03);
-    rightArm.add(rArmMesh, rHand);
-
-    // Cabeça Cilíndrica LEGO + Pino Stud Superior + Capacete/Bandana da Facção
-    const headGroup = new THREE.Group();
-    headGroup.position.y = 1.84;
-    const faceMat = getSharedNpcFaceMaterial(
-      faction === 'cv' ? 'bandit_fierce' : faction === 'pcc' ? 'masked_balaclava' : 'visor_cyan',
-      skinHex
-    );
-    const headMesh = new THREE.Mesh(geos.headCyl, faceMat);
-    const topStud = new THREE.Mesh(SHARED_STUD_GEO, getLegoMaterial(skinHex));
-    topStud.position.y = 0.3;
-    headGroup.add(headMesh, topStud);
-
-    if (faction === 'cv') {
-      const bandana = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.29, 0.29, 0.16, 14),
-        getLegoMaterial(0xef4444, { roughness: 0.28 })
-      );
-      bandana.position.y = 0.14;
-      headGroup.add(bandana);
-    } else if (faction === 'pcc') {
-      const tacCap = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.295, 0.285, 0.2, 14),
-        getLegoMaterial(0x1d4ed8, { roughness: 0.25 })
-      );
-      tacCap.position.y = 0.16;
-      headGroup.add(tacCap);
-    } else {
-      const cyberHelm = new THREE.Mesh(
-        new THREE.BoxGeometry(0.6, 0.54, 0.6),
-        getLegoMaterial(0x334155, { metalness: 0.45, roughness: 0.22 })
-      );
-      const visor = new THREE.Mesh(
-        new THREE.BoxGeometry(0.52, 0.16, 0.63),
-        new THREE.MeshBasicMaterial({ color: 0xd946ef })
-      );
-      visor.position.y = 0.04;
-      headGroup.add(cyberHelm, visor);
-    }
-
-    // Ombreiras Colossal Big-Fig para Bosses + Armamento 3D na Mão Direita
-    if (isBoss) {
-      for (const sx of [-0.74, 0.74]) {
-        const pauldron = createLegoBrick(0.52, 0.44, 0.62, theme.hex, { studStep: 0.26 });
-        pauldron.position.set(sx, 1.56, 0);
-        bodyRig.add(pauldron);
-      }
-      const crest = createLegoBrick(0.75, 0.34, 0.45, theme.accentHex, { studs: false });
-      crest.position.set(0, 2.24, 0);
-      bodyRig.add(crest);
-    }
-
-    const weaponMat = getLegoMaterial(
-      isMedic ? 0x22c55e : faction === 'ares' ? 0xd946ef : 0x1e293b,
-      { roughness: 0.25, metalness: 0.35 }
-    );
-    const weaponMesh = new THREE.Mesh(geos.rifleGeo, weaponMat);
-    rightArm.add(weaponMesh);
-    rightArm.rotation.x = -0.52;
-
-    const muzzleFlash = new THREE.Mesh(
-      new THREE.SphereGeometry(0.14, 8, 8),
-      new THREE.MeshBasicMaterial({ color: isMedic ? 0x4ade80 : 0xfacc15 })
-    );
-    muzzleFlash.position.set(0, -0.43, 1.08);
-    muzzleFlash.visible = false;
-    rightArm.add(muzzleFlash);
-
-    if (isTank || isBoss) {
-      const shieldMesh = new THREE.Mesh(
-        geos.shieldGeo,
-        getLegoMaterial(theme.secondaryHex, { roughness: 0.25, metalness: 0.4 })
-      );
-      leftArm.add(shieldMesh);
-      leftArm.rotation.x = -0.45;
-    }
+    // Minifigura de combate detalhada (kit visual por facção + classe)
+    const soldier = createFactionSoldierVisual(faction, role);
+    bodyRig.add(soldier.bodyRig);
+    const { leftLeg, rightLeg, leftArm, rightArm, muzzleFlash } = soldier;
+    rightArm.rotation.x = AIM_POSE.rightArmX;
+    leftArm.rotation.x = soldier.hasShield ? AIM_POSE.shieldArmX : AIM_POSE.leftArmX;
+    if (!soldier.hasShield) leftArm.rotation.z = AIM_POSE.leftArmZ; // mão de apoio na arma
+    void geos;
 
     // Losango Verde Discreto APENAS nos Aliados (Zero barras de vida flutuando na tela!)
     const allyMarker = new THREE.Mesh(
-      geos.allyDiamond,
-      new THREE.MeshBasicMaterial({ color: 0x4ade80 })
+      ensureSharedWarGeometries().allyDiamond,
+      ALLY_MARKER_MAT
     );
-    allyMarker.position.set(0, isBoss ? 5.85 : 2.62, 0);
+    allyMarker.position.set(0, isBoss ? 6.1 : 2.78, 0);
     allyMarker.visible = isAllied;
     root.add(allyMarker);
 
-    bodyRig.add(hip, torso, leftLeg, rightLeg, leftArm, rightArm, headGroup);
     root.position.set(safePos.x, safePos.y, safePos.z);
     this.scene.add(root);
 
@@ -1258,8 +1160,12 @@ export class FactionWarSystem {
         leftArm,
         rightArm,
         muzzleFlash,
-        allyMarker
-      }
+        allyMarker,
+        head: soldier.head,
+        drone: soldier.drone,
+        weaponKind: soldier.weaponKind
+      },
+      className: soldier.className
     };
 
     destructible.onShattered = () => {
@@ -1913,6 +1819,7 @@ export class FactionWarSystem {
       const pos = root.position;
       npc.visual.allyMarker.visible = npc.isAllied;
       npc.visual.allyMarker.rotation.y += dt * 2.8;
+      animateFactionSoldier(npc.visual, this._animClock, npc.patrolAngle);
 
       if (npc.muzzleTimer > 0) {
         npc.muzzleTimer -= dt;
