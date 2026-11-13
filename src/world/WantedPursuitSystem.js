@@ -574,6 +574,7 @@ export class WantedPursuitSystem {
   }
 
   clearWanted(reason = 'escaped', meta = {}) {
+    this.lastClearReason = reason;
     this.stars = 0;
     this.chaosScore = 0;
     this.isEscaping = false;

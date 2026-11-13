@@ -830,13 +830,13 @@ export class TestBlockWorld {
       };
     }
 
-    if (y < 38.0 && x >= -54 && x <= 54 && z >= -228 && z <= -130) {
+    if (y < 41.0 && x >= -74 && x <= 74 && z >= -229 && z <= -130) {
       return {
         ...this.regions[0],
         id: 'super_banco_interior',
         name: 'SUPER BANCO (INTERIOR)',
         shortName: 'SUPER BANCO (INTERIOR)',
-        sub: 'Saguão Monumental de Mármore & Sala Forte do Cofre'
+        sub: '4 Andares: Saguão, Escritórios, Segurança e Cofre'
       };
     }
 

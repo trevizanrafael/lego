@@ -52,77 +52,77 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(insideBank.name.includes('SUPER BANCO'));
   });
 
-  it('2. O Super Banco Central Monumental possui pé-direito altíssimo (36m), Claraboia, Heliponto, saguão aberto e Cofre com Ouro e Studs', () => {
+  it('2. Super Banco de 4 andares: entra pela frente, sobe de rampa e de elevador, e o cofre fica no 4º andar', () => {
     const { world, destructibles, controller, hud } = createFullCityHarness();
+    const bank = world.superBankData;
 
-    assert.ok(
-      world.superBankData?.interiorHeight >= 32 && world.superBankData?.interiorHeight <= 42,
-      'Super Banco deve ter pé-direito interno livre entre 32 e 42 unidades'
-    );
-    assert.equal(world.superBankData.frontColumnsCount, 8, 'Fachada do Banco deve ter 8 Colunas Clássicas Gigantes');
-    assert.equal(world.superBankData.goldenStatuesCount, 2, 'Escadaria frontal deve ter 2 Estátuas Douradas de LEGO nas pontas');
-    assert.equal(world.superBankData.hasSkylight, true, 'Teto deve possuir Claraboia de Vidro olhando para o saguão');
-    assert.equal(world.superBankData.hasRooftopHelipad, true, 'Terraço do Banco deve possuir Heliponto (H) demarcado');
+    assert.equal(bank.floorsCount, 4, 'Banco tem 4 andares');
+    assert.ok(bank.width >= 140, `Banco mais largo (${bank.width}m)`);
+    assert.equal(bank.rampsCount, 3, '3 rampas ligando os andares');
+    assert.equal(bank.hasElevator, true, 'Elevador [E]');
+    assert.equal(bank.frontColumnsCount, 8, 'Fachada com 8 colunas clássicas');
+    assert.equal(bank.goldenStatuesCount, 2, '2 estátuas douradas na escadaria');
+    assert.equal(bank.hasSkylight, true, 'Claraboia no terraço');
+    assert.equal(bank.hasRooftopHelipad, true, 'Heliponto no terraço');
 
-    // Posiciona o jogador na entrada frontal do Super Banco Central (x=0, z=-132)
+    const walk = (frames, yaw = 0) => {
+      controller.yaw = yaw;
+      controller.keys.forward = true;
+      for (let i = 0; i < frames; i++) controller.update(1 / 30);
+      controller.keys.forward = false;
+    };
+
+    // Entra pela porta central da frente
     controller.position.set(0, 0.35, -132);
-    controller.yaw = 0; // Olhando para -Z (para dentro do saguão)
-    controller.keys.forward = true;
+    walk(65);
+    assert.ok(controller.position.z < -145, `Entra no saguão (z=${controller.position.z.toFixed(2)})`);
 
-    // Caminha para dentro do saguão de mármore
-    for (let i = 0; i < 65; i++) {
-      controller.update(1 / 30);
-    }
-    controller.keys.forward = false;
-
+    // Sobe a rampa oeste (R1) do 1º para o 2º andar
+    controller.position.set(-66, 0.4, -142);
+    controller.velocity?.set(0, 0, 0);
+    walk(260);
     assert.ok(
-      controller.position.z < -145,
-      `Jogador deve entrar caminhando livremente pelo saguão monumental do Super Banco Central (z=${controller.position.z.toFixed(2)})`
+      controller.position.y > bank.floors[1] - 0.6,
+      `Rampa leva ao 2º andar (y=${controller.position.y.toFixed(2)}, z=${controller.position.z.toFixed(2)})`
     );
 
+    // Elevador [E]: do 1º para o 2º andar
+    controller.position.set(world.bankElevator.callX, bank.floors[0] + 0.05, world.bankElevator.callZ);
+    assert.equal(world.bankElevator.tryUse(controller), true);
+    assert.ok(Math.abs(controller.position.y - bank.floors[1]) < 0.5, 'Elevador sobe um andar');
+    world.bankElevator.cooldown = 0;
+    controller.position.set(world.bankElevator.callX, bank.floors[3] + 0.05, world.bankElevator.callZ);
+    world.bankElevator.tryUse(controller);
+    assert.ok(Math.abs(controller.position.y - bank.floors[0]) < 0.5, 'Do topo, o elevador volta ao térreo');
+
+    // Cofre no 4º andar: a porta circular bloqueia
+    const f4 = bank.floors[3];
     const vaultDoor = destructibles.objects.find((o) => o.type === 'bank_vault_door' && !o.destroyed);
-    assert.ok(vaultDoor, 'Deve existir a Porta Circular Gigante do Cofre no fundo do banco');
+    assert.ok(vaultDoor, 'Porta circular gigante do cofre existe');
+    assert.ok(Math.abs(vaultDoor.mesh.position.y - (f4 + 5.6)) < 0.1, 'Porta do cofre está no 4º andar');
+    controller.position.set(0, f4 + 0.05, -199);
+    controller.velocity?.set(0, 0, 0);
+    walk(40);
+    assert.ok(controller.position.z > -205, `Porta fechada bloqueia (z=${controller.position.z.toFixed(2)})`);
 
-    // Tentar avançar através da porta trancada do cofre (z = -200) deve bloquear o jogador
-    controller.position.set(0, 0.35, -197.5);
-    controller.keys.forward = true;
-    for (let i = 0; i < 30; i++) {
-      controller.update(1 / 30);
-    }
-    controller.keys.forward = false;
-    assert.ok(
-      controller.position.z > -199.8,
-      `Porta do Cofre fechada deve bloquear passagem para a sala forte (z=${controller.position.z.toFixed(2)})`
-    );
-
-    // Arromba a Porta do Cofre
     destructibles.damageObject(vaultDoor, 999, new THREE.Vector3(0, 0, -1), { goldMelting: true });
-    assert.equal(vaultDoor.destroyed, true, 'Porta do Cofre deve desmontar após ser destruída');
-
-    // Agora o jogador consegue entrar na Sala Forte do Cofre (z < -202)
-    controller.keys.forward = true;
-    for (let i = 0; i < 40; i++) {
-      controller.update(1 / 30);
-    }
-    controller.keys.forward = false;
-    assert.ok(
-      controller.position.z < -202.0,
-      `Após destruir a Porta do Cofre, o jogador deve entrar na Sala Forte das barras de ouro (z=${controller.position.z.toFixed(2)})`
-    );
+    assert.equal(vaultDoor.destroyed, true);
+    walk(30);
+    assert.ok(controller.position.z < -208, `Com a porta aberta entra na sala do ouro (z=${controller.position.z.toFixed(2)})`);
+    assert.ok(Math.abs(controller.position.y - f4) < 0.8, 'Continua no 4º andar');
 
     const goldStacks = destructibles.objects.filter(
-      (o) => o.type === 'gold_vault' && Math.abs(o.mesh.position.z - -211) < 2
+      (o) => o.type === 'gold_vault' && Math.abs(o.mesh.position.z - -211) < 2 && o.mesh.position.y > f4
     );
-    assert.equal(goldStacks.length, 4, 'Devem existir 4 pilhas de barras de ouro dentro da Sala Forte do Cofre');
+    assert.equal(goldStacks.length, 4, '4 pilhas de barras de ouro na sala do cofre');
     assert.ok(goldStacks.every((g) => g.goldOnly === true));
 
-    // Verifica que existem dezenas de Studs Dourados, Azuis e Roxos dentro do Cofre e que são puxados pelo ímã
-    assert.ok(destructibles.ambientStuds.length >= 30, 'Devem existir dezenas de Studs Dourados, Azuis e Roxos na Sala do Cofre');
+    assert.ok(destructibles.ambientStuds.length >= 30, 'Dezenas de studs na sala do cofre');
     const studsBefore = hud.totalStuds;
     for (let s = 0; s < 25; s++) {
-      destructibles.update(0.04, new THREE.Vector3(0, 0.4, -206));
+      destructibles.update(0.04, new THREE.Vector3(0, f4 + 0.4, -214));
     }
-    assert.ok(hud.totalStuds > studsBefore, 'Caminhar dentro da Sala do Cofre deve coletar os Studs Dourados/Azuis/Roxos');
+    assert.ok(hud.totalStuds > studsBefore, 'Andar na sala do cofre coleta os studs');
   });
 
   it('3. Subúrbio Norte: 4/6/8 lotes com grama, 5 estilos de casas, Pizzaria, Quadra de Basquete e 6 Bombas do Posto em reação em cadeia', () => {

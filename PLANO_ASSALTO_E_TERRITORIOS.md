@@ -181,3 +181,34 @@ const fw = __legoGame.world.livingCity.factionWar;
 fw.debugBankHeist();        // começa o Mega Assalto agora
 fw.debugCounterAttack();    // contra-ataque no 1º território conquistado
 ```
+
+---
+
+## 8. 🔁 Remodelação do banco (substitui a Parte B)
+
+A pedido do usuário, o Mega Assalto mudou: agora **você é o assaltante** e o banco ganhou 4 andares.
+O assalto antigo (facção rival, reféns, técnico de C4, SUVs de fuga e presos na prisão) foi removido.
+
+### Estrutura (`src/world/regions/SuperBankBuilder.js`)
+- O banco vai de 108 m para **148 m** de largura. Não dá para ir além de x = ±74 porque a rampa do metrô passa nas laterais, em x = ±82.
+- **4 andares** de 10 m:
+  - 1º: saguão de mármore, guichês, parede de caixas eletrônicos e 8 colunas quebráveis;
+  - 2º: câmbio e escritórios;
+  - 3º: centro de segurança, com parede de monitores, servidores e barricadas;
+  - 4º: **cofre**, com porta circular gigante e sala do ouro.
+- **3 rampas** de 9 m (dá para subir de carro) e **elevador [E]**, que sobe um andar por vez e, do topo, volta ao térreo.
+- **Entradas:** 3 na frente (a central larga para carro) e 2 no fundo. Nas laterais não há porta por causa do buraco do metrô.
+- **Fachada:** colunata de 8 colunas, frontão com moeda dourada, faixas douradas por andar, janelas em todos os andares e 4 torres com cúpula.
+- **Terraço:** heliponto, claraboia em pirâmide, jardins, antena, caixa d'água, ar-condicionado e letreiro "$ SUPER BANCO $".
+
+### Assalto (`src/world/events/BankHeistEvent.js`)
+- Começa ao **entrar no banco**, a pé ou de carro.
+- **Inimigos por andar:**
+  - 1º: seguranças (fracos);
+  - 2º: Polícia Federal;
+  - 3º: 4 monstrões do BOPE (Big-Fig com pancada no chão);
+  - 4º: 3 elites que atiram sem parar.
+- O portão da rampa e o elevador ficam trancados até você limpar o andar.
+- A cada andar limpo chega **reforço do seu time**, que também morre.
+- Limpo o 4º andar, o **cofre abre**. Pegar o ouro no pedestal dá Bloco Dourado e studs, e começa a **fuga com 4 estrelas de procurado**. Despistar dá +25.000 studs.
+- Cair ou sair do banco cancela o assalto. Dá para tentar de novo em 20 s; depois de um assalto completo, a espera é de 5 min.

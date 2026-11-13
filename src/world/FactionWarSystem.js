@@ -15,11 +15,35 @@ import { CaptureZone } from './events/CaptureZone.js';
 import { buildFactionSquad } from './events/WaveDirector.js';
 import { ObjectiveHud } from '../ui/ObjectiveHud.js';
 import { TerritoryCounterAttack } from './events/TerritoryCounterAttack.js';
-import { BankHeistEvent, BANK_LAYOUT } from './events/BankHeistEvent.js';
-import { PrisonRoster } from './events/PrisonRoster.js';
+import { BankHeistEvent } from './events/BankHeistEvent.js';
+import { BANK_SPEC } from './regions/SuperBankBuilder.js';
 
 // Temas extras (não são territórios): polícia aliada no Mega Assalto
 const EXTRA_THEMES = {
+  guard: {
+    id: 'guard',
+    shortTag: 'SEGURANÇA',
+    name: 'SEGURANÇA DO BANCO',
+    color: '#f1f5f9',
+    hex: 0xf1f5f9,
+    darkHex: 0x1f2937,
+    secondaryHex: 0x111827,
+    accentHex: 0xfacc15,
+    convoyVehicles: ['suv_pcc'],
+    bossTitle: 'CHEFE DA SEGURANÇA'
+  },
+  pf: {
+    id: 'pf',
+    shortTag: 'PF',
+    name: 'POLÍCIA FEDERAL',
+    color: '#facc15',
+    hex: 0x0f1d3a,
+    darkHex: 0x0b1226,
+    secondaryHex: 0x0a0b0f,
+    accentHex: 0xfacc15,
+    convoyVehicles: ['suv_pcc'],
+    bossTitle: 'DELEGADO FEDERAL'
+  },
   bope: {
     id: 'bope',
     shortTag: 'BOPE',
@@ -985,13 +1009,12 @@ export class FactionWarSystem {
     this._lastController = null;
     this.counterAttack = new TerritoryCounterAttack(this);
     this.bankHeist = new BankHeistEvent(this);
-    if (!this.world.prisonRoster) this.world.prisonRoster = new PrisonRoster(this.scene);
     this._bankZoneState = {
       id: 'bank',
       spec: {
         title: 'SUPER BANCO CENTRAL',
         bossCourtyard: { x: 0, z: -165 },
-        safeExitGate: { x: BANK_LAYOUT.policeArrival.x, z: BANK_LAYOUT.policeArrival.z + 6 }
+        safeExitGate: { x: 0, z: BANK_SPEC.frontZ + 14 }
       },
       outposts: [],
       captureZones: [],
@@ -1029,9 +1052,10 @@ export class FactionWarSystem {
     return FACTION_THEME[factionKey] || EXTRA_THEMES[factionKey] || FACTION_THEME.cv;
   }
 
-  /** Depuração: força o Mega Assalto agora (console: __legoGame.world.livingCity.factionWar.debugBankHeist()) */
-  debugBankHeist(robberFaction = null) {
-    return this.bankHeist.start(robberFaction);
+  /** Depuração: começa o assalto agora (console: __legoGame.world.livingCity.factionWar.debugBankHeist()) */
+  debugBankHeist() {
+    this.bankHeist.timer = 0;
+    return this.bankHeist.start();
   }
 
   _enterBankHeistMode() {
@@ -1039,7 +1063,6 @@ export class FactionWarSystem {
     this.activeZoneId = 'bank';
     this.activeMode = 'BANK_HEIST';
     this.isInvasionActive = true;
-    this.bankHeist._setMapMarker(true);
   }
 
   _leaveBankHeistMode() {
@@ -1049,7 +1072,6 @@ export class FactionWarSystem {
       this.activeMode = 'PEACEFUL_CITY';
       this.isInvasionActive = false;
     }
-    if (this.bankHeist.isActive) this.bankHeist._setMapMarker(true);
   }
 
   /** Território volta para a facção que contra-atacou */
@@ -1067,7 +1089,7 @@ export class FactionWarSystem {
 
   /** Dados extras do território para o save (nível da guarnição e tempo até o próximo contra-ataque) */
   getTerritoryMeta() {
-    const meta = { _prisoners: this.world.prisonRoster?.exportState?.() || null };
+    const meta = {};
     for (const [k, st] of Object.entries(this.territories)) {
       if (!st.conqueredByPlayer) continue;
       meta[k] = {
@@ -1080,7 +1102,6 @@ export class FactionWarSystem {
 
   applyTerritoryMeta(meta = null) {
     if (!meta || typeof meta !== 'object') return;
-    if (meta._prisoners) this.world.prisonRoster?.importState?.(meta._prisoners);
     for (const [k, m] of Object.entries(meta)) {
       const st = this.territories[k];
       if (!st || !st.conqueredByPlayer || !m) continue;
@@ -1228,34 +1249,37 @@ export class FactionWarSystem {
       : 0;
   }
 
-  _findSafeZonePos(x, z, radius = 1.4) {
+  _findSafeZonePos(x, z, radius = 1.4, refY = null) {
     const safe = this.livingCity._findSafeStreetSpawn(x, z, radius);
-    const y = this._groundAt(safe.x, safe.z, 2);
+    const y = this._groundAt(safe.x, safe.z, refY === null ? 2 : refY + 0.6);
     return { x: safe.x, y, z: safe.z };
   }
 
   // ============================================================================
   // CRIAÇÃO DE SOLDADOS MINIFIGURA LEGO ARTICULADOS & BOSSES BIG-FIG COLOSSAIS
   // ============================================================================
-  _spawnCombatUnit({ faction, role = 'rifleman', x, z, outpostId = null, patrolAnchor = null, forceAllied = null }) {
+  _spawnCombatUnit({ faction, role = 'rifleman', x, z, y = null, outpostId = null, patrolAnchor = null, forceAllied = null }) {
     const geos = ensureSharedWarGeometries();
     const theme = this.getFactionTheme(faction);
     const isAllied = forceAllied ?? faction === this.playerFaction;
+    // Classes pesadas do Super Banco: "brute" (monstrão Big-Fig) e "elite" (atira sem parar)
+    const heavyClass = role === 'brute' || role === 'elite' ? role : null;
+    const visualRole = role === 'brute' ? 'tank' : role === 'elite' ? 'boss' : role;
     const isBoss = role === 'boss';
     const isTank = role === 'tank';
     const isMedic = role === 'medic';
 
-    const safePos = this._findSafeZonePos(x, z, isBoss ? 2.2 : 1.15);
+    const safePos = this._findSafeZonePos(x, z, isBoss || heavyClass ? 2.2 : 1.15, y);
     const root = new THREE.Group();
     root.userData.skipStaticMerge = true;
 
-    const unitScale = isBoss ? 2.32 : isTank ? 1.14 : 1.0;
+    const unitScale = role === 'brute' ? 2.0 : role === 'elite' ? 1.5 : isBoss ? 2.32 : isTank ? 1.14 : 1.0;
     const bodyRig = new THREE.Group();
     bodyRig.scale.setScalar(unitScale);
     root.add(bodyRig);
 
     // Minifigura de combate detalhada (kit visual por facção + classe)
-    const soldier = createFactionSoldierVisual(faction, role);
+    const soldier = createFactionSoldierVisual(faction, visualRole);
     bodyRig.add(soldier.bodyRig);
     const { leftLeg, rightLeg, leftArm, rightArm, muzzleFlash } = soldier;
     rightArm.rotation.x = AIM_POSE.rightArmX;
@@ -1275,16 +1299,32 @@ export class FactionWarSystem {
     root.position.set(safePos.x, safePos.y, safePos.z);
     this.scene.add(root);
 
-    const hp = isBoss ? 1550 : isTank ? 280 : isMedic ? 175 : 160;
+    const big = isBoss || heavyClass;
+    const hp =
+      role === 'brute'
+        ? 1100
+        : role === 'elite'
+          ? 1400
+          : isBoss
+            ? 1550
+            : faction === 'guard'
+              ? isTank
+                ? 170
+                : 95
+              : isTank
+                ? 280
+                : isMedic
+                  ? 175
+                  : 160;
     const destructible = this.destructibles.registerDestructible({
       mesh: root,
-      type: isBoss ? 'npc_boss' : 'npc_fighter',
+      type: big ? 'npc_boss' : 'npc_fighter',
       hp,
-      radius: isBoss ? 2.45 : 1.05,
-      height: isBoss ? 5.2 : 2.25,
+      radius: big ? 1.05 * unitScale + 0.2 : 1.05,
+      height: 2.25 * unitScale,
       colliders: [],
       debrisColors: [theme.hex, theme.secondaryHex, theme.accentHex, LEGO_COLORS.yellow],
-      studDrops: isBoss
+      studDrops: big
         ? { silver: 0, gold: 18, blue: 10, purple: 4 }
         : { silver: 2, gold: 4, blue: isTank ? 2 : 1, purple: 0 },
       groundY: safePos.y
@@ -1292,7 +1332,7 @@ export class FactionWarSystem {
 
     destructible.isCombatNpc = true;
     destructible.isTankNpc = isTank;
-    destructible.isBossNpc = isBoss;
+    destructible.isBossNpc = isBoss || Boolean(heavyClass);
     destructible.isAlliedToPlayer = isAllied;
     destructible.noAutoRespawn = true;
 
@@ -1310,7 +1350,10 @@ export class FactionWarSystem {
       slamCooldown: 4.5,
       muzzleTimer: 0,
       walkPhase: Math.random() * 6.28,
-      speed: isBoss ? 5.2 : isTank ? 4.4 : isMedic ? 5.8 : 5.3,
+      speed: role === 'brute' ? 4.0 : isBoss ? 5.2 : isTank ? 4.4 : isMedic ? 5.8 : 5.3,
+      heavyClass,
+      hitR: 1.05 * unitScale,
+      hitH: 2.3 * unitScale,
       destructible,
       visual: {
         root,
@@ -1872,7 +1915,8 @@ export class FactionWarSystem {
       }
     }
 
-    // 🏦 Mega Assalto ao Super Banco (roda no Centro, fora dos territórios)
+    // 🏦 Assalto ao Super Banco (roda no Centro, fora dos territórios)
+    this.world.superBankData?.update?.(dt);
     this.bankHeist.tick(dt, playerPos);
     if (this.bankHeist.isEngaged) {
       this._updateConvoyDrops(dt);
@@ -2249,6 +2293,7 @@ export class FactionWarSystem {
         if (other === npc || other.isAllied === npc.isAllied) continue;
         if (!other.destructible || other.destructible.destroyed) continue;
         const oPos = other.visual.root.position;
+        if (Math.abs(oPos.y - pos.y) > 4.5) continue; // outro andar: não enxerga através da laje
         const d = Math.hypot(oPos.x - pos.x, oPos.z - pos.z);
         if (d < bestDist) {
           bestDist = d;
@@ -2259,7 +2304,7 @@ export class FactionWarSystem {
 
       if (!npc.isAllied) {
         const dPlayer = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
-        if (dPlayer < bestDist * 0.92 && dPlayer < 65) {
+        if (dPlayer < bestDist * 0.92 && dPlayer < 65 && Math.abs(playerPos.y - pos.y) < 4.5) {
           bestDist = dPlayer;
           bestTargetNpc = null;
           bestTargetPos = playerPos;
@@ -2270,8 +2315,8 @@ export class FactionWarSystem {
       let moveTarget = bestTargetPos;
       let stopRange = npc.isBoss ? 14.0 : 16.5;
       if (!moveTarget && npc.isAllied && this.activeMode === 'BANK_HEIST') {
-        // BOPE avança para dentro do saguão
-        moveTarget = { x: npc.patrolAnchor.x * 0.3, z: -152 };
+        // Seu time segue você no mesmo andar; em outro andar, segura a posição
+        moveTarget = Math.abs(playerPos.y - pos.y) < 3 ? playerPos : npc.patrolAnchor;
         stopRange = 5;
       } else if (!moveTarget && npc.isAllied && zoneState && this.activeMode === 'COUNTER_ATTACK') {
         // Defesa da bandeira: aliados seguram o pátio
@@ -2317,7 +2362,7 @@ export class FactionWarSystem {
       }
 
       // Ataque Especial de Terremoto dos Bosses Colossais Big-Fig
-      if (npc.isBoss && bestTargetPos && bestDist < 12.5) {
+      if ((npc.isBoss || npc.heavyClass === 'brute') && bestTargetPos && bestDist < 12.5) {
         npc.slamCooldown -= dt;
         if (npc.slamCooldown <= 0) {
           npc.slamCooldown = 5.2;
@@ -2334,7 +2379,11 @@ export class FactionWarSystem {
       // Disparo com verificação estrita de Linha de Visão (Zero tiro através de paredes!)
       npc.fireCooldown -= dt;
       if (bestTargetPos && bestDist < 54 && npc.fireCooldown <= 0) {
-        npc.fireCooldown = npc.isBoss
+        npc.fireCooldown = npc.heavyClass === 'elite'
+          ? 0.2 // atira pra caramba
+          : npc.heavyClass === 'brute'
+            ? 0.75
+            : npc.isBoss
           ? 0.55
           : npc.role === 'tank'
             ? 0.95
@@ -2383,7 +2432,7 @@ export class FactionWarSystem {
     const origin = npc.visual.root.position;
     const isRpg = npc.role === 'special' && npc.faction === 'cv';
     const isDrone = npc.role === 'special' && npc.faction === 'ares' && npc.visual.drone;
-    const startY = origin.y + (npc.isBoss ? 3.1 : isDrone ? 2.7 : isRpg ? 1.62 : 1.38);
+    const startY = origin.y + (npc.isBoss ? 3.1 : npc.hitH ? npc.hitH * 0.6 : isDrone ? 2.7 : isRpg ? 1.62 : 1.38);
     const targetY = (targetPos.y ?? origin.y) + (targetNpc?.isBoss ? 2.6 : 1.2);
 
     const dir = new THREE.Vector3(
@@ -2407,7 +2456,21 @@ export class FactionWarSystem {
       mesh: bulletMesh,
       vel: dir.multiplyScalar(npc.isBoss ? 48 : isRpg ? 26 : 42),
       isAllied: npc.isAllied,
-      damage: npc.isBoss ? 16 : isRpg ? 22 : isDrone ? 4 : npc.role === 'tank' ? 11 : 8,
+      damage: npc.heavyClass === 'elite'
+        ? 6
+        : npc.heavyClass === 'brute'
+          ? 13
+          : npc.isBoss
+            ? 16
+            : isRpg
+              ? 22
+              : isDrone
+                ? 4
+                : npc.faction === 'guard'
+                  ? 5
+                  : npc.role === 'tank'
+                    ? 11
+                    : 8,
       splash: isRpg ? 5.5 : 0,
       life: isRpg ? 2.4 : 1.45
     });
@@ -2487,8 +2550,8 @@ export class FactionWarSystem {
       for (const npc of this.combatNpcs) {
         if (npc.isAllied === p.isAllied || !npc.destructible || npc.destructible.destroyed) continue;
         const nPos = npc.visual.root.position;
-        const hitR = npc.isBoss ? 2.3 : 1.05;
-        const hitH = npc.isBoss ? 5.0 : 2.3;
+        const hitR = npc.hitR ?? (npc.isBoss ? 2.3 : 1.05);
+        const hitH = npc.hitH ?? (npc.isBoss ? 5.0 : 2.3);
         if (
           Math.abs(px - nPos.x) < hitR &&
           Math.abs(pz - nPos.z) < hitR &&
@@ -2579,9 +2642,9 @@ export class FactionWarSystem {
       if (controller) this._lastController = controller;
       if (this.activeMode === 'BANK_HEIST' && this.bankHeist.isActive) {
         const c = this._lastController;
-        const sx = BANK_LAYOUT.policeArrival.x;
-        const sz = BANK_LAYOUT.policeArrival.z + 10;
-        this.bankHeist._disengage();
+        const sx = 0;
+        const sz = BANK_SPEC.frontZ + 14;
+        this.bankHeist.onPlayerDown();
         this.livingCity.playerHp = this.livingCity.playerMaxHp;
         this.hud?.setPlayerHealth(this.livingCity.playerMaxHp, this.livingCity.playerMaxHp, false);
         if (c?.position) {
@@ -2590,7 +2653,6 @@ export class FactionWarSystem {
           c.velocity?.set(0, 0, 0);
           if (c.minifigure?.root) c.minifigure.root.position.copy(c.position);
         }
-        this.hud?.showWantedBanner?.('VOCÊ CAIU!', 'O BOPE TE PUXOU PARA FORA // VOLTE PARA O BANCO', 'busted', 3000);
         return;
       }
       if (this.activeMode === 'COUNTER_ATTACK' && this.counterAttack.isActive) {
