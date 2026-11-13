@@ -507,6 +507,28 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
     }
   }
 
+  // 6.6 ESTACOES DO METRO (quadrado amarelo alerta + codigo M01..M05 em JetBrains Mono — IDV)
+  if (Array.isArray(world.metroStationMarkers)) {
+    for (const st of world.metroStationMarkers) {
+      const sx = toX(st.x);
+      const sy = toY(st.z);
+      ctx.save();
+      ctx.fillStyle = '#facc15';
+      ctx.strokeStyle = '#090a0d';
+      ctx.lineWidth = 2;
+      ctx.fillRect(sx - 6, sy - 6, 12, 12);
+      ctx.strokeRect(sx - 6, sy - 6, 12, 12);
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3;
+      ctx.strokeText(st.code, sx + 9, sy);
+      ctx.fillStyle = '#facc15';
+      ctx.fillText(st.code, sx + 9, sy);
+      ctx.restore();
+    }
+  }
+
   // 7. Destaque Inteligente de Regiao APENAS no Hover (Sem retangulos cruzados fixos poluindo o mapa!)
   const allRegions = getInteractiveRegionsList(world);
   if (hud.hoveredRegionId) {
