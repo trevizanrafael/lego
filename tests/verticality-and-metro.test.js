@@ -650,6 +650,62 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     assert.equal(inLanes, 0, `Objetos plantados nas faixas dos viadutos: ${inLanes}`);
   });
 
+  it('5f. Água: carro no chão não entra; pulando passa por cima do canal e do rio; pulo curto volta para o seco', () => {
+    hud.isTitleScreenActive = false;
+    const car = destructibles.objects.find((o) => o.mesh.userData?.carType === 'apex_gtx');
+    controller.activeRide = null;
+    if (controller.currentVehicle) controller.exitVehicle();
+
+    // Acha as margens de um trecho d'água ao longo de X (em z fixo)
+    const waterSpan = (z, x0, x1) => {
+      let a = null;
+      let b = null;
+      for (let x = x0; x <= x1; x += 0.5) {
+        if (world.isDeepWaterAt(x, z, { forCar: true })) {
+          if (a === null) a = x;
+          b = x;
+        }
+      }
+      return { a, b };
+    };
+    const drive = (x, y, z, heading, { airborne = false, velY = 0, speed = 0, frames = 60 } = {}) => {
+      car.mesh.position.set(x, y, z);
+      car.mesh.rotation.y = heading;
+      controller.enterVehicle(car);
+      controller.vehicleHeading = heading;
+      controller.vehicleSpeed = speed;
+      controller.vehicleAirborne = airborne;
+      controller.vehicleAirVelY = velY;
+      controller.keys.forward = true;
+      for (let i = 0; i < frames; i++) controller.update(1 / 30);
+      controller.keys.forward = false;
+      const p = car.mesh.position.clone();
+      controller.exitVehicle();
+      return p;
+    };
+
+    for (const [name, z, x0, x1] of [['canal da praia', 850, -460, -300], ['rio leste', 300, 500, 640]]) {
+      const { a, b } = waterSpan(z, x0, x1);
+      assert.ok(a !== null && b !== null, `${name}: água encontrada`);
+      const startX = a - 12;
+      const gy = world.getSurfaceHeightAt(startX, z, 1);
+
+      // No chão: não entra na água
+      const pGround = drive(startX, gy, z, Math.PI / 2, { frames: 60 });
+      assert.ok(!world.isDeepWaterAt(pGround.x, z, { forCar: true }), `${name}: carro no chão não entra na água (x=${pGround.x.toFixed(1)})`);
+
+      // Pulando alto e rápido: atravessa por cima e pousa do outro lado, no seco
+      const width = b - a;
+      const pJump = drive(startX, gy + 8, z, Math.PI / 2, { airborne: true, velY: 10, speed: 48, frames: Math.ceil((width + 30) / 48 * 30) + 20 });
+      assert.ok(pJump.x > b, `${name}: pulando, o carro passa por cima da água (x=${pJump.x.toFixed(1)} > ${b.toFixed(1)})`);
+      assert.ok(!world.isDeepWaterAt(pJump.x, z, { forCar: true }), `${name}: pousa no seco`);
+
+      // Pulo curto: cai na água e volta para o último ponto seco (não fica preso no meio d'água)
+      const pShort = drive(startX, gy + 0.8, z, Math.PI / 2, { airborne: true, velY: 0, speed: 20, frames: 45 });
+      assert.ok(!world.isDeepWaterAt(pShort.x, pShort.z, { forCar: true }), `${name}: pulo curto volta para o seco (x=${pShort.x.toFixed(1)})`);
+    }
+  });
+
   it('6. SignBoardHelper gera placas com proporção real (aspect = W/H) e array de 6 materiais sem esticar bordas', () => {
     const wideSign = createSignBoardMesh({
       width: 20.0,
