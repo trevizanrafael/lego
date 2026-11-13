@@ -1153,6 +1153,8 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
         const gx = axis === 'z_const' ? rx : rx + armInward;
         const gz = axis === 'z_const' ? rz + armInward : rz;
         batcher.addBox('lamp_glow', 0.55, 0.2, 0.55, gx, ym + railH + 4.62, gz);
+        if (!world.viaductLampSpots) world.viaductLampSpots = [];
+        world.viaductLampSpots.push({ x: gx, y: ym + railH + 4.5, z: gz, deckY: ym });
       }
     }
 

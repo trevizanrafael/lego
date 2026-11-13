@@ -541,33 +541,19 @@ export class DayNightAtmosphereManager {
       }
     }
 
-    // 2.3 Postes nos 3 Grandes Viadutos Elevados Multi-Nível!
-    const addViaductLamps = (axis, fixedC, startC, endC) => {
-      for (let c = startC + 28; c <= endC - 28; c += 56) {
-        const vx = axis === 'z_const' ? c : fixedC;
-        const vz = axis === 'z_const' ? fixedC : c;
-        const deckY = this.world.getSurfaceHeightAt
-          ? this.world.getSurfaceHeightAt(vx, vz, 16.0)
-          : 10.5;
-        for (const side of [-1, 1]) {
-          const px = axis === 'z_const' ? vx : vx + side * 7.6;
-          const pz = axis === 'z_const' ? vz + side * 7.6 : vz;
-          physicalPoleLocations.push({ x: px, y: deckY, z: pz, h: 5.4 });
-          this.lampNodes.push({
-            x: axis === 'z_const' ? px : px - side * 1.2,
-            y: deckY + 5.25,
-            z: axis === 'z_const' ? pz - side * 1.2 : pz,
-            groundY: deckY + 0.04,
-            warm: true,
-            coneH: 5.2,
-            coneR: 4.2
-          });
-        }
-      }
-    };
-    addViaductLamps('z_const', -382, -455, 455); // Viaduto 01 Leste-Oeste
-    addViaductLamps('x_const', 252, -75, 510);   // Viaduto 02 Panorâmico
-    addViaductLamps('z_const', 0, -1025, -475);  // Viaduto 03 Expresso Aeroporto-CDD
+    // 2.3 Luz noturna das luminárias dos viadutos: os postes ficam NA MURETA (construídos pelo próprio viaduto,
+    //     `world.viaductLampSpots`), aqui só entra a luz — nada de poste extra no meio das faixas.
+    for (const spot of this.world.viaductLampSpots || []) {
+      this.lampNodes.push({
+        x: spot.x,
+        y: spot.y,
+        z: spot.z,
+        groundY: spot.deckY + 0.04,
+        warm: true,
+        coneH: 5.2,
+        coneR: 4.2
+      });
+    }
 
     // 2.4 Postes nas 9 Pontes em Arco sobre o Rio Urbano Leste!
     for (const br of RIVER_BRIDGE_SPECS) {

@@ -1131,15 +1131,14 @@ export function buildStreetProps(world) {
   }
 
   // Fileiras de Barricadas Laranjas nos Viadutos Elevados (superfície em Y elevado!)
+  // (no acostamento, encostadas na mureta: as faixas do viaduto ficam livres)
   const viaductBarricades = [
-    { x: -110, z: -389.2, refY: 12.0, rotY: 0 },
-    { x: -106, z: -389.2, refY: 12.0, rotY: 0 },
-    { x: 110, z: -389.2, refY: 12.0, rotY: 0 },
-    { x: 114, z: -389.2, refY: 12.0, rotY: 0 },
-    { x: 259.2, z: -180, refY: 12.0, rotY: Math.PI / 2 },
-    { x: 259.2, z: -176, refY: 12.0, rotY: Math.PI / 2 },
-    { x: 259.2, z: 60, refY: 12.0, rotY: Math.PI / 2 },
-    { x: 259.2, z: 64, refY: 12.0, rotY: Math.PI / 2 }
+    { x: -110, z: -394.4, refY: 40.0, rotY: 0 },
+    { x: -106, z: -394.4, refY: 40.0, rotY: 0 },
+    { x: 110, z: -394.4, refY: 40.0, rotY: 0 },
+    { x: 114, z: -394.4, refY: 40.0, rotY: 0 },
+    { x: 264.4, z: 60, refY: 40.0, rotY: Math.PI / 2 },
+    { x: 264.4, z: 64, refY: 40.0, rotY: Math.PI / 2 }
   ];
   for (const vb of viaductBarricades) {
     spawnSharedProp({

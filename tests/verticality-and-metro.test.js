@@ -584,6 +584,7 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     }
 
     // (B) Cerca baixa do parque (1.9m) atravessando a Av. X = 252: no chão o carro bate, pulando passa por cima
+    hud.isTitleScreenActive = false; // sem tela inicial: o controle aceita acelerar
     const car = destructibles.objects.find((o) => o.mesh.userData?.carType === 'apex_gtx');
     assert.ok(car, 'Deve existir um carro terrestre');
     controller.activeRide = null;
@@ -606,6 +607,47 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     controller.keys.forward = false;
     assert.ok(car.mesh.position.z > 153, `Pulando, o carro passa por cima da cerca baixa (z=${car.mesh.position.z.toFixed(2)})`);
     controller.exitVehicle();
+
+    // (C) Em cima do Viaduto Panorâmico o carro atravessa o lago (a água lá embaixo não bloqueia)
+    const v2 = world.elevatedDecks.find((d) => d.id === 'viaduct_ns_panoramic');
+    assert.equal(world.isDeepWaterAt(252, 250, { forCar: true }), true, 'Há lago embaixo do viaduto');
+    const startZ = 200;
+    car.mesh.position.set(248, v2.getDeckY(248, startZ), startZ);
+    car.mesh.rotation.y = 0;
+    controller.enterVehicle(car);
+    controller.keys.forward = true;
+    for (let i = 0; i < 150; i++) controller.update(1 / 30);
+    controller.keys.forward = false;
+    assert.ok(car.mesh.position.z > 320, `Carro atravessa o lago pelo viaduto (z=${car.mesh.position.z.toFixed(1)})`);
+    assert.ok(
+      car.mesh.position.y > v2.getDeckY(248, car.mesh.position.z) - 0.5,
+      'Continua em cima do viaduto'
+    );
+    controller.exitVehicle();
+
+    // (D) Nada plantado no meio das faixas dos viadutos (postes/barricadas ficam na mureta/acostamento)
+    const m4 = new THREE.Matrix4();
+    const pos = new THREE.Vector3();
+    const viaductDecks = world.elevatedDecks.filter((d) => String(d.id).startsWith('viaduct'));
+    let inLanes = 0;
+    scene.traverse((o) => {
+      if (!o.isInstancedMesh) return;
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, m4);
+        pos.setFromMatrixPosition(m4).applyMatrix4(o.matrixWorld);
+        for (const d of viaductDecks) {
+          if (pos.x < d.minX || pos.x > d.maxX || pos.z < d.minZ || pos.z > d.maxZ) continue;
+          const alongX = d.maxX - d.minX > d.maxZ - d.minZ;
+          const cc = alongX ? (d.minZ + d.maxZ) * 0.5 : (d.minX + d.maxX) * 0.5;
+          const hw = alongX ? (d.maxZ - d.minZ) * 0.5 : (d.maxX - d.minX) * 0.5;
+          const cross = alongX ? pos.z : pos.x;
+          const y = d.getDeckY(pos.x, pos.z);
+          if (y === null || Math.abs(pos.y - y) > 1.5) continue;
+          if (Math.abs(cross - cc) < hw - 2.0) inLanes++;
+        }
+      }
+    });
+    assert.equal(inLanes, 0, `Objetos plantados nas faixas dos viadutos: ${inLanes}`);
   });
 
   it('6. SignBoardHelper gera placas com proporção real (aspect = W/H) e array de 6 materiais sem esticar bordas', () => {
