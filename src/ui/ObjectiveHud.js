@@ -128,9 +128,9 @@ export class ObjectiveHud {
     this.timerEl.dataset.variant = s <= 30 ? 'danger' : '';
   }
 
-  setWave(current, total) {
+  setWave(current, total, label = 'ONDA') {
     if (!this.waveEl) return;
-    this.waveEl.textContent = current && total ? `ONDA ${current}/${total}` : '';
+    this.waveEl.textContent = current && total ? `${label} ${current}/${total}` : '';
   }
 
   /**

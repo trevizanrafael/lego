@@ -6,7 +6,7 @@ import * as THREE from 'three';
 // - Só enche com atacantes dentro do raio E nenhum defensor (senão: CONTESTADO)
 // - Sem ninguém dentro, o progresso volta devagar
 // - Aliados extras aceleram a captura (até +40%)
-// - No chão: anel de 24 pecinhas LEGO 1x1 que acendem conforme o progresso
+// - No chão: anel de 40 placas LEGO que acendem conforme o progresso
 // ============================================================================
 
 export const CAPTURE_STATE = {
@@ -17,13 +17,13 @@ export const CAPTURE_STATE = {
   CAPTURED: 'CAPTURED'
 };
 
-const TILE_COUNT = 24;
-const TILE_GEO = new THREE.BoxGeometry(1.1, 0.22, 1.1);
+const TILE_COUNT = 40;
+const TILE_GEO = new THREE.BoxGeometry(1.75, 0.18, 0.9);
 const STUD_RING_GEO = new THREE.RingGeometry(0.92, 1.0, 48);
 STUD_RING_GEO.rotateX(-Math.PI / 2);
 
 const COLOR_LOCKED = new THREE.Color(0x475569);
-const COLOR_EMPTY = new THREE.Color(0x262b38);
+const COLOR_EMPTY = new THREE.Color(0x4a3f0c);
 const COLOR_ATTACK = new THREE.Color(0xfacc15);
 const COLOR_CONTEST = new THREE.Color(0xef4444);
 
@@ -56,7 +56,7 @@ export class CaptureZone {
     const m = new THREE.Matrix4();
     for (let i = 0; i < TILE_COUNT; i++) {
       const a = (i / TILE_COUNT) * Math.PI * 2;
-      m.makeRotationY(-a);
+      m.makeRotationY(a);
       const tx = Math.sin(a) * this.radius;
       const tz = Math.cos(a) * this.radius;
       const ty = this.groundAt ? this.groundAt(this.x + tx, this.z + tz, this.y) - this.y : 0;

@@ -1903,7 +1903,7 @@ export class FactionWarSystem {
         this.objectiveHud?.setProgress(zone.progress, 'neutral');
         this.objectiveHud?.setStatus(defenders > 0 ? `${defenders} DEFENSORES NO PONTO` : `ENTRE NO ANEL ${activeOp.code}`, '');
       }
-      this.objectiveHud?.setWave(zoneState.activeIndex + 1, zoneState.outposts.length + 1);
+      this.objectiveHud?.setWave(zoneState.activeIndex + 1, zoneState.outposts.length + 1, 'ETAPA');
 
       if (done) {
         this._captureOutpost(zoneState, activeOp, playerPos);
@@ -1914,7 +1914,7 @@ export class FactionWarSystem {
       const ratio = boss?.destructible ? Math.max(0, boss.destructible.hp / (boss.destructible.maxHp || 1550)) : 0;
       this.objectiveHud?.setProgress(ratio, 'danger');
       this.objectiveHud?.setStatus(`CHEFE ${Math.round(ratio * 100)}%`, 'danger');
-      this.objectiveHud?.setWave(zoneState.outposts.length + 1, zoneState.outposts.length + 1);
+      this.objectiveHud?.setWave(zoneState.outposts.length + 1, zoneState.outposts.length + 1, 'ETAPA');
       if (zoneState.enemyBossDefeated) {
         this._conquerTerritory(zoneState, playerPos);
         return;
