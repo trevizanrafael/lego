@@ -2139,6 +2139,8 @@ export class LegoHud {
           true,
           Array.isArray(slotData?.conqueredTerritories) ? slotData.conqueredTerritories : []
         );
+        this.onApplyTerritoryMeta?.(slotData?.territoryMeta || null);
+        this.goldenBricks = Number(slotData?.goldenBricks || 0);
         this._lastController?.world?.livingCity?.wantedSystem?.clearWanted?.('reset');
         this.setPlayerHealth(250, 250, false);
       } catch (err) {
@@ -2219,13 +2221,23 @@ export class LegoHud {
     });
   }
 
+  /** Blocos Dourados (recompensa dos grandes eventos) */
+  addGoldenBrick(amount = 1) {
+    this.goldenBricks = (this.goldenBricks || 0) + amount;
+    soundFX.playTrueHeroFanfare();
+    this.showWantedBanner('BLOCO DOURADO +' + amount, `TOTAL: ${this.goldenBricks}`, 'escaped', 3200);
+    this.saveCurrentProgress();
+  }
+
   saveCurrentProgress() {
     writeSaveSlot(this.activeSaveSlot || 0, {
+      goldenBricks: this.goldenBricks || 0,
       faction: FACTION_DATA[this.playerFaction] ? this.playerFaction : 'cv',
       studs: this.totalStuds || 0,
       heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira',
       conqueredTerritories:
         typeof this.getConqueredTerritories === 'function' ? this.getConqueredTerritories() : [],
+      territoryMeta: typeof this.getTerritoryMeta === 'function' ? this.getTerritoryMeta() : {},
       customHero: { ...getActiveCustomHero() },
       customGarage: JSON.parse(JSON.stringify(getActiveGarageSaveData())),
       radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null

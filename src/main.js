@@ -42,6 +42,12 @@ class LegoCityGame {
     this.hud.getConqueredTerritories = () => {
       return this.world?.livingCity?.factionWar?.getConqueredTerritoryIds?.() || [];
     };
+    this.hud.getTerritoryMeta = () => {
+      return this.world?.livingCity?.factionWar?.getTerritoryMeta?.() || {};
+    };
+    this.hud.onApplyTerritoryMeta = (meta) => {
+      this.world?.livingCity?.factionWar?.applyTerritoryMeta?.(meta);
+    };
     this.hud.onChangeTimeMode = (mode) => {
       if (this.world?.atmosphere) {
         this.world.atmosphere.setTimeMode(mode);
@@ -362,5 +368,5 @@ class LegoCityGame {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  new LegoCityGame();
+  window.__legoGame = new LegoCityGame(); // handle de depuração (console)
 });
