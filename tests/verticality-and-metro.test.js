@@ -563,6 +563,51 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     assert.ok(Math.abs(controller.position.x - p.x) < 3.6, 'Mureta lateral segura o jogador no trilho');
   });
 
+  it('5e. Viadutos encaixam na avenida (mesma largura) e carro pulando passa por cima de obstáculo baixo', async () => {
+    const { parallelCorridorAt } = await import('../src/world/StreetPortalPlanner.js');
+    // (A) Tabuleiro com a mesma largura e alinhamento da avenida onde a rampa encosta
+    const checks = [
+      ['viaduct_ew_north', false, -440, -382],
+      ['viaduct_ns_panoramic', true, 252, -70],
+      ['viaduct_ew_central_ramp_pair', true, 0, -290]
+    ];
+    for (const [id, alongZ, a, b] of checks) {
+      const deck = world.elevatedDecks.find((d) => d.id === id);
+      assert.ok(deck, `${id} registrado`);
+      const x = alongZ ? a : a;
+      const z = alongZ ? b : b;
+      const road = parallelCorridorAt(world.mapRoads, x, z, alongZ);
+      assert.ok(road, `${id}: avenida embaixo da rampa`);
+      const d0 = alongZ ? deck.minX : deck.minZ;
+      const d1 = alongZ ? deck.maxX : deck.maxZ;
+      assert.ok(Math.abs(d0 - road.lo) < 0.05 && Math.abs(d1 - road.hi) < 0.05, `${id}: tabuleiro ${d0}..${d1} = avenida ${road.lo}..${road.hi}`);
+    }
+
+    // (B) Cerca baixa do parque (1.9m) atravessando a Av. X = 252: no chão o carro bate, pulando passa por cima
+    const car = destructibles.objects.find((o) => o.mesh.userData?.carType === 'apex_gtx');
+    assert.ok(car, 'Deve existir um carro terrestre');
+    controller.activeRide = null;
+    if (controller.currentVehicle) controller.exitVehicle();
+    car.mesh.position.set(254, world.getTerrainHeightAt(254, 146), 146);
+    car.mesh.rotation.y = 0; // apontando para +Z (cerca em z ~ 152)
+    controller.enterVehicle(car);
+    controller.keys.forward = true;
+    for (let i = 0; i < 45; i++) controller.update(1 / 30);
+    controller.keys.forward = false;
+    assert.ok(car.mesh.position.z < 151.5, `No chão o carro bate na cerca (z=${car.mesh.position.z.toFixed(2)})`);
+
+    car.mesh.position.set(254, 4.5, 146);
+    controller.position.set(254, 4.5, 146);
+    controller.vehicleAirborne = true;
+    controller.vehicleAirVelY = 4;
+    controller.vehicleSpeed = 22;
+    controller.keys.forward = true;
+    for (let i = 0; i < 12; i++) controller.update(1 / 30);
+    controller.keys.forward = false;
+    assert.ok(car.mesh.position.z > 153, `Pulando, o carro passa por cima da cerca baixa (z=${car.mesh.position.z.toFixed(2)})`);
+    controller.exitVehicle();
+  });
+
   it('6. SignBoardHelper gera placas com proporção real (aspect = W/H) e array de 6 materiais sem esticar bordas', () => {
     const wideSign = createSignBoardMesh({
       width: 20.0,
