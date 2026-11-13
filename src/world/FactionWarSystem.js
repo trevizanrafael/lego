@@ -14,6 +14,7 @@ import { createFactionSoldierVisual, animateFactionSoldier, AIM_POSE } from '../
 import { CaptureZone } from './events/CaptureZone.js';
 import { buildFactionSquad } from './events/WaveDirector.js';
 import { ObjectiveHud } from '../ui/ObjectiveHud.js';
+import { TerritoryCounterAttack } from './events/TerritoryCounterAttack.js';
 
 // Regras da Invasão em Sequência (Gardens & Graveyards)
 export const INVASION_RULES = {
@@ -964,6 +965,7 @@ export class FactionWarSystem {
 
     this.objectiveHud = new ObjectiveHud();
     this._lastController = null;
+    this.counterAttack = new TerritoryCounterAttack(this);
 
     this._animClock = 0;
   }
@@ -990,7 +992,55 @@ export class FactionWarSystem {
       .map((t) => t.id);
   }
 
+  getFactionTheme(factionKey) {
+    return FACTION_THEME[factionKey] || FACTION_THEME.cv;
+  }
+
+  /** Território volta para a facção que contra-atacou */
+  loseTerritory(zoneState, attacker = zoneState.spec.defaultOwner) {
+    zoneState.ownerFaction = attacker;
+    zoneState.conqueredByPlayer = false;
+    zoneState.threatTimer = null;
+    zoneState.garrisonLevel = 0;
+    zoneState.bossPhaseTriggered = false;
+    zoneState.enemyBossDefeated = false;
+    for (const op of zoneState.outposts) op.ownerFaction = attacker;
+    zoneState.captureZones.forEach((cz) => cz.reset());
+    this._syncZone3DColors(zoneState.id);
+  }
+
+  /** Dados extras do território para o save (nível da guarnição e tempo até o próximo contra-ataque) */
+  getTerritoryMeta() {
+    const meta = {};
+    for (const [k, st] of Object.entries(this.territories)) {
+      if (!st.conqueredByPlayer) continue;
+      meta[k] = {
+        garrisonLevel: st.garrisonLevel || 0,
+        threatTimer: Number.isFinite(st.threatTimer) ? Math.max(30, Math.round(st.threatTimer)) : null
+      };
+    }
+    return meta;
+  }
+
+  applyTerritoryMeta(meta = null) {
+    if (!meta || typeof meta !== 'object') return;
+    for (const [k, m] of Object.entries(meta)) {
+      const st = this.territories[k];
+      if (!st || !st.conqueredByPlayer || !m) continue;
+      st.garrisonLevel = Math.max(0, Math.min(3, Number(m.garrisonLevel) || 0));
+      st.threatTimer = Number.isFinite(m.threatTimer) ? m.threatTimer : null;
+    }
+  }
+
+  /** Depuração: força um contra-ataque agora (console: __legoGame.world.livingCity.factionWar.debugCounterAttack('pcc')) */
+  debugCounterAttack(zoneId = null) {
+    const id = zoneId || Object.values(this.territories).find((t) => t.conqueredByPlayer)?.id;
+    if (!id) return false;
+    return this.counterAttack.startAlert(id);
+  }
+
   applySavedConquests(conqueredIds = [], playerFaction = this.playerFaction) {
+    if (this.counterAttack?.isActive) this.counterAttack._finish();
     if (!Array.isArray(conqueredIds)) return;
     for (const zKey of Object.keys(this.territories)) {
       const st = this.territories[zKey];
@@ -1011,6 +1061,7 @@ export class FactionWarSystem {
   }
 
   resetConqueredTerritories() {
+    if (this.counterAttack?.isActive) this.counterAttack._finish();
     this._cleanupActiveZoneUnits();
     this.activeZoneId = null;
     this.activeMode = 'PEACEFUL_CITY';
@@ -1024,6 +1075,9 @@ export class FactionWarSystem {
       st.enemyBossDefeated = false;
       st.enemyBoss = null;
       st.alliedBoss = null;
+      st.garrisonLevel = 0;
+      st.threatTimer = null;
+      st.captureZones.forEach((cz) => cz.reset());
       for (const op of st.outposts) {
         op.ownerFaction = st.spec.defaultOwner;
         op.captureHoldTimer = 0;
@@ -1432,7 +1486,11 @@ export class FactionWarSystem {
     const st = this.territories[zoneKey];
     if (!st) return;
 
-    // 2 Guardas Aliados nos Portões + 1 Guarda em cada Outpost + 2 Médicos da Base
+    // 2 Guardas Aliados nos Portões + 1 Guarda em cada Outpost + 2 Médicos da Base (+ guarnição extra por nível)
+    for (let i = 0; i < (st.garrisonLevel || 0); i++) {
+      const op = st.outposts[i % st.outposts.length];
+      this._spawnCombatUnit({ faction: this.playerFaction, role: i % 2 ? 'special' : 'tank', x: op.x + 3, z: op.z - 3, outpostId: op.id });
+    }
     for (const g of st.spec.gates) {
       this._spawnCombatUnit({
         faction: this.playerFaction,
@@ -1666,7 +1724,7 @@ export class FactionWarSystem {
     zoneState.ownerFaction = this.playerFaction;
     zoneState.conqueredByPlayer = true;
     zoneState.garrisonLevel = 0;
-    zoneState.threatTimer = null;
+    this.counterAttack.armThreat(zoneState);
     for (const op of zoneState.outposts) {
       op.ownerFaction = this.playerFaction;
     }
@@ -1773,10 +1831,14 @@ export class FactionWarSystem {
     if (strictZone) {
       const targetState = this.territories[strictZone.id];
       const shouldBeAllyHq = targetState.ownerFaction === this.playerFaction;
-      const desiredMode = shouldBeAllyHq ? 'ALLY_HQ' : 'INVASION_1V1';
+      const ca = this.counterAttack;
+      const underAttack = shouldBeAllyHq && ca.isActive && ca.zoneId === strictZone.id;
+      const desiredMode = underAttack ? 'COUNTER_ATTACK' : shouldBeAllyHq ? 'ALLY_HQ' : 'INVASION_1V1';
 
       if (this.activeZoneId !== strictZone.id || this.activeMode !== desiredMode) {
-        if (desiredMode === 'ALLY_HQ') {
+        if (desiredMode === 'COUNTER_ATTACK') {
+          ca.beginDefense();
+        } else if (desiredMode === 'ALLY_HQ') {
           this._enterAllyHqMode(strictZone.id);
         } else {
           this._enterInvasionWarMode(strictZone.id, playerPos);
@@ -1800,6 +1862,8 @@ export class FactionWarSystem {
       this.hud?.setPlayerHealth(this.livingCity.playerMaxHp, this.livingCity.playerMaxHp, false);
       return;
     }
+
+    this.counterAttack.tick(dt, playerPos);
 
     if (!this.activeZoneId) return;
 
@@ -2138,7 +2202,11 @@ export class FactionWarSystem {
       // Movimento tático (Aliados avançam junto com o jogador quando sem alvo próximo)
       let moveTarget = bestTargetPos;
       let stopRange = npc.isBoss ? 14.0 : 16.5;
-      if (!moveTarget && npc.isAllied && zoneState) {
+      if (!moveTarget && npc.isAllied && zoneState && this.activeMode === 'COUNTER_ATTACK') {
+        // Defesa da bandeira: aliados seguram o pátio
+        moveTarget = npc.patrolAnchor || zoneState.spec.bossCourtyard;
+        stopRange = 4.5;
+      } else if (!moveTarget && npc.isAllied && zoneState) {
         // Aliados avançam para o objetivo ativo da sequência
         const nextOp = zoneState.outposts[zoneState.activeIndex];
         const court = zoneState.bossPhaseTriggered ? zoneState.spec.bossCourtyard : null;
@@ -2438,6 +2506,10 @@ export class FactionWarSystem {
 
     if (this.livingCity.playerHp <= 0) {
       if (controller) this._lastController = controller;
+      if (this.activeMode === 'COUNTER_ATTACK' && this.counterAttack.isActive) {
+        this.counterAttack._lose('VOCÊ CAIU DEFENDENDO A BANDEIRA');
+        return;
+      }
       this._failInvasion(zoneState || this.territories[this.activeZoneId], 'VOCÊ CAIU!', 'RECUO TÁTICO PARA O PORTÃO // OS POSTOS VOLTARAM AO DONO');
     }
   }

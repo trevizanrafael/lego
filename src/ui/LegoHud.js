@@ -2139,6 +2139,7 @@ export class LegoHud {
           true,
           Array.isArray(slotData?.conqueredTerritories) ? slotData.conqueredTerritories : []
         );
+        this.onApplyTerritoryMeta?.(slotData?.territoryMeta || null);
         this._lastController?.world?.livingCity?.wantedSystem?.clearWanted?.('reset');
         this.setPlayerHealth(250, 250, false);
       } catch (err) {
@@ -2226,6 +2227,7 @@ export class LegoHud {
       heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira',
       conqueredTerritories:
         typeof this.getConqueredTerritories === 'function' ? this.getConqueredTerritories() : [],
+      territoryMeta: typeof this.getTerritoryMeta === 'function' ? this.getTerritoryMeta() : {},
       customHero: { ...getActiveCustomHero() },
       customGarage: JSON.parse(JSON.stringify(getActiveGarageSaveData())),
       radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null

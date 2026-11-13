@@ -349,6 +349,12 @@ export function writeSaveSlot(slotIndex, data) {
     studs: Number(data.studs || 0),
     heroKey: data.heroKey || 'caveira',
     conqueredTerritories: Array.isArray(data.conqueredTerritories) ? data.conqueredTerritories : [],
+    territoryMeta:
+      data.territoryMeta && typeof data.territoryMeta === 'object'
+        ? JSON.parse(JSON.stringify(data.territoryMeta))
+        : prev?.territoryMeta && typeof prev.territoryMeta === 'object'
+          ? prev.territoryMeta
+          : {},
     customHero,
     customGarage,
     radioState,

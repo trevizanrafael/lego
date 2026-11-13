@@ -492,14 +492,6 @@ export class LivingCityManager {
     this.wantedSystem = new WantedPursuitSystem(this);
   }
 
-  setPlayerFaction(factionKey = 'cv', controller = null, savedConquests = null) {
-    if (this.factionWar) {
-      this.factionWar.setPlayerFaction(factionKey, controller, savedConquests);
-    } else {
-      this.playerFaction = factionKey;
-    }
-  }
-
   resetTerritories() {
     if (this.factionWar) {
       this.factionWar.resetConqueredTerritories();
@@ -668,12 +660,16 @@ export class LivingCityManager {
   /**
    * Mantido para compatibilidade total com Saves e LegoHud (sem spawnar tropas de guerra)
    */
-  setPlayerFaction(factionKey = 'free_roam') {
+  setPlayerFaction(factionKey = 'free_roam', controller = null, savedConquests = null) {
     this.playerFaction = factionKey || 'free_roam';
     this.playerHp = this.playerMaxHp;
     if (this.hud) {
       this.hud.setPlayerFaction(this.playerFaction, false);
       this.hud.setPlayerHealth(this.playerMaxHp, this.playerMaxHp, false);
+    }
+    // Repassa a facção escolhida (e as conquistas salvas) para a Guerra de Territórios
+    if (this.factionWar) {
+      this.factionWar.setPlayerFaction(factionKey, controller, savedConquests);
     }
   }
 
