@@ -107,7 +107,7 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
     assert.ok(livingCity.playerHp > 150, 'Médico da base aliada recupera a vida do jogador');
   });
 
-  it('4. Guerra de Invasão 1x1 (CV invadindo PCC): Comboios Motorizados, Zero 3ª Facção, Bosses no 2º Ponto e Conquista no 3º', () => {
+  it('4. Guerra de Invasão 1x1 (CV invadindo PCC): Captura em Sequência P1→P2→P3, Ponto Contestado, Relógio e Chefe no Pátio', () => {
     hud.setPlayerFaction('cv', true);
 
     // Cruza a fronteira entrando no Território do PCC (X: 580..1580, Z: -620..110)
@@ -140,44 +140,82 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
       assert.equal(enemy.visual.allyMarker.visible, false, 'Inimigos não exibem marcador verde');
     }
 
-    // Captura P1 e P2 derrotando os defensores ao redor de cada posto
     const pccState = fw.territories.pcc;
-    for (const opIdx of [0, 1]) {
-      const op = pccState.outposts[opIdx];
-      controller.position.set(op.x, 6.8, op.z);
+    assert.equal(pccState.activeIndex, 0, 'Invasão começa no P1');
+    assert.notEqual(pccState.captureZones[0].state, 'LOCKED', 'P1 é o ponto ativo');
+    assert.equal(pccState.captureZones[1].state, 'LOCKED', 'P2 começa trancado');
+    assert.equal(pccState.captureZones[2].state, 'LOCKED', 'P3 começa trancado');
+    assert.equal(fw.objectiveHud.visible, true, 'Painel de objetivo aparece na invasão');
+
+    const killEnemiesNear = (x, z, radius = 40) => {
       for (const npc of [...livingCity.combatNpcs]) {
-        if (!npc.isAllied) {
-          const d = Math.hypot(npc.visual.root.position.x - op.x, npc.visual.root.position.z - op.z);
-          if (npc.outpostId === op.id || d < 32) {
-            destructibles.damageObject(npc.destructible, 9999, controller.position, false, {
-              fromEnemyNpc: true
-            });
-          }
+        if (npc.isAllied || npc.isBoss) continue;
+        const p = npc.visual.root.position;
+        if (Math.hypot(p.x - x, p.z - z) < radius) {
+          destructibles.damageObject(npc.destructible, 99999, controller.position, false, { fromEnemyNpc: true });
         }
       }
-      livingCity.update(0.6, controller.position, controller);
-      assert.equal(op.ownerFaction, 'cv', `Outpost ${op.code} deve passar para a cor/domínio do CV`);
-      assert.equal(op.beaconMat.color.getHex(), FACTION_THEME.cv.hex, 'Antena muda para Vermelho CV');
-    }
+    };
+    const holdPoint = (op, seconds) => {
+      for (let t = 0; t < seconds; t += 0.5) {
+        controller.position.set(op.x, op.y ?? 6.5, op.z);
+        killEnemiesNear(op.x, op.z);
+        livingCity.playerHp = livingCity.playerMaxHp;
+        livingCity.update(0.5, controller.position, controller);
+        if (op.ownerFaction === 'cv') return;
+      }
+    };
 
-    // Ao capturar o 2º Outpost, DEVE ter invocado o Duelo Colossal de Bosses (Boss Defensor PCC vs Boss Aliado CV)!
-    assert.equal(pccState.bossPhaseTriggered, true, 'Clímax de Bosses ativado no 2º Ponto');
+    // Fora de ordem: ficar no P3 trancado NÃO captura
+    const op3 = pccState.outposts[2];
+    holdPoint(op3, 6);
+    assert.equal(op3.ownerFaction, 'pcc', 'P3 trancado não pode ser capturado antes do P1/P2');
+
+    // Captura NÃO é instantânea: depois de 2s ainda está enchendo
+    const op1 = pccState.outposts[0];
+    holdPoint(op1, 2);
+    assert.equal(op1.ownerFaction, 'pcc', 'Captura leva tempo (barra enchendo)');
+    assert.ok(pccState.captureZones[0].progress > 0.1, 'Barra de captura enche com o jogador no anel');
+
+    const clockBefore = pccState.invasionClock;
+    holdPoint(op1, 14);
+    assert.equal(op1.ownerFaction, 'cv', 'P1 capturado depois de segurar o anel');
+    assert.equal(op1.beaconMat.color.getHex(), FACTION_THEME.cv.hex, 'Antena muda para Vermelho CV');
+    assert.ok(pccState.invasionClock > clockBefore, 'Captura soma tempo no relógio');
+    assert.equal(pccState.activeIndex, 1, 'P2 vira o objetivo ativo');
+
+    // Ponto CONTESTADO: com defensor dentro do anel a barra não enche
+    const op2 = pccState.outposts[1];
+    killEnemiesNear(op2.x, op2.z, 400);
+    const guard = fw._spawnCombatUnit({ faction: 'pcc', role: 'tank', x: op2.x + 2, z: op2.z + 2, outpostId: op2.id });
+    guard.destructible.hp = 1e9;
+    guard.retreating = false;
+    controller.position.set(op2.x, op2.y ?? 6.5, op2.z);
+    for (let t = 0; t < 2; t += 0.5) {
+      livingCity.playerHp = livingCity.playerMaxHp;
+      guard.visual.root.position.set(op2.x + 2, guard.visual.root.position.y, op2.z + 2);
+      livingCity.update(0.5, controller.position, controller);
+    }
+    assert.equal(pccState.captureZones[1].state, 'CONTESTED', 'Defensor no anel deixa o ponto contestado');
+    assert.equal(pccState.captureZones[1].progress, 0, 'Barra travada enquanto contestado');
+    destructibles.damageObject(guard.destructible, 1e12, controller.position, false, { fromEnemyNpc: true });
+
+    holdPoint(op2, 16);
+    assert.equal(op2.ownerFaction, 'cv', 'P2 capturado');
+    assert.equal(pccState.bossPhaseTriggered, false, 'Chefe só aparece depois do P3');
+
+    holdPoint(op3, 16);
+    assert.equal(op3.ownerFaction, 'cv', 'P3 capturado');
+
+    // Depois dos 3 postos: Duelo de Chefões no pátio
+    assert.equal(pccState.bossPhaseTriggered, true, 'Clímax de Bosses ativado após o P3');
     assert.ok(pccState.enemyBoss && pccState.enemyBoss.faction === 'pcc', 'Boss Defensor PCC presente');
     assert.ok(pccState.alliedBoss && pccState.alliedBoss.faction === 'cv', 'Boss Aliado CV presente');
 
-    // Derrota o Boss Defensor + Captura o 3º Outpost -> CONQUISTA TOTAL DO TERRITÓRIO!
+    // Derrota o Boss -> CONQUISTA TOTAL DO TERRITÓRIO!
     destructibles.damageObject(pccState.enemyBoss.destructible, 99999, controller.position, false, {
       fromEnemyNpc: true
     });
-    const op3 = pccState.outposts[2];
-    controller.position.set(op3.x, 6.5, op3.z);
-    for (const npc of [...livingCity.combatNpcs]) {
-      if (!npc.isAllied) {
-        destructibles.damageObject(npc.destructible, 99999, controller.position, false, {
-          fromEnemyNpc: true
-        });
-      }
-    }
     livingCity.update(0.6, controller.position, controller);
 
     assert.equal(pccState.conqueredByPlayer, true, 'Território do PCC foi conquistado pelo jogador');
@@ -188,6 +226,43 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
       FACTION_THEME.cv.hex,
       'Bandeira 3D do Portão do território conquistado muda para a cor da facção do jogador'
     );
+  });
+
+  it('4b. Soldados detalhados: cada facção e classe tem kit visual próprio e tronco visível', async () => {
+    const { createFactionSoldierVisual } = await import('../src/entities/FactionSoldierBuilder.js');
+    for (const f of ['cv', 'pcc', 'ares']) {
+      for (const role of ['rifleman', 'tank', 'medic', 'special', 'boss']) {
+        const v = createFactionSoldierVisual(f, role);
+        let meshes = 0;
+        let multiMaterial = 0;
+        v.bodyRig.traverse((o) => {
+          if (o.isMesh) {
+            meshes++;
+            if (Array.isArray(o.material)) multiMaterial++;
+          }
+        });
+        assert.ok(meshes >= 12, `${f}/${role} deve ter peças detalhadas (${meshes})`);
+        assert.equal(multiMaterial, 0, 'Nenhuma peça com material múltiplo (bug do tronco invisível)');
+        assert.ok(v.className.length > 0, 'Classe tem nome');
+      }
+    }
+  });
+
+  it('4c. Invasão falha quando o relógio zera e os postos voltam ao dono', () => {
+    livingCity.resetTerritories();
+    hud.setPlayerFaction('cv', true);
+    const fw = livingCity.factionWar;
+    const ares = TERRITORY_ZONES.ares.outposts[0];
+    controller.position.set(ares.x, 0.6, ares.z);
+    livingCity.update(0.1, controller.position, controller);
+    assert.equal(fw.activeZoneId, 'ares');
+    fw.territories.ares.outposts[0].ownerFaction = 'cv';
+    fw.territories.ares.invasionClock = 0.2;
+    livingCity.playerHp = livingCity.playerMaxHp;
+    livingCity.update(0.5, controller.position, controller);
+    assert.equal(fw.isInvasionActive, false, 'Invasão encerrada por tempo');
+    assert.equal(fw.territories.ares.outposts[0].ownerFaction, 'ares', 'Posto volta para a A.R.E.S.');
+    assert.equal(fw.objectiveHud.visible, false, 'Painel de objetivo some');
   });
 
   it('5. Desengajamento Limpo ao Sair do Território + Botão Resetar Territórios + Renderização Mapa [M] / Minimapa', () => {

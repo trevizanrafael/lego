@@ -11,8 +11,29 @@ import { VEHICLE_SPECS, createLegoCarMesh } from './VehicleFleetBuilder.js';
 import { createSignBoardMesh } from '../utils/SignBoardHelper.js';
 import { soundFX } from '../audio/SoundFX.js';
 import { createFactionSoldierVisual, animateFactionSoldier, AIM_POSE } from '../entities/FactionSoldierBuilder.js';
+import { CaptureZone } from './events/CaptureZone.js';
+import { buildFactionSquad } from './events/WaveDirector.js';
+import { ObjectiveHud } from '../ui/ObjectiveHud.js';
+
+// Regras da Invasão em Sequência (Gardens & Graveyards)
+export const INVASION_RULES = {
+  startClock: 240, // 4:00 iniciais
+  clockPerCapture: 90, // +1:30 por posto tomado
+  captureRadius: 13,
+  captureTime: 10,
+  reinforceInterval: 13,
+  enemyCapBase: 8,
+  enemyCapPerPoint: 3
+};
 
 const ALLY_MARKER_MAT = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
+const ALLY_BULLET_MAT = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
+const ROCKET_MAT = new THREE.MeshBasicMaterial({ color: 0x84cc16 });
+const BULLET_MATS = new Map();
+function getFactionBulletMat(faction, hex) {
+  if (!BULLET_MATS.has(faction)) BULLET_MATS.set(faction, new THREE.MeshBasicMaterial({ color: hex }));
+  return BULLET_MATS.get(faction);
+}
 
 // ============================================================================
 // TEMA VISUAL E CATÁLOGO OFICIAL DOS 3 TERRITÓRIOS DE FACÇÃO
@@ -795,6 +816,8 @@ function ensureSharedWarGeometries() {
     shieldGeo,
     allyDiamond,
     bulletGeo: new THREE.BoxGeometry(0.16, 0.16, 0.72),
+    rocketGeo: new THREE.CylinderGeometry(0.0, 0.16, 0.9, 8).rotateX(Math.PI / 2),
+    blastGeo: new THREE.SphereGeometry(1, 14, 10),
     shockwaveGeo: new THREE.RingGeometry(0.8, 1.25, 24)
   };
   SHARED_WAR_GEOS.shockwaveGeo.rotateX(-Math.PI / 2);
@@ -913,9 +936,34 @@ export class FactionWarSystem {
           ...op,
           ownerFaction: zSpec.defaultOwner,
           captureHoldTimer: 0
-        }))
+        })),
+        // Invasão 2.0
+        activeIndex: 0,
+        invasionClock: INVASION_RULES.startClock,
+        reinforceTimer: 6,
+        // Contra-Ataque
+        garrisonLevel: 0,
+        threatTimer: null
       };
+      const st = this.territories[zKey];
+      st.captureZones = st.outposts.map(
+        (op) =>
+          new CaptureZone({
+            id: op.id,
+            x: op.x,
+            y: op.y ?? 0,
+            z: op.z,
+            radius: INVASION_RULES.captureRadius,
+            captureTime: INVASION_RULES.captureTime,
+            scene: this.scene,
+            label: op.code,
+            groundAt: (gx, gz, ref) => this._groundAt(gx, gz, ref)
+          })
+      );
     }
+
+    this.objectiveHud = new ObjectiveHud();
+    this._lastController = null;
 
     this._animClock = 0;
   }
@@ -1184,16 +1232,17 @@ export class FactionWarSystem {
   // ============================================================================
   // DESPACHO DE REFORÇOS MOTORIZADOS (CARROS DO TIME ALIADO & CARROS INIMIGOS!)
   // ============================================================================
-  _spawnMotorizedSquad({ faction, isAllied, zoneState, playerPos }) {
+  _spawnMotorizedSquad({ faction, isAllied, zoneState, playerPos, roles = null, target = null }) {
     const theme = FACTION_THEME[faction] || FACTION_THEME.cv;
     const routes = isAllied ? zoneState.spec.alliedEntryRoutes : zoneState.spec.defenderMotorRoutes;
     if (!routes || routes.length === 0) return null;
 
     // Escolhe a rota mais próxima do jogador
+    const focus = target || playerPos;
     let bestRoute = routes[0];
     let bestDist = Infinity;
     for (const r of routes) {
-      const d = Math.hypot(r.targetX - playerPos.x, r.targetZ - playerPos.z);
+      const d = Math.hypot(r.targetX - focus.x, r.targetZ - focus.z);
       if (d < bestDist) {
         bestDist = d;
         bestRoute = r;
@@ -1201,8 +1250,8 @@ export class FactionWarSystem {
     }
 
     const startSafe = this._findSafeZonePos(bestRoute.startX, bestRoute.startZ, 2.4);
-    const blendX = THREE.MathUtils.lerp(bestRoute.targetX, playerPos.x, 0.35);
-    const blendZ = THREE.MathUtils.lerp(bestRoute.targetZ, playerPos.z, 0.35);
+    const blendX = THREE.MathUtils.lerp(bestRoute.targetX, focus.x, 0.35);
+    const blendZ = THREE.MathUtils.lerp(bestRoute.targetZ, focus.z, 0.35);
     const targetSafe = this._findSafeZonePos(blendX, blendZ, 2.4);
 
     const vType = theme.convoyVehicles[Math.floor(Math.random() * theme.convoyVehicles.length)];
@@ -1267,9 +1316,13 @@ export class FactionWarSystem {
       speed: 24.0,
       maxTravelTimer: 4.5,
       disembarked: false,
-      squadRoles: isAllied
-        ? ['rifleman', 'rifleman', 'tank', 'medic']
-        : ['rifleman', 'rifleman', 'tank']
+      squadRoles: roles
+        ? roles.slice(0, 6)
+        : isAllied
+          ? ['rifleman', 'rifleman', 'tank', 'medic']
+          : ['rifleman', 'rifleman', 'tank'],
+      anchor: target ? { x: target.x, z: target.z } : null,
+      outpostId: target?.id || null
     };
     this.activeConvoyDrops.push(convoy);
     return convoy;
@@ -1306,17 +1359,25 @@ export class FactionWarSystem {
       { dx: -2.8, dz: -1.4 },
       { dx: 2.8, dz: -1.4 },
       { dx: -2.6, dz: 1.8 },
-      { dx: 2.6, dz: 1.8 }
+      { dx: 2.6, dz: 1.8 },
+      { dx: 0, dz: -3.2 },
+      { dx: 0, dz: 3.4 }
     ];
 
     convoy.squadRoles.forEach((role, idx) => {
       const off = offsets[idx % offsets.length];
-      this._spawnCombatUnit({
+      const unit = this._spawnCombatUnit({
         faction: convoy.faction,
         role,
         x: cx + off.dx,
-        z: cz + off.dz
+        z: cz + off.dz,
+        outpostId: convoy.outpostId,
+        patrolAnchor: convoy.anchor
+          ? { x: convoy.anchor.x + off.dx, z: convoy.anchor.z + off.dz }
+          : null
       });
+      if (unit && convoy.anchor) unit.retreating = true; // corre até o ponto antes de lutar
+      if (unit && convoy.onUnit) convoy.onUnit(unit);
     });
   }
 
@@ -1363,6 +1424,7 @@ export class FactionWarSystem {
 
   _enterAllyHqMode(zoneKey) {
     this._cleanupActiveZoneUnits();
+    this.objectiveHud?.hide();
     this.activeZoneId = zoneKey;
     this.activeMode = 'ALLY_HQ';
     this.isInvasionActive = false;
@@ -1424,42 +1486,29 @@ export class FactionWarSystem {
     st.alliedBoss = null;
     st.enemyWaveTimer = 9.5;
     st.alliedWaveTimer = 10.5;
+    st.invasionClock = INVASION_RULES.startClock;
+    st.reinforceTimer = 7;
+
+    // Invasão em SEQUÊNCIA: P1 -> P2 -> P3 -> Pátio do Chefe
+    for (const op of st.outposts) op.ownerFaction = defenderFaction;
+    this._syncZone3DColors(zoneKey);
+    st.activeIndex = 0;
+    st.captureZones.forEach((cz, idx) => {
+      cz.reset();
+      cz.setActive(idx === 0);
+    });
 
     // Civis próximos da fronteira correm para fora da zona invadida!
     this.livingCity.triggerPedestrianPanicNear(playerPos, 72);
     soundFX.playHeroSwap();
 
-    // Registra os Outposts inimigos como zonas quentes no Minimapa / Mapa [M]
-    this.activeWarzones.length = 0;
-    for (const op of st.outposts) {
-      if (op.ownerFaction !== this.playerFaction) {
-        this.activeWarzones.push({ x: op.x, z: op.z, outpostId: op.id });
-        // Esquadrão defensor inicial em cada um dos 3 Outposts (Soldado + Tanque + Médico)
-        this._spawnCombatUnit({
-          faction: defenderFaction,
-          role: 'rifleman',
-          x: op.x - 3.2,
-          z: op.z - 2.2,
-          outpostId: op.id
-        });
-        this._spawnCombatUnit({
-          faction: defenderFaction,
-          role: 'tank',
-          x: op.x + 3.0,
-          z: op.z + 2.2,
-          outpostId: op.id
-        });
-        this._spawnCombatUnit({
-          faction: defenderFaction,
-          role: 'medic',
-          x: op.x - 1.5,
-          z: op.z + 3.4,
-          outpostId: op.id
-        });
-      }
-    }
+    // Guarnição forte no ponto ativo + vigias nos próximos (a frente de batalha)
+    st.outposts.forEach((op, idx) => {
+      this._spawnOutpostGarrison(st, op, idx === 0 ? 'full' : 'picket', idx);
+    });
+    this._refreshInvasionWarzones(st);
 
-    // Despacha IMEDIATAMENTE o Comboio de Invasão da SUA FACÇÃO + Reforço Motorizado Inimigo!
+    // Comboio de Invasão da SUA FACÇÃO + Reforço Motorizado Inimigo
     this._spawnMotorizedSquad({
       faction: this.playerFaction,
       isAllied: true,
@@ -1470,8 +1519,56 @@ export class FactionWarSystem {
       faction: defenderFaction,
       isAllied: false,
       zoneState: st,
-      playerPos
+      playerPos,
+      roles: buildFactionSquad(defenderFaction, 0),
+      target: st.outposts[0]
     });
+
+    const theme = FACTION_THEME[defenderFaction] || FACTION_THEME.cv;
+    this.objectiveHud?.show({
+      tag: `INVASÃO // ${theme.shortTag}`,
+      title: `CAPTURE ${st.outposts[0]?.name || 'O POSTO'}`,
+      accent: theme.color
+    });
+    this.hud?.showWantedBanner?.(
+      `INVASÃO: ${st.spec.title}`,
+      'TOME P1 → P2 → P3 E DERROTE O CHEFE',
+      'pursuit',
+      3400
+    );
+  }
+
+  /**
+   * Guarnição de um posto. 'full' = defesa do ponto ativo; 'picket' = vigias leves.
+   */
+  _spawnOutpostGarrison(zoneState, op, mode = 'full', tier = 0) {
+    const faction = zoneState.ownerFaction;
+    const roles =
+      mode === 'full'
+        ? ['rifleman', 'rifleman', 'tank', 'medic', ...(tier >= 1 ? ['special'] : []), ...(tier >= 2 ? ['special', 'rifleman'] : [])]
+        : ['rifleman', 'rifleman'];
+    roles.forEach((role, i) => {
+      const ang = (i / roles.length) * Math.PI * 2 + tier;
+      const rad = role === 'tank' ? 3.2 : 4.6;
+      this._spawnCombatUnit({
+        faction,
+        role,
+        x: op.x + Math.cos(ang) * rad,
+        z: op.z + Math.sin(ang) * rad,
+        outpostId: op.id
+      });
+    });
+  }
+
+  _refreshInvasionWarzones(zoneState) {
+    this.activeWarzones.length = 0;
+    const op = zoneState.outposts[zoneState.activeIndex];
+    if (op) {
+      this.activeWarzones.push({ x: op.x, z: op.z, outpostId: op.id });
+    } else if (zoneState.bossPhaseTriggered && !zoneState.enemyBossDefeated) {
+      const court = zoneState.spec.bossCourtyard;
+      this.activeWarzones.push({ x: court.x, z: court.z, outpostId: 'boss_duel' });
+    }
   }
 
   _captureOutpost(zoneState, op, playerPos) {
@@ -1479,92 +1576,101 @@ export class FactionWarSystem {
     op.ownerFaction = this.playerFaction;
     op.captureHoldTimer = 0;
 
+    const opIdx = zoneState.outposts.indexOf(op);
+    zoneState.captureZones[opIdx]?.markCaptured();
+
     this._syncZone3DColors(zoneState.id);
     soundFX.playTrueHeroFanfare();
 
-    // Remove o alerta vermelho daquele posto no radar
-    const wzIdx = this.activeWarzones.findIndex((w) => w.outpostId === op.id);
-    if (wzIdx !== -1) this.activeWarzones.splice(wzIdx, 1);
-
-    // Recompensa em Studs no Piso do Outpost + Tropas Aliadas passando a spawnar dele!
+    // Recompensa em Studs no Piso do Outpost
     for (let i = 0; i < 6; i++) {
       const ang = (i / 6) * Math.PI * 2;
       this.destructibles.spawnAmbientStud(
         op.x + Math.cos(ang) * 2.5,
-        op.y + 0.65,
+        (op.y ?? this._groundAt(op.x, op.z, 1)) + 0.65,
         op.z + Math.sin(ang) * 2.5,
         i % 2 === 0 ? 'blue' : 'gold'
       );
     }
 
-    this._spawnCombatUnit({
-      faction: this.playerFaction,
-      role: 'rifleman',
-      x: op.x - 2.2,
-      z: op.z + 2.0,
-      outpostId: op.id
-    });
-    this._spawnCombatUnit({
-      faction: this.playerFaction,
-      role: 'medic',
-      x: op.x + 2.2,
-      z: op.z + 2.0,
-      outpostId: op.id
-    });
+    // Tropas aliadas passam a nascer do posto conquistado
+    this._spawnCombatUnit({ faction: this.playerFaction, role: 'rifleman', x: op.x - 2.2, z: op.z + 2.0, outpostId: op.id });
+    this._spawnCombatUnit({ faction: this.playerFaction, role: 'medic', x: op.x + 2.2, z: op.z + 2.0, outpostId: op.id });
 
-    const capturedCount = zoneState.outposts.filter(
-      (o) => o.ownerFaction === this.playerFaction
-    ).length;
+    // +1:30 no relógio
+    zoneState.invasionClock += INVASION_RULES.clockPerCapture;
 
-    // CLÍMAX NO 2º PONTO CAPTURADO: Duelo Colossal de Bosses (Boss Defensor vs Boss Aliado!)
-    if (capturedCount >= 2 && !zoneState.bossPhaseTriggered) {
+    // Próximo objetivo da sequência
+    zoneState.activeIndex = opIdx + 1;
+    const nextOp = zoneState.outposts[zoneState.activeIndex];
+
+    // RECUO: sobreviventes do posto perdido correm para reforçar o próximo
+    const fallback = nextOp || zoneState.spec.bossCourtyard;
+    for (const npc of this.combatNpcs) {
+      if (npc.isAllied || npc.outpostId !== op.id) continue;
+      npc.outpostId = nextOp ? nextOp.id : 'boss_court';
+      npc.patrolAnchor = { x: fallback.x + (Math.random() - 0.5) * 6, z: fallback.z + (Math.random() - 0.5) * 6 };
+      npc.retreating = true;
+    }
+
+    if (nextOp) {
+      zoneState.captureZones[zoneState.activeIndex]?.setActive(true);
+      this._spawnOutpostGarrison(zoneState, nextOp, 'full', zoneState.activeIndex);
+      this.objectiveHud?.setTitle(`CAPTURE ${nextOp.name}`);
+      this.hud?.showWantedBanner?.(`${op.code} CAPTURADO!`, `+1:30 // PRÓXIMO: ${nextOp.code}`, 'escaped', 2600);
+    } else {
+      // Os 3 postos são seus: o chefe aparece no pátio!
       this._triggerBossClimaxDuel(zoneState, playerPos);
+      this.objectiveHud?.setTitle(`DERROTE ${FACTION_THEME[zoneState.ownerFaction]?.bossTitle || 'O CHEFE'}`);
+      this.hud?.showWantedBanner?.('CHEFÃO NO PÁTIO!', 'OS 3 POSTOS SÃO SEUS // DERRUBE O CHEFE', 'pursuit', 3200);
     }
-
-    // Verifica se já derrotou o Boss e capturou os 3 Pontos!
-    if (capturedCount >= 3 && zoneState.enemyBossDefeated) {
-      this._conquerTerritory(zoneState, playerPos);
-    }
+    this._refreshInvasionWarzones(zoneState);
   }
 
   _triggerBossClimaxDuel(zoneState, playerPos) {
     zoneState.bossPhaseTriggered = true;
     const defenderFaction = zoneState.ownerFaction;
-
     const court = zoneState.spec.bossCourtyard;
-    const distToCourt = Math.hypot(court.x - playerPos.x, court.z - playerPos.z);
-    // Se o jogador estiver perto do pátio usa o pátio; se estiver longe, posiciona na direção do 3º ponto!
-    const remainingOp =
-      zoneState.outposts.find((o) => o.ownerFaction !== this.playerFaction) || court;
-    const bossSpawnX = distToCourt < 150 ? court.x : remainingOp.x;
-    const bossSpawnZ = distToCourt < 150 ? court.z : remainingOp.z;
 
     zoneState.enemyBoss = this._spawnCombatUnit({
       faction: defenderFaction,
       role: 'boss',
-      x: bossSpawnX,
-      z: bossSpawnZ
+      x: court.x,
+      z: court.z,
+      outpostId: 'boss_court'
     });
+    // Escolta do chefe
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      this._spawnCombatUnit({
+        faction: defenderFaction,
+        role: i === 0 ? 'special' : 'rifleman',
+        x: court.x + Math.cos(a) * 6,
+        z: court.z + Math.sin(a) * 6,
+        outpostId: 'boss_court'
+      });
+    }
 
     // O seu time envia o BOSS COLOSSAL ALIADO para lutar ao seu lado!
-    const allyBossX = THREE.MathUtils.lerp(playerPos.x, bossSpawnX, 0.35);
-    const allyBossZ = THREE.MathUtils.lerp(playerPos.z, bossSpawnZ, 0.35);
+    const allyBossX = THREE.MathUtils.lerp(playerPos.x, court.x, 0.35);
+    const allyBossZ = THREE.MathUtils.lerp(playerPos.z, court.z, 0.35);
     zoneState.alliedBoss = this._spawnCombatUnit({
       faction: this.playerFaction,
       role: 'boss',
       x: allyBossX,
       z: allyBossZ
     });
-
-    this.activeWarzones.push({ x: bossSpawnX, z: bossSpawnZ, outpostId: 'boss_duel' });
   }
 
   _conquerTerritory(zoneState, playerPos) {
     zoneState.ownerFaction = this.playerFaction;
     zoneState.conqueredByPlayer = true;
+    zoneState.garrisonLevel = 0;
+    zoneState.threatTimer = null;
     for (const op of zoneState.outposts) {
       op.ownerFaction = this.playerFaction;
     }
+    zoneState.captureZones.forEach((cz) => cz.reset());
     this._syncZone3DColors(zoneState.id);
     soundFX.playTrueHeroFanfare();
 
@@ -1582,11 +1688,46 @@ export class FactionWarSystem {
       );
     }
 
+    this.objectiveHud?.hide();
+    this.hud?.showWantedBanner?.('TERRITÓRIO CONQUISTADO!', `${zoneState.spec.title} // FIQUE DE OLHO: ELES VÃO VOLTAR`, 'escaped', 3800);
+
     // Restaura os 4 Corações LEGO, salva a conquista e transforma o território em QG Aliado!
     this.livingCity.playerHp = this.livingCity.playerMaxHp;
     this.hud?.setPlayerHealth(this.livingCity.playerMaxHp, this.livingCity.playerMaxHp, false);
     this._enterAllyHqMode(zoneState.id);
+    this.onTerritoryConquered?.(zoneState);
     this.hud?.saveCurrentProgress?.();
+  }
+
+  /**
+   * Invasão falhou (tempo esgotado ou jogador derrubado): volta ao portão e os postos voltam ao dono.
+   */
+  _failInvasion(zoneState, title = 'INVASÃO FRACASSADA', subtitle = 'A FACÇÃO SEGUROU O TERRITÓRIO') {
+    const controller = this._lastController;
+    const exitGate = zoneState?.spec?.safeExitGate || { x: 0, z: -92 };
+    const ey = this._groundAt(exitGate.x, exitGate.z, 1) + 0.5;
+    if (controller) {
+      if (controller.currentVehicle) controller.exitVehicle?.();
+      controller.position?.set(exitGate.x, ey, exitGate.z);
+      controller.velocity?.set(0, 0, 0);
+      if (controller.minifigure?.root && controller.position) {
+        controller.minifigure.root.position.copy(controller.position);
+      }
+    }
+    if (zoneState && !zoneState.conqueredByPlayer) {
+      for (const op of zoneState.outposts) op.ownerFaction = zoneState.ownerFaction;
+      zoneState.captureZones.forEach((cz) => cz.reset());
+      this._syncZone3DColors(zoneState.id);
+    }
+    this.livingCity.playerHp = this.livingCity.playerMaxHp;
+    this.hud?.setPlayerHealth(this.livingCity.playerMaxHp, this.livingCity.playerMaxHp, false);
+    soundFX.playLegoBreak(false);
+    this._cleanupActiveZoneUnits();
+    this.objectiveHud?.hide();
+    this.hud?.showWantedBanner?.(title, subtitle, 'busted', 3200);
+    this.activeZoneId = null;
+    this.activeMode = 'PEACEFUL_CITY';
+    this.isInvasionActive = false;
   }
 
   // ============================================================================
@@ -1595,6 +1736,7 @@ export class FactionWarSystem {
   update(dt, playerPos, controller = null) {
     if (!playerPos) return;
     this._animClock += dt;
+    if (controller) this._lastController = controller;
 
     // Anima antenas de radar e giroflex dos 9 Outposts
     for (const st of Object.values(this.territories)) {
@@ -1642,6 +1784,14 @@ export class FactionWarSystem {
       }
     } else if (this.activeZoneId && !hysteresisZone) {
       // DESENGAJAMENTO LIMPO AO SAIR DO TERRITÓRIO PARA A CIDADE CIVIL!
+      const leftZone = this.territories[this.activeZoneId];
+      if (this.isInvasionActive && leftZone && !leftZone.conqueredByPlayer) {
+        // Saiu no meio da invasão: postos tomados voltam ao dono
+        for (const op of leftZone.outposts) op.ownerFaction = leftZone.ownerFaction;
+        leftZone.captureZones.forEach((cz) => cz.reset());
+        this._syncZone3DColors(leftZone.id);
+      }
+      this.objectiveHud?.hide();
       this._cleanupActiveZoneUnits();
       this.activeZoneId = null;
       this.activeMode = 'PEACEFUL_CITY';
@@ -1703,7 +1853,6 @@ export class FactionWarSystem {
     let enemyCount = 0;
     let allyCount = 0;
     let hasAlliedMedic = false;
-
     for (const npc of this.combatNpcs) {
       if (!npc.destructible || npc.destructible.destroyed) continue;
       if (npc.isAllied) {
@@ -1714,55 +1863,78 @@ export class FactionWarSystem {
       }
     }
 
-    // Verifica captura de cada um dos 3 Outposts
-    for (const op of zoneState.outposts) {
-      if (op.ownerFaction === this.playerFaction) continue;
-
-      let defendersNearOp = 0;
-      let alliesNearOp = 0;
-      for (const npc of this.combatNpcs) {
-        if (!npc.destructible || npc.destructible.destroyed) continue;
-        const pos = npc.visual.root.position;
-        const dOp = Math.hypot(pos.x - op.x, pos.z - op.z);
-        if (!npc.isAllied && (npc.outpostId === op.id || dOp < 28)) {
-          defendersNearOp++;
-        } else if (npc.isAllied && dOp < 28) {
-          alliesNearOp++;
-        }
-      }
-
-      const playerDistOp = Math.hypot(playerPos.x - op.x, playerPos.z - op.z);
-      if (defendersNearOp === 0 && (playerDistOp < 38 || alliesNearOp > 0)) {
-        op.captureHoldTimer += dt;
-        if (op.captureHoldTimer >= 0.45 || playerDistOp < 16) {
-          this._captureOutpost(zoneState, op, playerPos);
-          if (this.activeMode !== 'INVASION_1V1') return;
-        }
-      } else {
-        op.captureHoldTimer = Math.max(0, op.captureHoldTimer - dt * 0.5);
-      }
-    }
-
-    const capturedCount = zoneState.outposts.filter(
-      (o) => o.ownerFaction === this.playerFaction
-    ).length;
-
-    if (capturedCount >= 3 && zoneState.bossPhaseTriggered && zoneState.enemyBossDefeated) {
-      this._conquerTerritory(zoneState, playerPos);
+    // Relógio da invasão
+    zoneState.invasionClock -= dt;
+    this.objectiveHud?.setTimer(zoneState.invasionClock);
+    if (zoneState.invasionClock <= 0) {
+      this._failInvasion(zoneState, 'TEMPO ESGOTADO', 'A FACÇÃO SEGUROU O TERRITÓRIO // TENTE DE NOVO');
       return;
     }
 
-    // Ondas de Reforço Defensivo Inimigo (Dos Outposts não capturados + Carros Inimigos!)
-    zoneState.enemyWaveTimer -= dt;
-    if (zoneState.enemyWaveTimer <= 0) {
-      zoneState.enemyWaveTimer = 11.0;
-      const enemyOps = zoneState.outposts.filter((o) => o.ownerFaction !== this.playerFaction);
-      if (enemyOps.length > 0 && enemyCount < 11) {
+    const activeOp = zoneState.outposts[zoneState.activeIndex];
+    if (activeOp) {
+      // Conta quem está DENTRO do anel de captura
+      const zone = zoneState.captureZones[zoneState.activeIndex];
+      let attackers = 0;
+      let defenders = 0;
+      if (zone.isInside(playerPos.x, playerPos.z) && Math.abs(playerPos.y - (activeOp.y ?? playerPos.y)) < 12) {
+        attackers++;
+      }
+      for (const npc of this.combatNpcs) {
+        if (!npc.destructible || npc.destructible.destroyed) continue;
+        const pos = npc.visual.root.position;
+        if (!zone.isInside(pos.x, pos.z)) continue;
+        if (npc.isAllied) attackers++;
+        else defenders++;
+      }
+      // O jogador é necessário para iniciar; aliados sozinhos só ajudam se você estiver perto
+      const playerNear = Math.hypot(playerPos.x - activeOp.x, playerPos.z - activeOp.z) < zone.radius + 18;
+      const effectiveAttackers = playerNear ? attackers : 0;
+      const done = zone.update(dt, { attackers: effectiveAttackers, defenders });
+
+      const pct = Math.round(zone.progress * 100);
+      if (zone.state === 'CONTESTED') {
+        this.objectiveHud?.setProgress(zone.progress, 'contested');
+        this.objectiveHud?.setStatus(`CONTESTADO ${pct}%`, 'contested');
+      } else if (zone.state === 'CAPTURING') {
+        this.objectiveHud?.setProgress(zone.progress, 'capture');
+        this.objectiveHud?.setStatus(`CAPTURANDO ${pct}%`, 'capture');
+      } else {
+        this.objectiveHud?.setProgress(zone.progress, 'neutral');
+        this.objectiveHud?.setStatus(defenders > 0 ? `${defenders} DEFENSORES NO PONTO` : `ENTRE NO ANEL ${activeOp.code}`, '');
+      }
+      this.objectiveHud?.setWave(zoneState.activeIndex + 1, zoneState.outposts.length + 1);
+
+      if (done) {
+        this._captureOutpost(zoneState, activeOp, playerPos);
+        if (this.activeMode !== 'INVASION_1V1') return;
+      }
+    } else if (zoneState.bossPhaseTriggered) {
+      const boss = zoneState.enemyBoss;
+      const ratio = boss?.destructible ? Math.max(0, boss.destructible.hp / (boss.destructible.maxHp || 1550)) : 0;
+      this.objectiveHud?.setProgress(ratio, 'danger');
+      this.objectiveHud?.setStatus(`CHEFE ${Math.round(ratio * 100)}%`, 'danger');
+      this.objectiveHud?.setWave(zoneState.outposts.length + 1, zoneState.outposts.length + 1);
+      if (zoneState.enemyBossDefeated) {
+        this._conquerTerritory(zoneState, playerPos);
+        return;
+      }
+    }
+
+    // Ondas de reforço da facção dona, chegando no PONTO ATIVO (não em você)
+    zoneState.reinforceTimer -= dt;
+    const enemyCap = INVASION_RULES.enemyCapBase + INVASION_RULES.enemyCapPerPoint * zoneState.activeIndex;
+    if (zoneState.reinforceTimer <= 0) {
+      zoneState.reinforceTimer = INVASION_RULES.reinforceInterval;
+      if (enemyCount < enemyCap) {
+        const target = activeOp || zoneState.spec.bossCourtyard;
         this._spawnMotorizedSquad({
           faction: zoneState.ownerFaction,
           isAllied: false,
           zoneState,
-          playerPos
+          playerPos,
+          roles: buildFactionSquad(zoneState.ownerFaction, zoneState.activeIndex + 1),
+          target
         });
       }
     }
@@ -1770,11 +1942,11 @@ export class FactionWarSystem {
     // Ondas de Reforço do Comboio Aliado (Do portão ou dos Outposts já capturados!)
     zoneState.alliedWaveTimer -= dt;
     if (zoneState.alliedWaveTimer <= 0) {
-      zoneState.alliedWaveTimer = 11.5;
+      zoneState.alliedWaveTimer = 12;
       if (allyCount < 8) {
         const alliedOps = zoneState.outposts.filter((o) => o.ownerFaction === this.playerFaction);
         if (alliedOps.length > 0 && Math.random() < 0.5) {
-          const srcOp = alliedOps[Math.floor(Math.random() * alliedOps.length)];
+          const srcOp = alliedOps[alliedOps.length - 1];
           this._spawnCombatUnit({
             faction: this.playerFaction,
             role: hasAlliedMedic ? 'rifleman' : 'medic',
@@ -1783,7 +1955,7 @@ export class FactionWarSystem {
           });
           this._spawnCombatUnit({
             faction: this.playerFaction,
-            role: 'tank',
+            role: Math.random() < 0.5 ? 'tank' : 'special',
             x: srcOp.x - 2.2,
             z: srcOp.z + 2.0
           });
@@ -1910,6 +2082,33 @@ export class FactionWarSystem {
         }
       }
 
+      // RECUO / CHEGADA: corre até o ponto designado antes de voltar a lutar
+      if (npc.retreating && npc.patrolAnchor) {
+        const rdx = npc.patrolAnchor.x - pos.x;
+        const rdz = npc.patrolAnchor.z - pos.z;
+        const rd = Math.hypot(rdx, rdz);
+        if (rd < 3.2) {
+          npc.retreating = false;
+        } else {
+          const step = Math.min(rd, npc.speed * 1.25 * dt);
+          const res = this.livingCity._resolveBuildingCollision(
+            pos.x + (rdx / rd) * step,
+            pos.z + (rdz / rd) * step,
+            npc.isBoss ? 1.85 : 0.95
+          );
+          if (res.collided && Math.hypot(res.x - pos.x, res.z - pos.z) < step * 0.2) {
+            npc.retreating = false; // travou em parede: volta a lutar
+          }
+          pos.set(res.x, this._groundAt(res.x, res.z, pos.y), res.z);
+          root.rotation.y = Math.atan2(rdx, rdz);
+          npc.walkPhase += dt * 11;
+          npc.visual.leftLeg.rotation.x = Math.sin(npc.walkPhase) * 0.7;
+          npc.visual.rightLeg.rotation.x = -Math.sin(npc.walkPhase) * 0.7;
+          obj.basePos.copy(pos);
+          continue;
+        }
+      }
+
       // Seleção de alvo 1x1 (Aliados focam Defensores; Defensores focam Aliados ou Jogador!)
       let bestTargetPos = null;
       let bestTargetNpc = null;
@@ -1940,9 +2139,19 @@ export class FactionWarSystem {
       let moveTarget = bestTargetPos;
       let stopRange = npc.isBoss ? 14.0 : 16.5;
       if (!moveTarget && npc.isAllied && zoneState) {
-        const nextOp = zoneState.outposts.find((o) => o.ownerFaction !== this.playerFaction);
-        moveTarget = nextOp ? { x: nextOp.x, z: nextOp.z } : playerPos;
+        // Aliados avançam para o objetivo ativo da sequência
+        const nextOp = zoneState.outposts[zoneState.activeIndex];
+        const court = zoneState.bossPhaseTriggered ? zoneState.spec.bossCourtyard : null;
+        moveTarget = nextOp ? { x: nextOp.x, z: nextOp.z } : court || playerPos;
         stopRange = 6.5;
+      } else if (!moveTarget && !npc.isAllied && npc.patrolAnchor) {
+        // Defensor sem alvo volta a guardar o seu ponto
+        moveTarget = npc.patrolAnchor;
+        stopRange = 3.5;
+      }
+      // Especialista C4: corre direto no alvo para detonar
+      if (npc.role === 'special' && npc.faction === 'pcc' && bestTargetPos && !npc.isAllied) {
+        stopRange = 1.2;
       }
 
       if (moveTarget) {
@@ -1977,10 +2186,26 @@ export class FactionWarSystem {
         }
       }
 
+      // Demolidor C4 do PCC: detona ao encostar no alvo
+      if (npc.role === 'special' && npc.faction === 'pcc' && bestTargetPos && bestDist < 3.4) {
+        this._detonateC4Runner(npc, bestTargetPos === playerPos ? controller : null, playerPos, zoneState);
+        continue;
+      }
+
       // Disparo com verificação estrita de Linha de Visão (Zero tiro através de paredes!)
       npc.fireCooldown -= dt;
       if (bestTargetPos && bestDist < 54 && npc.fireCooldown <= 0) {
-        npc.fireCooldown = npc.isBoss ? 0.55 : npc.role === 'tank' ? 0.95 : 0.82 + Math.random() * 0.35;
+        npc.fireCooldown = npc.isBoss
+          ? 0.55
+          : npc.role === 'tank'
+            ? 0.95
+            : npc.role === 'special'
+              ? npc.faction === 'cv'
+                ? 3.2 // RPG: lento e pesado
+                : npc.faction === 'ares'
+                  ? 0.42 // drone: rajada rápida
+                  : 1.1
+              : 0.82 + Math.random() * 0.35;
         if (this._hasClearLineOfSight(pos.x, pos.z, bestTargetPos.x, bestTargetPos.z)) {
           this._fireUnitProjectile(npc, bestTargetPos, bestTargetNpc);
         }
@@ -2017,7 +2242,9 @@ export class FactionWarSystem {
     const geos = ensureSharedWarGeometries();
     const theme = FACTION_THEME[npc.faction] || FACTION_THEME.cv;
     const origin = npc.visual.root.position;
-    const startY = origin.y + (npc.isBoss ? 3.1 : 1.38);
+    const isRpg = npc.role === 'special' && npc.faction === 'cv';
+    const isDrone = npc.role === 'special' && npc.faction === 'ares' && npc.visual.drone;
+    const startY = origin.y + (npc.isBoss ? 3.1 : isDrone ? 2.7 : isRpg ? 1.62 : 1.38);
     const targetY = (targetPos.y ?? origin.y) + (targetNpc?.isBoss ? 2.6 : 1.2);
 
     const dir = new THREE.Vector3(
@@ -2027,8 +2254,8 @@ export class FactionWarSystem {
     ).normalize();
 
     const bulletMesh = new THREE.Mesh(
-      geos.bulletGeo,
-      new THREE.MeshBasicMaterial({ color: npc.isAllied ? 0x4ade80 : theme.hex })
+      isRpg ? geos.rocketGeo : geos.bulletGeo,
+      isRpg ? ROCKET_MAT : npc.isAllied ? ALLY_BULLET_MAT : getFactionBulletMat(npc.faction, theme.hex)
     );
     bulletMesh.position.set(origin.x + dir.x * 1.1, startY, origin.z + dir.z * 1.1);
     bulletMesh.lookAt(bulletMesh.position.clone().add(dir));
@@ -2039,10 +2266,11 @@ export class FactionWarSystem {
 
     this.npcProjectiles.push({
       mesh: bulletMesh,
-      vel: dir.multiplyScalar(npc.isBoss ? 48 : 42),
+      vel: dir.multiplyScalar(npc.isBoss ? 48 : isRpg ? 26 : 42),
       isAllied: npc.isAllied,
-      damage: npc.isBoss ? 16 : npc.role === 'tank' ? 11 : 8,
-      life: 1.45
+      damage: npc.isBoss ? 16 : isRpg ? 22 : isDrone ? 4 : npc.role === 'tank' ? 11 : 8,
+      splash: isRpg ? 5.5 : 0,
+      life: isRpg ? 2.4 : 1.45
     });
   }
 
@@ -2090,11 +2318,12 @@ export class FactionWarSystem {
     for (let i = this.activeShockwaves.length - 1; i >= 0; i--) {
       const sw = this.activeShockwaves[i];
       sw.life -= dt;
-      sw.scale += dt * 18.0;
+      sw.scale += dt * (sw.isFlash ? 9.0 : 18.0);
       sw.mesh.scale.setScalar(sw.scale);
-      sw.mat.opacity = Math.max(0, sw.life * 1.6);
+      sw.mat.opacity = Math.max(0, sw.life * (sw.isFlash ? 2.2 : 1.6));
       if (sw.life <= 0) {
         if (sw.mesh.parent) sw.mesh.parent.remove(sw.mesh);
+        sw.mat.dispose?.();
         this.activeShockwaves.splice(i, 1);
       }
     }
@@ -2109,6 +2338,7 @@ export class FactionWarSystem {
       const pz = p.mesh.position.z;
 
       if (p.life <= 0 || this.livingCity._isInsideBuilding(px, pz, 0.15)) {
+        if (p.splash) this._npcExplosion(p.mesh.position, p.splash, p.damage, p.isAllied, controller, zoneState);
         if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
         this.npcProjectiles.splice(i, 1);
         continue;
@@ -2147,9 +2377,56 @@ export class FactionWarSystem {
       }
 
       if (hit) {
+        if (p.splash) this._npcExplosion(p.mesh.position, p.splash, p.damage, p.isAllied, controller, zoneState);
         if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
         this.npcProjectiles.splice(i, 1);
       }
+    }
+  }
+
+  /**
+   * Explosão de facção (RPG / C4): só fere o lado oposto e o jogador (se vier do inimigo).
+   */
+  _npcExplosion(center, radius, damage, fromAllied, controller, zoneState) {
+    const geos = ensureSharedWarGeometries();
+    soundFX.playExplosion(0.85);
+    const flashMat = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.9 });
+    const flash = new THREE.Mesh(geos.blastGeo, flashMat);
+    flash.position.copy(center);
+    this.scene.add(flash);
+    this.activeShockwaves.push({ mesh: flash, mat: flashMat, scale: 0.6, life: 0.4, isFlash: true });
+
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(geos.shockwaveGeo, ringMat);
+    ring.position.set(center.x, center.y - 0.6, center.z);
+    this.scene.add(ring);
+    this.activeShockwaves.push({ mesh: ring, mat: ringMat, scale: 1.0, life: 0.45 });
+
+    for (const other of this.combatNpcs) {
+      if (other.isAllied === fromAllied || !other.destructible || other.destructible.destroyed) continue;
+      const op = other.visual.root.position;
+      const d = Math.hypot(op.x - center.x, op.z - center.z);
+      if (d < radius) {
+        this.destructibles.damageObject(other.destructible, damage * 3 * (1 - d / (radius * 1.4)), center, false, {
+          fromEnemyNpc: true
+        });
+      }
+    }
+    const pp = this._lastController?.position;
+    if (!fromAllied && pp) {
+      const dp = Math.hypot(pp.x - center.x, pp.z - center.z);
+      if (dp < radius && Math.abs(pp.y - center.y) < 4) {
+        this._damagePlayerInInvasion(damage * (1 - dp / (radius * 1.3)), controller, zoneState);
+      }
+    }
+  }
+
+  _detonateC4Runner(npc, controller, playerPos, zoneState) {
+    const pos = npc.visual.root.position.clone();
+    pos.y += 1.0;
+    this._npcExplosion(pos, 6.5, 30, npc.isAllied, controller, zoneState);
+    if (npc.destructible && !npc.destructible.destroyed) {
+      this.destructibles.damageObject(npc.destructible, 99999, pos, false, { fromEnemyNpc: true });
     }
   }
 
@@ -2160,25 +2437,8 @@ export class FactionWarSystem {
     this.hud?.setPlayerHealth(this.livingCity.playerHp, this.livingCity.playerMaxHp, false);
 
     if (this.livingCity.playerHp <= 0) {
-      // Recuo tático estilo LEGO para a entrada do território com os 4 Corações cheios (zero Game Over travado!)
-      this.livingCity.playerHp = this.livingCity.playerMaxHp;
-      this.hud?.setPlayerHealth(this.livingCity.playerMaxHp, this.livingCity.playerMaxHp, false);
-      soundFX.playLegoBreak(false);
-
-      const exitGate = zoneState?.spec?.safeExitGate || { x: 0, z: -92 };
-      const ey = this._groundAt(exitGate.x, exitGate.z, 1) + 0.5;
-      if (controller) {
-        if (controller.currentVehicle) controller.exitVehicle();
-        controller.position.set(exitGate.x, ey, exitGate.z);
-        controller.velocity?.set(0, 0, 0);
-        if (controller.minifigure?.root) {
-          controller.minifigure.root.position.copy(controller.position);
-        }
-      }
-      this._cleanupActiveZoneUnits();
-      this.activeZoneId = null;
-      this.activeMode = 'PEACEFUL_CITY';
-      this.isInvasionActive = false;
+      if (controller) this._lastController = controller;
+      this._failInvasion(zoneState || this.territories[this.activeZoneId], 'VOCÊ CAIU!', 'RECUO TÁTICO PARA O PORTÃO // OS POSTOS VOLTARAM AO DONO');
     }
   }
 }

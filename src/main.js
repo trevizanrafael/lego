@@ -362,5 +362,5 @@ class LegoCityGame {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  new LegoCityGame();
+  window.__legoGame = new LegoCityGame(); // handle de depuração (console)
 });
