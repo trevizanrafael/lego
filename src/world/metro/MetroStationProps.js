@@ -4,7 +4,7 @@ import { LEGO_COLORS, createLegoBrick } from '../../materials/LegoMaterials.js';
 import { createSignBoardMesh, createCustomCanvasSignTexture, fitAndDrawText } from '../../utils/SignBoardHelper.js';
 import { METRO_STATIONS } from './MetroRouteData.js';
 
-export function addMetroSignBoard(world, x, y, z, w, h, title, subText = '', rotY = 0, bg = '#0f172a', doubleSided = false) {
+export function addMetroSignBoard(world, x, y, z, w, h, title, subText = '', rotY = 0, bg = '#090a0d', doubleSided = false) {
   const mesh = createSignBoardMesh({
     x,
     y,
@@ -16,11 +16,12 @@ export function addMetroSignBoard(world, x, y, z, w, h, title, subText = '', rot
     title,
     subText,
     bgColor: bg,
-    borderColor: '#38bdf8',
-    topStripeColor: '#0284c7',
-    bottomStripeColor: '#facc15',
+    // IDV: preto asfalto + amarelo alerta
+    borderColor: '#facc15',
+    topStripeColor: '#facc15',
+    bottomStripeColor: '#090a0d',
     textColor: '#ffffff',
-    subColor: '#38bdf8',
+    subColor: '#facc15',
     doubleSided
   });
   world.scene.add(mesh);

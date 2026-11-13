@@ -706,6 +706,31 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     }
   });
 
+  it('5g. Acabamento: linha e estações do metrô nos mapas, trem LEGO novo com portas e pinos', () => {
+    // Traçado real da linha (com as alturas finais) para minimapa e mapa tático
+    assert.ok(world.metroLoopWaypoints.length > 400, `Linha do metrô nos mapas (${world.metroLoopWaypoints.length} pontos)`);
+    assert.ok(world.metroLoopWaypoints.some((p) => p.y < -5), 'Trecho subterrâneo presente (tracejado)');
+    assert.ok(world.metroLoopWaypoints.some((p) => p.y > 15), 'Trecho elevado presente');
+    assert.equal(world.metroStationMarkers.length, 5, '5 estações marcadas nos mapas');
+    assert.deepEqual(
+      world.metroStationMarkers.map((s) => s.code),
+      ['M01', 'M02', 'M03', 'M04', 'M05']
+    );
+
+    // Os mapas desenham a linha e as estações sem erro
+    assert.doesNotThrow(() => hud.updateMinimap(controller.position, 0, 0, null, world, 0, 0.016));
+    assert.doesNotThrow(() => hud.renderFullMap(world, controller.position, 0, controller));
+
+    // Trem novo: 2 trens x 3 vagões, 8 folhas de porta por vagão e pinos LEGO no teto
+    for (const train of world.metroSystem.trains) {
+      assert.equal(train.cars.length, 3);
+      for (const car of train.cars) {
+        assert.equal(car.leftDoorLeaves.length + car.rightDoorLeaves.length, 8);
+        assert.ok(car.group.children.some((c) => c.isInstancedMesh && c.count >= 20), 'Pinos LEGO no teto do vagão');
+      }
+    }
+  });
+
   it('6. SignBoardHelper gera placas com proporção real (aspect = W/H) e array de 6 materiais sem esticar bordas', () => {
     const wideSign = createSignBoardMesh({
       width: 20.0,
