@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, getLegoMaterial, createLegoBrick } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries } from '../BuildingGenerator.js';
+import { mergeBufferGeometries, makeFastBox } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 /**
@@ -84,6 +84,10 @@ class Batcher {
   }
 
   box(key, w, h, d, x, y, z, rotY = 0, rotX = 0, rotZ = 0) {
+    if (rotY === 0 && rotX === 0 && rotZ === 0) {
+      this._push(key, makeFastBox(w, h, d, x, y, z));
+      return;
+    }
     const g = new THREE.BoxGeometry(w, h, d);
     if (rotZ) g.rotateZ(rotZ);
     if (rotX) g.rotateX(rotX);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getLegoMaterial } from '../materials/LegoMaterials.js';
-import { getCachedFacadeMaterials } from './BuildingGenerator.js';
+import { getCachedFacadeMaterials, mergeBufferGeometries } from './BuildingGenerator.js';
 import { RIVER_BRIDGE_SPECS } from './RoadGridBuilder.js';
 
 export const TIME_MODES = ['auto', 'day', 'sunset', 'night'];
@@ -10,6 +10,7 @@ let SHARED_HEADLIGHT_CONE_GEO = null;
 let SHARED_HEADLIGHT_CONE_MAT = null;
 let SHARED_TAILLIGHT_GLOW_GEO = null;
 let SHARED_TAILLIGHT_GLOW_MAT = null;
+const SHARED_VEHICLE_LIGHT_RIG_GEOS = new Map();
 
 function ensureSharedVehicleLightAssets() {
   if (SHARED_HEADLIGHT_CONE_GEO) return;
@@ -38,8 +39,43 @@ function ensureSharedVehicleLightAssets() {
   });
 }
 
+function getMergedVehicleRigGeos(isMoto, isBus, halfLen, xSep, headY) {
+  const key = `${isMoto ? 1 : 0}_${isBus ? 1 : 0}`;
+  const cached = SHARED_VEHICLE_LIGHT_RIG_GEOS.get(key);
+  if (cached) return cached;
+
+  const coneGeos = [];
+  const tailGeos = [];
+  if (isMoto) {
+    const cg = SHARED_HEADLIGHT_CONE_GEO.clone();
+    cg.scale(0.75, 0.75, 0.9);
+    cg.translate(0, headY, halfLen);
+    coneGeos.push(cg);
+
+    const tg = SHARED_TAILLIGHT_GLOW_GEO.clone();
+    tg.translate(0, headY + 0.05, -halfLen);
+    tailGeos.push(tg);
+  } else {
+    for (const sx of [-xSep, xSep]) {
+      const cg = SHARED_HEADLIGHT_CONE_GEO.clone();
+      cg.translate(sx, headY, halfLen);
+      coneGeos.push(cg);
+
+      const tg = SHARED_TAILLIGHT_GLOW_GEO.clone();
+      tg.translate(sx, headY + 0.04, -halfLen - 0.05);
+      tailGeos.push(tg);
+    }
+  }
+  const pair = {
+    conesGeo: mergeBufferGeometries(coneGeos),
+    tailsGeo: mergeBufferGeometries(tailGeos)
+  };
+  SHARED_VEHICLE_LIGHT_RIG_GEOS.set(key, pair);
+  return pair;
+}
+
 /**
- * Anexa sob demanda (apenas 1x por veículo) os 2 Cones Translúcidos de Farol Branco-Quente + Lanternas Traseiras Vermelhas!
+ * Anexa sob demanda (apenas 1x por veículo) 1 Mesh unificada para os faróis e 1 para lanternas traseiras!
  */
 export function ensureVehicleNightLights(carGroup, spec = null) {
   if (!carGroup) return null;
@@ -59,26 +95,14 @@ export function ensureVehicleNightLights(carGroup, spec = null) {
   rig.name = 'vehicle_night_light_rig';
   rig.visible = false;
 
-  if (isMoto) {
-    const cone = new THREE.Mesh(SHARED_HEADLIGHT_CONE_GEO, SHARED_HEADLIGHT_CONE_MAT);
-    cone.position.set(0, headY, halfLen);
-    cone.scale.set(0.75, 0.75, 0.9);
-    rig.add(cone);
-
-    const tail = new THREE.Mesh(SHARED_TAILLIGHT_GLOW_GEO, SHARED_TAILLIGHT_GLOW_MAT);
-    tail.position.set(0, headY + 0.05, -halfLen);
-    rig.add(tail);
-  } else {
-    for (const sx of [-xSep, xSep]) {
-      const cone = new THREE.Mesh(SHARED_HEADLIGHT_CONE_GEO, SHARED_HEADLIGHT_CONE_MAT);
-      cone.position.set(sx, headY, halfLen);
-      rig.add(cone);
-
-      const tail = new THREE.Mesh(SHARED_TAILLIGHT_GLOW_GEO, SHARED_TAILLIGHT_GLOW_MAT);
-      tail.position.set(sx, headY + 0.04, -halfLen - 0.05);
-      rig.add(tail);
-    }
-  }
+  const { conesGeo, tailsGeo } = getMergedVehicleRigGeos(isMoto, isBus, halfLen, xSep, headY);
+  const conesMesh = new THREE.Mesh(conesGeo, SHARED_HEADLIGHT_CONE_MAT);
+  const tailsMesh = new THREE.Mesh(tailsGeo, SHARED_TAILLIGHT_GLOW_MAT);
+  conesMesh.matrixAutoUpdate = false;
+  tailsMesh.matrixAutoUpdate = false;
+  conesMesh.updateMatrix();
+  tailsMesh.updateMatrix();
+  rig.add(conesMesh, tailsMesh);
 
   carGroup.add(rig);
   carGroup.userData._nightLightRig = rig;

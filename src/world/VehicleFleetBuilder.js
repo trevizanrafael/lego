@@ -4,7 +4,13 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../materials/LegoMaterials.js';
-import { optimizeStaticGroupMeshes, mergeBufferGeometries } from './BuildingGenerator.js';
+import {
+  optimizeStaticGroupMeshes,
+  mergeBufferGeometries,
+  mergeColoredGeometries,
+  getSharedVertexColorMaterial,
+  markAsSharedAsset
+} from './BuildingGenerator.js';
 
 /**
  * Escala Oficial de Velocidade:
@@ -437,7 +443,96 @@ export function getFinishMaterialOpts(finishStyle = 'glossy') {
   return { roughness: 0.2, metalness: 0.06, clearcoat: 0.55 };
 }
 
-export function createLegoCarMesh(cfg) {
+const _VEHICLE_PROTO_CACHE = new Map();
+
+function _cloneVehicleProto(proto) {
+  const wheelSteerSet = new Set();
+  const wheelSpinSet = new Set();
+  const protoWheels = Array.isArray(proto.userData?.wheels) ? proto.userData.wheels : [];
+  for (let i = 0; i < protoWheels.length; i++) {
+    if (protoWheels[i].steerGroup) wheelSteerSet.add(protoWheels[i].steerGroup);
+    if (protoWheels[i].spinGroup) wheelSpinSet.add(protoWheels[i].spinGroup);
+  }
+  const protoFlameGroup = proto.userData?.turboFlames?.[0] || null;
+  const protoFlameMesh = proto.userData?.turboFlameMesh || null;
+  const protoTurret = proto.userData?.turretGroup || null;
+
+  const srcToClone = new Map();
+  const cloneNode = (src) => {
+    let dst;
+    if (src.isMesh) {
+      dst = new THREE.Mesh(src.geometry, src.material);
+    } else if (src.isGroup) {
+      dst = new THREE.Group();
+    } else {
+      dst = new THREE.Object3D();
+    }
+    dst.name = src.name;
+    dst.position.copy(src.position);
+    dst.rotation.copy(src.rotation);
+    dst.scale.copy(src.scale);
+    dst.visible = src.visible;
+    dst.castShadow = src.castShadow;
+    dst.receiveShadow = src.receiveShadow;
+    dst.matrixAutoUpdate = src.matrixAutoUpdate;
+    if (!dst.matrixAutoUpdate) dst.matrix.copy(src.matrix);
+    if (src.userData && Object.keys(src.userData).length > 0) {
+      dst.userData = { ...src.userData };
+      delete dst.userData.wheels;
+      delete dst.userData.turboFlames;
+      delete dst.userData.turboFlameMesh;
+      delete dst.userData.turretGroup;
+    }
+    srcToClone.set(src, dst);
+    for (let i = 0; i < src.children.length; i++) {
+      dst.add(cloneNode(src.children[i]));
+    }
+    return dst;
+  };
+
+  const cloned = cloneNode(proto);
+  if (protoWheels.length > 0) {
+    cloned.userData.wheels = protoWheels.map((pw) => ({
+      steerGroup: srcToClone.get(pw.steerGroup),
+      spinGroup: srcToClone.get(pw.spinGroup),
+      isFront: pw.isFront
+    }));
+  }
+  if (protoFlameGroup) {
+    const cf = srcToClone.get(protoFlameGroup);
+    cloned.userData.turboFlames = cf ? [cf] : [];
+  }
+  if (protoFlameMesh) {
+    cloned.userData.turboFlameMesh = srcToClone.get(protoFlameMesh) || null;
+  }
+  if (protoTurret) {
+    cloned.userData.turretGroup = srcToClone.get(protoTurret) || null;
+  }
+  return cloned;
+}
+
+export function createLegoCarMesh(cfg = {}) {
+  const type = cfg.type || 'apex_gtx';
+  const cacheKey = `${type}|${cfg.color ?? ''}|${cfg.roofColor ?? ''}|${cfg.finishStyle ?? ''}|${cfg.wheelColor ?? ''}|${cfg.suppressDefaultSpoiler ? 1 : 0}`;
+  const cachedProto = _VEHICLE_PROTO_CACHE.get(cacheKey);
+  if (cachedProto) {
+    return _cloneVehicleProto(cachedProto);
+  }
+  const proto = _buildLegoCarMeshUncached(cfg);
+  proto.traverse((o) => {
+    if (o.isMesh) {
+      if (o.geometry) markAsSharedAsset(o.geometry);
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(markAsSharedAsset);
+        else markAsSharedAsset(o.material);
+      }
+    }
+  });
+  _VEHICLE_PROTO_CACHE.set(cacheKey, proto);
+  return _cloneVehicleProto(proto);
+}
+
+function _buildLegoCarMeshUncached(cfg) {
   const type = cfg.type || 'apex_gtx';
   const spec = VEHICLE_SPECS[type] || VEHICLE_SPECS.apex_gtx;
   const group = new THREE.Group();
@@ -983,18 +1078,31 @@ export function createLegoCarMesh(cfg) {
       group.add(hl, tl);
     }
 
-    // 6 Rodas Pesadas (Eixo dianteiro direcional + Eixo traseiro duplo)
+    // 6 Rodas Pesadas (Eixo dianteiro direcional + Eixo traseiro duplo) em 1 malha fundida por roda
+    const busTireG = new THREE.CylinderGeometry(0.52, 0.52, 0.42, 16);
+    busTireG.rotateZ(Math.PI / 2);
+    const busHubG = new THREE.CylinderGeometry(0.3, 0.3, 0.44, 12);
+    busHubG.rotateZ(Math.PI / 2);
+    const busWheelGeo = markAsSharedAsset(
+      mergeColoredGeometries([
+        { geo: busTireG, color: tireMat.color },
+        { geo: busHubG, color: silverMat.color }
+      ])
+    );
+    const busWheelMat = getSharedVertexColorMaterial({
+      roughness: 0.3,
+      metalness: 0.18,
+      clearcoat: 0.28,
+      clearcoatRoughness: 0.24
+    });
     const wheels = [];
     for (const wz of [2.65, -1.85, -3.05]) {
       for (const wx of [-busW * 0.49, busW * 0.49]) {
         const steerGroup = new THREE.Group();
         steerGroup.position.set(wx, 0.52, wz);
         const spinGroup = new THREE.Group();
-        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.42, 16), tireMat);
-        tire.rotation.z = Math.PI / 2;
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.44, 12), silverMat);
-        hub.rotation.z = Math.PI / 2;
-        spinGroup.add(tire, hub);
+        const wheelMesh = new THREE.Mesh(busWheelGeo, busWheelMat);
+        spinGroup.add(wheelMesh);
         steerGroup.add(spinGroup);
         group.add(steerGroup);
         wheels.push({ steerGroup, spinGroup, isFront: wz > 1.0 });
@@ -1253,18 +1361,31 @@ export function createLegoCarMesh(cfg) {
         : silverMat);
 
   const wheels = [];
+  const tireGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.4, 16);
+  tireGeo.rotateZ(Math.PI / 2);
+  const hubGeo = new THREE.CylinderGeometry(wheelRadius * 0.58, wheelRadius * 0.58, 0.42, 12);
+  hubGeo.rotateZ(Math.PI / 2);
+  const wheelGeo = mergeColoredGeometries([
+    { geo: tireGeo, color: tireMat.color },
+    { geo: hubGeo, color: hubMat.color }
+  ]);
+  const hubIsEmissive = Boolean(hubMat.emissive && hubMat.emissive.getHex() !== 0 && (hubMat.emissiveIntensity ?? 0) > 0);
+  const wheelMat = getSharedVertexColorMaterial({
+    roughness: customWheelMat ? (customWheelMat.roughness ?? 0.24) : 0.3,
+    metalness: customWheelMat ? Math.min(0.45, customWheelMat.metalness ?? 0.25) : 0.18,
+    clearcoat: customWheelMat ? (customWheelMat.clearcoat ?? 0.45) : 0.28,
+    emissive: hubIsEmissive ? hubMat.emissive : 0x000000,
+    emissiveIntensity: hubIsEmissive ? 0.3 : 0
+  });
+
   for (const wz of zPositions) {
     for (const wx of [-wheelX, wheelX]) {
       const steerGroup = new THREE.Group();
       steerGroup.position.set(wx, wheelRadius, wz);
       const spinGroup = new THREE.Group();
 
-      const tire = new THREE.Mesh(new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.4, 16), tireMat);
-      tire.rotation.z = Math.PI / 2;
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(wheelRadius * 0.58, wheelRadius * 0.58, 0.42, 12), hubMat);
-      hub.rotation.z = Math.PI / 2;
-
-      spinGroup.add(tire, hub);
+      const wheelMesh = new THREE.Mesh(wheelGeo, wheelMat);
+      spinGroup.add(wheelMesh);
       steerGroup.add(spinGroup);
       group.add(steerGroup);
       wheels.push({ steerGroup, spinGroup, isFront: wz > 0.5 });

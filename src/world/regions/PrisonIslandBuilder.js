@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import {
   mergeBufferGeometries,
-  makeTranslatedBox
+  makeTranslatedBox,
+  makeFastBox,
+  flushSpatialChunkedBuckets
 } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
@@ -98,7 +100,7 @@ class PrisonIslandBatcher {
     const list = this.buckets.get(key);
     if (!list) return;
     if (rx === 0 && ry === 0 && rz === 0) {
-      list.push(makeTranslatedBox(w, h, d, x, y, z));
+      list.push(makeFastBox(w, h, d, x, y, z));
     } else {
       const g = new THREE.BoxGeometry(w, h, d);
       const m = new THREE.Matrix4();
@@ -145,15 +147,11 @@ class PrisonIslandBatcher {
   }
 
   flush(scene) {
-    for (const [key, geos] of this.buckets.entries()) {
-      if (geos.length === 0) continue;
-      const merged = mergeBufferGeometries(geos);
-      const mesh = new THREE.Mesh(merged, this.materials.get(key));
-      mesh.receiveShadow = true;
-      mesh.castShadow = this.castShadowKeys.has(key);
-      scene.add(mesh);
-      for (const g of geos) g.dispose();
-    }
+    flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
+      chunkSize: 768,
+      castShadowFn: (key) => this.castShadowKeys.has(key),
+      receiveShadowFn: () => true
+    });
     this.buckets.clear();
   }
 }

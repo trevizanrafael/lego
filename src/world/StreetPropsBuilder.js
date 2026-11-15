@@ -448,6 +448,59 @@ export function buildStreetProps(world) {
   const M = T.mats;
   const placedList = [];
 
+  // Registry de Instancing para reduzir ~1.200+ Draw Calls dos ~450 objetos de rua para ~24 Draw Calls!
+  const instPoolByKey = new Map();
+  const dirtyInstPools = new Set();
+  const propSlots = [];
+  const _pMat4 = new THREE.Matrix4();
+  const _pQuat = new THREE.Quaternion();
+  const _pScaleOne = new THREE.Vector3(1, 1, 1);
+  const _pScaleZero = new THREE.Vector3(0, 0, 0);
+
+  const registerInstancedPart = (geo, mat, dProxy) => {
+    let byMat = instPoolByKey.get(geo);
+    if (!byMat) {
+      byMat = new Map();
+      instPoolByKey.set(geo, byMat);
+    }
+    let pool = byMat.get(mat);
+    if (!pool) {
+      pool = { geo, mat, entries: [], inst: null, dirty: false };
+      byMat.set(mat, pool);
+    }
+    const slot = pool.entries.length;
+    pool.entries.push(dProxy);
+    return { pool, slot };
+  };
+
+  const syncStreetPropInstance = (obj) => {
+    const slots = obj._propInstSlots;
+    if (!slots) return;
+    const isVisible = Boolean(obj.mesh && obj.mesh.visible && !obj.destroyed);
+    _pQuat.setFromEuler(obj.mesh.rotation);
+    _pMat4.compose(obj.mesh.position, _pQuat, isVisible ? _pScaleOne : _pScaleZero);
+    for (let i = 0; i < slots.length; i++) {
+      const { pool, slot } = slots[i];
+      if (!pool.inst) continue;
+      pool.inst.setMatrixAt(slot, _pMat4);
+      if (!pool.dirty) {
+        pool.dirty = true;
+        dirtyInstPools.add(pool);
+      }
+    }
+  };
+
+  const flushStreetPropInstances = () => {
+    if (dirtyInstPools.size === 0) return;
+    for (const pool of dirtyInstPools) {
+      if (pool.inst) {
+        pool.inst.instanceMatrix.needsUpdate = true;
+      }
+      pool.dirty = false;
+    }
+    dirtyInstPools.clear();
+  };
+
   const getGroundAndSidewalkY = (px, pz, onRoadSurface = false, refY = null) => {
     const baseTerrain =
       refY !== null && world.getSurfaceHeightAt
@@ -500,10 +553,16 @@ export function buildStreetProps(world) {
     const yBase = getGroundAndSidewalkY(x, z, onRoadSurface, refY);
     if (!canPlaceAt(x, z, radius, yBase, allowRoadEdge, minPeerDist)) return false;
 
-    const group = makeOptimizedGroup(parts);
+    // Grupo-proxy leve (0 nós na scene!) — a geometria 3D é desenhada via InstancedMesh compartilhada
+    const group = new THREE.Group();
+    group.userData.isOptimizedGroup = true;
     group.position.set(x, yBase, z);
     group.rotation.y = rotY;
-    world.scene.add(group);
+
+    const slots = [];
+    for (let i = 0; i < parts.length; i++) {
+      slots.push(registerInstancedPart(parts[i].geo, parts[i].mat, group));
+    }
 
     const colliders = [];
     if (!noCollider) {
@@ -516,7 +575,7 @@ export function buildStreetProps(world) {
     placedList.push({ x, y: yBase, z });
 
     if (world.destructibles) {
-      world.destructibles.registerDestructible({
+      const dObj = world.destructibles.registerDestructible({
         mesh: group,
         type,
         hp,
@@ -529,6 +588,9 @@ export function buildStreetProps(world) {
         isStreetProp: true,
         chaosValue
       });
+      dObj._propInstSlots = slots;
+      dObj._syncInstancedVisual = syncStreetPropInstance;
+      propSlots.push(dObj);
     }
     return true;
   };
@@ -1201,6 +1263,32 @@ export function buildStreetProps(world) {
         chaosValue: 2
       });
     }
+  }
+
+  // Consolida todos os StreetProps em lotes InstancedMesh (~24 Draw Calls no total!)
+  for (const byMat of instPoolByKey.values()) {
+    for (const pool of byMat.values()) {
+      const count = pool.entries.length;
+      if (count === 0) continue;
+      const inst = new THREE.InstancedMesh(pool.geo, pool.mat, count);
+      inst.castShadow = false;
+      inst.receiveShadow = false;
+      inst.frustumCulled = false;
+      inst.matrixAutoUpdate = false;
+      inst.updateMatrix();
+      for (let i = 0; i < count; i++) {
+        const proxy = pool.entries[i];
+        _pQuat.setFromEuler(proxy.rotation);
+        _pMat4.compose(proxy.position, _pQuat, _pScaleOne);
+        inst.setMatrixAt(i, _pMat4);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      pool.inst = inst;
+      world.scene.add(inst);
+    }
+  }
+  if (world.destructibles) {
+    world.destructibles._flushStreetPropInstancedBatches = flushStreetPropInstances;
   }
 }
 

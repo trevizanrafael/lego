@@ -7,7 +7,9 @@ import {
 } from '../../materials/LegoMaterials.js';
 import {
   mergeBufferGeometries,
-  makeTranslatedBox
+  makeTranslatedBox,
+  makeFastBox,
+  flushSpatialChunkedBuckets
 } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
@@ -128,18 +130,14 @@ function createParkBatcher() {
     treeCount: 0,
     undergrowthCount: 0,
     addBox(key, w, h, d, x, y, z) {
-      buckets.get(key).push(makeTranslatedBox(w, h, d, x, y, z));
+      buckets.get(key).push(makeFastBox(w, h, d, x, y, z));
     },
     flush(scene) {
-      for (const [key, geos] of buckets.entries()) {
-        if (geos.length === 0) continue;
-        const mesh = new THREE.Mesh(mergeBufferGeometries(geos), palette[key]);
-        if (key !== 'lamp_globe' && key !== 'water_foam' && key !== 'stone_path') {
-          mesh.castShadow = true;
-        }
-        mesh.receiveShadow = true;
-        scene.add(mesh);
-      }
+      flushSpatialChunkedBuckets(scene, buckets, palette, {
+        chunkSize: 768,
+        castShadowFn: (key) => key !== 'lamp_globe' && key !== 'water_foam' && key !== 'stone_path',
+        receiveShadowFn: () => true
+      });
     }
   };
 }

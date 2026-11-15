@@ -85,6 +85,10 @@ const _STUD_DIR_VEC = new THREE.Vector3();
 const _TMP_IMPACT_VEC = new THREE.Vector3();
 const _LASSO_VPOS = new THREE.Vector3();
 const _LASSO_TOVEC = new THREE.Vector3();
+const _INST_ZERO_MAT = new THREE.Matrix4().makeScale(0, 0, 0);
+const _INST_MAT4 = new THREE.Matrix4();
+const _INST_QUAT = new THREE.Quaternion();
+const _INST_SCALE_ONE = new THREE.Vector3(1, 1, 1);
 
 function packGridCell(cx, cz) {
   return ((cx & 0xffff) << 16) | (cz & 0xffff);
@@ -106,6 +110,8 @@ export class DestructibleManager {
     this.debrisList = [];
     this.studsList = [];
     this.ambientStuds = [];
+    this._ambientStudPools = new Map();
+    this._flushStreetPropInstancedBatches = null;
     this.geysers = [];
     this.topplingPoles = [];
     this.projectiles = [];
@@ -546,6 +552,60 @@ export class DestructibleManager {
     return out;
   }
 
+  _getOrCreateAmbientStudPool(tierKey, tierCfg) {
+    let pool = this._ambientStudPools.get(tierKey);
+    if (pool && pool.items.length < pool.capacity) {
+      return pool;
+    }
+
+    const oldItems = pool ? pool.items : [];
+    const oldInst = pool ? pool.inst : null;
+    const capacity = pool ? pool.capacity * 2 : 128;
+
+    const mat = getLegoMaterial(tierCfg.color, {
+      roughness: tierCfg.roughness,
+      metalness: tierCfg.metalness,
+      clearcoat: 0.65,
+      emissive: tierCfg.emissive,
+      emissiveIntensity: tierCfg.emissiveIntensity
+    });
+    const inst = new THREE.InstancedMesh(STUD_COIN_GEO, mat, capacity);
+    inst.count = oldItems.length;
+    inst.castShadow = false;
+    inst.receiveShadow = false;
+    inst.frustumCulled = false;
+    inst.matrixAutoUpdate = false;
+    inst.updateMatrix();
+
+    if (oldInst) {
+      for (let i = 0; i < oldItems.length; i++) {
+        oldInst.getMatrixAt(i, _INST_MAT4);
+        inst.setMatrixAt(i, _INST_MAT4);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      this.scene.remove(oldInst);
+      oldInst.dispose?.();
+    }
+
+    this.scene.add(inst);
+    pool = { tierKey, inst, mat, capacity, items: oldItems, dirty: false };
+    this._ambientStudPools.set(tierKey, pool);
+    return pool;
+  }
+
+  _writeAmbientStudMatrix(stud, forceZero = false) {
+    const pool = stud._instPool;
+    if (!pool) return;
+    if (forceZero || stud.collected || !stud.mesh.visible) {
+      pool.inst.setMatrixAt(stud._instIdx, _INST_ZERO_MAT);
+    } else {
+      _INST_QUAT.setFromEuler(stud.mesh.rotation);
+      _INST_MAT4.compose(stud.mesh.position, _INST_QUAT, _INST_SCALE_ONE);
+      pool.inst.setMatrixAt(stud._instIdx, _INST_MAT4);
+    }
+    pool.dirty = true;
+  }
+
   spawnAmbientStud(x, y, z, tierKey = 'gold') {
     if (x && typeof x === 'object' && 'x' in x) {
       if (typeof y === 'string') tierKey = y;
@@ -553,18 +613,32 @@ export class DestructibleManager {
       y = x.y;
       x = x.x;
     }
-    const tierCfg = STUD_TIERS[tierKey] || STUD_TIERS.gold;
-    const mesh = this._createStudMesh(tierCfg);
+    const resolvedKey = STUD_TIERS[tierKey] ? tierKey : 'gold';
+    const tierCfg = STUD_TIERS[resolvedKey];
+    const pool = this._getOrCreateAmbientStudPool(resolvedKey, tierCfg);
+
+    const mesh = new THREE.Object3D();
     mesh.position.set(x, y, z);
-    this.scene.add(mesh);
+    mesh.rotation.z = 0.22;
+
+    const instIdx = pool.items.length;
     const stud = {
       mesh,
       basePos: new THREE.Vector3(x, y, z),
       tier: tierCfg.tier,
       value: tierCfg.value,
       magnetized: false,
-      collected: false
+      collected: false,
+      _instPool: pool,
+      _instIdx: instIdx,
+      _wasInstVisible: true
     };
+    pool.items.push(stud);
+    pool.inst.count = pool.items.length;
+    this._writeAmbientStudMatrix(stud, false);
+    pool.inst.instanceMatrix.needsUpdate = true;
+    pool.dirty = false;
+
     this.ambientStuds.push(stud);
     return stud;
   }
@@ -583,7 +657,16 @@ export class DestructibleManager {
       s.magnetized = false;
       s.mesh.visible = true;
       s.mesh.position.copy(s.basePos);
+      s._wasInstVisible = true;
+      this._writeAmbientStudMatrix(s, false);
     }
+    for (const pool of this._ambientStudPools.values()) {
+      if (pool.dirty) {
+        pool.inst.instanceMatrix.needsUpdate = true;
+        pool.dirty = false;
+      }
+    }
+    this._flushStreetPropInstancedBatches?.();
     for (const g of this.geysers) {
       if (g.columnMesh) {
         this.scene.remove(g.columnMesh);
@@ -615,6 +698,10 @@ export class DestructibleManager {
       obj.mesh.matrixWorldAutoUpdate = true;
     } else if (this.scene?.matrixAutoUpdate === false) {
       this.freezeObjectMatrix(obj.mesh);
+    }
+    if (obj._syncInstancedVisual) {
+      obj._syncInstancedVisual(obj);
+      this._flushStreetPropInstancedBatches?.();
     }
     for (const col of obj.colliders) {
       col.disabled = false;
@@ -3559,6 +3646,10 @@ export class DestructibleManager {
     // Objetos de rua (isStreetProp) reconstroem após 45s fora do campo de visão / longe do jogador!
     obj.respawnTimer = obj.isCombatNpc ? 4.0 : obj.isStreetProp ? 45.0 : 28.0;
     obj.mesh.visible = false;
+    if (obj._syncInstancedVisual) {
+      obj._syncInstancedVisual(obj);
+      this._flushStreetPropInstancedBatches?.();
+    }
     if (obj._isDynamicIndexed) {
       obj.mesh.matrixWorldAutoUpdate = false;
     }
@@ -3927,7 +4018,7 @@ export class DestructibleManager {
         const distSq = dx * dx + dz * dz;
         const maxCullSq =
           obj.type === 'car' || obj.type === 'police_helicopter'
-            ? 560 * 560
+            ? 280 * 280
             : obj.isStreetProp
               ? 155 * 155
               : 380 * 380;
@@ -3935,6 +4026,7 @@ export class DestructibleManager {
         if (obj.mesh.visible !== shouldBeVisible) {
           obj.mesh.visible = shouldBeVisible;
           if (obj._isDynamicIndexed) obj.mesh.matrixWorldAutoUpdate = shouldBeVisible;
+          if (obj._syncInstancedVisual) obj._syncInstancedVisual(obj);
         }
         if (!shouldBeVisible) continue;
       } else if (!obj.mesh.visible) {
@@ -3947,7 +4039,9 @@ export class DestructibleManager {
           obj.shakeTimer = 0;
           obj.mesh.position.copy(obj.basePos);
           obj.mesh.rotation.copy(obj.baseRot);
-          if (!obj._isDynamicIndexed) {
+          if (obj._syncInstancedVisual) {
+            obj._syncInstancedVisual(obj);
+          } else if (!obj._isDynamicIndexed) {
             this.freezeObjectMatrix(obj.mesh);
           }
         } else {
@@ -3955,9 +4049,11 @@ export class DestructibleManager {
           obj.mesh.position.x = obj.basePos.x + (Math.random() - 0.5) * intensity;
           obj.mesh.position.z = obj.basePos.z + (Math.random() - 0.5) * intensity;
           obj.mesh.rotation.z = (Math.random() - 0.5) * intensity * 0.5;
+          if (obj._syncInstancedVisual) obj._syncInstancedVisual(obj);
         }
       }
     }
+    this._flushStreetPropInstancedBatches?.();
 
     // 2. Projéteis (Fuzil Tático, Bolas de Fogo do Solaris & Lâminas Crescentes da Lua de Sangue do Sombra)
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
@@ -4506,16 +4602,27 @@ export class DestructibleManager {
       }
     }
 
-    // 7b. Studs estáticos de recompensa (como as dezenas de Studs na Sala do Cofre do Banco!)
+    // 7b. Studs estáticos de recompensa (InstancedMesh por Tier — máx 4 Draw Calls!)
     for (let i = 0; i < this.ambientStuds.length; i++) {
       const s = this.ambientStuds[i];
-      if (s.collected) continue;
+      if (s.collected) {
+        if (s._wasInstVisible !== false) {
+          s.mesh.visible = false;
+          s._wasInstVisible = false;
+          this._writeAmbientStudMatrix(s, true);
+        }
+        continue;
+      }
 
       const sdx = s.mesh.position.x - playerChest.x;
       const sdz = s.mesh.position.z - playerChest.z;
       const sDistSq = sdx * sdx + sdz * sdz;
       if (sDistSq > 180 * 180) {
         if (s.mesh.visible) s.mesh.visible = false;
+        if (s._wasInstVisible !== false) {
+          s._wasInstVisible = false;
+          this._writeAmbientStudMatrix(s, true);
+        }
         continue;
       }
       if (!s.mesh.visible) s.mesh.visible = true;
@@ -4533,6 +4640,8 @@ export class DestructibleManager {
         if (dist <= this.collectRadius) {
           s.collected = true;
           s.mesh.visible = false;
+          s._wasInstVisible = false;
+          this._writeAmbientStudMatrix(s, true);
           soundFX.playStudCollect(s.value);
           if (this.hud) {
             this.hud.addStuds(s.value, s.tier);
@@ -4542,6 +4651,16 @@ export class DestructibleManager {
         dir.multiplyScalar(1 / Math.max(0.0001, dist));
         const pullSpeed = 19.5 + (this.magnetRadius - Math.min(this.magnetRadius, dist)) * 3.8;
         s.mesh.position.addScaledVector(dir, pullSpeed * dt);
+      }
+
+      s._wasInstVisible = true;
+      this._writeAmbientStudMatrix(s, false);
+    }
+
+    for (const pool of this._ambientStudPools.values()) {
+      if (pool.dirty) {
+        pool.inst.instanceMatrix.needsUpdate = true;
+        pool.dirty = false;
       }
     }
 

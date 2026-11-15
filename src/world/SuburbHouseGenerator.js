@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LEGO_COLORS } from '../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from './BuildingGenerator.js';
+import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, flushSpatialChunkedBuckets } from './BuildingGenerator.js';
 
 export const HOUSE_STYLE_KEYS = [
   'american_two_story',
@@ -100,7 +100,7 @@ export class SuburbBatcher {
   addBox(matKey, w, h, d, x, y, z) {
     const bucket = this.buckets.get(matKey);
     if (!bucket) return;
-    bucket.push(makeTranslatedBox(w, h, d, x, y, z));
+    bucket.push(makeFastBox(w, h, d, x, y, z));
   }
 
   addFloweringTree(x, y, z, scale = 1.0, blossomKey = 'pink') {
@@ -108,22 +108,16 @@ export class SuburbBatcher {
   }
 
   flush(scene) {
-    for (const [key, geos] of this.buckets.entries()) {
-      if (geos.length === 0) continue;
-      const merged = mergeBufferGeometries(geos);
-      if (!merged) continue;
-      const mat = this.materials.get(key);
-      const mesh = new THREE.Mesh(merged, mat);
-      const isGround =
-        key === 'lawn_green' ||
-        key === 'driveway_concrete' ||
-        key === 'walkway_stone' ||
-        key === 'asphalt_lot' ||
-        key === 'pool_water';
-      mesh.castShadow = !isGround;
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-    }
+    flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
+      chunkSize: 512,
+      castShadowFn: (key) =>
+        key !== 'lawn_green' &&
+        key !== 'driveway_concrete' &&
+        key !== 'walkway_stone' &&
+        key !== 'asphalt_lot' &&
+        key !== 'pool_water',
+      receiveShadowFn: () => true
+    });
 
     // Instancia árvores floridas residenciais (Cerejeiras Rosas e Ipês Amarelos) em 3 Draw Calls
     if (this.floweringTrees.length > 0) {

@@ -1,34 +1,139 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, markAsSharedAsset } from '../materials/LegoMaterials.js';
+export { markAsSharedAsset };
+
+// Geometria-base estática 1x1x1 para `makeTranslatedBox` ultrarrápido sem alocar BoxGeometry/Vector3/Matrix4 por bloco
+const _UNIT_BOX_SRC = new THREE.BoxGeometry(1, 1, 1);
+const _UNIT_BOX_POS = _UNIT_BOX_SRC.attributes.position.array;
+const _UNIT_BOX_NORM = _UNIT_BOX_SRC.attributes.normal.array;
+const _UNIT_BOX_UV = _UNIT_BOX_SRC.attributes.uv.array;
+const _UNIT_BOX_IDX = _UNIT_BOX_SRC.index.array;
+_UNIT_BOX_SRC.dispose();
+
+const _DEFAULT_WHITE_COLOR = new THREE.Color(0xffffff);
+const _VC_MAT_CACHE = new Map();
 
 /**
- * Une um array de BufferGeometries já posicionadas/rotacionadas em uma única BufferGeometry
- * (Reduz dezenas de Draw Calls por prédio/rua para 1 único Draw Call!)
+ * Retorna um MeshPhysicalMaterial compartilhado com `vertexColors: true` (marcado como asset compartilhado
+ * para zero shader recompiles e zero leaks em objetos transientes).
+ */
+export function getSharedVertexColorMaterial(opts = {}) {
+  const roughness = Number((opts.roughness ?? 0.32).toFixed(2));
+  const metalness = Number((opts.metalness ?? 0.08).toFixed(2));
+  const clearcoat = Number((opts.clearcoat ?? 0.36).toFixed(2));
+  const clearcoatRoughness = Number((opts.clearcoatRoughness ?? 0.24).toFixed(2));
+  const emissiveHex = opts.emissive ? new THREE.Color(opts.emissive).getHex() : 0;
+  const emissiveIntensity = emissiveHex ? Number((opts.emissiveIntensity ?? 0).toFixed(2)) : 0;
+  const key = `${roughness}|${metalness}|${clearcoat}|${clearcoatRoughness}|${emissiveHex}|${emissiveIntensity}`;
+  let mat = _VC_MAT_CACHE.get(key);
+  if (mat) return mat;
+  mat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    roughness,
+    metalness,
+    clearcoat,
+    clearcoatRoughness,
+    emissive: emissiveHex,
+    emissiveIntensity
+  });
+  markAsSharedAsset(mat);
+  _VC_MAT_CACHE.set(key, mat);
+  return mat;
+}
+
+/**
+ * Descritor leve de bloco sem alocação de BufferGeometry/BufferAttribute/UUID por tijolo.
+ * Consumido diretamente por `mergeBufferGeometries`, `mergeColoredGeometries` e `getGeometryChunkKey`.
+ */
+export function makeFastBox(w, h, d, x, y, z) {
+  return { isRawBox: true, w, h, d, x, y, z };
+}
+
+function _writeRawBoxIntoArrays(box, positions, normals, uvs, indices, vOffset, iOffset) {
+  const { w, h, d, x, y, z } = box;
+  const pStart = vOffset * 3;
+  for (let i = 0; i < 72; i += 3) {
+    positions[pStart + i] = _UNIT_BOX_POS[i] * w + x;
+    positions[pStart + i + 1] = _UNIT_BOX_POS[i + 1] * h + y;
+    positions[pStart + i + 2] = _UNIT_BOX_POS[i + 2] * d + z;
+  }
+  normals.set(_UNIT_BOX_NORM, pStart);
+  if (uvs) uvs.set(_UNIT_BOX_UV, vOffset * 2);
+  if (indices) {
+    for (let i = 0; i < 36; i++) {
+      indices[iOffset + i] = _UNIT_BOX_IDX[i] + vOffset;
+    }
+  }
+}
+
+/**
+ * Une um array de BufferGeometries (ou descritores `makeFastBox`) em uma única BufferGeometry
+ * (Suporta position, normal, uv e vertex color!)
  */
 export function mergeBufferGeometries(geometries) {
   if (!geometries || geometries.length === 0) return new THREE.BufferGeometry();
-  if (geometries.length === 1) return geometries[0];
+  if (geometries.length === 1 && !geometries[0].isRawBox) return geometries[0];
 
   let totalVerts = 0;
   let totalIndices = 0;
-  for (const g of geometries) {
-    totalVerts += g.attributes.position.count;
-    if (g.index) totalIndices += g.index.count;
+  let anyUv = false;
+  let anyColor = false;
+  for (let i = 0; i < geometries.length; i++) {
+    const g = geometries[i];
+    if (g.isRawBox) {
+      totalVerts += 24;
+      totalIndices += 36;
+      anyUv = true;
+    } else {
+      totalVerts += g.attributes.position.count;
+      if (g.index) totalIndices += g.index.count;
+      if (g.attributes.uv) anyUv = true;
+      if (g.attributes.color) anyColor = true;
+    }
   }
 
   const positions = new Float32Array(totalVerts * 3);
   const normals = new Float32Array(totalVerts * 3);
+  const uvs = anyUv ? new Float32Array(totalVerts * 2) : null;
+  const colors = anyColor ? new Float32Array(totalVerts * 3) : null;
   const indices = totalIndices > 0 ? new Uint32Array(totalIndices) : null;
 
   let vOffset = 0;
   let iOffset = 0;
 
-  for (const g of geometries) {
+  for (let gi = 0; gi < geometries.length; gi++) {
+    const g = geometries[gi];
+    if (g.isRawBox) {
+      _writeRawBoxIntoArrays(g, positions, normals, uvs, indices, vOffset, iOffset);
+      if (colors) {
+        const end = (vOffset + 24) * 3;
+        for (let ci = vOffset * 3; ci < end; ci++) colors[ci] = 1.0;
+      }
+      vOffset += 24;
+      iOffset += 36;
+      continue;
+    }
+
     const posAttr = g.attributes.position;
-    const normAttr = g.attributes.normal;
+    const count = posAttr.count;
     positions.set(posAttr.array, vOffset * 3);
+
+    const normAttr = g.attributes.normal;
     if (normAttr) {
       normals.set(normAttr.array, vOffset * 3);
+    }
+    if (uvs && g.attributes.uv) {
+      uvs.set(g.attributes.uv.array, vOffset * 2);
+    }
+    if (colors) {
+      const colAttr = g.attributes.color;
+      if (colAttr) {
+        colors.set(colAttr.array, vOffset * 3);
+      } else {
+        const end = (vOffset + count) * 3;
+        for (let ci = vOffset * 3; ci < end; ci++) colors[ci] = 1.0;
+      }
     }
 
     if (indices && g.index) {
@@ -39,13 +144,15 @@ export function mergeBufferGeometries(geometries) {
       iOffset += idxArray.length;
     }
 
-    vOffset += posAttr.count;
+    vOffset += count;
     g.dispose();
   }
 
   const merged = new THREE.BufferGeometry();
   merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  if (uvs) merged.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  if (colors) merged.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   if (indices) {
     merged.setIndex(new THREE.BufferAttribute(indices, 1));
   }
@@ -53,11 +160,268 @@ export function mergeBufferGeometries(geometries) {
 }
 
 /**
- * Helper para criar uma BoxGeometry já transladada para (x, y, z) pronta para merge
+ * Mescla várias geometrias coloridas (ou `makeFastBox`) em 1 única BufferGeometry usando Vertex Colors,
+ * reduzindo dezenas de Draw Calls de peças opacas coloridas a 1 único Draw Call!
+ */
+export function mergeColoredGeometries(coloredGeos) {
+  if (!coloredGeos || coloredGeos.length === 0) return new THREE.BufferGeometry();
+
+  let totalVerts = 0;
+  let totalIndices = 0;
+  let anyUv = false;
+  for (let i = 0; i < coloredGeos.length; i++) {
+    const g = coloredGeos[i].geo;
+    if (g.isRawBox) {
+      totalVerts += 24;
+      totalIndices += 36;
+      anyUv = true;
+    } else {
+      totalVerts += g.attributes.position.count;
+      if (g.index) totalIndices += g.index.count;
+      if (g.attributes.uv) anyUv = true;
+    }
+  }
+
+  const positions = new Float32Array(totalVerts * 3);
+  const normals = new Float32Array(totalVerts * 3);
+  const colors = new Float32Array(totalVerts * 3);
+  const uvs = anyUv ? new Float32Array(totalVerts * 2) : null;
+  const indices = totalIndices > 0 ? new Uint32Array(totalIndices) : null;
+
+  let vOffset = 0;
+  let iOffset = 0;
+
+  for (let gi = 0; gi < coloredGeos.length; gi++) {
+    const entry = coloredGeos[gi];
+    const g = entry.geo;
+    const c = entry.color || _DEFAULT_WHITE_COLOR;
+    const r = c.r;
+    const gr = c.g;
+    const b = c.b;
+
+    if (g.isRawBox) {
+      _writeRawBoxIntoArrays(g, positions, normals, uvs, indices, vOffset, iOffset);
+      const start3 = vOffset * 3;
+      for (let k = 0; k < 72; k += 3) {
+        colors[start3 + k] = r;
+        colors[start3 + k + 1] = gr;
+        colors[start3 + k + 2] = b;
+      }
+      vOffset += 24;
+      iOffset += 36;
+      continue;
+    }
+
+    const posAttr = g.attributes.position;
+    const count = posAttr.count;
+
+    positions.set(posAttr.array, vOffset * 3);
+    if (g.attributes.normal) {
+      normals.set(g.attributes.normal.array, vOffset * 3);
+    }
+    if (uvs && g.attributes.uv) {
+      uvs.set(g.attributes.uv.array, vOffset * 2);
+    }
+
+    const existingCol = g.attributes.color;
+    const start3 = vOffset * 3;
+    if (existingCol) {
+      const arr = existingCol.array;
+      for (let k = 0; k < count * 3; k += 3) {
+        colors[start3 + k] = arr[k] * r;
+        colors[start3 + k + 1] = arr[k + 1] * gr;
+        colors[start3 + k + 2] = arr[k + 2] * b;
+      }
+    } else {
+      for (let k = 0; k < count * 3; k += 3) {
+        colors[start3 + k] = r;
+        colors[start3 + k + 1] = gr;
+        colors[start3 + k + 2] = b;
+      }
+    }
+
+    if (indices && g.index) {
+      const idxArray = g.index.array;
+      for (let i = 0; i < idxArray.length; i++) {
+        indices[iOffset + i] = idxArray[i] + vOffset;
+      }
+      iOffset += idxArray.length;
+    }
+
+    vOffset += count;
+    g.dispose();
+  }
+
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  merged.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  if (uvs) merged.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  if (indices) merged.setIndex(new THREE.BufferAttribute(indices, 1));
+  return merged;
+}
+
+/**
+ * Retorna a chave de chunk espacial `(cx, cz)` baseada no centroide X/Z da geometria.
+ */
+export function getGeometryChunkKey(geo, chunkSize = 512) {
+  if (geo.isRawBox) {
+    const cx = Math.floor(geo.x / chunkSize);
+    const cz = Math.floor(geo.z / chunkSize);
+    return `${cx},${cz}`;
+  }
+  const posAttr = geo.attributes.position;
+  if (!posAttr || posAttr.count === 0) return '0,0';
+  const arr = posAttr.array;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < arr.length; i += 3) {
+    const x = arr[i];
+    const z = arr[i + 2];
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  const cx = Math.floor(((minX + maxX) * 0.5) / chunkSize);
+  const cz = Math.floor(((minZ + maxZ) * 0.5) / chunkSize);
+  return `${cx},${cz}`;
+}
+
+export function isOpaqueVertexColorableMaterial(mat, key = null, preserveKeys = null) {
+  if (!mat || (preserveKeys && key !== null && preserveKeys.has(key))) return false;
+  if (Array.isArray(mat)) return false;
+  if (mat.transparent || mat.polygonOffset || mat.map || mat.emissiveMap || mat.alphaMap) return false;
+  if (mat.isMeshBasicMaterial) return false;
+  if (mat.userData?.isVehicleGlass || mat.userData?.isVehicleHeadlight) return false;
+  if (mat.emissive && mat.emissive.getHex() !== 0 && (mat.emissiveIntensity ?? 0) > 0.001) return false;
+  if ((mat.metalness ?? 0) > 0.45) return false;
+  return true;
+}
+
+/**
+ * Divide todos os buckets estáticos de uma região em Chunks Espaciais (padrão 256m x 256m)
+ * para Frustum Culling + Shadow Culling eficientes na GPU e consolida materiais opacos via Vertex Colors!
+ */
+export function flushSpatialChunkedBuckets(scene, buckets, materials, opts = {}) {
+  const chunkSize = opts.chunkSize ?? 512;
+  const preserveKeys = opts.preserveKeys || null;
+  const consolidateVertexColors = opts.consolidateVertexColors !== false;
+  const castShadowFn =
+    typeof opts.castShadowFn === 'function' ? opts.castShadowFn : () => false;
+  const receiveShadowFn =
+    typeof opts.receiveShadowFn === 'function'
+      ? opts.receiveShadowFn
+      : (_key, mat) => !mat?.isMeshBasicMaterial;
+
+  const getMat = (key) =>
+    materials instanceof Map ? materials.get(key) : materials[key];
+
+  const vcGroups = new Map();
+
+  for (const [key, geos] of buckets.entries()) {
+    if (!geos || geos.length === 0) continue;
+    const mat = getMat(key);
+    if (!mat) continue;
+
+    const castShadow = Boolean(castShadowFn(key, mat));
+    const receiveShadow = Boolean(receiveShadowFn(key, mat));
+    const canConsolidate =
+      consolidateVertexColors && isOpaqueVertexColorableMaterial(mat, key, preserveKeys);
+
+    if (canConsolidate) {
+      const roughBand = (mat.roughness ?? 0.35) >= 0.42 ? 1 : 0;
+      const col = mat.color || _DEFAULT_WHITE_COLOR;
+      for (let i = 0; i < geos.length; i++) {
+        const g = geos[i];
+        const cKey = getGeometryChunkKey(g, chunkSize);
+        const bucketId = `${cKey}|${castShadow ? 1 : 0}|${receiveShadow ? 1 : 0}|${roughBand}`;
+        let group = vcGroups.get(bucketId);
+        if (!group) {
+          group = {
+            castShadow,
+            receiveShadow,
+            roughness: roughBand ? 0.54 : 0.25,
+            metalness: 0.04,
+            entries: [],
+            singleMats: new Set()
+          };
+          vcGroups.set(bucketId, group);
+        }
+        group.entries.push({ geo: g, color: col });
+        group.singleMats.add(mat);
+      }
+      geos.length = 0;
+    } else {
+      const byChunk = new Map();
+      for (let i = 0; i < geos.length; i++) {
+        const g = geos[i];
+        const cKey = getGeometryChunkKey(g, chunkSize);
+        let list = byChunk.get(cKey);
+        if (!list) {
+          list = [];
+          byChunk.set(cKey, list);
+        }
+        list.push(g);
+      }
+      for (const cList of byChunk.values()) {
+        if (cList.length === 0) continue;
+        const merged = mergeBufferGeometries(cList);
+        const mesh = new THREE.Mesh(merged, mat);
+        mesh.castShadow = castShadow;
+        mesh.receiveShadow = receiveShadow;
+        mesh.matrixAutoUpdate = false;
+        mesh.updateMatrix();
+        scene.add(mesh);
+      }
+      geos.length = 0;
+    }
+  }
+
+  for (const grp of vcGroups.values()) {
+    if (grp.entries.length === 0) continue;
+    let mesh;
+    if (grp.singleMats.size === 1) {
+      const onlyMat = grp.singleMats.values().next().value;
+      const rawGeos = grp.entries.map((e) => e.geo);
+      mesh = new THREE.Mesh(mergeBufferGeometries(rawGeos), onlyMat);
+    } else {
+      const mergedGeo = mergeColoredGeometries(grp.entries);
+      const vcMat = getSharedVertexColorMaterial({
+        roughness: grp.roughness,
+        metalness: grp.metalness,
+        clearcoat: 0.36,
+        clearcoatRoughness: 0.24
+      });
+      mesh = new THREE.Mesh(mergedGeo, vcMat);
+    }
+    mesh.castShadow = grp.castShadow;
+    mesh.receiveShadow = grp.receiveShadow;
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    scene.add(mesh);
+  }
+}
+
+/**
+ * Helper ultrarrápido para criar uma BoxGeometry já escalada e transladada para (x, y, z) pronta para merge
  */
 export function makeTranslatedBox(w, h, d, x, y, z) {
-  const geo = new THREE.BoxGeometry(w, h, d);
-  geo.translate(x, y, z);
+  const pos = new Float32Array(72);
+  const norm = new Float32Array(_UNIT_BOX_NORM);
+  const uv = new Float32Array(_UNIT_BOX_UV);
+  for (let i = 0; i < 72; i += 3) {
+    pos[i] = _UNIT_BOX_POS[i] * w + x;
+    pos[i + 1] = _UNIT_BOX_POS[i + 1] * h + y;
+    pos[i + 2] = _UNIT_BOX_POS[i + 2] * d + z;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(new THREE.BufferAttribute(new Uint16Array(_UNIT_BOX_IDX), 1));
   return geo;
 }
 
@@ -149,16 +513,74 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
   };
   pruneEmptySubgroups(rootGroup);
 
+  const vcBuckets = new Map();
+
   for (const [mat, geos] of geosByMat.entries()) {
     if (geos.length === 0) continue;
+    const flags = matFlags.get(mat);
+    const canConsolidate =
+      !mat.transparent &&
+      !mat.isMeshBasicMaterial &&
+      !mat.polygonOffset &&
+      !mat.map &&
+      !mat.emissiveMap &&
+      !mat.alphaMap &&
+      !flags?.isVehicleGlass &&
+      !flags?.isVehicleHeadlight &&
+      !mat.userData?.isVehicleGlass &&
+      !mat.userData?.isVehicleHeadlight &&
+      (!mat.emissive || mat.emissive.getHex() === 0 || (mat.emissiveIntensity ?? 0) <= 0.001);
+
+    if (canConsolidate) {
+      const mBucket = Math.round((mat.metalness ?? 0) * 2);
+      const rBucket = (mat.roughness ?? 0.25) >= 0.42 ? 1 : 0;
+      const cBucket = (mat.clearcoat ?? 0.4) > 0.15 ? 1 : 0;
+      const bKey = `${mBucket}|${rBucket}|${cBucket}`;
+      let grp = vcBuckets.get(bKey);
+      if (!grp) {
+        grp = { mat, mats: new Set(), entries: [] };
+        vcBuckets.set(bKey, grp);
+      }
+      grp.mats.add(mat);
+      const col = mat.color || _DEFAULT_WHITE_COLOR;
+      for (let i = 0; i < geos.length; i++) {
+        grp.entries.push({ geo: geos[i], color: col });
+      }
+      continue;
+    }
+
     const mergedGeo = mergeBufferGeometries(geos);
     const mergedMesh = new THREE.Mesh(mergedGeo, mat);
     mergedMesh.castShadow = !mat.transparent && !mat.isMeshBasicMaterial;
     mergedMesh.receiveShadow = true;
-    const flags = matFlags.get(mat);
     if (flags) {
       Object.assign(mergedMesh.userData, flags);
     }
+    mergedMesh.matrixAutoUpdate = false;
+    mergedMesh.updateMatrix();
+    rootGroup.add(mergedMesh);
+  }
+
+  for (const grp of vcBuckets.values()) {
+    if (grp.entries.length === 0) continue;
+    let mergedMesh;
+    if (grp.mats.size === 1) {
+      const onlyMat = grp.mats.values().next().value;
+      const rawGeos = grp.entries.map((e) => e.geo);
+      mergedMesh = new THREE.Mesh(mergeBufferGeometries(rawGeos), onlyMat);
+    } else {
+      const mergedGeo = mergeColoredGeometries(grp.entries);
+      const ref = grp.mat;
+      const vcMat = getSharedVertexColorMaterial({
+        roughness: ref.roughness ?? 0.25,
+        metalness: ref.metalness ?? 0.08,
+        clearcoat: ref.clearcoat ?? 0.4,
+        clearcoatRoughness: ref.clearcoatRoughness ?? 0.22
+      });
+      mergedMesh = new THREE.Mesh(mergedGeo, vcMat);
+    }
+    mergedMesh.castShadow = true;
+    mergedMesh.receiveShadow = true;
     mergedMesh.matrixAutoUpdate = false;
     mergedMesh.updateMatrix();
     rootGroup.add(mergedMesh);

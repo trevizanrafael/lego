@@ -11,7 +11,9 @@ import {
   BUILDING_STYLE_KEYS,
   buildDetailedBuilding,
   mergeBufferGeometries,
-  makeTranslatedBox
+  makeTranslatedBox,
+  makeFastBox,
+  flushSpatialChunkedBuckets
 } from './BuildingGenerator.js';
 import {
   RIVER_BRIDGE_SPECS,
@@ -573,7 +575,7 @@ export class TestBlockWorld {
         const pd = r.maxZ - r.minZ;
         if (pw <= 0.02 || pd <= 0.02) continue;
         geoBucket.push(
-          makeTranslatedBox(pw, 0.28, pd, (r.minX + r.maxX) * 0.5, yBase + 0.14, (r.minZ + r.maxZ) * 0.5)
+          makeFastBox(pw, 0.28, pd, (r.minX + r.maxX) * 0.5, yBase + 0.14, (r.minZ + r.maxZ) * 0.5)
         );
       }
     } else if (explicitYBase !== undefined) {
@@ -582,7 +584,7 @@ export class TestBlockWorld {
         (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
         (x >= -375 && x <= -260 && z >= -235 && z <= -125);
       const slabH = overUnder && explicitYBase <= 0.2 ? 0.28 : 8.2;
-      geoBucket.push(makeTranslatedBox(w, slabH, d, x, explicitYBase + 0.28 - slabH * 0.5, z));
+      geoBucket.push(makeFastBox(w, slabH, d, x, explicitYBase + 0.28 - slabH * 0.5, z));
     } else {
       const yC = this.getTerrainHeightAt(x, z);
       const yNW = this.getTerrainHeightAt(minX, minZ);
@@ -597,7 +599,7 @@ export class TestBlockWorld {
 
       if (maxCorner - minCorner <= 0.16) {
         const slabH = overUnder && yC <= 0.2 ? 0.28 : 4.2;
-        geoBucket.push(makeTranslatedBox(w, slabH, d, x, yC + 0.28 - slabH * 0.5, z));
+        geoBucket.push(makeFastBox(w, slabH, d, x, yC + 0.28 - slabH * 0.5, z));
       } else {
         // Calçada orgânica subdividida acompanhando a ladeira + saia perimetral de 8.5m de profundidade!
         const segX = Math.max(3, Math.min(10, Math.round(w / 14)));
@@ -622,8 +624,8 @@ export class TestBlockWorld {
           const yn = this.getTerrainHeightAt(sx, minZ) + 0.28;
           const ys = this.getTerrainHeightAt(sx, maxZ) + 0.28;
           geoBucket.push(
-            makeTranslatedBox(stepX + 0.08, skirtH, 1.2, sx, yn - skirtH * 0.5, minZ + 0.6),
-            makeTranslatedBox(stepX + 0.08, skirtH, 1.2, sx, ys - skirtH * 0.5, maxZ - 0.6)
+            makeFastBox(stepX + 0.08, skirtH, 1.2, sx, yn - skirtH * 0.5, minZ + 0.6),
+            makeFastBox(stepX + 0.08, skirtH, 1.2, sx, ys - skirtH * 0.5, maxZ - 0.6)
           );
         }
         const stepZ = d / segZ;
@@ -632,8 +634,8 @@ export class TestBlockWorld {
           const yw = this.getTerrainHeightAt(minX, sz) + 0.28;
           const ye = this.getTerrainHeightAt(maxX, sz) + 0.28;
           geoBucket.push(
-            makeTranslatedBox(1.2, skirtH, stepZ + 0.08, minX + 0.6, yw - skirtH * 0.5, sz),
-            makeTranslatedBox(1.2, skirtH, stepZ + 0.08, maxX - 0.6, ye - skirtH * 0.5, sz)
+            makeFastBox(1.2, skirtH, stepZ + 0.08, minX + 0.6, yw - skirtH * 0.5, sz),
+            makeFastBox(1.2, skirtH, stepZ + 0.08, maxX - 0.6, ye - skirtH * 0.5, sz)
           );
         }
       }
@@ -649,16 +651,16 @@ export class TestBlockWorld {
   }
 
   _finalizeMergedSidewalks() {
-    for (const [colorHex, geos] of this._sidewalkGeosByColor.entries()) {
-      if (geos.length === 0) continue;
-      const mergedSlab = new THREE.Mesh(
-        mergeBufferGeometries(geos),
-        new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45 })
-      );
-      for (let i = 0; i < geos.length; i++) geos[i].dispose();
-      mergedSlab.receiveShadow = true;
-      this.scene.add(mergedSlab);
+    if (this._sidewalkGeosByColor.size === 0) return;
+    const mats = new Map();
+    for (const colorHex of this._sidewalkGeosByColor.keys()) {
+      mats.set(colorHex, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45 }));
     }
+    flushSpatialChunkedBuckets(this.scene, this._sidewalkGeosByColor, mats, {
+      chunkSize: 512,
+      castShadowFn: () => false,
+      receiveShadowFn: () => true
+    });
     this._sidewalkGeosByColor.clear();
   }
 
@@ -678,30 +680,51 @@ export class TestBlockWorld {
     const trunkGeo = new THREE.CylinderGeometry(0.42, 0.52, 2.8, 8);
     trunkGeo.translate(0, 1.4, 0);
     const trunkMat = new THREE.MeshStandardMaterial({ color: LEGO_COLORS.brown, roughness: 0.4 });
-    const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
-    trunkInst.castShadow = false;
-    trunkInst.receiveShadow = true;
-
     const canopyGeo = new THREE.BoxGeometry(3.4, 3.2, 3.4);
     canopyGeo.translate(0, 3.8, 0);
     const canopyMat = new THREE.MeshStandardMaterial({ color: LEGO_COLORS.green, roughness: 0.35 });
-    const canopyInst = new THREE.InstancedMesh(canopyGeo, canopyMat, count);
-    canopyInst.castShadow = true;
-    canopyInst.receiveShadow = true;
 
-    const dummy = new THREE.Object3D();
+    // Agrupa árvores por chunks de 256m x 256m para Frustum & Shadow Culling nativo
+    const chunks = new Map();
     for (let i = 0; i < count; i++) {
       const t = this._treeInstances[i];
-      dummy.position.set(t.x, t.y, t.z);
-      dummy.scale.set(t.scale, t.scale, t.scale);
-      dummy.updateMatrix();
-      trunkInst.setMatrixAt(i, dummy.matrix);
-      canopyInst.setMatrixAt(i, dummy.matrix);
+      const key = `${Math.floor(t.x / 256)},${Math.floor(t.z / 256)}`;
+      let bucket = chunks.get(key);
+      if (!bucket) {
+        bucket = [];
+        chunks.set(key, bucket);
+      }
+      bucket.push(t);
     }
-    trunkInst.instanceMatrix.needsUpdate = true;
-    canopyInst.instanceMatrix.needsUpdate = true;
 
-    this.scene.add(trunkInst, canopyInst);
+    const dummy = new THREE.Object3D();
+    for (const bucket of chunks.values()) {
+      const n = bucket.length;
+      const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, n);
+      trunkInst.castShadow = false;
+      trunkInst.receiveShadow = true;
+      trunkInst.matrixAutoUpdate = false;
+
+      const canopyInst = new THREE.InstancedMesh(canopyGeo, canopyMat, n);
+      canopyInst.castShadow = true;
+      canopyInst.receiveShadow = true;
+      canopyInst.matrixAutoUpdate = false;
+
+      for (let i = 0; i < n; i++) {
+        const t = bucket[i];
+        dummy.position.set(t.x, t.y, t.z);
+        dummy.scale.set(t.scale, t.scale, t.scale);
+        dummy.updateMatrix();
+        trunkInst.setMatrixAt(i, dummy.matrix);
+        canopyInst.setMatrixAt(i, dummy.matrix);
+      }
+      trunkInst.instanceMatrix.needsUpdate = true;
+      canopyInst.instanceMatrix.needsUpdate = true;
+      trunkInst.updateMatrix();
+      canopyInst.updateMatrix();
+
+      this.scene.add(trunkInst, canopyInst);
+    }
   }
 
   _initWaypointBeacon() {

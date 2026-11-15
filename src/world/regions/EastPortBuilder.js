@@ -4,7 +4,15 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
+import {
+  mergeBufferGeometries,
+  mergeColoredGeometries,
+  getSharedVertexColorMaterial,
+  makeTranslatedBox,
+  makeFastBox,
+  flushSpatialChunkedBuckets,
+  markAsSharedAsset
+} from '../BuildingGenerator.js';
 import { NAVAL_AIR_SPECS } from '../NavalAndAirFleetBuilder.js';
 import { RIVER_BRIDGE_SPECS, RIVER_PIER_SPECS } from '../RoadGridBuilder.js';
 import { buildTerritoryInfrastructureForZone } from '../FactionWarSystem.js';
@@ -111,7 +119,7 @@ class PCCIndustrialBatcher {
       finalY = y + tY - 1.75;
     }
     if (rotX === 0 && rotY === 0 && rotZ === 0) {
-      arr.push(makeTranslatedBox(w, finalH, d, x, finalY, z));
+      arr.push(makeFastBox(w, finalH, d, x, finalY, z));
       return;
     }
     const geo = new THREE.BoxGeometry(w, finalH, d);
@@ -153,16 +161,12 @@ class PCCIndustrialBatcher {
       'dark_steel',
       'pcc_navy'
     ]);
-    for (const [key, geos] of this.buckets.entries()) {
-      if (geos.length === 0) continue;
-      const merged = mergeBufferGeometries(geos);
-      for (let i = 0; i < geos.length; i++) geos[i].dispose();
-      if (!merged) continue;
-      const mesh = new THREE.Mesh(merged, this.materials.get(key));
-      mesh.castShadow = shadowCasterKeys.has(key);
-      mesh.receiveShadow = key !== 'pcc_neon_blue' && key !== 'c4_hazard_red' && key !== 'smoke_plume';
-      scene.add(mesh);
-    }
+    flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
+      chunkSize: scene?.isScene ? 512 : 4096,
+      castShadowFn: (key) => shadowCasterKeys.has(key),
+      receiveShadowFn: (key) =>
+        key !== 'pcc_neon_blue' && key !== 'c4_hazard_red' && key !== 'smoke_plume'
+    });
     this.buckets.clear();
   }
 }
@@ -3068,13 +3072,31 @@ function _buildMooredAresDreadnoughtShip(world, batcher, shipX, shipZ) {
   });
 }
 
-const SHARED_TRUCK_WHEEL_TIRE_GEO = new THREE.CylinderGeometry(0.68, 0.68, 0.56, 10);
-SHARED_TRUCK_WHEEL_TIRE_GEO.rotateZ(Math.PI / 2);
-const SHARED_TRUCK_WHEEL_RIM_GEO = new THREE.CylinderGeometry(0.36, 0.36, 0.6, 8);
-SHARED_TRUCK_WHEEL_RIM_GEO.rotateZ(Math.PI / 2);
-const SHARED_TRUCK_FLAME_GEO = new THREE.ConeGeometry(0.36, 2.2, 8);
-SHARED_TRUCK_FLAME_GEO.rotateX(-Math.PI / 2);
-const SHARED_TRUCK_FLAME_MAT = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+const _TRUCK_TIRE_GEO = new THREE.CylinderGeometry(0.68, 0.68, 0.56, 10);
+_TRUCK_TIRE_GEO.rotateZ(Math.PI / 2);
+const _TRUCK_RIM_GEO = new THREE.CylinderGeometry(0.36, 0.36, 0.6, 8);
+_TRUCK_RIM_GEO.rotateZ(Math.PI / 2);
+const SHARED_TRUCK_WHEEL_GEO = markAsSharedAsset(
+  mergeColoredGeometries([
+    { geo: _TRUCK_TIRE_GEO, color: new THREE.Color(0x0f172a) },
+    { geo: _TRUCK_RIM_GEO, color: new THREE.Color(0xcbd5e1) }
+  ])
+);
+const SHARED_TRUCK_WHEEL_MAT = getSharedVertexColorMaterial({
+  roughness: 0.32,
+  metalness: 0.35,
+  clearcoat: 0.28,
+  clearcoatRoughness: 0.25
+});
+const _TRUCK_FLAME_L = new THREE.ConeGeometry(0.36, 2.2, 8);
+_TRUCK_FLAME_L.rotateX(-Math.PI / 2);
+_TRUCK_FLAME_L.translate(-1.4, 1.05, -12.3);
+const _TRUCK_FLAME_R = new THREE.ConeGeometry(0.36, 2.2, 8);
+_TRUCK_FLAME_R.rotateX(-Math.PI / 2);
+_TRUCK_FLAME_R.translate(1.4, 1.05, -12.3);
+const SHARED_TRUCK_FLAME_GEO = markAsSharedAsset(mergeBufferGeometries([_TRUCK_FLAME_L, _TRUCK_FLAME_R]));
+const SHARED_TRUCK_FLAME_MAT = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+const _PORT_SEMI_TRUCK_PARTS_CACHE = new Map();
 
 /**
  * Constrói 1 Caminhão-Carreta Portuário 100% Pilotável (Semi-Truck com Contêiner 18x6x6 na carreta, rodas articuladas e Turbo Nitro)
@@ -3082,36 +3104,60 @@ const SHARED_TRUCK_FLAME_MAT = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
 function _addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, rotated90 = false) {
   world.eastPortData.cargoTrucksCount++;
 
-  const truckBatcher = batcher.createSubBatcher();
   const truckGroup = new THREE.Group();
   truckGroup.rotation.order = 'YXZ';
 
   const cabColorKey = rotated90 ? 'tactical_white' : 'lego_orange';
+  const bodyCacheKey = `${cabColorKey}|${containerColorKey}`;
+  let cachedParts = _PORT_SEMI_TRUCK_PARTS_CACHE.get(bodyCacheKey);
 
-  // Chassi pesado longo (4.8m x 1.2m x 22.5m) + Para-choques cromados + Cabine Frontal (+Z)
-  truckBatcher.addBox('matte_black', 4.8, 1.2, 22.5, 0, 1.05, 0);
-  truckBatcher.addBox('brushed_silver', 4.95, 0.65, 0.45, 0, 0.9, 11.2);
-  truckBatcher.addBox('brushed_silver', 3.4, 1.55, 0.25, 0, 2.05, 10.95);
-  truckBatcher.addBox(cabColorKey, 4.6, 4.2, 4.6, 0, 2.85, 8.6);
-  truckBatcher.addBox(cabColorKey, 4.4, 1.05, 2.6, 0, 5.25, 7.8, -0.24, 0, 0);
-  truckBatcher.addBox('dark_steel', 4.66, 1.6, 1.6, 0, 3.35, 10.15);
-  // Faróis dianteiros e lanternas traseiras + 2 escapamentos verticais cromados atrás da cabine
-  truckBatcher.addBox('floodlight_glow', 0.85, 0.45, 0.2, -1.75, 1.55, 10.96);
-  truckBatcher.addBox('floodlight_glow', 0.85, 0.45, 0.2, 1.75, 1.55, 10.96);
-  truckBatcher.addBox('c4_hazard_red', 0.9, 0.42, 0.2, -1.8, 1.05, -11.28);
-  truckBatcher.addBox('c4_hazard_red', 0.9, 0.42, 0.2, 1.8, 1.05, -11.28);
-  truckBatcher.addCylinder('brushed_silver', 0.22, 0.22, 4.8, -2.35, 3.7, 6.0, 8);
-  truckBatcher.addCylinder('brushed_silver', 0.22, 0.22, 4.8, 2.35, 3.7, 6.0, 8);
+  if (!cachedParts) {
+    const truckBatcher = batcher.createSubBatcher();
+    // Chassi pesado longo (4.8m x 1.2m x 22.5m) + Para-choques cromados + Cabine Frontal (+Z)
+    truckBatcher.addBox('matte_black', 4.8, 1.2, 22.5, 0, 1.05, 0);
+    truckBatcher.addBox('brushed_silver', 4.95, 0.65, 0.45, 0, 0.9, 11.2);
+    truckBatcher.addBox('brushed_silver', 3.4, 1.55, 0.25, 0, 2.05, 10.95);
+    truckBatcher.addBox(cabColorKey, 4.6, 4.2, 4.6, 0, 2.85, 8.6);
+    truckBatcher.addBox(cabColorKey, 4.4, 1.05, 2.6, 0, 5.25, 7.8, -0.24, 0, 0);
+    truckBatcher.addBox('dark_steel', 4.66, 1.6, 1.6, 0, 3.35, 10.15);
+    // Faróis dianteiros e lanternas traseiras + 2 escapamentos verticais cromados atrás da cabine
+    truckBatcher.addBox('floodlight_glow', 0.85, 0.45, 0.2, -1.75, 1.55, 10.96);
+    truckBatcher.addBox('floodlight_glow', 0.85, 0.45, 0.2, 1.75, 1.55, 10.96);
+    truckBatcher.addBox('c4_hazard_red', 0.9, 0.42, 0.2, -1.8, 1.05, -11.28);
+    truckBatcher.addBox('c4_hazard_red', 0.9, 0.42, 0.2, 1.8, 1.05, -11.28);
+    truckBatcher.addCylinder('brushed_silver', 0.22, 0.22, 4.8, -2.35, 3.7, 6.0, 8);
+    truckBatcher.addCylinder('brushed_silver', 0.22, 0.22, 4.8, 2.35, 3.7, 6.0, 8);
 
-  // Contêiner Marítimo LEGO 18m x 6m x 6m acoplado sobre a carreta (em coordenadas locais do caminhão)
-  _addSingleDetailedContainerGeometry(truckBatcher, containerColorKey, 0, 4.65, -2.4, 6.0, 6.0, 18.0, false);
+    // Contêiner Marítimo LEGO 18m x 6m x 6m acoplado sobre a carreta (em coordenadas locais do caminhão)
+    _addSingleDetailedContainerGeometry(truckBatcher, containerColorKey, 0, 4.65, -2.4, 6.0, 6.0, 18.0, false);
 
-  truckBatcher.finalize(truckGroup);
+    const tempProto = new THREE.Group();
+    truckBatcher.finalize(tempProto);
+    cachedParts = tempProto.children.map((ch) => {
+      markAsSharedAsset(ch.geometry);
+      markAsSharedAsset(ch.material);
+      return {
+        geometry: ch.geometry,
+        material: ch.material,
+        castShadow: ch.castShadow,
+        receiveShadow: ch.receiveShadow
+      };
+    });
+    _PORT_SEMI_TRUCK_PARTS_CACHE.set(bodyCacheKey, cachedParts);
+  }
 
-  // 8 Rodas Articuladas (4 eixos: dianteiro direcional em z=+8.6, tração em z=+4.4 e 2 eixos da carreta em z=-5.5 e z=-8.8)
+  for (let i = 0; i < cachedParts.length; i++) {
+    const p = cachedParts[i];
+    const m = new THREE.Mesh(p.geometry, p.material);
+    m.castShadow = p.castShadow;
+    m.receiveShadow = p.receiveShadow;
+    m.matrixAutoUpdate = false;
+    m.updateMatrix();
+    truckGroup.add(m);
+  }
+
+  // 8 Rodas Articuladas em 1 malha por roda (4 eixos: dianteiro direcional em z=+8.6, tração em z=+4.4 e 2 eixos da carreta em z=-5.5 e z=-8.8)
   const wheels = [];
-  const tireMat = batcher.materials.get('matte_black');
-  const rimMat = batcher.materials.get('brushed_silver');
   const axleZList = [
     { wz: 8.6, isFront: true },
     { wz: 4.4, isFront: false },
@@ -3123,23 +3169,19 @@ function _addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, rotated
       const steerGroup = new THREE.Group();
       steerGroup.position.set(wx, 0.68, wz);
       const spinGroup = new THREE.Group();
-      const tireMesh = new THREE.Mesh(SHARED_TRUCK_WHEEL_TIRE_GEO, tireMat);
-      const rimMesh = new THREE.Mesh(SHARED_TRUCK_WHEEL_RIM_GEO, rimMat);
-      spinGroup.add(tireMesh, rimMesh);
+      const wheelMesh = new THREE.Mesh(SHARED_TRUCK_WHEEL_GEO, SHARED_TRUCK_WHEEL_MAT);
+      spinGroup.add(wheelMesh);
       steerGroup.add(spinGroup);
       truckGroup.add(steerGroup);
       wheels.push({ steerGroup, spinGroup, isFront });
     }
   }
 
-  // Chamas de Turbo Nitro na traseira da carreta
+  // Chamas de Turbo Nitro na traseira da carreta (1 malha fundida)
   const flameGroup = new THREE.Group();
   flameGroup.visible = false;
-  for (const fx of [-1.4, 1.4]) {
-    const fm = new THREE.Mesh(SHARED_TRUCK_FLAME_GEO, SHARED_TRUCK_FLAME_MAT);
-    fm.position.set(fx, 1.05, -12.3);
-    flameGroup.add(fm);
-  }
+  const fm = new THREE.Mesh(SHARED_TRUCK_FLAME_GEO, SHARED_TRUCK_FLAME_MAT);
+  flameGroup.add(fm);
   truckGroup.add(flameGroup);
 
   const rotY = rotated90 ? Math.PI / 2 : 0;

@@ -3,7 +3,7 @@ import {
   LEGO_COLORS,
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
+import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, flushSpatialChunkedBuckets } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 import { buildTerritoryInfrastructureForZone } from '../FactionWarSystem.js';
 
@@ -234,7 +234,7 @@ class FavelaBatcher {
   addBox(key, w, h, d, x, y, z) {
     const list = this.buckets.get(key);
     if (list) {
-      list.push(makeTranslatedBox(w, h, d, x, y, z));
+      list.push(makeFastBox(w, h, d, x, y, z));
     }
   }
 
@@ -256,18 +256,20 @@ class FavelaBatcher {
       'cv_black',
       'cv_white'
     ]);
-    for (const [key, geos] of this.buckets.entries()) {
-      if (geos.length === 0) continue;
-      const merged = mergeBufferGeometries(geos);
-      if (!merged) continue;
-      const mat = this.materials.get(key);
-      const mesh = new THREE.Mesh(merged, mat);
-      if (shadowCasterKeys.has(key)) {
-        mesh.castShadow = true;
-      }
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-    }
+    // Mantém referências dos materiais emissivos usados dinamicamente pelo ciclo Dia/Noite
+    const dynamicEmissiveKeys = new Set([
+      'window_lit',
+      'window_orange',
+      'window_tv_blue',
+      'favela_bulb_warm',
+      'floodlight_panel'
+    ]);
+    flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
+      chunkSize: 768,
+      preserveKeys: dynamicEmissiveKeys,
+      castShadowFn: (key) => shadowCasterKeys.has(key),
+      receiveShadowFn: () => true
+    });
   }
 }
 

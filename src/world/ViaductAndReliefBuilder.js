@@ -6,7 +6,9 @@ import {
 } from '../materials/LegoMaterials.js';
 import {
   mergeBufferGeometries,
-  makeTranslatedBox
+  makeTranslatedBox,
+  makeFastBox,
+  flushSpatialChunkedBuckets
 } from './BuildingGenerator.js';
 import { createSignBoardMesh } from '../utils/SignBoardHelper.js';
 import { buildProfileRibbon, buildGradedProfile, sampleProfile } from './ViaductGeometry.js';
@@ -371,7 +373,7 @@ function createReliefAndViaductBatcher() {
     studPositionsYellow,
     studPositionsStone,
     addBox(key, w, h, d, x, y, z) {
-      buckets.get(key).push(makeTranslatedBox(w, h, d, x, y, z));
+      buckets.get(key).push(makeFastBox(w, h, d, x, y, z));
     },
     addTiltedBox(key, w, h, d, x, y, z, rotX = 0, rotY = 0, rotZ = 0) {
       const geo = new THREE.BoxGeometry(w, h, d);
@@ -397,18 +399,12 @@ function createReliefAndViaductBatcher() {
         'park_turf_top',
         'park_stone'
       ]);
-      for (const [key, geos] of buckets.entries()) {
-        if (geos.length === 0) continue;
-        const merged = mergeBufferGeometries(geos);
-        for (let i = 0; i < geos.length; i++) geos[i].dispose();
-        geos.length = 0;
-        if (!merged) continue;
-        const mat = palette[key];
-        const mesh = new THREE.Mesh(merged, mat);
-        mesh.castShadow = castShadowSet.has(key);
-        mesh.receiveShadow = !mat.isMeshBasicMaterial;
-        scene.add(mesh);
-      }
+      flushSpatialChunkedBuckets(scene, buckets, palette, {
+        chunkSize: 512,
+        preserveKeys: new Set(['viaduct_concrete']),
+        castShadowFn: (key) => castShadowSet.has(key),
+        receiveShadowFn: (_key, mat) => !mat.isMeshBasicMaterial
+      });
       buckets.clear();
 
       const flushStuds = (positions, colorHex) => {

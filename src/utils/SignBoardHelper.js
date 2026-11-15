@@ -3,8 +3,27 @@ import { markAsSharedAsset } from '../materials/LegoMaterials.js';
 
 const SIGN_REDRAW_REGISTRY = [];
 const SIGN_EDGE_MAT_CACHE = new Map();
+const SIGN_BOX_GEO_CACHE = new Map();
 let fontReadyListenerBound = false;
 let fontsReadyResolved = false;
+
+function getSharedSignBoxGeometry(w, h, d, doubleSided) {
+  const key = `${w.toFixed(3)}_${h.toFixed(3)}_${d.toFixed(3)}_${doubleSided ? 1 : 0}`;
+  const cached = SIGN_BOX_GEO_CACHE.get(key);
+  if (cached) return cached;
+
+  // Consolida as 4 ou 5 faces laterais de borda em UM único Draw Call mantendo o array de 6 materiais!
+  const geo = new THREE.BoxGeometry(w, h, d);
+  geo.clearGroups();
+  // BoxGeometry gera 6 faces de 6 índices cada: 0..5(+X), 6..11(-X), 12..17(+Y), 18..23(-Y), 24..29(+Z), 30..35(-Z)
+  geo.addGroup(0, 24, 0);
+  geo.addGroup(24, 6, 4);
+  geo.addGroup(30, 6, doubleSided ? 5 : 0);
+
+  markAsSharedAsset(geo);
+  SIGN_BOX_GEO_CACHE.set(key, geo);
+  return geo;
+}
 
 function getSharedSignEdgeMaterial(edgeHex) {
   if (SIGN_EDGE_MAT_CACHE.has(edgeHex)) {
@@ -214,7 +233,7 @@ export function createSignBoardMesh(opts = {}) {
   ];
 
   const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(boardWidth, boardHeight, thickness),
+    getSharedSignBoxGeometry(boardWidth, boardHeight, thickness, doubleSided),
     materials
   );
 

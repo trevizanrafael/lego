@@ -209,6 +209,17 @@ const SHARED_CAMERA_FLASH_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff })
 const SHARED_BRAKE_LIGHT_OFF_MAT = new THREE.MeshBasicMaterial({ color: 0x450a0a });
 const SHARED_BRAKE_LIGHT_ON_MAT = new THREE.MeshBasicMaterial({ color: 0xff1e1e });
 
+// Scratch objects para instancing de pedestres (Zero alocação por frame!)
+const _PED_ROOT_MAT4 = new THREE.Matrix4();
+const _PED_LOCAL_MAT4 = new THREE.Matrix4();
+const _PED_WORLD_MAT4 = new THREE.Matrix4();
+const _PED_ARM_MAT4 = new THREE.Matrix4();
+const _PED_QUAT = new THREE.Quaternion();
+const _PED_EULER = new THREE.Euler(0, 0, 0, 'XYZ');
+const _PED_POS = new THREE.Vector3();
+const _PED_SCALE_ONE = new THREE.Vector3(1, 1, 1);
+const _PED_COLOR = new THREE.Color();
+
 // ============================================================================
 // TEXTURAS DE TORSO LEGO POR ARQUÉTIPO DE BAIRRO (CACHE GLOBAL)
 // ============================================================================
@@ -481,6 +492,7 @@ export class LivingCityManager {
     this._initBuildingSpatialGrid();
 
     this._initUrbanTraffic();
+    this._initPedestrianInstancedPools();
     this._initPedestrians();
     this._initCivilianSkyHelicopter();
     this._initStreetVendorCarts();
@@ -1442,6 +1454,182 @@ export class LivingCityManager {
     return 'casual';
   }
 
+  _initPedestrianInstancedPools() {
+    if (!LivingCityManager._mergedTorsoHipGeo) {
+      const tGeo = NPC_TRAPEZOID_TORSO_GEO.clone();
+      const hGeo = NPC_HIP_GEO.clone();
+      hGeo.translate(0, -0.4, 0);
+      LivingCityManager._mergedTorsoHipGeo = mergeBufferGeometries([tGeo, hGeo]);
+    }
+    const maxPeds = 220;
+    const mkInst = (geo, mat, cap, withColor = false) => {
+      const inst = new THREE.InstancedMesh(geo, mat, cap);
+      inst.count = 0;
+      inst.castShadow = false;
+      inst.receiveShadow = true;
+      inst.frustumCulled = false;
+      inst.matrixAutoUpdate = false;
+      inst.updateMatrix();
+      if (withColor) {
+        inst.setColorAt(0, _PED_COLOR.setHex(0xffffff));
+      }
+      this.scene.add(inst);
+      return inst;
+    };
+
+    this._pedMaxCap = maxPeds;
+    this._pedPools = {
+      torso: mkInst(LivingCityManager._mergedTorsoHipGeo, getLegoMaterial(0xffffff, { roughness: 0.22 }), maxPeds, true),
+      legs: mkInst(NPC_LEG_GEO, getLegoMaterial(0xffffff, { roughness: 0.24 }), maxPeds * 2, true),
+      arms: mkInst(NPC_ARM_GEO, getLegoMaterial(0xffffff, { roughness: 0.22 }), maxPeds * 2, true),
+      head: mkInst(NPC_HEAD_GEO, getLegoMaterial(LEGO_COLORS.yellow, { roughness: 0.22 }), maxPeds, false),
+      cameraFlash: mkInst(CAMERA_FLASH_GEO, SHARED_CAMERA_FLASH_MAT, 32, false),
+      backProp: mkInst(SHARED_CIV_PROP_GEOS.backpack, getLegoMaterial(0xffffff, { roughness: 0.25 }), maxPeds, true),
+      faces: new Map(),
+      decals: new Map(),
+      headProps: new Map(),
+      handProps: new Map(),
+      all: []
+    };
+    const { all, torso, legs, arms, head, cameraFlash, backProp } = this._pedPools;
+    all.push(torso, legs, arms, head, cameraFlash, backProp);
+    this._pedHeadPropMat = getLegoMaterial(0xffffff, { roughness: 0.24 });
+    this._pedHandPropMat = getLegoMaterial(0xffffff, { roughness: 0.22 });
+  }
+
+  _getPedSubPool(map, key, createFn) {
+    let inst = map.get(key);
+    if (!inst) {
+      inst = createFn();
+      inst.count = 0;
+      inst.castShadow = false;
+      inst.receiveShadow = true;
+      inst.frustumCulled = false;
+      inst.matrixAutoUpdate = false;
+      inst.updateMatrix();
+      this.scene.add(inst);
+      map.set(key, inst);
+      this._pedPools.all.push(inst);
+    }
+    return inst;
+  }
+
+  _syncPedestrianInstances() {
+    const pools = this._pedPools;
+    if (!pools) return;
+
+    const allPools = pools.all;
+    for (let i = 0; i < allPools.length; i++) {
+      allPools[i].count = 0;
+    }
+
+    const pushMat = (inst, mat4, colorHex = null) => {
+      const idx = inst.count;
+      if (idx >= inst.instanceMatrix.count) return;
+      inst.setMatrixAt(idx, mat4);
+      if (colorHex !== null) {
+        inst.setColorAt(idx, _PED_COLOR.setHex(colorHex));
+      }
+      inst.count = idx + 1;
+    };
+
+    const composePart = (parentMat, px, py, pz, rx, ry, rz) => {
+      _PED_POS.set(px, py, pz);
+      _PED_EULER.set(rx, ry, rz);
+      _PED_QUAT.setFromEuler(_PED_EULER);
+      _PED_LOCAL_MAT4.compose(_PED_POS, _PED_QUAT, _PED_SCALE_ONE);
+      _PED_WORLD_MAT4.multiplyMatrices(parentMat, _PED_LOCAL_MAT4);
+      return _PED_WORLD_MAT4;
+    };
+
+    for (let i = 0; i < this.pedestrians.length; i++) {
+      const ped = this.pedestrians[i];
+      const vis = ped.visual;
+      const root = vis?.root;
+      if (!root || !root.visible) continue;
+
+      _PED_QUAT.setFromEuler(root.rotation);
+      _PED_ROOT_MAT4.compose(root.position, _PED_QUAT, _PED_SCALE_ONE);
+
+      // Tronco + Decal
+      composePart(_PED_ROOT_MAT4, 0, 1.04, 0, 0, 0, 0);
+      pushMat(pools.torso, _PED_WORLD_MAT4, vis.torsoHex);
+
+      const decalKey = vis.torsoKey || 'casual_blue';
+      const decalPool = this._getPedSubPool(pools.decals, decalKey, () =>
+        new THREE.InstancedMesh(NPC_TORSO_DECAL_GEO, getSharedCivilianTorsoMaterial(decalKey), this._pedMaxCap)
+      );
+      pushMat(decalPool, _PED_WORLD_MAT4);
+
+      // Pernas esquerda e direita
+      composePart(_PED_ROOT_MAT4, -0.2, 0.62, 0, vis.leftLeg.rotation.x, 0, 0);
+      pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
+      composePart(_PED_ROOT_MAT4, 0.2, 0.62, 0, vis.rightLeg.rotation.x, 0, 0);
+      pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
+
+      // Cabeça + Shell de Expressão Facial
+      composePart(_PED_ROOT_MAT4, 0, 1.66, 0, 0, 0, 0);
+      pushMat(pools.head, _PED_WORLD_MAT4);
+
+      const faceKey = vis.faceKey || ped.currentFaceKey || 'civ_smile';
+      const facePool = this._getPedSubPool(pools.faces, faceKey, () =>
+        new THREE.InstancedMesh(NPC_FACE_SHELL_GEO, getSharedNpcFaceMaterial(faceKey), this._pedMaxCap)
+      );
+      pushMat(facePool, _PED_WORLD_MAT4);
+
+      // Braço esquerdo
+      composePart(_PED_ROOT_MAT4, -0.52, 1.33, 0, vis.leftArm.rotation.x, 0, vis.leftArm.rotation.z);
+      pushMat(pools.arms, _PED_WORLD_MAT4, vis.torsoHex);
+
+      // Braço direito + Prop da Mão + Flash de Câmera
+      composePart(_PED_ROOT_MAT4, 0.52, 1.33, 0, vis.rightArm.rotation.x, 0, vis.rightArm.rotation.z);
+      pushMat(pools.arms, _PED_WORLD_MAT4, vis.torsoHex);
+      _PED_ARM_MAT4.copy(_PED_WORLD_MAT4);
+
+      if (vis.handPropMesh?.visible && vis.handPropKey && SHARED_CIV_PROP_GEOS[vis.handPropKey]) {
+        const hpKey = vis.handPropKey;
+        const hpPool = this._getPedSubPool(pools.handProps, hpKey, () => {
+          const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHandPropMat, this._pedMaxCap);
+          im.setColorAt(0, _PED_COLOR.setHex(0xffffff));
+          return im;
+        });
+        composePart(_PED_ARM_MAT4, 0, -0.55, 0.13, 0, 0, 0);
+        pushMat(hpPool, _PED_WORLD_MAT4, vis.handPropColor);
+      }
+      if (vis.cameraFlashMesh?.visible) {
+        composePart(_PED_ARM_MAT4, 0, -0.48, 0.34, 0, 0, 0);
+        pushMat(pools.cameraFlash, _PED_WORLD_MAT4);
+      }
+
+      // Acessório de Cabeça
+      if (vis.headPropMesh?.visible && vis.headPropKey && SHARED_CIV_PROP_GEOS[vis.headPropKey]) {
+        const hpKey = vis.headPropKey;
+        const hpPool = this._getPedSubPool(pools.headProps, hpKey, () => {
+          const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHeadPropMat, this._pedMaxCap);
+          im.setColorAt(0, _PED_COLOR.setHex(0xffffff));
+          return im;
+        });
+        const yOff = hpKey === 'headband' ? 1.78 : hpKey === 'headphones' ? 1.74 : 1.83;
+        composePart(_PED_ROOT_MAT4, 0, yOff, 0, 0, 0, 0);
+        pushMat(hpPool, _PED_WORLD_MAT4, vis.headColor);
+      }
+
+      // Mochila nas costas
+      if (vis.backPropMesh?.visible) {
+        composePart(_PED_ROOT_MAT4, 0, 1.05, -0.31, 0, 0, 0);
+        pushMat(pools.backProp, _PED_WORLD_MAT4, vis.backPropColor);
+      }
+    }
+
+    for (let i = 0; i < allPools.length; i++) {
+      const inst = allPools[i];
+      if (inst.count > 0) {
+        inst.instanceMatrix.needsUpdate = true;
+        if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      }
+    }
+  }
+
   _buildCivilianLegoMinifig(archetypeKey, variantIdx = 0) {
     const list = ARCHETYPE_PRESETS[archetypeKey] || ARCHETYPE_PRESETS.casual;
     const preset = list[variantIdx % list.length];
@@ -1449,92 +1637,47 @@ export class LivingCityManager {
     const root = new THREE.Group();
     root.userData.skipStaticMerge = true;
 
-    const headMat = getLegoMaterial(LEGO_COLORS.yellow, { roughness: 0.22 });
-    const torsoBaseMat = getLegoMaterial(preset.torsoHex, { roughness: 0.22 });
-    const legMat = getLegoMaterial(preset.legHex, { roughness: 0.24 });
-
-    // Mescla cintura/pelve estática direto com o tronco na criação da geometria única se ainda não cacheada!
-    if (!LivingCityManager._mergedTorsoHipGeo) {
-      const tGeo = NPC_TRAPEZOID_TORSO_GEO.clone();
-      const hGeo = NPC_HIP_GEO.clone();
-      hGeo.translate(0, -0.4, 0);
-      LivingCityManager._mergedTorsoHipGeo = mergeBufferGeometries([tGeo, hGeo]);
-    }
-
-    const leftLeg = new THREE.Mesh(NPC_LEG_GEO, legMat);
+    const leftLeg = new THREE.Object3D();
     leftLeg.position.set(-0.2, 0.62, 0);
-    const rightLeg = new THREE.Mesh(NPC_LEG_GEO, legMat);
+    const rightLeg = new THREE.Object3D();
     rightLeg.position.set(0.2, 0.62, 0);
 
-    const torso = new THREE.Mesh(LivingCityManager._mergedTorsoHipGeo, torsoBaseMat);
+    const torso = new THREE.Object3D();
     torso.position.set(0, 1.04, 0);
-    const torsoDecal = new THREE.Mesh(
-      NPC_TORSO_DECAL_GEO,
-      getSharedCivilianTorsoMaterial(preset.torsoKey)
-    );
+    const torsoDecal = new THREE.Object3D();
     torsoDecal.position.set(0, 1.04, 0);
 
-    const head = new THREE.Mesh(NPC_HEAD_GEO, headMat);
+    const head = new THREE.Object3D();
     head.position.set(0, 1.66, 0);
-    const faceShell = new THREE.Mesh(
-      NPC_FACE_SHELL_GEO,
-      getSharedNpcFaceMaterial(preset.faceKey || 'civ_smile')
-    );
+    const faceShell = new THREE.Object3D();
     faceShell.position.set(0, 1.66, 0);
 
-    const leftArm = new THREE.Mesh(NPC_ARM_GEO, torsoBaseMat);
+    const leftArm = new THREE.Object3D();
     leftArm.position.set(-0.52, 1.33, 0);
     leftArm.rotation.z = 0.08;
-    const rightArm = new THREE.Mesh(NPC_ARM_GEO, torsoBaseMat);
+    const rightArm = new THREE.Object3D();
     rightArm.position.set(0.52, 1.33, 0);
     rightArm.rotation.z = -0.08;
 
-    root.add(leftLeg, rightLeg, torso, torsoDecal, head, faceShell, leftArm, rightArm);
+    const headPropMesh = new THREE.Object3D();
+    headPropMesh.visible = Boolean(preset.headProp && SHARED_CIV_PROP_GEOS[preset.headProp]);
+    headPropMesh.position.set(
+      0,
+      preset.headProp === 'headband' ? 1.78 : preset.headProp === 'headphones' ? 1.74 : 1.83,
+      0
+    );
 
-    // Acessório de Cabeça (Cabelo, Boné, Capacete de Obra, Headband ou Headphones)
-    let headPropMesh = null;
-    if (preset.headProp && SHARED_CIV_PROP_GEOS[preset.headProp]) {
-      headPropMesh = new THREE.Mesh(
-        SHARED_CIV_PROP_GEOS[preset.headProp],
-        getLegoMaterial(preset.headColor ?? 0x1e293b, { roughness: 0.24 })
-      );
-      headPropMesh.position.set(
-        0,
-        preset.headProp === 'headband' ? 1.78 : preset.headProp === 'headphones' ? 1.74 : 1.83,
-        0
-      );
-      root.add(headPropMesh);
-    }
+    const backPropMesh = new THREE.Object3D();
+    backPropMesh.visible = Boolean(preset.backProp && SHARED_CIV_PROP_GEOS[preset.backProp]);
+    backPropMesh.position.set(0, 1.05, -0.31);
 
-    // Mochila 3D nas Costas (Turistas / Jovens)
-    let backPropMesh = null;
-    if (preset.backProp && SHARED_CIV_PROP_GEOS[preset.backProp]) {
-      backPropMesh = new THREE.Mesh(
-        SHARED_CIV_PROP_GEOS[preset.backProp],
-        getLegoMaterial(preset.backPropColor ?? 0xd97706, { roughness: 0.25 })
-      );
-      backPropMesh.position.set(0, 1.05, -0.31);
-      root.add(backPropMesh);
-    }
+    const handPropMesh = new THREE.Object3D();
+    handPropMesh.visible = Boolean(preset.handProp && SHARED_CIV_PROP_GEOS[preset.handProp]);
+    handPropMesh.position.set(0, -0.55, 0.13);
 
-    // Acessório 3D Leve na Mão Direita (Maleta, Copo de Café, Câmera LEGO, Smartphone ou Sacola — ZERO ARMAS!)
-    let handPropMesh = null;
-    let cameraFlashMesh = null;
-    if (preset.handProp && SHARED_CIV_PROP_GEOS[preset.handProp]) {
-      handPropMesh = new THREE.Mesh(
-        SHARED_CIV_PROP_GEOS[preset.handProp],
-        getLegoMaterial(preset.handPropColor ?? 0x1e293b, { roughness: 0.22 })
-      );
-      handPropMesh.position.set(0, -0.55, 0.13);
-      rightArm.add(handPropMesh);
-
-      if (preset.handProp === 'camera') {
-        cameraFlashMesh = new THREE.Mesh(CAMERA_FLASH_GEO, SHARED_CAMERA_FLASH_MAT);
-        cameraFlashMesh.position.set(0, -0.48, 0.34);
-        cameraFlashMesh.visible = false;
-        rightArm.add(cameraFlashMesh);
-      }
-    }
+    const cameraFlashMesh = new THREE.Object3D();
+    cameraFlashMesh.visible = false;
+    cameraFlashMesh.position.set(0, -0.48, 0.34);
 
     return {
       root,
@@ -1550,6 +1693,16 @@ export class LivingCityManager {
       backPropMesh,
       handPropMesh,
       cameraFlashMesh,
+      torsoHex: preset.torsoHex,
+      legHex: preset.legHex,
+      torsoKey: preset.torsoKey,
+      faceKey: preset.faceKey || 'civ_smile',
+      headPropKey: preset.headProp || null,
+      headColor: preset.headColor ?? 0x1e293b,
+      backPropKey: preset.backProp || null,
+      backPropColor: preset.backPropColor ?? 0xd97706,
+      handPropKey: preset.handProp || null,
+      handPropColor: preset.handPropColor ?? 0x1e293b,
       preset
     };
   }
@@ -1568,46 +1721,23 @@ export class LivingCityManager {
     ped.normalFaceKey = preset.faceKey || 'civ_smile';
     ped.currentFaceKey = ped.normalFaceKey;
 
-    const torsoBaseMat = getLegoMaterial(preset.torsoHex, { roughness: 0.22 });
-    vis.torso.material = torsoBaseMat;
-    vis.leftArm.material = torsoBaseMat;
-    vis.rightArm.material = torsoBaseMat;
-    vis.torsoDecal.material = getSharedCivilianTorsoMaterial(preset.torsoKey);
-    vis.leftLeg.material = getLegoMaterial(preset.legHex, { roughness: 0.24 });
-    vis.rightLeg.material = vis.leftLeg.material;
-    vis.faceShell.material = getSharedNpcFaceMaterial(ped.normalFaceKey);
+    vis.torsoHex = preset.torsoHex;
+    vis.legHex = preset.legHex;
+    vis.torsoKey = preset.torsoKey;
+    vis.faceKey = ped.normalFaceKey;
+    vis.headPropKey = preset.headProp || null;
+    vis.headColor = preset.headColor ?? 0x1e293b;
+    vis.backPropKey = preset.backProp || null;
+    vis.backPropColor = preset.backPropColor ?? 0xd97706;
+    vis.handPropKey = preset.handProp || null;
+    vis.handPropColor = preset.handPropColor ?? 0x1e293b;
 
-    if (vis.headPropMesh) {
-      if (preset.headProp && SHARED_CIV_PROP_GEOS[preset.headProp]) {
-        vis.headPropMesh.visible = true;
-        vis.headPropMesh.geometry = SHARED_CIV_PROP_GEOS[preset.headProp];
-        vis.headPropMesh.material = getLegoMaterial(preset.headColor ?? 0x1e293b, { roughness: 0.24 });
-        vis.headPropMesh.position.y =
-          preset.headProp === 'headband' ? 1.78 : preset.headProp === 'headphones' ? 1.74 : 1.83;
-      } else {
-        vis.headPropMesh.visible = false;
-      }
-    }
-
-    if (vis.backPropMesh) {
-      vis.backPropMesh.visible = Boolean(preset.backProp);
-      if (preset.backProp) {
-        vis.backPropMesh.material = getLegoMaterial(preset.backPropColor ?? 0xd97706, { roughness: 0.25 });
-      }
-    }
-
-    if (vis.handPropMesh) {
-      if (preset.handProp && SHARED_CIV_PROP_GEOS[preset.handProp]) {
-        vis.handPropMesh.visible = true;
-        vis.handPropMesh.geometry = SHARED_CIV_PROP_GEOS[preset.handProp];
-        vis.handPropMesh.material = getLegoMaterial(preset.handPropColor ?? 0x1e293b, { roughness: 0.22 });
-      } else {
-        vis.handPropMesh.visible = false;
-      }
-    }
-    if (vis.cameraFlashMesh) {
-      vis.cameraFlashMesh.visible = false;
-    }
+    vis.headPropMesh.visible = Boolean(preset.headProp && SHARED_CIV_PROP_GEOS[preset.headProp]);
+    vis.headPropMesh.position.y =
+      preset.headProp === 'headband' ? 1.78 : preset.headProp === 'headphones' ? 1.74 : 1.83;
+    vis.backPropMesh.visible = Boolean(preset.backProp && SHARED_CIV_PROP_GEOS[preset.backProp]);
+    vis.handPropMesh.visible = Boolean(preset.handProp && SHARED_CIV_PROP_GEOS[preset.handProp]);
+    vis.cameraFlashMesh.visible = false;
   }
 
   _registerCivilianPedestrian({
@@ -1626,48 +1756,12 @@ export class LivingCityManager {
     const archetype = this._pickArchetypeForCoords(safe.x, safe.z, seed);
     const visual = this._buildCivilianLegoMinifig(archetype, seed);
 
-    // Garante que todos tenham slots reutilizáveis para reciclagem de bairro sem recriar Meshes
-    if (!visual.headPropMesh) {
-      visual.headPropMesh = new THREE.Mesh(
-        SHARED_CIV_PROP_GEOS.classic_hair,
-        getLegoMaterial(0x451a03, { roughness: 0.24 })
-      );
-      visual.headPropMesh.position.set(0, 1.83, 0);
-      visual.headPropMesh.visible = false;
-      visual.root.add(visual.headPropMesh);
-    }
-    if (!visual.backPropMesh) {
-      visual.backPropMesh = new THREE.Mesh(
-        SHARED_CIV_PROP_GEOS.backpack,
-        getLegoMaterial(0xd97706, { roughness: 0.25 })
-      );
-      visual.backPropMesh.position.set(0, 1.05, -0.31);
-      visual.backPropMesh.visible = false;
-      visual.root.add(visual.backPropMesh);
-    }
-    if (!visual.handPropMesh) {
-      visual.handPropMesh = new THREE.Mesh(
-        SHARED_CIV_PROP_GEOS.coffee_cup,
-        getLegoMaterial(0xf8fafc, { roughness: 0.22 })
-      );
-      visual.handPropMesh.position.set(0, -0.55, 0.13);
-      visual.handPropMesh.visible = false;
-      visual.rightArm.add(visual.handPropMesh);
-    }
-    if (!visual.cameraFlashMesh) {
-      visual.cameraFlashMesh = new THREE.Mesh(CAMERA_FLASH_GEO, SHARED_CAMERA_FLASH_MAT);
-      visual.cameraFlashMesh.position.set(0, -0.48, 0.34);
-      visual.cameraFlashMesh.visible = false;
-      visual.rightArm.add(visual.cameraFlashMesh);
-    }
-
     const terrainY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(safe.x, safe.z) : 0;
     const baseY = Math.max(0.28, terrainY + 0.28);
     visual.root.position.set(safe.x, baseY, safe.z);
     if (isChatGroup) {
       visual.root.rotation.y = chatPartnerAngle;
     }
-    this.scene.add(visual.root);
 
     const ped = {
       id: seed,
@@ -1862,6 +1956,7 @@ export class LivingCityManager {
         });
       }
     }
+    this._syncPedestrianInstances();
   }
 
   /**
@@ -1949,8 +2044,8 @@ export class LivingCityManager {
   _setPedestrianFace(ped, faceKey) {
     if (ped.currentFaceKey === faceKey) return;
     ped.currentFaceKey = faceKey;
-    if (ped.visual?.faceShell) {
-      ped.visual.faceShell.material = getSharedNpcFaceMaterial(faceKey);
+    if (ped.visual) {
+      ped.visual.faceKey = faceKey;
     }
   }
 
@@ -2293,6 +2388,7 @@ export class LivingCityManager {
         ped.destructible.groundY = terrainY;
       }
     }
+    this._syncPedestrianInstances();
   }
 
   // ============================================================================

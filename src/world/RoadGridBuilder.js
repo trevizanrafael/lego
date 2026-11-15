@@ -3,7 +3,7 @@ import {
   LEGO_COLORS,
   getLegoMaterial
 } from '../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from './BuildingGenerator.js';
+import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, getGeometryChunkKey } from './BuildingGenerator.js';
 import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from './MetroSystemBuilder.js';
 import { getUrbanCityReliefY } from './ViaductAndReliefBuilder.js';
 
@@ -84,6 +84,43 @@ function createSubdividedTerrainSectorGeo(minX, maxX, minZ, maxZ, cellSize = 18)
   return geo;
 }
 
+function pushChunkedTerrainSectorGeos(bucket, minX, maxX, minZ, maxZ, cellSize = 18, maxTile = 512) {
+  for (let x0 = minX; x0 < maxX - 0.01; x0 += maxTile) {
+    const x1 = Math.min(maxX, x0 + maxTile);
+    for (let z0 = minZ; z0 < maxZ - 0.01; z0 += maxTile) {
+      const z1 = Math.min(maxZ, z0 + maxTile);
+      bucket.push(createSubdividedTerrainSectorGeo(x0, x1, z0, z1, cellSize));
+    }
+  }
+}
+
+function addChunkedArrayToScene(scene, geos, mat, opts = {}) {
+  const chunkSize = opts.chunkSize ?? 512;
+  const castShadow = Boolean(opts.castShadow);
+  const receiveShadow = Boolean(opts.receiveShadow);
+  const byChunk = new Map();
+  for (let i = 0; i < geos.length; i++) {
+    const g = geos[i];
+    const k = getGeometryChunkKey(g, chunkSize);
+    let arr = byChunk.get(k);
+    if (!arr) {
+      arr = [];
+      byChunk.set(k, arr);
+    }
+    arr.push(g);
+  }
+  for (const list of byChunk.values()) {
+    if (list.length === 0) continue;
+    const mesh = new THREE.Mesh(mergeBufferGeometries(list), mat);
+    mesh.castShadow = castShadow;
+    mesh.receiveShadow = receiveShadow;
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    scene.add(mesh);
+  }
+  geos.length = 0;
+}
+
 /**
  * Constrói o Oceano Atlântico ESTRITAMENTE fora da terra firme (ZERO água sob a Ilha Continental ou Subsolo do Metrô!)
  * e gera as malhas subdivididas com relevo urbano contínuo na Ilha Principal e na Península Leste!
@@ -156,46 +193,42 @@ export function buildOceanAndMainIsland(world) {
       const rcx = (r.minX + r.maxX) * 0.5;
       const rcz = (r.minZ + r.maxZ) * 0.5;
       const topY = getUrbanCityReliefY(rcx, rcz);
-      islandGeos.push(makeTranslatedBox(rw, 0.5, rd, rcx, topY - 0.25, rcz));
+      islandGeos.push(makeFastBox(rw, 0.5, rd, rcx, topY - 0.25, rcz));
     }
   }
 
   // Faixa Oeste do Aeroporto (plana, malha leve) + Malha Urbana/Subúrbio fatiada apenas nos `cutZones` mínimos (células de 14m)
-  islandGeos.push(createSubdividedTerrainSectorGeo(-1825, -1040, -1320, 780, 28));
+  pushChunkedTerrainSectorGeos(islandGeos, -1825, -1040, -1320, 780, 28);
   const urbanTerrainSlices = sliceRectAroundCutouts(
     { minX: -1040, maxX: 540, minZ: -1320, maxZ: 780 },
     cutZones
   );
   for (const s of urbanTerrainSlices) {
     if (s.maxX - s.minX <= 0.05 || s.maxZ - s.minZ <= 0.05) continue;
-    islandGeos.push(createSubdividedTerrainSectorGeo(s.minX, s.maxX, s.minZ, s.maxZ, 14));
+    pushChunkedTerrainSectorGeos(islandGeos, s.minX, s.maxX, s.minZ, s.maxZ, 14);
   }
 
   // Saias costeiras de concreto/rocha nas bordas externas da Ilha Principal (evita frestas nas falésias/margens)
   islandGeos.push(
-    makeTranslatedBox(2365, 4.5, 1.5, -642.5, -2.25, -1319.25),
-    makeTranslatedBox(2365, 4.5, 1.5, -642.5, -2.25, 779.25),
-    makeTranslatedBox(1.5, 4.5, 2100, -1824.25, -2.25, -270),
-    makeTranslatedBox(1.5, 4.5, 2100, 539.25, -2.25, -270)
+    makeFastBox(2365, 4.5, 1.5, -642.5, -2.25, -1319.25),
+    makeFastBox(2365, 4.5, 1.5, -642.5, -2.25, 779.25),
+    makeFastBox(1.5, 4.5, 2100, -1824.25, -2.25, -270),
+    makeFastBox(1.5, 4.5, 2100, 539.25, -2.25, -270)
   );
 
-  const mainIsland = new THREE.Mesh(mergeBufferGeometries(islandGeos), asphaltMat);
-  for (let i = 0; i < islandGeos.length; i++) islandGeos[i].dispose();
-  mainIsland.receiveShadow = true;
-  world.scene.add(mainIsland);
+  world.oceanMaterial = oceanMat;
+  world.oceanMesh = mergedOcean;
+  addChunkedArrayToScene(world.scene, islandGeos, asphaltMat, { receiveShadow: true, chunkSize: 512 });
 
   // 5) Península Leste do Distrito Industrial & Porto (X = 580..1628, Z = -1320..+735) com Relevo Industrial (+7.0m)!
   const eastGeos = [
-    createSubdividedTerrainSectorGeo(580, 1628, -1320, 735, 20),
-    makeTranslatedBox(1048, 4.5, 1.5, 1104, -2.25, -1319.25),
-    makeTranslatedBox(1048, 4.5, 1.5, 1104, -2.25, 734.25),
-    makeTranslatedBox(1.5, 4.5, 2055, 580.75, -2.25, -292.5),
-    makeTranslatedBox(1.5, 4.5, 2055, 1627.25, -2.25, -292.5)
+    makeFastBox(1048, 4.5, 1.5, 1104, -2.25, -1319.25),
+    makeFastBox(1048, 4.5, 1.5, 1104, -2.25, 734.25),
+    makeFastBox(1.5, 4.5, 2055, 580.75, -2.25, -292.5),
+    makeFastBox(1.5, 4.5, 2055, 1627.25, -2.25, -292.5)
   ];
-  const eastDocks = new THREE.Mesh(mergeBufferGeometries(eastGeos), asphaltMat);
-  for (let i = 0; i < eastGeos.length; i++) eastGeos[i].dispose();
-  eastDocks.receiveShadow = true;
-  world.scene.add(eastDocks);
+  pushChunkedTerrainSectorGeos(eastGeos, 580, 1628, -1320, 735, 20);
+  addChunkedArrayToScene(world.scene, eastGeos, asphaltMat, { receiveShadow: true, chunkSize: 512 });
 }
 
 /**
@@ -229,7 +262,7 @@ export function buildUrbanRoadGridAndMedians(world) {
       const ym = (y0 + y1) * 0.5;
       const dy = y1 - y0;
       if (Math.abs(dy) < 0.004) {
-        geos.push(makeTranslatedBox(widthX, thickness, Math.abs(dz) + 0.04, xLine, ym, zm));
+        geos.push(makeFastBox(widthX, thickness, Math.abs(dz) + 0.04, xLine, ym, zm));
       } else {
         const segLen = Math.hypot(dz, dy) + 0.08;
         const g = new THREE.BoxGeometry(widthX, thickness, segLen);
@@ -253,7 +286,7 @@ export function buildUrbanRoadGridAndMedians(world) {
       const ym = (y0 + y1) * 0.5;
       const dy = y1 - y0;
       if (Math.abs(dy) < 0.004) {
-        geos.push(makeTranslatedBox(Math.abs(dx) + 0.04, thickness, depthZ, xm, ym, zLine));
+        geos.push(makeFastBox(Math.abs(dx) + 0.04, thickness, depthZ, xm, ym, zLine));
       } else {
         const segLen = Math.hypot(dx, dy) + 0.08;
         const g = new THREE.BoxGeometry(segLen, thickness, depthZ);
@@ -356,8 +389,8 @@ export function buildUrbanRoadGridAndMedians(world) {
         const yn = sampleRoadY(ix + s, iz - 16.0) + 0.055;
         const ys = sampleRoadY(ix + s, iz + 16.0) + 0.055;
         whiteGeos.push(
-          makeTranslatedBox(1.2, 0.045, 4.2, ix + s, yn, iz - 16.0),
-          makeTranslatedBox(1.2, 0.045, 4.2, ix + s, ys, iz + 16.0)
+          makeFastBox(1.2, 0.045, 4.2, ix + s, yn, iz - 16.0),
+          makeFastBox(1.2, 0.045, 4.2, ix + s, ys, iz + 16.0)
         );
       }
 
@@ -365,49 +398,48 @@ export function buildUrbanRoadGridAndMedians(world) {
       const tz = iz + 15.2;
       const baseTY = sampleRoadY(tx, tz) + 0.28;
       poleGeos.push(
-        makeTranslatedBox(0.38, 6.2, 0.38, tx, baseTY + 3.1, tz),
-        makeTranslatedBox(3.8, 0.24, 0.24, tx - 1.8, baseTY + 5.9, tz),
-        makeTranslatedBox(0.55, 1.3, 0.55, tx - 3.2, baseTY + 5.6, tz)
+        makeFastBox(0.38, 6.2, 0.38, tx, baseTY + 3.1, tz),
+        makeFastBox(3.8, 0.24, 0.24, tx - 1.8, baseTY + 5.9, tz),
+        makeFastBox(0.55, 1.3, 0.55, tx - 3.2, baseTY + 5.6, tz)
       );
     }
   }
 
-  const buildMerged = (geos, mat, receiveShadow = false) => {
-    const m = new THREE.Mesh(mergeBufferGeometries(geos), mat);
-    for (let i = 0; i < geos.length; i++) geos[i].dispose();
-    m.receiveShadow = receiveShadow;
-    return m;
-  };
-
-  const yellowMesh = buildMerged(
+  addChunkedArrayToScene(
+    world.scene,
     yellowGeos,
     new THREE.MeshBasicMaterial({
       color: 0xfacc15,
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -2
-    })
+    }),
+    { receiveShadow: false }
   );
-  const whiteMesh = buildMerged(
+  addChunkedArrayToScene(
+    world.scene,
     whiteGeos,
     new THREE.MeshBasicMaterial({
       color: 0xf8fafc,
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -2
-    })
+    }),
+    { receiveShadow: false }
   );
-  const medianMesh = buildMerged(
+  addChunkedArrayToScene(
+    world.scene,
     medianGeos,
     new THREE.MeshStandardMaterial({ color: LEGO_COLORS.concrete, roughness: 0.5 }),
-    true
+    { receiveShadow: true }
   );
-  const turfMesh = buildMerged(
+  addChunkedArrayToScene(
+    world.scene,
     turfGeos,
     new THREE.MeshStandardMaterial({ color: LEGO_COLORS.green, roughness: 0.5 }),
-    true
+    { receiveShadow: true }
   );
-  const poleMesh = buildMerged(poleGeos, getLegoMaterial(LEGO_COLORS.charcoal));
-
-  world.scene.add(yellowMesh, whiteMesh, medianMesh, turfMesh, poleMesh);
+  addChunkedArrayToScene(world.scene, poleGeos, getLegoMaterial(LEGO_COLORS.charcoal), {
+    receiveShadow: false
+  });
 }

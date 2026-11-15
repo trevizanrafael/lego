@@ -4,7 +4,7 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
+import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, flushSpatialChunkedBuckets } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 const TROPICAL_WALL_KEYS = [
@@ -116,26 +116,21 @@ class SouthBeachBatcher {
   addBox(key, w, h, d, x, y, z) {
     const arr = this.buckets.get(key);
     if (!arr) return;
-    arr.push(makeTranslatedBox(w, h, d, x, y, z));
+    arr.push(makeFastBox(w, h, d, x, y, z));
   }
 
   flush(scene) {
-    for (const [key, geos] of this.buckets.entries()) {
-      if (geos.length === 0) continue;
-      const merged = mergeBufferGeometries(geos);
-      if (!merged) continue;
-      const mat = this.materials.get(key);
-      const mesh = new THREE.Mesh(merged, mat);
-      const isShadowCaster =
-        key.startsWith('coastal_') ||
-        key.startsWith('umb_') ||
-        key === 'palm_trunk' ||
-        key === 'palm_leaf' ||
-        key === 'wood_pier';
-      mesh.castShadow = !mat.isMeshBasicMaterial && isShadowCaster;
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-    }
+    flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
+      chunkSize: 768,
+      castShadowFn: (key, mat) =>
+        !mat.isMeshBasicMaterial &&
+        (key.startsWith('coastal_') ||
+          key.startsWith('umb_') ||
+          key === 'palm_trunk' ||
+          key === 'palm_leaf' ||
+          key === 'wood_pier'),
+      receiveShadowFn: () => true
+    });
   }
 }
 

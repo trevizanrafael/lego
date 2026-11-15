@@ -1,7 +1,7 @@
 // Batcher estático (merge de geometrias por material) do metrô.
 import * as THREE from 'three';
 import { SHARED_STUD_GEO, getLegoMaterial } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
+import { mergeBufferGeometries, makeFastBox, flushSpatialChunkedBuckets } from '../BuildingGenerator.js';
 
 // ============================================================================
 // 3. BATCHER ESTÁTICO DO SISTEMA DE METRÔ (POUCOS DRAW CALLS — 60 FPS!)
@@ -48,7 +48,7 @@ export function createMetroBatcher() {
   return {
     studPositions,
     addBox(key, w, h, d, x, y, z) {
-      buckets.get(key).push(makeTranslatedBox(w, h, d, x, y, z));
+      buckets.get(key).push(makeFastBox(w, h, d, x, y, z));
     },
     addOrientedBox(key, w, h, d, x, y, z, rotX = 0, rotY = 0, rotZ = 0) {
       pushMatrixGeo(key, new THREE.BoxGeometry(w, h, d), x, y, z, rotX, rotY, rotZ);
@@ -65,18 +65,11 @@ export function createMetroBatcher() {
         'viaduct_deck',
         'viaduct_girder'
       ]);
-      for (const [key, geos] of buckets.entries()) {
-        if (geos.length === 0) continue;
-        const merged = mergeBufferGeometries(geos);
-        for (let i = 0; i < geos.length; i++) geos[i].dispose();
-        geos.length = 0;
-        if (!merged) continue;
-        const mat = palette[key];
-        const mesh = new THREE.Mesh(merged, mat);
-        mesh.castShadow = shadowKeys.has(key);
-        mesh.receiveShadow = !mat.isMeshBasicMaterial;
-        scene.add(mesh);
-      }
+      flushSpatialChunkedBuckets(scene, buckets, palette, {
+        chunkSize: 512,
+        castShadowFn: (key) => shadowKeys.has(key),
+        receiveShadowFn: (_key, mat) => !mat.isMeshBasicMaterial
+      });
       buckets.clear();
 
       if (studPositions.length > 0) {
