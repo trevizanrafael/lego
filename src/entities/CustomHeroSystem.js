@@ -1,6 +1,19 @@
 import * as THREE from 'three';
-import { getLegoMaterial, createLegoBrick, SHARED_STUD_GEO } from '../materials/LegoMaterials.js';
+import {
+  getLegoMaterial,
+  createLegoBrick,
+  SHARED_STUD_GEO,
+  markAsSharedAsset,
+  disposeTransientObject3D
+} from '../materials/LegoMaterials.js';
 import { soundFX } from '../audio/SoundFX.js';
+
+const CUSTOM_FACE_TEX_CACHE = new Map();
+const CUSTOM_TORSO_TEX_CACHE = new Map();
+const _OP09_RING_GEO = markAsSharedAsset(new THREE.RingGeometry(0.65, 1.05, 24).rotateX(-Math.PI / 2));
+const _OP09_ICE_SHARD_GEO = markAsSharedAsset(new THREE.ConeGeometry(0.38, 1.65, 5));
+const _OP09_GHOST_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.85, 1.85, 0.48));
+const _OP09_TMP_VEC = new THREE.Vector3();
 
 // ============================================================================
 // 1. PALETAS DE CORES E CATÁLOGO 100% INÉDITO DO OPERADOR OP-09
@@ -456,6 +469,10 @@ export function drawCustomFaceDetails2D(ctx, cx, cy, scale, faceId) {
 export function createCustomFaceTexture(cfg = ACTIVE_CUSTOM_HERO) {
   const headCol = findHeadColor(cfg.isCreated ? cfg.headColorId : 'lego_yellow');
   const faceId = cfg.isCreated ? cfg.faceId : 'classic_smile';
+  const cacheKey = `${headCol.id}_${faceId}`;
+  if (CUSTOM_FACE_TEX_CACHE.has(cacheKey)) {
+    return CUSTOM_FACE_TEX_CACHE.get(cacheKey);
+  }
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -467,12 +484,19 @@ export function createCustomFaceTexture(cfg = ACTIVE_CUSTOM_HERO) {
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  markAsSharedAsset(tex);
+  CUSTOM_FACE_TEX_CACHE.set(cacheKey, tex);
   return tex;
 }
 
 export function createCustomTorsoTexture(cfg = ACTIVE_CUSTOM_HERO) {
   const torsoCol = findPaletteColor(cfg.isCreated ? cfg.torsoColorId : 'blue', 0);
   const printId = cfg.isCreated ? cfg.torsoPrintId : 'basic_shirt';
+  const cacheKey = `${torsoCol.id}_${printId}`;
+  if (CUSTOM_TORSO_TEX_CACHE.has(cacheKey)) {
+    return CUSTOM_TORSO_TEX_CACHE.get(cacheKey);
+  }
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -595,6 +619,9 @@ export function createCustomTorsoTexture(cfg = ACTIVE_CUSTOM_HERO) {
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  markAsSharedAsset(tex);
+  CUSTOM_TORSO_TEX_CACHE.set(cacheKey, tex);
   return tex;
 }
 
@@ -1203,7 +1230,9 @@ export class CustomHeroPowerRuntime {
     if (!this.destructibles) return;
     const fx = Math.sin(yaw);
     const fz = Math.cos(yaw);
-    for (const obj of this.destructibles.objects) {
+    const candidates = this.destructibles.getObjectsNear(origin.x, origin.z, maxDist + 2.0);
+    for (let i = 0; i < candidates.length; i++) {
+      const obj = candidates[i];
       if (obj.destroyed || obj.isDriven) continue;
       const dx = obj.mesh.position.x - origin.x;
       const dz = obj.mesh.position.z - origin.z;
@@ -1220,7 +1249,9 @@ export class CustomHeroPowerRuntime {
 
   _damageRadius(center, radius, damage, canBreakHeavy = false) {
     if (!this.destructibles) return;
-    for (const obj of this.destructibles.objects) {
+    const candidates = this.destructibles.getObjectsNear(center.x, center.z, radius + 2.0);
+    for (let i = 0; i < candidates.length; i++) {
+      const obj = candidates[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.mesh.position.x - center.x, obj.mesh.position.z - center.z);
       if (d <= radius) {
@@ -1239,9 +1270,7 @@ export class CustomHeroPowerRuntime {
       opacity: 0.85,
       side: THREE.DoubleSide
     });
-    const geo = new THREE.RingGeometry(0.65, 1.05, 24);
-    geo.rotateX(-Math.PI / 2);
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(_OP09_RING_GEO, mat);
     mesh.position.set(pos.x, pos.y + 0.25, pos.z);
     this.scene.add(mesh);
     this.expandingRings.push({ mesh, mat, life: duration, maxLife: duration, maxScale });
@@ -1258,7 +1287,7 @@ export class CustomHeroPowerRuntime {
       opacity: 0.82
     });
     for (let i = 0; i < 3; i++) {
-      const shard = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.65, 5), iceMat);
+      const shard = new THREE.Mesh(_OP09_ICE_SHARD_GEO, iceMat);
       shard.position.set((i - 1) * 0.42, 0.75, (i % 2) * 0.25);
       shard.rotation.z = (i - 1) * 0.28;
       group.add(shard);
@@ -1327,7 +1356,7 @@ export class CustomHeroPowerRuntime {
           transparent: true,
           opacity: 0.52
         });
-        const ghost = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.85, 0.48), ghostMat);
+        const ghost = new THREE.Mesh(_OP09_GHOST_GEO, ghostMat);
         ghost.position.set(c.position.x, c.position.y + 0.95, c.position.z);
         ghost.rotation.y = c.facingAngle;
         this.scene.add(ghost);
@@ -1341,6 +1370,7 @@ export class CustomHeroPowerRuntime {
       a.mat.opacity = Math.max(0, a.life * 1.3);
       if (a.life <= 0) {
         this.scene.remove(a.mesh);
+        disposeTransientObject3D(a.mesh);
         this.afterimages.splice(i, 1);
       }
     }
@@ -1375,19 +1405,23 @@ export class CustomHeroPowerRuntime {
           p.life = 0;
         }
       } else if (p.kind === 'cryo' && pos.y <= gY + 0.25) {
-        this._spawnIceCrystalCluster(new THREE.Vector3(pos.x, gY, pos.z));
+        _OP09_TMP_VEC.set(pos.x, gY, pos.z);
+        this._spawnIceCrystalCluster(_OP09_TMP_VEC);
         this._damageRadius(pos, 5.5, 90, false);
         p.life = 0;
       }
 
       if (p.life > 0 && p.kind !== 'sonic' && this.destructibles) {
-        for (const obj of this.destructibles.objects) {
+        const nearby = this.destructibles.getObjectsNear(pos.x, pos.z, 6.0);
+        for (let ni = 0; ni < nearby.length; ni++) {
+          const obj = nearby[ni];
           if (obj.destroyed || obj.isDriven || obj.isAlliedToPlayer) continue;
           const d = Math.hypot(obj.mesh.position.x - pos.x, obj.mesh.position.z - pos.z);
           if (d <= obj.radius + 0.85 && Math.abs(pos.y - (obj.mesh.position.y + 1.0)) < 2.2) {
             this.destructibles.damageObject(obj, 95, pos, false, { canBreakCrackedWall: true });
             if (p.kind === 'cryo') {
-              this._spawnIceCrystalCluster(new THREE.Vector3(pos.x, obj.groundY || gY, pos.z));
+              _OP09_TMP_VEC.set(pos.x, obj.groundY || gY, pos.z);
+              this._spawnIceCrystalCluster(_OP09_TMP_VEC);
             } else {
               this._spawnExpandingRing(pos, 0x22c55e, 7.5, 0.32);
             }
@@ -1399,6 +1433,7 @@ export class CustomHeroPowerRuntime {
 
       if (p.life <= 0) {
         this.scene.remove(p.mesh);
+        disposeTransientObject3D(p.mesh);
         this.projectiles.splice(i, 1);
       }
     }
@@ -1410,6 +1445,7 @@ export class CustomHeroPowerRuntime {
       ic.mat.opacity = Math.min(0.82, Math.max(0, ic.life * 0.6));
       if (ic.life <= 0) {
         this.scene.remove(ic.group);
+        disposeTransientObject3D(ic.group);
         this.iceCrystals.splice(i, 1);
       }
     }
@@ -1423,6 +1459,7 @@ export class CustomHeroPowerRuntime {
       r.mat.opacity = (1.0 - u) * 0.85;
       if (r.life <= 0) {
         this.scene.remove(r.mesh);
+        disposeTransientObject3D(r.mesh);
         this.expandingRings.splice(i, 1);
       }
     }
@@ -1434,19 +1471,22 @@ export class CustomHeroPowerRuntime {
       sg.accretion.rotation.z += dt * 9.0;
 
       if (this.destructibles) {
-        for (const obj of this.destructibles.objects) {
+        const nearby = this.destructibles.getObjectsNear(sg.pos.x, sg.pos.z, 22.5);
+        for (let ni = 0; ni < nearby.length; ni++) {
+          const obj = nearby[ni];
           if (obj.destroyed || obj.isDriven || obj.goldOnly || obj.type === 'bank_vault_door') continue;
           const dx = sg.pos.x - obj.mesh.position.x;
           const dz = sg.pos.z - obj.mesh.position.z;
           const d = Math.hypot(dx, dz);
           if (d < 22.0 && d > 1.4) {
+            this.destructibles.wakeObjectMatrix?.(obj.mesh);
             obj.mesh.position.x += (dx / d) * 14.0 * dt;
             obj.mesh.position.z += (dz / d) * 14.0 * dt;
             obj.basePos.copy(obj.mesh.position);
           }
         }
         // Magnetiza todos os Studs num raio de 22m!
-        for (const studList of [this.destructibles.studs, this.destructibles.ambientStuds]) {
+        for (const studList of [this.destructibles.studsList, this.destructibles.ambientStuds]) {
           if (!Array.isArray(studList)) continue;
           for (const st of studList) {
             if (st.collected) continue;
@@ -1462,6 +1502,7 @@ export class CustomHeroPowerRuntime {
         this._damageRadius(sg.pos, 14.0, 220, true);
         soundFX.playLegoBreak(true);
         this.scene.remove(sg.group);
+        disposeTransientObject3D(sg.group);
         this.singularities.splice(i, 1);
       }
     }
@@ -1469,8 +1510,8 @@ export class CustomHeroPowerRuntime {
     // Chuva de 5 Meteoros LEGO
     for (let i = this.meteors.length - 1; i >= 0; i--) {
       const m = this.meteors[i];
-      const toTarget = m.target.clone().sub(m.mesh.position);
-      const dist = toTarget.length();
+      _OP09_TMP_VEC.copy(m.target).sub(m.mesh.position);
+      const dist = _OP09_TMP_VEC.length();
       m.mesh.rotation.x += dt * 6;
       m.mesh.rotation.y += dt * 5;
       if (dist <= m.speed * dt + 0.6) {
@@ -1478,9 +1519,10 @@ export class CustomHeroPowerRuntime {
         this._damageRadius(m.target, 9.5, 175, true);
         soundFX.playLegoBreak(true);
         this.scene.remove(m.mesh);
+        disposeTransientObject3D(m.mesh);
         this.meteors.splice(i, 1);
       } else {
-        m.mesh.position.addScaledVector(toTarget.normalize(), m.speed * dt);
+        m.mesh.position.addScaledVector(_OP09_TMP_VEC.multiplyScalar(1 / Math.max(0.001, dist)), m.speed * dt);
       }
     }
   }

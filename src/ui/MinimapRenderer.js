@@ -8,6 +8,163 @@ function normalizeAngleDiff(a, b) {
   return d;
 }
 
+const STATIC_MAP_MIN_WX = -1950;
+const STATIC_MAP_MIN_WZ = -1750;
+const STATIC_MAP_SPAN = 3900;
+const STATIC_MAP_PX = 2340; // 0.60 px/m (nitidez 1:1 até zoom máximo de 175m)
+
+function getStaticMinimapCache(world) {
+  if (!world) return null;
+  const bldCount = world.mapBuildings?.length || 0;
+  const rdCount = world.mapRoads?.length || 0;
+  const blkCount = world.mapBlocks?.length || 0;
+  if (
+    world._staticMinimapCache &&
+    world._staticMinimapCache.bldCount === bldCount &&
+    world._staticMinimapCache.rdCount === rdCount &&
+    world._staticMinimapCache.blkCount === blkCount
+  ) {
+    return world._staticMinimapCache;
+  }
+
+  let canvas = null;
+  if (typeof OffscreenCanvas === 'function') {
+    try {
+      canvas = new OffscreenCanvas(STATIC_MAP_PX, STATIC_MAP_PX);
+    } catch (_) {
+      canvas = null;
+    }
+  }
+  if (!canvas && typeof document !== 'undefined' && typeof document.createElement === 'function') {
+    canvas = document.createElement('canvas');
+    canvas.width = STATIC_MAP_PX;
+    canvas.height = STATIC_MAP_PX;
+  }
+  const cctx = canvas?.getContext?.('2d');
+  if (!cctx) return null;
+
+  const pxPerMeter = STATIC_MAP_PX / STATIC_MAP_SPAN;
+  const toX = (wx) => (wx - STATIC_MAP_MIN_WX) * pxPerMeter;
+  const toY = (wz) => (wz - STATIC_MAP_MIN_WZ) * pxPerMeter;
+
+  // Fundo Oceano Escuro
+  cctx.fillStyle = '#061322';
+  cctx.fillRect(0, 0, STATIC_MAP_PX, STATIC_MAP_PX);
+
+  // 1. Massa Continental + Ilha da Prisão
+  cctx.fillStyle = '#141821';
+  cctx.fillRect(toX(-1825), toY(-1320), 2465 * pxPerMeter, 2365 * pxPerMeter);
+  cctx.fillRect(toX(580), toY(-1320), 1048 * pxPerMeter, 2055 * pxPerMeter);
+  cctx.fillRect(toX(955), toY(1120), 840 * pxPerMeter, 860 * pxPerMeter);
+
+  // 2. Quarteirões / Calçadas / Parques / Areia / Pátios / Morro da CDD
+  if (Array.isArray(world.mapBlocks)) {
+    cctx.strokeStyle = 'rgba(51, 65, 85, 0.65)';
+    cctx.lineWidth = 0.9;
+    for (let i = 0; i < world.mapBlocks.length; i++) {
+      const blk = world.mapBlocks[i];
+      cctx.fillStyle = blk.color || '#262b38';
+      const bx = toX(blk.x - blk.w * 0.5);
+      const by = toY(blk.z - blk.d * 0.5);
+      const bw = blk.w * pxPerMeter;
+      const bd = blk.d * pxPerMeter;
+      cctx.fillRect(bx, by, bw, bd);
+      cctx.strokeRect(bx, by, bw, bd);
+    }
+  }
+
+  // 3. Águas Internas
+  if (Array.isArray(world.mapWater)) {
+    cctx.fillStyle = '#0284c7';
+    for (let i = 0; i < world.mapWater.length; i++) {
+      const wt = world.mapWater[i];
+      cctx.fillRect(
+        toX(wt.x - wt.w * 0.5),
+        toY(wt.z - wt.d * 0.5),
+        wt.w * pxPerMeter,
+        wt.d * pxPerMeter
+      );
+    }
+  }
+
+  // 4. Ruas, Ladeiras da CDD, Vias do Porto e Avenidas
+  if (Array.isArray(world.mapRoads)) {
+    for (let i = 0; i < world.mapRoads.length; i++) {
+      const rd = world.mapRoads[i];
+      cctx.fillStyle = rd.isMain ? '#090c12' : '#11151f';
+      cctx.fillRect(
+        toX(rd.x - rd.w * 0.5),
+        toY(rd.z - rd.d * 0.5),
+        rd.w * pxPerMeter,
+        rd.d * pxPerMeter
+      );
+    }
+  }
+
+  // 5. Contorno Preciso dos Prédios, Barracos, Galpões e Contêineres
+  if (Array.isArray(world.mapBuildings)) {
+    for (let i = 0; i < world.mapBuildings.length; i++) {
+      const bld = world.mapBuildings[i];
+      const bx = toX(bld.x - bld.w * 0.5);
+      const by = toY(bld.z - bld.d * 0.5);
+      const bw = bld.w * pxPerMeter;
+      const bd = bld.d * pxPerMeter;
+      cctx.fillStyle = bld.color || '#334155';
+      cctx.strokeStyle = bld.isLandmark ? '#facc15' : '#090a0d';
+      cctx.lineWidth = bld.isLandmark ? 1.5 : 1.0;
+      cctx.fillRect(bx, by, bw, bd);
+      cctx.strokeRect(bx, by, bw, bd);
+    }
+  }
+
+  // 5.2 Linha Circular do Metrô LEGO (estática)
+  if (Array.isArray(world.metroLoopWaypoints) && world.metroLoopWaypoints.length > 2) {
+    const wps = world.metroLoopWaypoints;
+    for (let i = 0; i < wps.length; i++) {
+      const a = wps[i];
+      const b = wps[(i + 1) % wps.length];
+      const isUnderground = a.y < -0.5 && b.y < -0.5;
+      cctx.save();
+      if (isUnderground && typeof cctx.setLineDash === 'function') {
+        cctx.setLineDash([4, 3]);
+      }
+      cctx.strokeStyle = isUnderground ? 'rgba(6, 182, 212, 0.85)' : '#22d3ee';
+      cctx.lineWidth = isUnderground ? 2.0 : 2.6;
+      cctx.beginPath();
+      cctx.moveTo(toX(a.x), toY(a.z));
+      cctx.lineTo(toX(b.x), toY(b.z));
+      cctx.stroke();
+      cctx.restore();
+    }
+  }
+
+  // 5.3b Estações do Metrô (estáticas)
+  if (Array.isArray(world.metroStationMarkers)) {
+    for (let i = 0; i < world.metroStationMarkers.length; i++) {
+      const st = world.metroStationMarkers[i];
+      const sx = toX(st.x);
+      const sy = toY(st.z);
+      cctx.fillStyle = '#facc15';
+      cctx.strokeStyle = '#090a0d';
+      cctx.lineWidth = 1.6;
+      cctx.fillRect(sx - 4.5, sy - 4.5, 9, 9);
+      cctx.strokeRect(sx - 4.5, sy - 4.5, 9, 9);
+      cctx.fillStyle = '#090a0d';
+      cctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+    }
+  }
+
+  const cache = {
+    canvas,
+    pxPerMeter,
+    bldCount,
+    rdCount,
+    blkCount
+  };
+  world._staticMinimapCache = cache;
+  return cache;
+}
+
 /**
  * Renderizador do Radar Local Dinamico (Minimapa na HUD — Zero Emojis):
  * - Zoom dinamico por velocidade (175m a pe -> ate 340m voando/dirigindo rapido).
@@ -52,10 +209,13 @@ export function renderMinimapRadar(
     const alt = Math.round(playerPos.y);
     const kmh = Math.round(playerSpeed * 3.6);
     const clockTag = world?.atmosphere ? `${world.atmosphere.getFormattedClock().display} // ` : '';
-    if (kmh >= 25) {
-      hud.minimapSubEl.textContent = `${clockTag}X:${rx} Z:${rz} // ${kmh} KM/H`;
-    } else {
-      hud.minimapSubEl.textContent = `${clockTag}X:${rx} Z:${rz} // ALT:${alt}m`;
+    const nextSub =
+      kmh >= 25
+        ? `${clockTag}X:${rx} Z:${rz} // ${kmh} KM/H`
+        : `${clockTag}X:${rx} Z:${rz} // ALT:${alt}m`;
+    if (hud._lastMinimapSubText !== nextSub) {
+      hud._lastMinimapSubText = nextSub;
+      hud.minimapSubEl.textContent = nextSub;
     }
   }
 
@@ -69,11 +229,18 @@ export function renderMinimapRadar(
 
   // Atualiza posicao orbital do indicador 'N' (Norte) no anel externo da moldura do minimapa
   if (hud.minimapCompassNEl) {
-    const rx = 100 + Math.cos(northScreenAngle) * 82;
-    const ry = 88 + Math.sin(northScreenAngle) * 74;
-    hud.minimapCompassNEl.style.left = `${rx}px`;
-    hud.minimapCompassNEl.style.top = `${ry}px`;
-    hud.minimapCompassNEl.style.transform = 'translate(-50%, -50%)';
+    const rx = Math.round((100 + Math.cos(northScreenAngle) * 82) * 10) * 0.1;
+    const ry = Math.round((88 + Math.sin(northScreenAngle) * 74) * 10) * 0.1;
+    if (hud._lastCompassRx !== rx || hud._lastCompassRy !== ry) {
+      hud._lastCompassRx = rx;
+      hud._lastCompassRy = ry;
+      hud.minimapCompassNEl.style.left = `${rx}px`;
+      hud.minimapCompassNEl.style.top = `${ry}px`;
+      if (!hud._compassTransformSet) {
+        hud._compassTransformSet = true;
+        hud.minimapCompassNEl.style.transform = 'translate(-50%, -50%)';
+      }
+    }
   }
 
   if (!hud.minimapCanvas || !playerPos) return;
@@ -100,92 +267,38 @@ export function renderMinimapRadar(
   const relX = (wx) => (wx - playerPos.x) * scale;
   const relY = (wz) => (wz - playerPos.z) * scale;
 
-  // 1. Massa Continental Proxima (100% alinhada as Regioes + Ilha da Prisao — ZERO borda cinza vazia!)
-  ctx.fillStyle = '#141821';
-  ctx.fillRect(relX(-1825), relY(-1320), 2465 * scale, 2365 * scale);
-  ctx.fillRect(relX(580), relY(-1320), 1048 * scale, 2055 * scale);
-  ctx.fillRect(relX(955), relY(1120), 840 * scale, 860 * scale);
+  const staticCache = getStaticMinimapCache(world);
+  if (staticCache && typeof ctx.drawImage === 'function') {
+    const viewWorldHalf = hud.minimapViewRadius * 1.5;
+    const wMinX = Math.max(STATIC_MAP_MIN_WX, playerPos.x - viewWorldHalf);
+    const wMaxX = Math.min(STATIC_MAP_MIN_WX + STATIC_MAP_SPAN, playerPos.x + viewWorldHalf);
+    const wMinZ = Math.max(STATIC_MAP_MIN_WZ, playerPos.z - viewWorldHalf);
+    const wMaxZ = Math.min(STATIC_MAP_MIN_WZ + STATIC_MAP_SPAN, playerPos.z + viewWorldHalf);
+    if (wMaxX > wMinX && wMaxZ > wMinZ) {
+      const sx = (wMinX - STATIC_MAP_MIN_WX) * staticCache.pxPerMeter;
+      const sy = (wMinZ - STATIC_MAP_MIN_WZ) * staticCache.pxPerMeter;
+      const sw = (wMaxX - wMinX) * staticCache.pxPerMeter;
+      const sh = (wMaxZ - wMinZ) * staticCache.pxPerMeter;
+      ctx.drawImage(
+        staticCache.canvas,
+        sx,
+        sy,
+        sw,
+        sh,
+        relX(wMinX),
+        relY(wMinZ),
+        (wMaxX - wMinX) * scale,
+        (wMaxZ - wMinZ) * scale
+      );
+    }
+  } else {
+    ctx.fillStyle = '#141821';
+    ctx.fillRect(relX(-1825), relY(-1320), 2465 * scale, 2365 * scale);
+    ctx.fillRect(relX(580), relY(-1320), 1048 * scale, 2055 * scale);
+    ctx.fillRect(relX(955), relY(1120), 840 * scale, 860 * scale);
+  }
 
   if (world) {
-    const cullDist = hud.minimapViewRadius * 1.75;
-
-    // 2. Quarteiroes / Calcadas / Parques / Areia / Patios do Porto / Morro da CDD proximos ao jogador
-    for (const blk of world.mapBlocks) {
-      if (
-        Math.abs(blk.x - playerPos.x) - blk.w * 0.5 > cullDist ||
-        Math.abs(blk.z - playerPos.z) - blk.d * 0.5 > cullDist
-      ) {
-        continue;
-      }
-      ctx.fillStyle = blk.color || '#262b38';
-      ctx.strokeStyle = 'rgba(51, 65, 85, 0.65)';
-      ctx.lineWidth = 0.9;
-      const bx = relX(blk.x - blk.w * 0.5);
-      const by = relY(blk.z - blk.d * 0.5);
-      ctx.fillRect(bx, by, blk.w * scale, blk.d * scale);
-      ctx.strokeRect(bx, by, blk.w * scale, blk.d * scale);
-    }
-
-    // 3. Aguas Internas (Lago do Parque Central, Canais de Santos e Canal Leste)
-    ctx.fillStyle = '#0284c7';
-    for (const wt of world.mapWater) {
-      const wx = relX(wt.x - wt.w * 0.5);
-      const wy = relY(wt.z - wt.d * 0.5);
-      ctx.fillRect(wx, wy, wt.w * scale, wt.d * scale);
-    }
-
-    // 4. Ruas, Ladeiras da CDD, Vias do Porto e Avenidas Locais com faixa central
-    for (const rd of world.mapRoads) {
-      if (
-        Math.abs(rd.x - playerPos.x) - rd.w * 0.5 > cullDist ||
-        Math.abs(rd.z - playerPos.z) - rd.d * 0.5 > cullDist
-      ) {
-        continue;
-      }
-      const rx = relX(rd.x - rd.w * 0.5);
-      const ry = relY(rd.z - rd.d * 0.5);
-      ctx.fillStyle = rd.isMain ? '#090c12' : '#11151f';
-      ctx.fillRect(rx, ry, rd.w * scale, rd.d * scale);
-    }
-
-    // 5. Contorno Preciso dos Predios, Barracos, Galpoes e Conteineres Vizinhos
-    for (const bld of world.mapBuildings) {
-      if (
-        Math.abs(bld.x - playerPos.x) - bld.w * 0.5 > cullDist ||
-        Math.abs(bld.z - playerPos.z) - bld.d * 0.5 > cullDist
-      ) {
-        continue;
-      }
-      const bx = relX(bld.x - bld.w * 0.5);
-      const by = relY(bld.z - bld.d * 0.5);
-      ctx.fillStyle = bld.color || '#334155';
-      ctx.strokeStyle = bld.isLandmark ? '#facc15' : '#090a0d';
-      ctx.lineWidth = bld.isLandmark ? 1.5 : 1.0;
-      ctx.fillRect(bx, by, bld.w * scale, bld.d * scale);
-      ctx.strokeRect(bx, by, bld.w * scale, bld.d * scale);
-    }
-
-    // 5.2 LINHA CIRCULAR DO METRÔ LEGO (Tracejada Ciano no Subsolo + Contínua Ciano/Amarela no Trecho Elevado!)
-    if (Array.isArray(world.metroLoopWaypoints) && world.metroLoopWaypoints.length > 2) {
-      const wps = world.metroLoopWaypoints;
-      for (let i = 0; i < wps.length; i++) {
-        const a = wps[i];
-        const b = wps[(i + 1) % wps.length];
-        const isUnderground = a.y < -0.5 && b.y < -0.5;
-        ctx.save();
-        if (isUnderground && typeof ctx.setLineDash === 'function') {
-          ctx.setLineDash([4, 3]);
-        }
-        ctx.strokeStyle = isUnderground ? 'rgba(6, 182, 212, 0.85)' : '#22d3ee';
-        ctx.lineWidth = isUnderground ? 2.0 : 2.6;
-        ctx.beginPath();
-        ctx.moveTo(relX(a.x), relY(a.z));
-        ctx.lineTo(relX(b.x), relY(b.z));
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
     // 5.3 COMPOSIÇÕES EM MOVIMENTO DO METRÔ LEGO NO RADAR LOCAL
     if (world.metroSystem && Array.isArray(world.metroSystem.trains)) {
       for (const tr of world.metroSystem.trains) {
@@ -198,21 +311,6 @@ export function renderMinimapRadar(
         ctx.lineWidth = 1.4;
         ctx.fillRect(tx - 3.6, ty - 3.6, 7.2, 7.2);
         ctx.strokeRect(tx - 3.6, ty - 3.6, 7.2, 7.2);
-      }
-    }
-
-    // 5.3b ESTAÇÕES DO METRÔ (quadrado amarelo alerta com contorno preto — IDV)
-    if (Array.isArray(world.metroStationMarkers)) {
-      for (const st of world.metroStationMarkers) {
-        const sx = relX(st.x);
-        const sy = relY(st.z);
-        ctx.fillStyle = '#facc15';
-        ctx.strokeStyle = '#090a0d';
-        ctx.lineWidth = 1.6;
-        ctx.fillRect(sx - 4.5, sy - 4.5, 9, 9);
-        ctx.strokeRect(sx - 4.5, sy - 4.5, 9, 9);
-        ctx.fillStyle = '#090a0d';
-        ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
       }
     }
 

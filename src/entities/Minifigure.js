@@ -3,7 +3,8 @@ import {
   LEGO_COLORS,
   getLegoMaterial,
   createMinifigFaceTexture,
-  createMinifigTorsoTexture
+  createMinifigTorsoTexture,
+  disposeTransientObject3D
 } from '../materials/LegoMaterials.js';
 import {
   getOp09MinifigPreset,
@@ -16,6 +17,10 @@ import {
   applyEmoteAnimationToMinifigure
 } from '../world/InteractiveAttractionsAndEmotes.js';
 import { soundFX } from '../audio/SoundFX.js';
+
+const _VOLTAICO_UP = new THREE.Vector3(0, 1, 0);
+const _VOLTAICO_DIR = new THREE.Vector3();
+const _VOLTAICO_PTS = Array.from({ length: 16 }, () => new THREE.Vector3());
 
 /**
  * Cria a geometria trapezoidal clássica do tronco de uma Minifigura LEGO
@@ -247,8 +252,16 @@ export class Minifigure {
   }
 
   buildModel(preset) {
+    if (typeof preset === 'string') {
+      preset = preset === 'op09' ? getOp09MinifigPreset() : MINIFIG_PRESETS[preset] || MINIFIG_PRESETS.caveira;
+    }
+    if (this.isStealth) {
+      this.setStealthVisual(false);
+    }
     while (this.visualRoot.children.length > 0) {
-      this.visualRoot.remove(this.visualRoot.children[0]);
+      const oldChild = this.visualRoot.children[0];
+      this.visualRoot.remove(oldChild);
+      disposeTransientObject3D(oldChild);
     }
     this.flameParticles = [];
     this.crownFlameMeshes = [];
@@ -4157,12 +4170,19 @@ export class Minifigure {
     this.isStealth = isStealth;
     this.visualRoot.traverse((child) => {
       if (child.isMesh && child.material) {
-        if (!child.userData._origMatCloned) {
-          child.material = child.material.clone();
-          child.userData._origMatCloned = true;
+        if (isStealth) {
+          if (!child.userData._preStealthMat) {
+            child.userData._preStealthMat = child.material;
+            child.material = child.material.clone();
+          }
+          child.material.transparent = true;
+          child.material.opacity = 0.26;
+        } else if (child.userData._preStealthMat) {
+          const tempMat = child.material;
+          child.material = child.userData._preStealthMat;
+          child.userData._preStealthMat = null;
+          tempMat.dispose();
         }
-        child.material.transparent = isStealth;
-        child.material.opacity = isStealth ? 0.26 : 1.0;
       }
     });
   }
@@ -5047,29 +5067,30 @@ export class Minifigure {
       const tx = first.termX;
       const ty = first.termY;
       const tz = first.termZ;
-      const pts = [];
       for (let i = 0; i <= n; i++) {
+        while (_VOLTAICO_PTS.length <= i) {
+          _VOLTAICO_PTS.push(new THREE.Vector3());
+        }
         const u = i / n;
         const x = -tx + u * (tx * 2);
         if (i === 0 || i === n) {
-          pts.push(new THREE.Vector3(x, ty, tz));
+          _VOLTAICO_PTS[i].set(x, ty, tz);
         } else {
           const zigSign = i % 2 === 0 ? 1 : -1;
           const jitterY = Math.sin(this.animTime * 34.0 + i * 2.1) * 0.055 + zigSign * 0.065;
           const jitterZ = -0.04 + Math.cos(this.animTime * 29.0 + i * 1.7) * 0.035;
-          pts.push(new THREE.Vector3(x, ty + 0.05 + jitterY, tz + jitterZ));
+          _VOLTAICO_PTS[i].set(x, ty + 0.05 + jitterY, tz + jitterZ);
         }
       }
-      const upAxis = new THREE.Vector3(0, 1, 0);
       for (let s = 0; s < this.voltaicoBackArcSegments.length; s++) {
         const seg = this.voltaicoBackArcSegments[s].mesh;
-        const pA = pts[s];
-        const pB = pts[s + 1];
-        const dir = new THREE.Vector3().subVectors(pB, pA);
-        const len = Math.max(0.001, dir.length());
-        seg.position.copy(pA).addScaledVector(dir, 0.5);
+        const pA = _VOLTAICO_PTS[s];
+        const pB = _VOLTAICO_PTS[s + 1];
+        _VOLTAICO_DIR.subVectors(pB, pA);
+        const len = Math.max(0.001, _VOLTAICO_DIR.length());
+        seg.position.copy(pA).addScaledVector(_VOLTAICO_DIR, 0.5);
         seg.scale.set(1, len, 1);
-        seg.quaternion.setFromUnitVectors(upAxis, dir.normalize());
+        seg.quaternion.setFromUnitVectors(_VOLTAICO_UP, _VOLTAICO_DIR.multiplyScalar(1 / len));
       }
     }
     if (this.voltaicoLeftClawGroup) {

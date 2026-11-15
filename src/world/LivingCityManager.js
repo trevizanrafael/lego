@@ -546,7 +546,7 @@ export class LivingCityManager {
       const gz1 = Math.floor((box.maxZ + 3.0) / cs);
       for (let gx = gx0; gx <= gx1; gx++) {
         for (let gz = gz0; gz <= gz1; gz++) {
-          const key = `${gx},${gz}`;
+          const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
           let cell = this._buildingGrid.get(key);
           if (!cell) {
             cell = [];
@@ -565,7 +565,7 @@ export class LivingCityManager {
     const gz = Math.floor(z / cs);
     for (let dx = -1; dx <= 1; dx++) {
       for (let dz = -1; dz <= 1; dz++) {
-        const cell = this._buildingGrid.get(`${gx + dx},${gz + dz}`);
+        const cell = this._buildingGrid.get((((gx + dx) & 0xffff) << 16) | ((gz + dz) & 0xffff));
         if (!cell) continue;
         for (let i = 0; i < cell.length; i++) {
           const box = cell[i];
@@ -594,7 +594,7 @@ export class LivingCityManager {
 
     for (let dx = -1; dx <= 1; dx++) {
       for (let dz = -1; dz <= 1; dz++) {
-        const cell = this._buildingGrid.get(`${gx + dx},${gz + dz}`);
+        const cell = this._buildingGrid.get((((gx + dx) & 0xffff) << 16) | ((gz + dz) & 0xffff));
         if (!cell || cell.length === 0) continue;
 
         for (let i = 0; i < cell.length; i++) {
@@ -619,7 +619,13 @@ export class LivingCityManager {
       }
     }
 
-    return { x: curX, z: curZ, collided };
+    if (!this._collisionRes) {
+      this._collisionRes = { x: 0, z: 0, collided: false };
+    }
+    this._collisionRes.x = curX;
+    this._collisionRes.z = curZ;
+    this._collisionRes.collided = collided;
+    return this._collisionRes;
   }
 
   _isValidDryLandForPedestrian(x, z) {
@@ -1082,16 +1088,54 @@ export class LivingCityManager {
   _updateUrbanTraffic(dt, playerPos, controller) {
     const drivenObj = controller?.currentVehicle || null;
 
+    // Grade espacial por frame (células 28m x 28m, zero alocações) para eliminar O(N²) entre carros do trânsito!
+    const TRAFFIC_CELL = 28.0;
+    if (!this._trafficGrid) {
+      this._trafficGrid = new Map();
+      this._trafficUsedBuckets = [];
+    } else {
+      for (let i = 0; i < this._trafficUsedBuckets.length; i++) {
+        this._trafficUsedBuckets[i].length = 0;
+      }
+      this._trafficUsedBuckets.length = 0;
+    }
+
+    for (let i = 0; i < this.trafficVehicles.length; i++) {
+      const v = this.trafficVehicles[i];
+      if (!v.destructible || v.destructible.destroyed) continue;
+      const gx = Math.floor(v.mesh.position.x / TRAFFIC_CELL);
+      const gz = Math.floor(v.mesh.position.z / TRAFFIC_CELL);
+      const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
+      let bucket = this._trafficGrid.get(key);
+      if (!bucket) {
+        bucket = [];
+        this._trafficGrid.set(key, bucket);
+      }
+      if (bucket.length === 0) {
+        this._trafficUsedBuckets.push(bucket);
+      }
+      bucket.push(v);
+    }
+
     const isLaneSegmentClear = (tv, candLaneOffset, checkSpan = 12.0) => {
-      for (const other of this.trafficVehicles) {
-        if (other === tv || !other.destructible || other.destructible.destroyed) continue;
-        if (Math.abs(other.mesh.position.y - tv.mesh.position.y) > 3.2) continue;
-        if (other.axis !== tv.axis || Math.abs(other.roadCoord - tv.roadCoord) > 4.0) continue;
-        if (
-          Math.abs(other.laneOffset - candLaneOffset) < 2.6 &&
-          Math.abs(other.posAlong - tv.posAlong) < checkSpan
-        ) {
-          return false;
+      const tgx = Math.floor(tv.mesh.position.x / TRAFFIC_CELL);
+      const tgz = Math.floor(tv.mesh.position.z / TRAFFIC_CELL);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const bucket = this._trafficGrid.get((((tgx + dx) & 0xffff) << 16) | ((tgz + dz) & 0xffff));
+          if (!bucket || bucket.length === 0) continue;
+          for (let bi = 0; bi < bucket.length; bi++) {
+            const other = bucket[bi];
+            if (other === tv) continue;
+            if (Math.abs(other.mesh.position.y - tv.mesh.position.y) > 3.2) continue;
+            if (other.axis !== tv.axis || Math.abs(other.roadCoord - tv.roadCoord) > 4.0) continue;
+            if (
+              Math.abs(other.laneOffset - candLaneOffset) < 2.6 &&
+              Math.abs(other.posAlong - tv.posAlong) < checkSpan
+            ) {
+              return false;
+            }
+          }
         }
       }
       return true;
@@ -1166,52 +1210,61 @@ export class LivingCityManager {
         }
       }
 
-      // 2) Verifica fila de carros à frente, tenta ultrapassagem suave de faixa e conta carros colados (< 8.5m)!
-      for (const other of this.trafficVehicles) {
-        if (other === tv || !other.destructible || other.destructible.destroyed) continue;
-        const oPos = other.mesh.position;
-        if (Math.abs(oPos.y - pos.y) > 3.2) continue;
+      // 2) Verifica fila de carros à frente via grade espacial O(1) (vizinhança 3x3 de 28m)!
+      const tgx = Math.floor(pos.x / TRAFFIC_CELL);
+      const tgz = Math.floor(pos.z / TRAFFIC_CELL);
+      for (let gdx = -1; gdx <= 1; gdx++) {
+        for (let gdz = -1; gdz <= 1; gdz++) {
+          const cellBucket = this._trafficGrid.get((((tgx + gdx) & 0xffff) << 16) | ((tgz + gdz) & 0xffff));
+          if (!cellBucket || cellBucket.length === 0) continue;
+          for (let bi = 0; bi < cellBucket.length; bi++) {
+            const other = cellBucket[bi];
+            if (other === tv) continue;
+            const oPos = other.mesh.position;
+            if (Math.abs(oPos.y - pos.y) > 3.2) continue;
 
-        const dxO = oPos.x - pos.x;
-        const dzO = oPos.z - pos.z;
-        const distO = Math.hypot(dxO, dzO);
-        if (distO < 8.5) {
-          nearbyCarsCount++;
-        }
-
-        const distAheadO = dxO * fwdX + dzO * fwdZ;
-        if (distAheadO <= 1.0 || distAheadO > 22.0) continue;
-
-        if (
-          other.axis === tv.axis &&
-          Math.abs(other.roadCoord - tv.roadCoord) < 4.0 &&
-          Math.abs(other.laneOffset - tv.baseLaneOffset) < 2.6 &&
-          distAheadO < 18.0 &&
-          (other.hijackedByPlayer || other.currentSpeed < 3.5)
-        ) {
-          slowCarInBaseLane = true;
-        }
-
-        const latDistO = Math.abs(dxO * fwdZ - dzO * fwdX);
-        if (latDistO < 2.65) {
-          const bumperGap = distAheadO - (myHalfLen + other.baseD * 0.5);
-          const isSlowOrStopped = other.hijackedByPlayer || other.currentSpeed < 3.5;
-
-          // ULTRAPASSAGEM INTELIGENTE: se houver carro lento/abandonado a < 16m na frente, muda para a faixa lateral livre!
-          if (isSlowOrStopped && distAheadO < 16.0) {
-            const altLane = tv.baseLaneOffset > 0 ? tv.baseLaneOffset - 3.6 : tv.baseLaneOffset + 3.6;
-            if (isLaneSegmentClear(tv, altLane, 12.0)) {
-              tv.targetLaneOffset = altLane;
-              if (bumperGap < 1.6) {
-                obstacleAhead = true;
-              }
-              continue;
+            const dxO = oPos.x - pos.x;
+            const dzO = oPos.z - pos.z;
+            const distO = Math.hypot(dxO, dzO);
+            if (distO < 8.5) {
+              nearbyCarsCount++;
             }
-          }
 
-          if (!obstacleAhead && bumperGap < 3.8) {
-            obstacleAhead = true;
-            if (other.hijackedByPlayer) shouldHonk = true;
+            const distAheadO = dxO * fwdX + dzO * fwdZ;
+            if (distAheadO <= 1.0 || distAheadO > 22.0) continue;
+
+            if (
+              other.axis === tv.axis &&
+              Math.abs(other.roadCoord - tv.roadCoord) < 4.0 &&
+              Math.abs(other.laneOffset - tv.baseLaneOffset) < 2.6 &&
+              distAheadO < 18.0 &&
+              (other.hijackedByPlayer || other.currentSpeed < 3.5)
+            ) {
+              slowCarInBaseLane = true;
+            }
+
+            const latDistO = Math.abs(dxO * fwdZ - dzO * fwdX);
+            if (latDistO < 2.65) {
+              const bumperGap = distAheadO - (myHalfLen + other.baseD * 0.5);
+              const isSlowOrStopped = other.hijackedByPlayer || other.currentSpeed < 3.5;
+
+              // ULTRAPASSAGEM INTELIGENTE: se houver carro lento/abandonado a < 16m na frente, muda para a faixa lateral livre!
+              if (isSlowOrStopped && distAheadO < 16.0) {
+                const altLane = tv.baseLaneOffset > 0 ? tv.baseLaneOffset - 3.6 : tv.baseLaneOffset + 3.6;
+                if (isLaneSegmentClear(tv, altLane, 12.0)) {
+                  tv.targetLaneOffset = altLane;
+                  if (bumperGap < 1.6) {
+                    obstacleAhead = true;
+                  }
+                  continue;
+                }
+              }
+
+              if (!obstacleAhead && bumperGap < 3.8) {
+                obstacleAhead = true;
+                if (other.hijackedByPlayer) shouldHonk = true;
+              }
+            }
           }
         }
       }
@@ -1867,6 +1920,7 @@ export class LivingCityManager {
         root.position.set(safe.x, Math.max(0.28, terrainY + 0.28), safe.z);
         root.rotation.set(0, 0, 0);
         root.visible = true;
+        root.matrixWorldAutoUpdate = true;
 
         ped.panicTimer = 0;
         ped.slapstickTimer = 0;
@@ -2011,6 +2065,7 @@ export class LivingCityManager {
         const isCloseVisible = dSq <= 125 * 125;
         if (root.visible !== isCloseVisible) {
           root.visible = isCloseVisible;
+          root.matrixWorldAutoUpdate = isCloseVisible;
         }
         if (!isCloseVisible) continue;
         distToPlayer = Math.sqrt(dSq);

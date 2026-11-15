@@ -57,6 +57,10 @@ import { InteractiveAttractionsManager } from './InteractiveAttractionsAndEmotes
 
 export { MAP_REGIONS, MAP_LANDMARKS, BUILDING_STYLES, BUILDING_STYLE_KEYS };
 
+function packColliderCell(cx, cz) {
+  return ((cx & 0xffff) << 16) | (cz & 0xffff);
+}
+
 export class TestBlockWorld {
   constructor(scene, destructibleManager = null) {
     this.scene = scene;
@@ -148,9 +152,11 @@ export class TestBlockWorld {
     // 9. Finaliza os lotes instanciados/mesclados (Calçadas e Árvores da Cidade Inteira em 5 Draw Calls!)
     this._finalizeMergedSidewalks();
     this._finalizeInstancedTrees();
+    const staticPhaseChildren = new Set(this.scene.children);
 
     // 10. Cidade Viva (PASSO 7): Trânsito em Movimento, Pedestres com Pânico, Patrulhas do BOPE e Guerra das 3 Facções (CV, PCC e A.R.E.S.)
     this.livingCity = new LivingCityManager(this, this.destructibles, this.destructibles?.hud);
+    const beforeAtmosIdx = this.scene.children.length;
 
     // 11. Ciclo Cinematográfico Dia / Pôr do Sol Dourado / Noite Neon + Iluminação Artificial 60 FPS!
     const savedTimeMode = this.destructibles?.hud?.settings?.timeMode || 'auto';
@@ -158,6 +164,185 @@ export class TestBlockWorld {
 
     // 12. Atrações Interativas Vivas: Baile Funk da CDD + Parque de Diversões Embarcável no Mega Píer!
     this.attractions = new InteractiveAttractionsManager(this);
+    for (let i = beforeAtmosIdx; i < this.scene.children.length; i++) {
+      staticPhaseChildren.add(this.scene.children[i]);
+    }
+
+    // 13. Sub-regiões pré-alocadas (zero GC em getRegionAt) + Congelamento de Matrizes Estáticas!
+    this._subRegions = this._createStaticSubRegions();
+    this._freezeStaticSceneGraph(staticPhaseChildren);
+  }
+
+  _createStaticSubRegions() {
+    return {
+      porao: {
+        ...this.regions[1],
+        id: 'porao_torre_herois',
+        num: 'LAB',
+        name: 'PORÃO DA TORRE — LABORATÓRIO OP-09',
+        shortName: 'PORÃO DOS HERÓIS (OP-09)',
+        sub: 'Laboratório Bio-Genético Subterrâneo • Criação de Personagem [E]',
+        color: '#00f0ff',
+        icon: 'tower'
+      },
+      metro: {
+        ...this.regions[0],
+        id: 'metro_subterraneo',
+        num: 'M1',
+        name: 'METRÔ METROPOLITANO (SUBSOLO)',
+        shortName: 'METRÔ SUBSOLO',
+        sub: 'Linha 01 Circular • Estações Subterrâneas & Túnel Iluminado',
+        color: '#06b6d4',
+        icon: 'metro'
+      },
+      customs: {
+        ...this.regions[0],
+        id: 'lego_customs',
+        num: 'CUS',
+        name: 'LEGO CUSTOMS — OFICINA DE TUNING',
+        shortName: 'LEGO CUSTOMS',
+        sub: 'Tuning 0–10 • Pintura • Decals • Monster Truck & Rampa Cunha [E]',
+        color: '#facc15',
+        icon: 'customs'
+      },
+      bankInterior: {
+        ...this.regions[0],
+        id: 'super_banco_interior',
+        name: 'SUPER BANCO (INTERIOR)',
+        shortName: 'SUPER BANCO (INTERIOR)',
+        sub: '4 Andares: Saguão, Escritórios, Segurança e Cofre'
+      },
+      favela: {
+        id: 'favela_cdd_cv',
+        number: 8,
+        num: 'CDD',
+        name: 'COMPLEXO DA CIDADE DE DEUS — DOMÍNIO DO CV',
+        shortName: 'CIDADE DE DEUS (CV)',
+        sub: 'Morro Contínuo, Vielas, Campinho, Baile do CV & Fortaleza do Barão Vermelho',
+        bounds: { minX: -1012, maxX: -530, minZ: -1320, maxZ: 580, minY: 0, maxY: 140 },
+        spawn: { x: -702, y: 26.2, z: -135 },
+        color: '#dc2626',
+        icon: 'cdd'
+      }
+    };
+  }
+
+  _freezeStaticSceneGraph(staticPhaseChildren) {
+    if (!this.scene) return;
+    this.scene.updateMatrixWorld(true);
+    this.scene.matrixAutoUpdate = false;
+
+    const dynamicRoots = new Set();
+    const addDyn = (obj) => {
+      if (obj && obj.isObject3D) dynamicRoots.add(obj);
+    };
+
+    addDyn(this.beaconGroup);
+    addDyn(this.hemiLight);
+    addDyn(this.sunLight);
+    addDyn(this.sunLight?.target);
+    addDyn(this.ferrisWheelGroup);
+    if (Array.isArray(this.ferrisWheelCabins)) {
+      for (const cab of this.ferrisWheelCabins) addDyn(cab);
+    }
+    if (Array.isArray(this.clouds)) {
+      for (const c of this.clouds) addDyn(c);
+    }
+    if (Array.isArray(this.rotatingElements)) {
+      for (const rot of this.rotatingElements) addDyn(rot?.mesh);
+    }
+    if (Array.isArray(this.cargoShips)) {
+      for (const ship of this.cargoShips) addDyn(ship?.mesh || ship);
+    }
+    if (Array.isArray(this.superBankData?.gates)) {
+      for (const g of this.superBankData.gates) addDyn(g?.mesh || g);
+    }
+    if (Array.isArray(this.metroSystem?.trains)) {
+      for (const tr of this.metroSystem.trains) {
+        if (Array.isArray(tr.cars)) {
+          for (const car of tr.cars) addDyn(car?.group);
+        }
+      }
+    }
+    if (this.destructibles) {
+      if (Array.isArray(this.destructibles._dynamicObjects)) {
+        for (const obj of this.destructibles._dynamicObjects) addDyn(obj?.mesh);
+      }
+      if (Array.isArray(this.destructibles.ambientStuds)) {
+        for (const s of this.destructibles.ambientStuds) addDyn(s?.mesh);
+      }
+      addDyn(this.destructibles.solarBeamGroup);
+      addDyn(this.destructibles.solarMuzzleGroup);
+      addDyn(this.destructibles.beamHitSphere);
+      addDyn(this.destructibles.supernovaChargeGroup);
+    }
+    if (this.atmosphere) {
+      addDyn(this.atmosphere.celestialRoot);
+      if (Array.isArray(this.atmosphere.pointLightPool)) {
+        for (const pl of this.atmosphere.pointLightPool) addDyn(pl);
+      }
+      if (Array.isArray(this.atmosphere.lighthouseBeams)) {
+        for (const lb of this.atmosphere.lighthouseBeams) addDyn(lb?.pivot);
+      }
+      if (Array.isArray(this.atmosphere.metroLeadCones)) {
+        for (const mc of this.atmosphere.metroLeadCones) addDyn(mc);
+      }
+    }
+    if (Array.isArray(this.favelaBaileSkytrackers)) {
+      for (const st of this.favelaBaileSkytrackers) addDyn(st?.pivot);
+    }
+    if (this.attractions) {
+      if (Array.isArray(this.attractions.baileWoofers)) {
+        for (const w of this.attractions.baileWoofers) addDyn(w?.pivot);
+      }
+      if (Array.isArray(this.attractions.baileEqBars)) {
+        for (const b of this.attractions.baileEqBars) addDyn(b);
+      }
+      addDyn(this.attractions.djRig?.root);
+      if (Array.isArray(this.attractions.baileLaserPivots)) {
+        for (const ls of this.attractions.baileLaserPivots) addDyn(ls?.pivot);
+      }
+      if (Array.isArray(this.attractions.coasterCars)) {
+        for (const c of this.attractions.coasterCars) addDyn(c);
+      }
+      addDyn(this.attractions.bigDropGondola);
+    }
+
+    const dynamicSubtreeSet = new Set();
+    const ancestorSet = new Set();
+    for (const dyn of dynamicRoots) {
+      dyn.traverse((child) => {
+        dynamicSubtreeSet.add(child);
+        if (child.userData) child.userData._keepDynamicMatrix = true;
+      });
+      let p = dyn.parent;
+      while (p && p !== this.scene) {
+        ancestorSet.add(p);
+        p = p.parent;
+      }
+    }
+
+    const freezeBranch = (node) => {
+      if (dynamicSubtreeSet.has(node)) return;
+      if (ancestorSet.has(node)) {
+        node.matrixAutoUpdate = false;
+        node.matrixWorldAutoUpdate = true;
+        for (let i = 0; i < node.children.length; i++) {
+          freezeBranch(node.children[i]);
+        }
+        return;
+      }
+      node.traverse((n) => {
+        n.matrixAutoUpdate = false;
+        n.matrixWorldAutoUpdate = false;
+      });
+    };
+
+    for (const rootChild of staticPhaseChildren) {
+      if (rootChild && rootChild.parent === this.scene) {
+        freezeBranch(rootChild);
+      }
+    }
   }
 
   addCollider(x, z, width, depth, height = 10, minY = 0, opts = {}) {
@@ -187,7 +372,7 @@ export class TestBlockWorld {
       const keys = [];
       for (let cx = minCX; cx <= maxCX; cx++) {
         for (let cz = minCZ; cz <= maxCZ; cz++) {
-          const k = `${cx},${cz}`;
+          const k = packColliderCell(cx, cz);
           keys.push(k);
           let bucket = this._colliderGrid.get(k);
           if (!bucket) {
@@ -225,8 +410,12 @@ export class TestBlockWorld {
   /**
    * Consulta espacial O(1) em células 32m x 32m (~25 colisores em vez de ~9.000 por frame!)
    */
-  getCollidersNear(x, z, radius = 2.5) {
-    const out = [];
+  getCollidersNear(x, z, radius = 2.5, out = null) {
+    if (out) {
+      out.length = 0;
+    } else {
+      out = [];
+    }
     const qid = ++this._colliderQueryId;
     const cs = this.colliderCellSize;
     const minCX = Math.floor((x - radius) / cs);
@@ -236,7 +425,7 @@ export class TestBlockWorld {
 
     for (let cx = minCX; cx <= maxCX; cx++) {
       for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const bucket = this._colliderGrid.get(`${cx},${cz}`);
+        const bucket = this._colliderGrid.get(packColliderCell(cx, cz));
         if (!bucket) continue;
         for (let i = 0; i < bucket.length; i++) {
           const col = bucket[i];
@@ -267,12 +456,16 @@ export class TestBlockWorld {
   /**
    * Consulta espacial ao longo de um segmento 2D (câmera em 3ª pessoa, gancho e mira)
    */
-  getCollidersAlongRay2D(x0, z0, x1, z1, pad = 1.5) {
+  getCollidersAlongRay2D(x0, z0, x1, z1, pad = 1.5, out = null) {
     const minX = Math.min(x0, x1) - pad;
     const maxX = Math.max(x0, x1) + pad;
     const minZ = Math.min(z0, z1) - pad;
     const maxZ = Math.max(z0, z1) + pad;
-    const out = [];
+    if (out) {
+      out.length = 0;
+    } else {
+      out = [];
+    }
     const qid = ++this._colliderQueryId;
     const cs = this.colliderCellSize;
     const minCX = Math.floor(minX / cs);
@@ -282,7 +475,7 @@ export class TestBlockWorld {
 
     for (let cx = minCX; cx <= maxCX; cx++) {
       for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const bucket = this._colliderGrid.get(`${cx},${cz}`);
+        const bucket = this._colliderGrid.get(packColliderCell(cx, cz));
         if (!bucket) continue;
         for (let i = 0; i < bucket.length; i++) {
           const col = bucket[i];
@@ -794,50 +987,17 @@ export class TestBlockWorld {
 
     if (y < -2.2) {
       if (x >= -360 && x <= -280 && z >= -202 && z <= -135) {
-        return {
-          ...this.regions[1],
-          id: 'porao_torre_herois',
-          num: 'LAB',
-          name: 'PORÃO DA TORRE — LABORATÓRIO OP-09',
-          shortName: 'PORÃO DOS HERÓIS (OP-09)',
-          sub: 'Laboratório Bio-Genético Subterrâneo • Criação de Personagem [E]',
-          color: '#00f0ff',
-          icon: 'tower'
-        };
+        return this._subRegions.porao;
       }
-      return {
-        ...this.regions[0],
-        id: 'metro_subterraneo',
-        num: 'M1',
-        name: 'METRÔ METROPOLITANO (SUBSOLO)',
-        shortName: 'METRÔ SUBSOLO',
-        sub: 'Linha 01 Circular • Estações Subterrâneas & Túnel Iluminado',
-        color: '#06b6d4',
-        icon: 'metro'
-      };
+      return this._subRegions.metro;
     }
 
     if (y < 24.0 && x >= 14 && x <= 106 && z >= -496 && z <= -400) {
-      return {
-        ...this.regions[0],
-        id: 'lego_customs',
-        num: 'CUS',
-        name: 'LEGO CUSTOMS — OFICINA DE TUNING',
-        shortName: 'LEGO CUSTOMS',
-        sub: 'Tuning 0–10 • Pintura • Decals • Monster Truck & Rampa Cunha [E]',
-        color: '#facc15',
-        icon: 'customs'
-      };
+      return this._subRegions.customs;
     }
 
     if (y < 41.0 && x >= -74 && x <= 74 && z >= -229 && z <= -130) {
-      return {
-        ...this.regions[0],
-        id: 'super_banco_interior',
-        name: 'SUPER BANCO (INTERIOR)',
-        shortName: 'SUPER BANCO (INTERIOR)',
-        sub: '4 Andares: Saguão, Escritórios, Segurança e Cofre'
-      };
+      return this._subRegions.bankInterior;
     }
 
     // Detecção do Complexo da Cidade de Deus (Morro contínuo do CV entre a Cidade e o Aeroporto, estendido até a borda Norte Z = -1320!)
@@ -848,18 +1008,7 @@ export class TestBlockWorld {
       z <= 580 &&
       (x <= -658 || (z >= -508 && z <= 415))
     ) {
-      return {
-        id: 'favela_cdd_cv',
-        number: 8,
-        num: 'CDD',
-        name: 'COMPLEXO DA CIDADE DE DEUS — DOMÍNIO DO CV',
-        shortName: 'CIDADE DE DEUS (CV)',
-        sub: 'Morro Contínuo, Vielas, Campinho, Baile do CV & Fortaleza do Barão Vermelho',
-        bounds: { minX: -1012, maxX: -530, minZ: -1320, maxZ: 580, minY: 0, maxY: 140 },
-        spawn: { x: -702, y: 26.2, z: -135 },
-        color: '#dc2626',
-        icon: 'cdd'
-      };
+      return this._subRegions.favela;
     }
 
     const priorityOrder = [1, 2, 8, 3, 4, 5, 6, 7, 0];

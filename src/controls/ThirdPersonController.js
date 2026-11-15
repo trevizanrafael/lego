@@ -2169,12 +2169,16 @@ export class ThirdPersonController {
     let closest = null;
     let bestScore = Infinity;
 
-    for (const obj of this.destructibles.objects) {
+    const candidates = this.destructibles._dynamicObjects || this.destructibles.objects;
+    for (let i = 0; i < candidates.length; i++) {
+      const obj = candidates[i];
       if (obj.destroyed || obj.type !== 'car') continue;
       const spec = obj.mesh.userData?.vehicleSpec;
 
       const dx = this.position.x - obj.mesh.position.x;
       const dz = this.position.z - obj.mesh.position.z;
+      const distSq = dx * dx + dz * dz;
+      if (!spec?.isColossalShip && distSq > 625.0) continue;
       const dy = Math.abs(obj.mesh.position.y - this.position.y);
 
       if (spec?.isColossalShip) {
@@ -4233,16 +4237,23 @@ export class ThirdPersonController {
             this.destructibles.spawnVingadorShellAndSmokeTrail(this.position);
           }
           // Estoura obstáculos no caminho durante o Mergulho Tático!
-          const diveImpactPos = new THREE.Vector3(
+          if (!this._diveImpactPos) this._diveImpactPos = new THREE.Vector3();
+          if (!this._nearObjsScratch) this._nearObjsScratch = [];
+          const diveImpactPos = this._diveImpactPos.set(
             this.position.x + this.vingadorDiveDir.x * 1.8,
             this.position.y + 1.1,
             this.position.z + this.vingadorDiveDir.z * 1.8
           );
-          for (const obj of this.destructibles.objects) {
+          const nearDiveObjs = this.destructibles.getObjectsNear
+            ? this.destructibles.getObjectsNear(diveImpactPos.x, diveImpactPos.z, 6.5, this._nearObjsScratch)
+            : this.destructibles.objects;
+          for (let i = 0; i < nearDiveObjs.length; i++) {
+            const obj = nearDiveObjs[i];
             if (obj.destroyed || obj.isDriven) continue;
-            const dx = obj.basePos.x - diveImpactPos.x;
-            const dz = obj.basePos.z - diveImpactPos.z;
-            const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - diveImpactPos.y);
+            const oPos = obj._isDynamicIndexed && obj.mesh ? obj.mesh.position : obj.basePos;
+            const dx = oPos.x - diveImpactPos.x;
+            const dz = oPos.z - diveImpactPos.z;
+            const dy = Math.abs((oPos.y + obj.height * 0.5) - diveImpactPos.y);
             if (Math.hypot(dx, dz) <= obj.radius + 2.5 && dy <= obj.height + 2.0) {
               this.destructibles.damageObject(obj, 110, diveImpactPos, false, {
                 canBreakCrackedWall: true
@@ -4264,23 +4275,30 @@ export class ThirdPersonController {
         this.velocity.z = this.rocketPunchDir.z * punchBoost;
         this.currentSpeed = punchBoost;
         if (this.destructibles) {
+          if (!this._dashImpactPos) this._dashImpactPos = new THREE.Vector3();
+          if (!this._nearObjsScratch) this._nearObjsScratch = [];
           if (Math.random() < 0.75) {
             this.destructibles.spawnFlameTrailParticle(
-              new THREE.Vector3(this.position.x, this.position.y + 1.4, this.position.z),
+              this._dashImpactPos.set(this.position.x, this.position.y + 1.4, this.position.z),
               1.35
             );
           }
           // Estoura carros, objetos e Paredes Rachadas durante todo o percurso da Investida / Dash!
-          const dashImpactPos = new THREE.Vector3(
+          const dashImpactPos = this._dashImpactPos.set(
             this.position.x + this.rocketPunchDir.x * 2.2,
             this.position.y + 1.4,
             this.position.z + this.rocketPunchDir.z * 2.2
           );
-          for (const obj of this.destructibles.objects) {
+          const nearDashObjs = this.destructibles.getObjectsNear
+            ? this.destructibles.getObjectsNear(dashImpactPos.x, dashImpactPos.z, 7.5, this._nearObjsScratch)
+            : this.destructibles.objects;
+          for (let i = 0; i < nearDashObjs.length; i++) {
+            const obj = nearDashObjs[i];
             if (obj.destroyed || obj.isDriven) continue;
-            const dx = obj.basePos.x - dashImpactPos.x;
-            const dz = obj.basePos.z - dashImpactPos.z;
-            const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - dashImpactPos.y);
+            const oPos = obj._isDynamicIndexed && obj.mesh ? obj.mesh.position : obj.basePos;
+            const dx = oPos.x - dashImpactPos.x;
+            const dz = oPos.z - dashImpactPos.z;
+            const dy = Math.abs((oPos.y + obj.height * 0.5) - dashImpactPos.y);
             if (Math.hypot(dx, dz) <= obj.radius + 3.2 && dy <= obj.height + 2.5) {
               this.destructibles.damageObject(obj, 140, dashImpactPos, false, {
                 canBreakCrackedWall: true,
@@ -4834,7 +4852,9 @@ export class ThirdPersonController {
 
     // Ponto de foco deslocado para o ombro direito (+camRight * shoulderOffset)
     // Isso posiciona o personagem levemente à esquerda na tela, liberando a mira central!
-    const desiredTarget = new THREE.Vector3(
+    if (!this._camDesiredTarget) this._camDesiredTarget = new THREE.Vector3();
+    if (!this._camViewDir) this._camViewDir = new THREE.Vector3();
+    const desiredTarget = this._camDesiredTarget.set(
       this.position.x + camRight.x * this.shoulderOffset,
       this.position.y + 1.55,
       this.position.z + camRight.z * this.shoulderOffset
@@ -4847,11 +4867,9 @@ export class ThirdPersonController {
     const cosPitch = Math.cos(this.pitch);
     const sinPitch = Math.sin(this.pitch);
 
-    const viewDir = new THREE.Vector3(
-      -Math.sin(this.yaw) * cosPitch,
-      -sinPitch,
-      -Math.cos(this.yaw) * cosPitch
-    ).normalize();
+    const viewDir = this._camViewDir
+      .set(-Math.sin(this.yaw) * cosPitch, -sinPitch, -Math.cos(this.yaw) * cosPitch)
+      .normalize();
 
     let usedDist = this.distance;
     const minCamY = this.isGrounded ? this.position.y + 0.35 : Math.min(0.35, this.position.y + 0.35);

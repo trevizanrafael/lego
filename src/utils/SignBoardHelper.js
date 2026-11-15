@@ -1,7 +1,24 @@
 import * as THREE from 'three';
+import { markAsSharedAsset } from '../materials/LegoMaterials.js';
 
 const SIGN_REDRAW_REGISTRY = [];
+const SIGN_EDGE_MAT_CACHE = new Map();
 let fontReadyListenerBound = false;
+let fontsReadyResolved = false;
+
+function getSharedSignEdgeMaterial(edgeHex) {
+  if (SIGN_EDGE_MAT_CACHE.has(edgeHex)) {
+    return SIGN_EDGE_MAT_CACHE.get(edgeHex);
+  }
+  const mat = new THREE.MeshStandardMaterial({
+    color: edgeHex,
+    roughness: 0.38,
+    metalness: 0.18
+  });
+  markAsSharedAsset(mat);
+  SIGN_EDGE_MAT_CACHE.set(edgeHex, mat);
+  return mat;
+}
 
 function ensureFontReadyRedrawListener() {
   if (fontReadyListenerBound) return;
@@ -9,6 +26,7 @@ function ensureFontReadyRedrawListener() {
 
   if (typeof document !== 'undefined' && document.fonts && typeof document.fonts.ready?.then === 'function') {
     document.fonts.ready.then(() => {
+      fontsReadyResolved = true;
       for (let i = 0; i < SIGN_REDRAW_REGISTRY.length; i++) {
         try {
           SIGN_REDRAW_REGISTRY[i]();
@@ -16,6 +34,7 @@ function ensureFontReadyRedrawListener() {
           // ignora placas descartadas
         }
       }
+      SIGN_REDRAW_REGISTRY.length = 0;
     });
   }
 }
@@ -101,7 +120,9 @@ export function createCustomCanvasSignTexture(boardWidth, boardHeight, drawFn, o
   };
 
   render();
-  SIGN_REDRAW_REGISTRY.push(render);
+  if (!fontsReadyResolved) {
+    SIGN_REDRAW_REGISTRY.push(render);
+  }
   return tex;
 }
 
@@ -180,11 +201,7 @@ export function createSignBoardMesh(opts = {}) {
   );
 
   const faceMat = new THREE.MeshBasicMaterial({ map: tex });
-  const edgeMat = new THREE.MeshStandardMaterial({
-    color: edgeHex,
-    roughness: 0.38,
-    metalness: 0.18
-  });
+  const edgeMat = getSharedSignEdgeMaterial(edgeHex);
 
   // Ordem oficial do BoxGeometry(width, height, depth): [+X, -X, +Y, -Y, +Z (frente), -Z (trás)]
   const materials = [

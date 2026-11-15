@@ -340,28 +340,52 @@ class LegoCityGame {
     }
 
     const isPausedInGame = this.hud.isPauseMenuOpen && !this.hud.isTitleScreenActive;
-    const timeScale = isPausedInGame ? 0.0 : this.hud.isHeroWheelOpen ? 0.18 : 1.0;
+    if (isPausedInGame) {
+      this.hud.update(baseDt);
+      if (!this._renderedPauseFrame) {
+        this._renderedPauseFrame = true;
+        this.renderer.render(this.scene, this.camera);
+      }
+      return;
+    }
+    this._renderedPauseFrame = false;
+
+    const timeScale = this.hud.isHeroWheelOpen ? 0.18 : 1.0;
     const dt = baseDt * timeScale;
 
     if (dt > 0) {
       this.controller.update(dt);
       const pos = this.controller.position;
-      const camFwd = {
-        x: -Math.sin(this.controller.yaw || 0),
-        z: -Math.cos(this.controller.yaw || 0)
-      };
-      this.destructibles.update(dt, pos, camFwd);
+      if (!this._camFwd) this._camFwd = { x: 0, z: -1 };
+      this._camFwd.x = -Math.sin(this.controller.yaw || 0);
+      this._camFwd.z = -Math.cos(this.controller.yaw || 0);
+      this.destructibles.update(dt, pos, this._camFwd);
       this.world.update(dt, pos, this.controller);
     }
     this.hud.update(baseDt);
 
     const pos = this.controller.position;
+    if (this.hud.isFullMapOpen) {
+      this._fullMapAccum = (this._fullMapAccum || 0) + baseDt;
+      const viewChanged =
+        this._lastMapZoom !== this.hud.mapZoom ||
+        this._lastMapPanX !== this.hud.mapPanX ||
+        this._lastMapPanY !== this.hud.mapPanY ||
+        this._lastMapHover !== this.hud.hoveredRegionId;
+      if (viewChanged || this._fullMapAccum >= 0.066) {
+        this._fullMapAccum = 0;
+        this._lastMapZoom = this.hud.mapZoom;
+        this._lastMapPanX = this.hud.mapPanX;
+        this._lastMapPanY = this.hud.mapPanY;
+        this._lastMapHover = this.hud.hoveredRegionId;
+        this.hud.renderFullMap(this.world, pos, this.controller.facingAngle, this.controller);
+      }
+      return;
+    }
+
     const currentRegion = this.world.getRegionAt(pos.x, pos.y, pos.z);
     const speed = this.controller.getHorizontalSpeed();
     this.hud.updateMinimap(pos, this.controller.facingAngle, this.controller.yaw, currentRegion, this.world, speed, baseDt);
-    if (this.hud.isFullMapOpen) {
-      this.hud.renderFullMap(this.world, pos, this.controller.facingAngle, this.controller);
-    }
 
     this.renderer.render(this.scene, this.camera);
   }

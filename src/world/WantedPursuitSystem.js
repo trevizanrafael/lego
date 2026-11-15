@@ -715,26 +715,74 @@ export class WantedPursuitSystem {
     return false;
   }
 
-  _isSegmentBlockedByBuilding(ax, az, bx, bz) {
-    const buildings = this.world?.mapBuildings;
-    if (!Array.isArray(buildings)) return false;
-    const minSegX = Math.min(ax, bx) - 1;
-    const maxSegX = Math.max(ax, bx) + 1;
-    const minSegZ = Math.min(az, bz) - 1;
-    const maxSegZ = Math.max(az, bz) + 1;
-
+  _ensureMapBuildingGrid(buildings) {
+    if (this._mapBuildingGrid && this._mapBuildingGridLen === buildings.length) {
+      return this._mapBuildingGrid;
+    }
+    const cs = 48;
+    const grid = new Map();
     for (let i = 0; i < buildings.length; i++) {
       const b = buildings[i];
       if ((b.height || 10) < 3.2) continue;
       const hw = b.w * 0.5;
       const hd = b.d * 0.5;
-      const bMinX = b.x - hw;
-      const bMaxX = b.x + hw;
-      const bMinZ = b.z - hd;
-      const bMaxZ = b.z + hd;
-      if (bMaxX < minSegX || bMinX > maxSegX || bMaxZ < minSegZ || bMinZ > maxSegZ) continue;
-      if (segmentIntersectsRect2D(ax, az, bx, bz, bMinX, bMaxX, bMinZ, bMaxZ)) {
-        return true;
+      const entry = {
+        minX: b.x - hw,
+        maxX: b.x + hw,
+        minZ: b.z - hd,
+        maxZ: b.z + hd,
+        _losQid: 0
+      };
+      const gx0 = Math.floor(entry.minX / cs);
+      const gx1 = Math.floor(entry.maxX / cs);
+      const gz0 = Math.floor(entry.minZ / cs);
+      const gz1 = Math.floor(entry.maxZ / cs);
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
+          let bucket = grid.get(key);
+          if (!bucket) {
+            bucket = [];
+            grid.set(key, bucket);
+          }
+          bucket.push(entry);
+        }
+      }
+    }
+    this._mapBuildingGrid = grid;
+    this._mapBuildingGridLen = buildings.length;
+    this._losQueryId = this._losQueryId || 0;
+    return grid;
+  }
+
+  _isSegmentBlockedByBuilding(ax, az, bx, bz) {
+    const buildings = this.world?.mapBuildings;
+    if (!Array.isArray(buildings) || buildings.length === 0) return false;
+    const grid = this._ensureMapBuildingGrid(buildings);
+    const minSegX = Math.min(ax, bx) - 1;
+    const maxSegX = Math.max(ax, bx) + 1;
+    const minSegZ = Math.min(az, bz) - 1;
+    const maxSegZ = Math.max(az, bz) + 1;
+    const cs = 48;
+    const gx0 = Math.floor(minSegX / cs);
+    const gx1 = Math.floor(maxSegX / cs);
+    const gz0 = Math.floor(minSegZ / cs);
+    const gz1 = Math.floor(maxSegZ / cs);
+    const qid = (this._losQueryId = (this._losQueryId || 0) + 1);
+
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const bucket = grid.get(((gx & 0xffff) << 16) | (gz & 0xffff));
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i++) {
+          const b = bucket[i];
+          if (b._losQid === qid) continue;
+          b._losQid = qid;
+          if (b.maxX < minSegX || b.minX > maxSegX || b.maxZ < minSegZ || b.minZ > maxSegZ) continue;
+          if (segmentIntersectsRect2D(ax, az, bx, bz, b.minX, b.maxX, b.minZ, b.maxZ)) {
+            return true;
+          }
+        }
       }
     }
     return false;

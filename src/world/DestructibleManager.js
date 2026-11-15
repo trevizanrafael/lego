@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import {
   LEGO_COLORS,
   SHARED_STUD_GEO,
-  getLegoMaterial
+  getLegoMaterial,
+  markAsSharedAsset,
+  disposeTransientObject3D
 } from '../materials/LegoMaterials.js';
 import { optimizeStaticGroupMeshes, mergeBufferGeometries } from './BuildingGenerator.js';
 import { soundFX } from '../audio/SoundFX.js';
@@ -49,21 +51,44 @@ export const STUD_TIERS = {
 const STUD_BASE_GEO = new THREE.CylinderGeometry(0.28, 0.28, 0.11, 10);
 const STUD_TOP_GEO = new THREE.CylinderGeometry(0.18, 0.18, 0.08, 10);
 STUD_TOP_GEO.translate(0, 0.085, 0);
-const STUD_COIN_GEO = mergeBufferGeometries([STUD_BASE_GEO.clone(), STUD_TOP_GEO.clone()]);
+const STUD_COIN_GEO = markAsSharedAsset(mergeBufferGeometries([STUD_BASE_GEO, STUD_TOP_GEO]));
 
 const DEBRIS_GEOS = [
-  new THREE.BoxGeometry(0.55, 0.32, 0.55),
-  new THREE.BoxGeometry(0.85, 0.28, 0.45),
-  new THREE.BoxGeometry(0.42, 0.42, 0.42),
-  new THREE.CylinderGeometry(0.22, 0.22, 0.35, 12)
+  markAsSharedAsset(new THREE.BoxGeometry(0.55, 0.32, 0.55)),
+  markAsSharedAsset(new THREE.BoxGeometry(0.85, 0.28, 0.45)),
+  markAsSharedAsset(new THREE.BoxGeometry(0.42, 0.42, 0.42)),
+  markAsSharedAsset(new THREE.CylinderGeometry(0.22, 0.22, 0.35, 12))
 ];
+const DEBRIS_BRICK_GEO = DEBRIS_GEOS[0];
+const DEBRIS_STUD_GEO = DEBRIS_GEOS[3];
 
-const WATER_DROP_GEO = new THREE.BoxGeometry(0.22, 0.22, 0.22);
-const BULLET_GEO = new THREE.CylinderGeometry(0.065, 0.065, 0.85, 8);
-BULLET_GEO.rotateX(Math.PI / 2);
+const WATER_DROP_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.22, 0.22, 0.22));
+const BULLET_GEO = markAsSharedAsset(new THREE.CylinderGeometry(0.065, 0.065, 0.85, 8).rotateX(Math.PI / 2));
 
-const FIREBALL_GEO = new THREE.SphereGeometry(0.34, 14, 14);
-const TRAIL_CUBE_GEO = new THREE.BoxGeometry(0.24, 0.24, 0.24);
+const FIREBALL_GEO = markAsSharedAsset(new THREE.SphereGeometry(0.34, 14, 14));
+const TRAIL_CUBE_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.24, 0.24, 0.24));
+const SHARED_UNIT_CYL_6 = markAsSharedAsset(new THREE.CylinderGeometry(1, 1, 1, 6));
+const SHARED_UNIT_SPHERE_10 = markAsSharedAsset(new THREE.SphereGeometry(1, 10, 10));
+const SHARED_UNIT_SPHERE_20 = markAsSharedAsset(new THREE.SphereGeometry(1, 20, 20));
+const SHARED_ROCKET_BODY_GEO = markAsSharedAsset(new THREE.CylinderGeometry(0.11, 0.11, 0.72, 12));
+const SHARED_ROCKET_NOSE_GEO = markAsSharedAsset(new THREE.ConeGeometry(0.15, 0.38, 12));
+const SHARED_ROCKET_JET_GEO = markAsSharedAsset(new THREE.ConeGeometry(0.14, 0.42, 10));
+const SHARED_GRENADE_BODY_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.36, 0.22, 0.44));
+const SHARED_GRENADE_STRAP_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.38, 0.24, 0.12));
+
+const _BOLT_UP = new THREE.Vector3(0, 1, 0);
+const _BOLT_MID = new THREE.Vector3();
+const _BOLT_DIR = new THREE.Vector3();
+const _BOLT_PTS = Array.from({ length: 20 }, () => new THREE.Vector3());
+const _PLAYER_CHEST_VEC = new THREE.Vector3();
+const _STUD_DIR_VEC = new THREE.Vector3();
+const _TMP_IMPACT_VEC = new THREE.Vector3();
+const _LASSO_VPOS = new THREE.Vector3();
+const _LASSO_TOVEC = new THREE.Vector3();
+
+function packGridCell(cx, cz) {
+  return ((cx & 0xffff) << 16) | (cz & 0xffff);
+}
 
 export class DestructibleManager {
   constructor(scene, hud) {
@@ -88,6 +113,7 @@ export class DestructibleManager {
     this.thrownCars = [];
     this.explosions = [];
     this.fxParticles = [];
+    this._fxPool = [];
     this.lightWallSegments = [];
     this.timedBeams = [];
     this._turboGhostBikeObj = null;
@@ -381,7 +407,7 @@ export class DestructibleManager {
     } else {
       const cx = Math.floor(basePos.x / this.spatialCellSize);
       const cz = Math.floor(basePos.z / this.spatialCellSize);
-      const key = `${cx},${cz}`;
+      const key = packGridCell(cx, cz);
       item._spatialCellKey = key;
       let bucket = this._spatialGrid.get(key);
       if (!bucket) {
@@ -392,6 +418,59 @@ export class DestructibleManager {
     }
 
     return item;
+  }
+
+  wakeObjectMatrix(mesh) {
+    if (!mesh) return;
+    let cur = mesh;
+    while (cur && cur !== this.scene) {
+      cur.matrixAutoUpdate = true;
+      cur.matrixWorldAutoUpdate = true;
+      cur.matrixWorldNeedsUpdate = true;
+      cur = cur.parent;
+    }
+  }
+
+  freezeObjectMatrix(mesh) {
+    if (!mesh || mesh.userData?._keepDynamicMatrix) return;
+    mesh.updateMatrix();
+    mesh.updateMatrixWorld(true);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrixWorldAutoUpdate = false;
+  }
+
+  _spawnFxParticle(geo, colorHex, opacity, px, py, pz, sx, sy, sz, vx, vy, vz, life, maxLife = life) {
+    let entry = this._fxPool.pop();
+    if (entry) {
+      entry.mesh.geometry = geo;
+      entry.mesh.material.color.setHex(colorHex);
+      entry.mesh.material.opacity = opacity;
+      entry.mesh.position.set(px, py, pz);
+      entry.mesh.rotation.set(0, 0, 0);
+      entry.mesh.scale.set(sx, sy, sz);
+      entry.vel.set(vx, vy, vz);
+      entry.life = life;
+      entry.maxLife = maxLife;
+    } else {
+      const mat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(px, py, pz);
+      mesh.scale.set(sx, sy, sz);
+      entry = {
+        mesh,
+        vel: new THREE.Vector3(vx, vy, vz),
+        life,
+        maxLife,
+        _pooled: true
+      };
+    }
+    this.scene.add(entry.mesh);
+    this.fxParticles.push(entry);
+    return entry;
   }
 
   unregisterDestructible(item) {
@@ -409,7 +488,7 @@ export class DestructibleManager {
     if (item._isDynamicIndexed) {
       const dynIdx = this._dynamicObjects.indexOf(item);
       if (dynIdx !== -1) this._dynamicObjects.splice(dynIdx, 1);
-    } else if (item._spatialCellKey) {
+    } else if (item._spatialCellKey !== null && item._spatialCellKey !== undefined) {
       const bucket = this._spatialGrid.get(item._spatialCellKey);
       if (bucket) {
         const bIdx = bucket.indexOf(item);
@@ -429,8 +508,12 @@ export class DestructibleManager {
   /**
    * Consulta espacial O(1) nas células vizinhas de 36m + objetos móveis (60 FPS cravados com ~450+ props!)
    */
-  getObjectsNear(x, z, range = 12) {
-    const out = [];
+  getObjectsNear(x, z, range = 12, out = null) {
+    if (out) {
+      out.length = 0;
+    } else {
+      out = [];
+    }
     const pad = range + 4.5;
     const minCX = Math.floor((x - pad) / this.spatialCellSize);
     const maxCX = Math.floor((x + pad) / this.spatialCellSize);
@@ -439,7 +522,7 @@ export class DestructibleManager {
 
     for (let cx = minCX; cx <= maxCX; cx++) {
       for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const bucket = this._spatialGrid.get(`${cx},${cz}`);
+        const bucket = this._spatialGrid.get(packGridCell(cx, cz));
         if (!bucket) continue;
         for (let i = 0; i < bucket.length; i++) {
           const obj = bucket[i];
@@ -502,14 +585,19 @@ export class DestructibleManager {
       s.mesh.position.copy(s.basePos);
     }
     for (const g of this.geysers) {
-      if (g.columnMesh) this.scene.remove(g.columnMesh);
+      if (g.columnMesh) {
+        this.scene.remove(g.columnMesh);
+        disposeTransientObject3D(g.columnMesh);
+      }
       for (const drop of g.drops) {
         this.scene.remove(drop.mesh);
+        disposeTransientObject3D(drop.mesh);
       }
     }
     this.geysers.length = 0;
     for (const tp of this.topplingPoles) {
       this.scene.remove(tp.mesh);
+      disposeTransientObject3D(tp.mesh);
     }
     this.topplingPoles.length = 0;
   }
@@ -523,6 +611,11 @@ export class DestructibleManager {
     obj.mesh.position.copy(obj.basePos);
     obj.mesh.rotation.copy(obj.baseRot);
     obj.mesh.scale.set(1, 1, 1);
+    if (obj._isDynamicIndexed) {
+      obj.mesh.matrixWorldAutoUpdate = true;
+    } else if (this.scene?.matrixAutoUpdate === false) {
+      this.freezeObjectMatrix(obj.mesh);
+    }
     for (const col of obj.colliders) {
       col.disabled = false;
     }
@@ -859,7 +952,9 @@ export class DestructibleManager {
       });
     }
 
-    for (const obj of this.objects) {
+    const punchNear = this.getObjectsNear(impactCenter.x, impactCenter.z, 9.5);
+    for (let i = 0; i < punchNear.length; i++) {
+      const obj = punchNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const dx = obj.basePos.x - impactCenter.x;
       const dz = obj.basePos.z - impactCenter.z;
@@ -1020,7 +1115,9 @@ export class DestructibleManager {
       duration: 0.62
     });
 
-    for (const obj of this.objects) {
+    const slamNear = this.getObjectsNear(slamCenter.x, slamCenter.z, radius + 5.0);
+    for (let i = 0; i < slamNear.length; i++) {
+      const obj = slamNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const dHoriz = Math.hypot(obj.basePos.x - slamCenter.x, obj.basePos.z - slamCenter.z);
       const dVert = Math.abs(obj.basePos.y - floorY);
@@ -1063,26 +1160,21 @@ export class DestructibleManager {
    * Ejeta uma cápsula de munição dourada/vermelha 3D que gira no ar
    */
   _spawnEjectedBrassShell(origin, isShotgunShell = false) {
-    const shellMat = new THREE.MeshBasicMaterial({
-      color: isShotgunShell ? 0xdc2626 : 0xfacc15,
-      transparent: true,
-      opacity: 0.95
-    });
-    const shellMesh = new THREE.Mesh(TRAIL_CUBE_GEO, shellMat);
-    shellMesh.position.copy(origin);
-    shellMesh.scale.set(isShotgunShell ? 0.65 : 0.45, isShotgunShell ? 0.65 : 0.45, isShotgunShell ? 1.35 : 0.95);
-    this.scene.add(shellMesh);
-
-    this.fxParticles.push({
-      mesh: shellMesh,
-      vel: new THREE.Vector3(
-        (Math.random() - 0.5) * 5.5,
-        3.2 + Math.random() * 3.5,
-        (Math.random() - 0.5) * 5.5
-      ),
-      life: 0.55,
-      maxLife: 0.55
-    });
+    this._spawnFxParticle(
+      TRAIL_CUBE_GEO,
+      isShotgunShell ? 0xdc2626 : 0xfacc15,
+      0.95,
+      origin.x,
+      origin.y,
+      origin.z,
+      isShotgunShell ? 0.65 : 0.45,
+      isShotgunShell ? 0.65 : 0.45,
+      isShotgunShell ? 1.35 : 0.95,
+      (Math.random() - 0.5) * 5.5,
+      3.2 + Math.random() * 3.5,
+      (Math.random() - 0.5) * 5.5,
+      0.55
+    );
   }
 
   /**
@@ -1090,47 +1182,45 @@ export class DestructibleManager {
    */
   _triggerMicroImpactBlast(hitPos) {
     soundFX.playPlasticHit();
-    const flashMat = new THREE.MeshBasicMaterial({
-      color: 0xf97316,
-      transparent: true,
-      opacity: 0.92
-    });
-    const flashSphere = new THREE.Mesh(FIREBALL_GEO, flashMat);
-    flashSphere.position.copy(hitPos);
-    flashSphere.scale.setScalar(1.85);
-    this.scene.add(flashSphere);
-    this.fxParticles.push({
-      mesh: flashSphere,
-      vel: new THREE.Vector3(0, 0.5, 0),
-      life: 0.14,
-      maxLife: 0.14
-    });
+    this._spawnFxParticle(
+      FIREBALL_GEO,
+      0xf97316,
+      0.92,
+      hitPos.x,
+      hitPos.y,
+      hitPos.z,
+      1.85,
+      1.85,
+      1.85,
+      0,
+      0.5,
+      0,
+      0.14
+    );
 
     const sparkColors = [0xffffff, 0xfef08a, 0xf97316, 0xef4444];
     for (let i = 0; i < 8; i++) {
-      const sMat = new THREE.MeshBasicMaterial({
-        color: sparkColors[i % sparkColors.length],
-        transparent: true,
-        opacity: 0.95
-      });
-      const spark = new THREE.Mesh(TRAIL_CUBE_GEO, sMat);
-      spark.position.copy(hitPos);
-      spark.scale.setScalar(0.85);
-      this.scene.add(spark);
-      this.fxParticles.push({
-        mesh: spark,
-        vel: new THREE.Vector3(
-          (Math.random() - 0.5) * 14.0,
-          2.5 + Math.random() * 8.5,
-          (Math.random() - 0.5) * 14.0
-        ),
-        life: 0.24,
-        maxLife: 0.24
-      });
+      this._spawnFxParticle(
+        TRAIL_CUBE_GEO,
+        sparkColors[i % sparkColors.length],
+        0.95,
+        hitPos.x,
+        hitPos.y,
+        hitPos.z,
+        0.85,
+        0.85,
+        0.85,
+        (Math.random() - 0.5) * 14.0,
+        2.5 + Math.random() * 8.5,
+        (Math.random() - 0.5) * 14.0,
+        0.24
+      );
     }
 
     // Dano explosivo concentrado ao redor do ponto de impacto do calibre .50
-    for (const obj of this.objects) {
+    const nearBlast = this.getObjectsNear(hitPos.x, hitPos.z, 6.5);
+    for (let i = 0; i < nearBlast.length; i++) {
+      const obj = nearBlast[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - hitPos.x, obj.basePos.z - hitPos.z);
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - hitPos.y);
@@ -1268,12 +1358,12 @@ export class DestructibleManager {
     const noseMat = getLegoMaterial(0xdc2626, { emissive: 0xef4444, emissiveIntensity: 1.8 });
     const thrusterMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
 
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.72, 12), bodyMat);
+    const body = new THREE.Mesh(SHARED_ROCKET_BODY_GEO, bodyMat);
     body.rotation.x = Math.PI / 2;
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.38, 12), noseMat);
+    const nose = new THREE.Mesh(SHARED_ROCKET_NOSE_GEO, noseMat);
     nose.rotation.x = Math.PI / 2;
     nose.position.z = 0.52;
-    const jetCone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.42, 10), thrusterMat);
+    const jetCone = new THREE.Mesh(SHARED_ROCKET_JET_GEO, thrusterMat);
     jetCone.rotation.x = -Math.PI / 2;
     jetCone.position.z = -0.52;
     rocketGroup.add(body, nose, jetCone);
@@ -1341,7 +1431,9 @@ export class DestructibleManager {
     }
 
     // Destrói obstáculos próximos nos pés durante a largada da Investida!
-    for (const obj of this.objects) {
+    const thrusterNear = this.getObjectsNear(origin.x, origin.z, 10.5);
+    for (let i = 0; i < thrusterNear.length; i++) {
+      const obj = thrusterNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - origin.x, obj.basePos.z - origin.z);
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - origin.y);
@@ -1355,33 +1447,25 @@ export class DestructibleManager {
    * Rastro de Fumaça Escura do Sobretudo + Cápsulas de Munição Douradas Ejetadas durante o "Furor do Justiceiro" [Q]
    */
   spawnVingadorShellAndSmokeTrail(pos) {
-    const smokeMat = new THREE.MeshBasicMaterial({
-      color: Math.random() < 0.35 ? 0xdc2626 : 0x111827,
-      transparent: true,
-      opacity: 0.84
-    });
-    const puff = new THREE.Mesh(TRAIL_CUBE_GEO, smokeMat);
-    puff.position.set(
+    this._spawnFxParticle(
+      TRAIL_CUBE_GEO,
+      Math.random() < 0.35 ? 0xdc2626 : 0x111827,
+      0.84,
       pos.x + (Math.random() - 0.5) * 0.65,
       pos.y + 0.25 + Math.random() * 0.65,
-      pos.z + (Math.random() - 0.5) * 0.65
+      pos.z + (Math.random() - 0.5) * 0.65,
+      1.35,
+      1.35,
+      1.35,
+      (Math.random() - 0.5) * 2.2,
+      1.2 + Math.random() * 2.2,
+      (Math.random() - 0.5) * 2.2,
+      0.34
     );
-    puff.scale.setScalar(1.35);
-    this.scene.add(puff);
-
-    this.fxParticles.push({
-      mesh: puff,
-      vel: new THREE.Vector3(
-        (Math.random() - 0.5) * 2.2,
-        1.2 + Math.random() * 2.2,
-        (Math.random() - 0.5) * 2.2
-      ),
-      life: 0.34,
-      maxLife: 0.34
-    });
 
     if (Math.random() < 0.45) {
-      this._spawnEjectedBrassShell(new THREE.Vector3(pos.x, pos.y + 1.1, pos.z), false);
+      _TMP_IMPACT_VEC.set(pos.x, pos.y + 1.1, pos.z);
+      this._spawnEjectedBrassShell(_TMP_IMPACT_VEC, false);
     }
   }
 
@@ -1504,7 +1588,9 @@ export class DestructibleManager {
     }
 
     // Dano imediato corpo a corpo + Projétil Perfuratriz de 56 m/s (alcance ~32m = 0.58s)
-    for (const obj of this.objects) {
+    const slashNear = this.getObjectsNear(origin.x, origin.z, 7.5);
+    for (let i = 0; i < slashNear.length; i++) {
+      const obj = slashNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const dx = obj.basePos.x - origin.x;
       const dz = obj.basePos.z - origin.z;
@@ -1571,30 +1657,21 @@ export class DestructibleManager {
   spawnSombraShadowStepTrail(pos, scaleMult = 1.0) {
     const colors = [0x090a0d, 0x18181b, 0xdc2626, 0xff1e42];
     const c = colors[Math.floor(Math.random() * colors.length)];
-    const mat = new THREE.MeshBasicMaterial({
-      color: c,
-      transparent: true,
-      opacity: 0.86
-    });
-    const mesh = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
-    mesh.position.set(
+    this._spawnFxParticle(
+      TRAIL_CUBE_GEO,
+      c,
+      0.86,
       pos.x + (Math.random() - 0.5) * 0.7,
       pos.y + 0.18 + Math.random() * 0.45,
-      pos.z + (Math.random() - 0.5) * 0.7
+      pos.z + (Math.random() - 0.5) * 0.7,
+      1.3 * scaleMult,
+      0.45 * scaleMult,
+      1.8 * scaleMult,
+      (Math.random() - 0.5) * 2.4,
+      1.2 + Math.random() * 2.4,
+      (Math.random() - 0.5) * 2.4,
+      0.32
     );
-    mesh.scale.set(1.3 * scaleMult, 0.45 * scaleMult, 1.8 * scaleMult);
-    this.scene.add(mesh);
-
-    this.fxParticles.push({
-      mesh,
-      vel: new THREE.Vector3(
-        (Math.random() - 0.5) * 2.4,
-        1.2 + Math.random() * 2.4,
-        (Math.random() - 0.5) * 2.4
-      ),
-      life: 0.32,
-      maxLife: 0.32
-    });
   }
 
   /**
@@ -1603,30 +1680,21 @@ export class DestructibleManager {
   spawnVortexSymbioteTrail(pos, scaleMult = 1.0) {
     const colors = [0x090a0d, 0x581c87, 0x9333ea, 0xa855f7, 0xd8b4fe];
     const c = colors[Math.floor(Math.random() * colors.length)];
-    const mat = new THREE.MeshBasicMaterial({
-      color: c,
-      transparent: true,
-      opacity: 0.92
-    });
-    const mesh = new THREE.Mesh(FIREBALL_GEO, mat);
-    mesh.position.set(
+    this._spawnFxParticle(
+      FIREBALL_GEO,
+      c,
+      0.92,
       pos.x + (Math.random() - 0.5) * 0.85,
       pos.y + 0.35 + Math.random() * 0.85,
-      pos.z + (Math.random() - 0.5) * 0.85
+      pos.z + (Math.random() - 0.5) * 0.85,
+      1.1 * scaleMult,
+      0.7 * scaleMult,
+      1.5 * scaleMult,
+      (Math.random() - 0.5) * 3.0,
+      1.5 + Math.random() * 2.8,
+      (Math.random() - 0.5) * 3.0,
+      0.34
     );
-    mesh.scale.set(1.1 * scaleMult, 0.7 * scaleMult, 1.5 * scaleMult);
-    this.scene.add(mesh);
-
-    this.fxParticles.push({
-      mesh,
-      vel: new THREE.Vector3(
-        (Math.random() - 0.5) * 3.0,
-        1.5 + Math.random() * 2.8,
-        (Math.random() - 0.5) * 3.0
-      ),
-      life: 0.34,
-      maxLife: 0.34
-    });
   }
 
   performMagneticPull(playerPos, aimData) {
@@ -1969,7 +2037,9 @@ export class DestructibleManager {
     this.scene.add(projGroup);
 
     // Dano imediato brutal da Espada de Plasma em arco frontal de 7.5m (quebra Paredes Rachadas e LEGO Prateado!)
-    for (const obj of this.objects) {
+    const turboNear = this.getObjectsNear(origin.x, origin.z, 11.5);
+    for (let i = 0; i < turboNear.length; i++) {
+      const obj = turboNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - origin.x, obj.basePos.z - origin.z);
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - origin.y);
@@ -2024,33 +2094,31 @@ export class DestructibleManager {
     });
 
     const buildStrand = (mat, rad, jitterScale) => {
-      const pts = [startPt.clone()];
+      while (_BOLT_PTS.length <= segments) {
+        _BOLT_PTS.push(new THREE.Vector3());
+      }
+      _BOLT_PTS[0].copy(startPt);
       for (let i = 1; i < segments; i++) {
         const u = i / segments;
-        const p = new THREE.Vector3().lerpVectors(startPt, endPt, u);
+        const p = _BOLT_PTS[i].lerpVectors(startPt, endPt, u);
         const jitter = (isSkyBolt ? 1.65 : 0.85) * jitterScale;
         p.x += (Math.random() - 0.5) * jitter;
         p.y += (Math.random() - 0.5) * jitter * 0.75;
         p.z += (Math.random() - 0.5) * jitter;
-        pts.push(p);
       }
-      pts.push(endPt.clone());
+      _BOLT_PTS[segments].copy(endPt);
 
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i];
-        const b = pts[i + 1];
-        const segLen = Math.max(0.05, a.distanceTo(b));
-        const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      for (let i = 0; i < segments; i++) {
+        const a = _BOLT_PTS[i];
+        const b = _BOLT_PTS[i + 1];
+        _BOLT_DIR.subVectors(b, a);
+        const segLen = Math.max(0.05, _BOLT_DIR.length());
+        _BOLT_MID.addVectors(a, b).multiplyScalar(0.5);
 
-        const segMesh = new THREE.Mesh(
-          new THREE.CylinderGeometry(rad, rad, segLen, 6),
-          mat
-        );
-        segMesh.position.copy(mid);
-        segMesh.quaternion.setFromUnitVectors(
-          new THREE.Vector3(0, 1, 0),
-          b.clone().sub(a).normalize()
-        );
+        const segMesh = new THREE.Mesh(SHARED_UNIT_CYL_6, mat);
+        segMesh.position.copy(_BOLT_MID);
+        segMesh.scale.set(rad, segLen, rad);
+        segMesh.quaternion.setFromUnitVectors(_BOLT_UP, _BOLT_DIR.multiplyScalar(1 / segLen));
         boltGroup.add(segMesh);
       }
     };
@@ -2061,10 +2129,12 @@ export class DestructibleManager {
     buildStrand(goldMat, radius * 0.58, 1.45);
 
     // Esferas de Descarga Elétrica nas pontas
-    const startFlare = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.2, 10, 10), coreMat);
+    const startFlare = new THREE.Mesh(SHARED_UNIT_SPHERE_10, coreMat);
     startFlare.position.copy(startPt);
-    const endFlare = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.8, 12, 12), cyanMat);
+    startFlare.scale.setScalar(radius * 2.2);
+    const endFlare = new THREE.Mesh(SHARED_UNIT_SPHERE_10, cyanMat);
     endFlare.position.copy(endPt);
+    endFlare.scale.setScalar(radius * 2.8);
     boltGroup.add(startFlare, endFlare);
 
     this.scene.add(boltGroup);
@@ -2170,10 +2240,14 @@ export class DestructibleManager {
     // 1º Salto: do Cetro Tesla até o ponto/objeto mirado
     let firstTargetObj = null;
     let bestDist = 9.5;
-    for (const obj of this.objects) {
+    const firstCandidates = this.getObjectsNear(targetPoint.x, targetPoint.z, 14.0);
+    for (let i = 0; i < firstCandidates.length; i++) {
+      const obj = firstCandidates[i];
       if (obj.destroyed || obj.isDriven) continue;
-      const objCenter = new THREE.Vector3(obj.basePos.x, obj.basePos.y + obj.height * 0.5, obj.basePos.z);
-      const d = objCenter.distanceTo(targetPoint);
+      const dx = obj.basePos.x - targetPoint.x;
+      const dy = (obj.basePos.y + obj.height * 0.5) - targetPoint.y;
+      const dz = obj.basePos.z - targetPoint.z;
+      const d = Math.hypot(dx, dy, dz);
       if (d < bestDist + obj.radius) {
         bestDist = d;
         firstTargetObj = obj;
@@ -2192,7 +2266,9 @@ export class DestructibleManager {
     this._triggerMicroImpactBlast(firstPt);
 
     // Choque elétrico em área de 4.8m no ponto de impacto inicial
-    for (const obj of this.objects) {
+    const firstSplash = this.getObjectsNear(firstPt.x, firstPt.z, 9.0);
+    for (let i = 0; i < firstSplash.length; i++) {
+      const obj = firstSplash[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - firstPt.x, obj.basePos.z - firstPt.z);
       if (d <= obj.radius + 4.8 && Math.abs(obj.basePos.y - firstPt.y) <= obj.height + 3.5) {
@@ -2209,7 +2285,9 @@ export class DestructibleManager {
     for (let bounce = 0; bounce < 6; bounce++) {
       let nextObj = null;
       let minDist = 22.0;
-      for (const obj of this.objects) {
+      const bounceNear = this.getObjectsNear(currentPt.x, currentPt.z, 24.0);
+      for (let i = 0; i < bounceNear.length; i++) {
+        const obj = bounceNear[i];
         if (obj.destroyed || obj.isDriven || visited.has(obj)) continue;
         const d = Math.hypot(obj.basePos.x - currentPt.x, obj.basePos.z - currentPt.z);
         if (d < minDist) {
@@ -2259,7 +2337,9 @@ export class DestructibleManager {
     this.spawnVoltaicoElectricGlideFX(toPos, true);
 
     // Choque elétrico devastador de chegada (10.5m de raio)
-    for (const obj of this.objects) {
+    const tpNear = this.getObjectsNear(toPos.x, toPos.z, 15.0);
+    for (let i = 0; i < tpNear.length; i++) {
+      const obj = tpNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - toPos.x, obj.basePos.z - toPos.z);
       if (d <= obj.radius + 10.5 && Math.abs(obj.basePos.y - toPos.y) <= 7.5) {
@@ -2290,7 +2370,7 @@ export class DestructibleManager {
       transparent: true,
       opacity: 0.95
     });
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), domeMat);
+    const sphereMesh = new THREE.Mesh(SHARED_UNIT_SPHERE_20, domeMat);
     sphereMesh.position.copy(center);
     this.scene.add(sphereMesh);
 
@@ -2326,7 +2406,9 @@ export class DestructibleManager {
       this._spawnJaggedLightningBolt(skyPt, strikePt, 0.24, 0.48, true);
     }
 
-    for (const obj of this.objects) {
+    const empNear = this.getObjectsNear(centerPos.x, centerPos.z, radius + 5.0);
+    for (let i = 0; i < empNear.length; i++) {
+      const obj = empNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - centerPos.x, obj.basePos.z - centerPos.z);
       if (d <= radius + obj.radius && Math.abs(obj.basePos.y - centerPos.y) <= 15.0) {
@@ -2637,7 +2719,9 @@ export class DestructibleManager {
       playerPos.z + Math.cos(facingAngle) * (reach * 0.55)
     );
     const hitRadius = isMonsterForm ? 11.5 : 8.2;
-    for (const obj of this.objects) {
+    const vortexNear = this.getObjectsNear(strikeCenter.x, strikeCenter.z, hitRadius + 5.0);
+    for (let i = 0; i < vortexNear.length; i++) {
+      const obj = vortexNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - strikeCenter.x, obj.basePos.z - strikeCenter.z);
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - strikeCenter.y);
@@ -2675,13 +2759,14 @@ export class DestructibleManager {
     // 1. Procura veículo aéreo ou terrestre próximo à linha de mira (até 92m)
     let bestVehicle = null;
     let bestScore = Infinity;
-    for (const obj of this.objects) {
+    for (let i = 0; i < this._dynamicObjects.length; i++) {
+      const obj = this._dynamicObjects[i];
       if (obj.destroyed || obj.type !== 'car' || obj.isDriven) continue;
-      const vPos = obj.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0));
-      const toVec = vPos.clone().sub(rayOrigin);
-      const dist = toVec.length();
+      _LASSO_VPOS.set(obj.mesh.position.x, obj.mesh.position.y + 1.0, obj.mesh.position.z);
+      _LASSO_TOVEC.subVectors(_LASSO_VPOS, rayOrigin);
+      const dist = _LASSO_TOVEC.length();
       if (dist < 2.5 || dist > 92.0) continue;
-      const forwardDot = toVec.clone().normalize().dot(rayDir);
+      const forwardDot = _LASSO_TOVEC.multiplyScalar(1 / dist).dot(rayDir);
       if (forwardDot < 0.82) continue;
       const perpDist = dist * Math.sqrt(Math.max(0, 1 - forwardDot * forwardDot));
       if (perpDist <= (obj.radius || 3.0) + 4.2 && dist < bestScore) {
@@ -2818,7 +2903,7 @@ export class DestructibleManager {
       opacity: 0.94
     });
 
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 20), sphereMat);
+    const sphereMesh = new THREE.Mesh(SHARED_UNIT_SPHERE_20, sphereMat);
     sphereMesh.position.copy(center);
     this.scene.add(sphereMesh);
 
@@ -2866,7 +2951,9 @@ export class DestructibleManager {
       duration: 0.78
     });
 
-    for (const obj of this.objects) {
+    const erupNear = this.getObjectsNear(centerPos.x, centerPos.z, radius + 5.0);
+    for (let i = 0; i < erupNear.length; i++) {
+      const obj = erupNear[i];
       if (obj.destroyed || obj.isDriven) continue;
       const d = Math.hypot(obj.basePos.x - centerPos.x, obj.basePos.z - centerPos.z);
       if (d <= radius + obj.radius && Math.abs(obj.basePos.y - floorY) <= 12.0) {
@@ -2893,9 +2980,9 @@ export class DestructibleManager {
       emissiveIntensity: 2.4
     });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.22, 0.44), bodyMat);
+    const body = new THREE.Mesh(SHARED_GRENADE_BODY_GEO, bodyMat);
     body.castShadow = true;
-    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.24, 0.12), strapMat);
+    const strap = new THREE.Mesh(SHARED_GRENADE_STRAP_GEO, strapMat);
     const topStud = new THREE.Mesh(SHARED_STUD_GEO, topLedMat);
     topStud.position.y = 0.14;
     nadeGroup.add(body, strap, topStud);
@@ -2934,6 +3021,7 @@ export class DestructibleManager {
       g.onExplode(blastPos);
     }
     this.scene.remove(g.mesh);
+    disposeTransientObject3D(g.mesh);
     return true;
   }
 
@@ -2944,30 +3032,21 @@ export class DestructibleManager {
     const colors = [0x1e293b, 0x334155, 0xf97316, 0xfacc15];
     for (let i = 0; i < 2; i++) {
       const c = colors[Math.floor(Math.random() * colors.length)];
-      const mat = new THREE.MeshBasicMaterial({
-        color: c,
-        transparent: true,
-        opacity: 0.9
-      });
-      const mesh = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
-      mesh.position.set(
+      this._spawnFxParticle(
+        TRAIL_CUBE_GEO,
+        c,
+        0.9,
         pos.x + (Math.random() - 0.5) * 0.55,
         pos.y + 0.18 + Math.random() * 0.35,
-        pos.z + (Math.random() - 0.5) * 0.55
+        pos.z + (Math.random() - 0.5) * 0.55,
+        1.15,
+        1.15,
+        1.15,
+        (Math.random() - 0.5) * 2.6,
+        0.8 + Math.random() * 2.2,
+        (Math.random() - 0.5) * 2.6,
+        0.34
       );
-      mesh.scale.setScalar(1.15);
-      this.scene.add(mesh);
-
-      this.fxParticles.push({
-        mesh,
-        vel: new THREE.Vector3(
-          (Math.random() - 0.5) * 2.6,
-          0.8 + Math.random() * 2.2,
-          (Math.random() - 0.5) * 2.6
-        ),
-        life: 0.34,
-        maxLife: 0.34
-      });
     }
   }
 
@@ -3059,7 +3138,9 @@ export class DestructibleManager {
     if (aimData.hitObj && !aimData.hitObj.destroyed) {
       this.damageObject(aimData.hitObj, beamDps * dt, targetPt, true);
     } else {
-      for (const obj of this.objects) {
+      const beamNear = this.getObjectsNear(targetPt.x, targetPt.z, 5.0);
+      for (let i = 0; i < beamNear.length; i++) {
+        const obj = beamNear[i];
         if (obj.destroyed) continue;
         const dHoriz = Math.hypot(obj.basePos.x - targetPt.x, obj.basePos.z - targetPt.z);
         const dVert = Math.abs((obj.basePos.y + obj.height * 0.5) - targetPt.y);
@@ -3185,7 +3266,7 @@ export class DestructibleManager {
       transparent: true,
       opacity: 0.88
     });
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 22), sphereMat);
+    const sphereMesh = new THREE.Mesh(SHARED_UNIT_SPHERE_20, sphereMat);
     sphereMesh.position.copy(center);
     this.scene.add(sphereMesh);
 
@@ -3216,7 +3297,7 @@ export class DestructibleManager {
         transparent: true,
         opacity: 0.96
       });
-      innerCoreMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 20), innerMat);
+      innerCoreMesh = new THREE.Mesh(SHARED_UNIT_SPHERE_20, innerMat);
       innerCoreMesh.position.copy(center);
       this.scene.add(innerCoreMesh);
       extraMeshes.push(innerCoreMesh);
@@ -3346,30 +3427,21 @@ export class DestructibleManager {
   spawnFlameTrailParticle(pos, scale = 1.0, customHex = null) {
     const colors = [0xfef08a, 0xfacc15, 0xf97316, 0xef4444];
     const c = typeof customHex === 'number' ? customHex : colors[Math.floor(Math.random() * colors.length)];
-    const mat = new THREE.MeshBasicMaterial({
-      color: c,
-      transparent: true,
-      opacity: 0.9
-    });
-    const mesh = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
-    mesh.position.set(
+    this._spawnFxParticle(
+      TRAIL_CUBE_GEO,
+      c,
+      0.9,
       pos.x + (Math.random() - 0.5) * 0.45,
       pos.y + (Math.random() - 0.5) * 0.45,
-      pos.z + (Math.random() - 0.5) * 0.45
+      pos.z + (Math.random() - 0.5) * 0.45,
+      scale,
+      scale,
+      scale,
+      (Math.random() - 0.5) * 2.4,
+      1.5 + Math.random() * 2.5,
+      (Math.random() - 0.5) * 2.4,
+      0.38
     );
-    mesh.scale.setScalar(scale);
-    this.scene.add(mesh);
-
-    this.fxParticles.push({
-      mesh,
-      vel: new THREE.Vector3(
-        (Math.random() - 0.5) * 2.4,
-        1.5 + Math.random() * 2.5,
-        (Math.random() - 0.5) * 2.4
-      ),
-      life: 0.38,
-      maxLife: 0.38
-    });
   }
 
   /**
@@ -3379,29 +3451,21 @@ export class DestructibleManager {
     soundFX.playHeroSwap();
     for (let i = 0; i < 14; i++) {
       const angle = (i / 14) * Math.PI * 2;
-      const mat = new THREE.MeshBasicMaterial({
-        color: colorHex,
-        transparent: true,
-        opacity: 0.95
-      });
-      const mesh = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
-      mesh.position.set(
+      this._spawnFxParticle(
+        TRAIL_CUBE_GEO,
+        colorHex,
+        0.95,
         pos.x + Math.cos(angle) * 0.6,
         pos.y + 1.0,
-        pos.z + Math.sin(angle) * 0.6
+        pos.z + Math.sin(angle) * 0.6,
+        1,
+        1,
+        1,
+        Math.cos(angle) * 4.5,
+        2.2 + Math.random() * 2.5,
+        Math.sin(angle) * 4.5,
+        0.42
       );
-      this.scene.add(mesh);
-
-      this.fxParticles.push({
-        mesh,
-        vel: new THREE.Vector3(
-          Math.cos(angle) * 4.5,
-          2.2 + Math.random() * 2.5,
-          Math.sin(angle) * 4.5
-        ),
-        life: 0.42,
-        maxLife: 0.42
-      });
     }
   }
 
@@ -3412,6 +3476,7 @@ export class DestructibleManager {
     // Objetos de Ouro LEGO só derretem com o Raio Solar Contínuo ou Supernova do Solaris!
     if (obj.goldOnly && !isSolar) {
       obj.shakeTimer = 0.12;
+      if (!obj._isDynamicIndexed) this.wakeObjectMatrix(obj.mesh);
       soundFX.playMetalRicochet();
       return;
     }
@@ -3419,6 +3484,7 @@ export class DestructibleManager {
     // Paredes Rachadas só quebram com Soco Foguete / Terremoto / Carro Arremessado do Titã Blindado ou RPG!
     if (obj.crackedWallOnly && !damageOpts.canBreakCrackedWall && !isSolar) {
       obj.shakeTimer = 0.12;
+      if (!obj._isDynamicIndexed) this.wakeObjectMatrix(obj.mesh);
       soundFX.playMetalRicochet();
       return;
     }
@@ -3426,6 +3492,7 @@ export class DestructibleManager {
     // Objetos Prateados Brilhantes só explodem com a Bazuca RPG do Vingador de Chumbo ou Carro Arremessado!
     if (obj.silverOnly && !damageOpts.canBreakSilver && !isSolar) {
       obj.shakeTimer = 0.12;
+      if (!obj._isDynamicIndexed) this.wakeObjectMatrix(obj.mesh);
       soundFX.playMetalRicochet();
       return;
     }
@@ -3463,6 +3530,7 @@ export class DestructibleManager {
 
     obj.hp -= finalDamage;
     obj.shakeTimer = 0.2;
+    if (!obj._isDynamicIndexed) this.wakeObjectMatrix(obj.mesh);
     this.world?.livingCity?.triggerPedestrianPanicNear(obj.basePos, 28);
     if (typeof obj.onDamaged === 'function') {
       obj.onDamaged(finalDamage, hitOrigin);
@@ -3491,6 +3559,9 @@ export class DestructibleManager {
     // Objetos de rua (isStreetProp) reconstroem após 45s fora do campo de visão / longe do jogador!
     obj.respawnTimer = obj.isCombatNpc ? 4.0 : obj.isStreetProp ? 45.0 : 28.0;
     obj.mesh.visible = false;
+    if (obj._isDynamicIndexed) {
+      obj.mesh.matrixWorldAutoUpdate = false;
+    }
     if (typeof obj.onShattered === 'function') {
       obj.onShattered();
     }
@@ -3548,23 +3619,26 @@ export class DestructibleManager {
   _spawnElectricSparks(origin, count = 12) {
     const colors = [0xfacc15, 0xfef08a, 0x38bdf8, 0xffffff];
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.MeshBasicMaterial({
-        color: colors[i % colors.length],
-        transparent: true,
-        opacity: 0.95
-      });
-      const spark = new THREE.Mesh(TRAIL_CUBE_GEO, mat);
-      spark.position.copy(origin);
-      spark.scale.setScalar(0.55 + Math.random() * 0.45);
-      this.scene.add(spark);
+      const s = 0.55 + Math.random() * 0.45;
       const ang = Math.random() * Math.PI * 2;
       const spd = 3.5 + Math.random() * 7.5;
-      this.fxParticles.push({
-        mesh: spark,
-        vel: new THREE.Vector3(Math.cos(ang) * spd, 3.0 + Math.random() * 6.5, Math.sin(ang) * spd),
-        life: 0.34 + Math.random() * 0.22,
-        maxLife: 0.56
-      });
+      const life = 0.34 + Math.random() * 0.22;
+      this._spawnFxParticle(
+        TRAIL_CUBE_GEO,
+        colors[i % colors.length],
+        0.95,
+        origin.x,
+        origin.y,
+        origin.z,
+        s,
+        s,
+        s,
+        Math.cos(ang) * spd,
+        3.0 + Math.random() * 6.5,
+        Math.sin(ang) * spd,
+        life,
+        0.56
+      );
     }
   }
 
@@ -3636,7 +3710,7 @@ export class DestructibleManager {
 
       const pieceGroup = new THREE.Group();
       const body = new THREE.Mesh(geo, mat);
-      body.castShadow = true;
+      body.castShadow = false;
       pieceGroup.add(body);
 
       if (i % 4 !== 3) {
@@ -3840,6 +3914,7 @@ export class DestructibleManager {
 
       if (obj.isDriven || obj.isGrabbed) {
         obj.mesh.visible = true;
+        if (obj._isDynamicIndexed) obj.mesh.matrixWorldAutoUpdate = true;
         continue;
       }
 
@@ -3859,6 +3934,7 @@ export class DestructibleManager {
         const shouldBeVisible = distSq <= maxCullSq;
         if (obj.mesh.visible !== shouldBeVisible) {
           obj.mesh.visible = shouldBeVisible;
+          if (obj._isDynamicIndexed) obj.mesh.matrixWorldAutoUpdate = shouldBeVisible;
         }
         if (!shouldBeVisible) continue;
       } else if (!obj.mesh.visible) {
@@ -3871,6 +3947,9 @@ export class DestructibleManager {
           obj.shakeTimer = 0;
           obj.mesh.position.copy(obj.basePos);
           obj.mesh.rotation.copy(obj.baseRot);
+          if (!obj._isDynamicIndexed) {
+            this.freezeObjectMatrix(obj.mesh);
+          }
         } else {
           const intensity = obj.shakeTimer * 0.45;
           obj.mesh.position.x = obj.basePos.x + (Math.random() - 0.5) * intensity;
@@ -3897,37 +3976,37 @@ export class DestructibleManager {
         if (p.type === 'katana_slash' && Math.random() < 0.85) {
           this.spawnSombraShadowStepTrail(p.mesh.position, 1.4);
         } else if (p.type === 'turbo_plasma_slash' && Math.random() < 0.88) {
-          const sparkMat = new THREE.MeshBasicMaterial({
-            color: Math.random() > 0.4 ? 0x22d3ee : 0xe0f2fe,
-            transparent: true,
-            opacity: 0.92
-          });
-          const spark = new THREE.Mesh(TRAIL_CUBE_GEO, sparkMat);
-          spark.position.copy(p.mesh.position);
-          spark.scale.setScalar(1.35);
-          this.scene.add(spark);
-          this.fxParticles.push({
-            mesh: spark,
-            vel: new THREE.Vector3((Math.random() - 0.5) * 6, 2.5 + Math.random() * 4, (Math.random() - 0.5) * 6),
-            life: 0.25,
-            maxLife: 0.25
-          });
+          this._spawnFxParticle(
+            TRAIL_CUBE_GEO,
+            Math.random() > 0.4 ? 0x22d3ee : 0xe0f2fe,
+            0.92,
+            p.mesh.position.x,
+            p.mesh.position.y,
+            p.mesh.position.z,
+            1.35,
+            1.35,
+            1.35,
+            (Math.random() - 0.5) * 6,
+            2.5 + Math.random() * 4,
+            (Math.random() - 0.5) * 6,
+            0.25
+          );
         } else if (p.type === 'vortex_symbiote_wave' && Math.random() < 0.88) {
-          const bioMat = new THREE.MeshBasicMaterial({
-            color: Math.random() > 0.45 ? 0x090a0d : 0xa855f7,
-            transparent: true,
-            opacity: 0.94
-          });
-          const blob = new THREE.Mesh(FIREBALL_GEO, bioMat);
-          blob.position.copy(p.mesh.position);
-          blob.scale.setScalar(1.1);
-          this.scene.add(blob);
-          this.fxParticles.push({
-            mesh: blob,
-            vel: new THREE.Vector3((Math.random() - 0.5) * 5, 1.5 + Math.random() * 3.5, (Math.random() - 0.5) * 5),
-            life: 0.24,
-            maxLife: 0.24
-          });
+          this._spawnFxParticle(
+            FIREBALL_GEO,
+            Math.random() > 0.45 ? 0x090a0d : 0xa855f7,
+            0.94,
+            p.mesh.position.x,
+            p.mesh.position.y,
+            p.mesh.position.z,
+            1.1,
+            1.1,
+            1.1,
+            (Math.random() - 0.5) * 5,
+            1.5 + Math.random() * 3.5,
+            (Math.random() - 0.5) * 5,
+            0.24
+          );
         }
 
         const slashR = p.slashRadius ?? 2.2;
@@ -3943,7 +4022,8 @@ export class DestructibleManager {
           if (Math.hypot(dx, dz) <= obj.radius + slashR && Math.abs(dy) <= obj.height * 0.75 + 1.8) {
             if (p.hitObjects) p.hitObjects.add(obj);
             if (p.type === 'turbo_plasma_slash' || p.type === 'vortex_symbiote_wave') {
-              this._triggerMicroImpactBlast(new THREE.Vector3(ox, oy + 0.8, oz));
+              _TMP_IMPACT_VEC.set(ox, oy + 0.8, oz);
+              this._triggerMicroImpactBlast(_TMP_IMPACT_VEC);
             }
             this.damageObject(obj, p.damage, p.mesh.position, false, {
               canBreakCrackedWall: Boolean(p.canBreakCrackedWall),
@@ -3953,6 +4033,7 @@ export class DestructibleManager {
         }
         if (p.life <= 0) {
           this.scene.remove(p.mesh);
+          disposeTransientObject3D(p.mesh);
           this.projectiles.splice(i, 1);
         }
         continue;
@@ -4073,6 +4154,7 @@ export class DestructibleManager {
 
       if (hit || p.life <= 0) {
         this.scene.remove(p.mesh);
+        disposeTransientObject3D(p.mesh);
         this.projectiles.splice(i, 1);
       }
     }
@@ -4188,6 +4270,7 @@ export class DestructibleManager {
           g.onExplode(blastPos);
         }
         this.scene.remove(g.mesh);
+        disposeTransientObject3D(g.mesh);
         this.grenades.splice(i, 1);
       }
     }
@@ -4200,11 +4283,20 @@ export class DestructibleManager {
       if (t >= 1) {
         if (ex.sphereMesh) {
           this.scene.remove(ex.sphereMesh);
+          disposeTransientObject3D(ex.sphereMesh);
         }
-        this.scene.remove(ex.ringMesh);
+        if (ex.ringMesh) {
+          this.scene.remove(ex.ringMesh);
+          disposeTransientObject3D(ex.ringMesh);
+        }
+        if (ex.innerCoreMesh) {
+          this.scene.remove(ex.innerCoreMesh);
+          disposeTransientObject3D(ex.innerCoreMesh);
+        }
         if (ex.extraMeshes) {
           for (const m of ex.extraMeshes) {
             this.scene.remove(m);
+            disposeTransientObject3D(m);
           }
         }
         this.explosions.splice(i, 1);
@@ -4251,6 +4343,11 @@ export class DestructibleManager {
       fp.life -= dt;
       if (fp.life <= 0) {
         this.scene.remove(fp.mesh);
+        if (fp._pooled && this._fxPool.length < 512) {
+          this._fxPool.push(fp);
+        } else {
+          disposeTransientObject3D(fp.mesh);
+        }
         this.fxParticles.splice(i, 1);
         continue;
       }
@@ -4271,6 +4368,7 @@ export class DestructibleManager {
       tb.life -= dt;
       if (tb.life <= 0) {
         this.scene.remove(tb.mesh);
+        disposeTransientObject3D(tb.mesh);
         this.timedBeams.splice(i, 1);
         continue;
       }
@@ -4293,6 +4391,7 @@ export class DestructibleManager {
       seg.life -= dt;
       if (seg.life <= 0) {
         this.scene.remove(seg.mesh);
+        disposeTransientObject3D(seg.mesh);
         this.lightWallSegments.splice(i, 1);
         continue;
       }
@@ -4303,10 +4402,15 @@ export class DestructibleManager {
       }
       // Checa colisão de objetos/veículos da rua com a Muralha de Luz (após 0.15s da criação)
       if (seg.maxLife - seg.life > 0.15) {
-        for (const obj of this.objects) {
+        const segNear = this.getObjectsNear(seg.midPos.x, seg.midPos.z, seg.halfLen + 5.0);
+        for (let si = 0; si < segNear.length; si++) {
+          const obj = segNear[si];
           if (obj.destroyed || obj.isDriven || obj.isGrabbed) continue;
-          const d = Math.hypot(obj.basePos.x - seg.midPos.x, obj.basePos.z - seg.midPos.z);
-          if (d <= obj.radius + seg.halfLen && Math.abs(obj.basePos.y - seg.midPos.y) <= 2.6) {
+          const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+          const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+          const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+          const d = Math.hypot(ox - seg.midPos.x, oz - seg.midPos.z);
+          if (d <= obj.radius + seg.halfLen && Math.abs(oy - seg.midPos.y) <= 2.6) {
             this.damageObject(obj, 220, seg.midPos, false, { canBreakCrackedWall: true });
           }
         }
@@ -4320,6 +4424,7 @@ export class DestructibleManager {
 
       if (d.life <= 0) {
         this.scene.remove(d.mesh);
+        disposeTransientObject3D(d.mesh);
         this.debrisList.splice(i, 1);
         continue;
       }
@@ -4349,7 +4454,7 @@ export class DestructibleManager {
     }
 
     // 7. Studs 3D e Coleta com Ímã
-    const playerChest = new THREE.Vector3(
+    const playerChest = _PLAYER_CHEST_VEC.set(
       playerPosition.x,
       playerPosition.y + 1.1,
       playerPosition.z
@@ -4367,7 +4472,7 @@ export class DestructibleManager {
       }
 
       if (s.magnetized) {
-        const dir = playerChest.clone().sub(s.mesh.position);
+        const dir = _STUD_DIR_VEC.subVectors(playerChest, s.mesh.position);
         const dist = dir.length();
 
         if (dist <= this.collectRadius) {
@@ -4376,11 +4481,12 @@ export class DestructibleManager {
             this.hud.addStuds(s.value, s.tier);
           }
           this.scene.remove(s.mesh);
+          disposeTransientObject3D(s.mesh);
           this.studsList.splice(i, 1);
           continue;
         }
 
-        dir.normalize();
+        dir.multiplyScalar(1 / Math.max(0.0001, dist));
         const pullSpeed = 19.5 + (this.magnetRadius - Math.min(this.magnetRadius, dist)) * 3.8;
         s.mesh.position.addScaledVector(dir, pullSpeed * dt);
       } else {
@@ -4422,7 +4528,7 @@ export class DestructibleManager {
       }
 
       if (s.magnetized) {
-        const dir = playerChest.clone().sub(s.mesh.position);
+        const dir = _STUD_DIR_VEC.subVectors(playerChest, s.mesh.position);
         const dist = dir.length();
         if (dist <= this.collectRadius) {
           s.collected = true;
@@ -4433,7 +4539,7 @@ export class DestructibleManager {
           }
           continue;
         }
-        dir.normalize();
+        dir.multiplyScalar(1 / Math.max(0.0001, dist));
         const pullSpeed = 19.5 + (this.magnetRadius - Math.min(this.magnetRadius, dist)) * 3.8;
         s.mesh.position.addScaledVector(dir, pullSpeed * dt);
       }
@@ -4447,9 +4553,11 @@ export class DestructibleManager {
       if (g.timer <= 0) {
         if (g.columnMesh) {
           this.scene.remove(g.columnMesh);
+          disposeTransientObject3D(g.columnMesh);
         }
         for (const drop of g.drops) {
           this.scene.remove(drop.mesh);
+          disposeTransientObject3D(drop.mesh);
         }
         this.geysers.splice(i, 1);
         continue;
@@ -4488,6 +4596,7 @@ export class DestructibleManager {
       tp.life -= dt;
       if (tp.life <= 0) {
         this.scene.remove(tp.mesh);
+        disposeTransientObject3D(tp.mesh);
         this.topplingPoles.splice(i, 1);
         continue;
       }

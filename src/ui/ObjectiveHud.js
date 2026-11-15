@@ -88,6 +88,10 @@ export class ObjectiveHud {
     this.rouletteEl?.classList.add('hidden');
     this.visible = false;
     this._lastSegLit = -1;
+    this._lastStatusText = undefined;
+    this._lastStatusVar = undefined;
+    this._lastTimerSec = undefined;
+    this._lastWaveText = undefined;
   }
 
   /**
@@ -111,17 +115,28 @@ export class ObjectiveHud {
 
   setStatus(text, variant = '') {
     if (!this.statusEl) return;
-    this.statusEl.textContent = text;
-    this.statusEl.dataset.variant = variant;
+    if (this._lastStatusText !== text) {
+      this._lastStatusText = text;
+      this.statusEl.textContent = text;
+    }
+    if (this._lastStatusVar !== variant) {
+      this._lastStatusVar = variant;
+      this.statusEl.dataset.variant = variant;
+    }
   }
 
   setTimer(seconds) {
     if (!this.timerEl) return;
     if (seconds === null || seconds === undefined) {
-      this.timerEl.textContent = '';
+      if (this._lastTimerSec !== null) {
+        this._lastTimerSec = null;
+        this.timerEl.textContent = '';
+      }
       return;
     }
     const s = Math.max(0, Math.ceil(seconds));
+    if (this._lastTimerSec === s) return;
+    this._lastTimerSec = s;
     const mm = String(Math.floor(s / 60)).padStart(2, '0');
     const ss = String(s % 60).padStart(2, '0');
     this.timerEl.textContent = `${mm}:${ss}`;
@@ -130,7 +145,11 @@ export class ObjectiveHud {
 
   setWave(current, total, label = 'ONDA') {
     if (!this.waveEl) return;
-    this.waveEl.textContent = current && total ? `${label} ${current}/${total}` : '';
+    const nextWave = current && total ? `${label} ${current}/${total}` : '';
+    if (this._lastWaveText !== nextWave) {
+      this._lastWaveText = nextWave;
+      this.waveEl.textContent = nextWave;
+    }
   }
 
   /**

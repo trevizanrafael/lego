@@ -32,19 +32,91 @@ export const LEGO_COLORS = {
 };
 
 const materialCache = new Map();
+const HERO_FACE_TEX_CACHE = new Map();
+const HERO_TORSO_TEX_CACHE = new Map();
+const SHARED_ASSETS = new WeakSet();
+
+export function markAsSharedAsset(asset) {
+  if (asset && typeof asset === 'object') {
+    SHARED_ASSETS.add(asset);
+  }
+  return asset;
+}
+
+export function isSharedAsset(asset) {
+  return Boolean(asset && SHARED_ASSETS.has(asset));
+}
+
+export function disposeMaterialSafe(mat) {
+  if (!mat || SHARED_ASSETS.has(mat)) return;
+  const texProps = ['map', 'emissiveMap', 'alphaMap', 'bumpMap', 'normalMap', 'roughnessMap', 'metalnessMap'];
+  for (let i = 0; i < texProps.length; i++) {
+    const tex = mat[texProps[i]];
+    if (tex && !SHARED_ASSETS.has(tex) && typeof tex.dispose === 'function') {
+      tex.dispose();
+    }
+  }
+  if (typeof mat.dispose === 'function') {
+    mat.dispose();
+  }
+}
+
+export function disposeTransientObject3D(root) {
+  if (!root || SHARED_ASSETS.has(root)) return;
+  const seenGeos = new Set();
+  const seenMats = new Set();
+  root.traverse((node) => {
+    if (SHARED_ASSETS.has(node)) return;
+    const geo = node.geometry;
+    if (geo && !SHARED_ASSETS.has(geo) && !seenGeos.has(geo) && typeof geo.dispose === 'function') {
+      seenGeos.add(geo);
+      geo.dispose();
+    }
+    const mat = node.material;
+    if (!mat) return;
+    if (Array.isArray(mat)) {
+      for (let i = 0; i < mat.length; i++) {
+        const m = mat[i];
+        if (m && !seenMats.has(m)) {
+          seenMats.add(m);
+          disposeMaterialSafe(m);
+        }
+      }
+    } else if (!seenMats.has(mat)) {
+      seenMats.add(mat);
+      disposeMaterialSafe(mat);
+    }
+  });
+}
+
+function canonicalizeMaterialOptions(restOptions) {
+  const keys = Object.keys(restOptions);
+  if (keys.length === 0) return '';
+  keys.sort();
+  let out = '';
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    const v = restOptions[k];
+    if (v !== undefined) {
+      out += `${k}:${v};`;
+    }
+  }
+  return out;
+}
 
 /**
  * Retorna um MeshPhysicalMaterial com acabamento de plástico ABS LEGO brilhante
  */
 export function getLegoMaterial(colorHex, options = {}) {
+  const resolvedColor = colorHex ?? 0xffffff;
   const { map, ...restOptions } = options;
-  const key = `${colorHex}_${map ? map.uuid : 'nomap'}_${JSON.stringify(restOptions)}`;
+  const key = `${resolvedColor}_${map ? map.uuid : 'nomap'}_${canonicalizeMaterialOptions(restOptions)}`;
   if (materialCache.has(key)) {
     return materialCache.get(key);
   }
 
   const mat = new THREE.MeshPhysicalMaterial({
-    color: colorHex,
+    color: resolvedColor,
     roughness: options.roughness ?? 0.25,
     metalness: options.metalness ?? 0.02,
     clearcoat: options.clearcoat ?? 0.4,
@@ -54,6 +126,7 @@ export function getLegoMaterial(colorHex, options = {}) {
     ...(options.emissive ? { emissive: options.emissive, emissiveIntensity: options.emissiveIntensity ?? 1.0 } : {}),
     ...(options.map ? { map: options.map } : {})
   });
+  markAsSharedAsset(mat);
 
   materialCache.set(key, mat);
   return mat;
@@ -62,6 +135,7 @@ export function getLegoMaterial(colorHex, options = {}) {
 // Geometria compartilhada otimizada (8 lados) para os pinos cilíndricos de LEGO (Studs)
 export const SHARED_STUD_GEO = new THREE.CylinderGeometry(0.16, 0.16, 0.11, 8);
 SHARED_STUD_GEO.translate(0, 0.055, 0);
+markAsSharedAsset(SHARED_STUD_GEO);
 
 /**
  * Cria um bloco LEGO (Brick/Plate) com pinos (studs) no topo usando InstancedMesh quando há muitos pinos
@@ -110,6 +184,10 @@ export function createLegoBrick(width, height, depth, colorHex, options = {}) {
  * Gera uma textura de rosto de Minifigura LEGO em alta definição (aplicada na frente do cilindro)
  */
 export function createMinifigFaceTexture(preset = 'caveira') {
+  const cacheKey = typeof preset === 'string' ? preset : null;
+  if (cacheKey && HERO_FACE_TEX_CACHE.has(cacheKey)) {
+    return HERO_FACE_TEX_CACHE.get(cacheKey);
+  }
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 256;
@@ -1107,7 +1185,12 @@ export function createMinifigFaceTexture(preset = 'caveira') {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   tex.needsUpdate = true;
+  if (cacheKey) {
+    markAsSharedAsset(tex);
+    HERO_FACE_TEX_CACHE.set(cacheKey, tex);
+  }
   return tex;
 }
 
@@ -1115,6 +1198,10 @@ export function createMinifigFaceTexture(preset = 'caveira') {
  * Gera estampa frontal do tronco trapezoidal da Minifigura LEGO
  */
 export function createMinifigTorsoTexture(preset = 'caveira') {
+  const cacheKey = typeof preset === 'string' ? preset : null;
+  if (cacheKey && HERO_TORSO_TEX_CACHE.has(cacheKey)) {
+    return HERO_TORSO_TEX_CACHE.get(cacheKey);
+  }
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -1565,7 +1652,12 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   tex.needsUpdate = true;
+  if (cacheKey) {
+    markAsSharedAsset(tex);
+    HERO_TORSO_TEX_CACHE.set(cacheKey, tex);
+  }
   return tex;
 }
 
@@ -1910,7 +2002,9 @@ export function createNpcFaceTexture(faceKey = 'civ_smile') {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   tex.needsUpdate = true;
+  markAsSharedAsset(tex);
   SHARED_NPC_FACE_TEXTURES.set(faceKey, tex);
   return tex;
 }
@@ -1925,6 +2019,7 @@ export function getSharedNpcFaceMaterial(faceKey = 'civ_smile') {
     roughness: 0.2,
     clearcoat: 0.45
   });
+  markAsSharedAsset(mat);
   SHARED_NPC_FACE_MATERIALS.set(faceKey, mat);
   return mat;
 }

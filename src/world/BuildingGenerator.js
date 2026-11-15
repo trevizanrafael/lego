@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LEGO_COLORS } from '../materials/LegoMaterials.js';
+import { LEGO_COLORS, markAsSharedAsset } from '../materials/LegoMaterials.js';
 
 /**
  * Une um array de BufferGeometries já posicionadas/rotacionadas em uma única BufferGeometry
@@ -88,6 +88,7 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
   const finalInstMatrix = new THREE.Matrix4();
 
   const geosByMat = new Map();
+  const matFlags = new Map();
   const meshesToRemove = [];
 
   rootGroup.traverse((child) => {
@@ -122,6 +123,12 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
     if (!geosByMat.has(child.material)) {
       geosByMat.set(child.material, []);
     }
+    if (child.userData?.isVehicleGlass || child.userData?.isVehicleHeadlight) {
+      const prev = matFlags.get(child.material) || {};
+      if (child.userData.isVehicleGlass) prev.isVehicleGlass = true;
+      if (child.userData.isVehicleHeadlight) prev.isVehicleHeadlight = true;
+      matFlags.set(child.material, prev);
+    }
     geosByMat.get(child.material).push(clonedGeo);
     meshesToRemove.push(child);
   });
@@ -130,14 +137,30 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
     if (m.parent) m.parent.remove(m);
   }
 
-  let isFirstBodyMat = true;
+  const pruneEmptySubgroups = (node) => {
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      const ch = node.children[i];
+      if (preservedSet.has(ch)) continue;
+      pruneEmptySubgroups(ch);
+      if (!ch.isMesh && !ch.isLight && !ch.isPoints && !ch.isLine && ch.children.length === 0) {
+        node.remove(ch);
+      }
+    }
+  };
+  pruneEmptySubgroups(rootGroup);
+
   for (const [mat, geos] of geosByMat.entries()) {
     if (geos.length === 0) continue;
     const mergedGeo = mergeBufferGeometries(geos);
     const mergedMesh = new THREE.Mesh(mergedGeo, mat);
-    mergedMesh.castShadow = isFirstBodyMat && !mat.transparent && !mat.isMeshBasicMaterial;
+    mergedMesh.castShadow = !mat.transparent && !mat.isMeshBasicMaterial;
     mergedMesh.receiveShadow = true;
-    isFirstBodyMat = false;
+    const flags = matFlags.get(mat);
+    if (flags) {
+      Object.assign(mergedMesh.userData, flags);
+    }
+    mergedMesh.matrixAutoUpdate = false;
+    mergedMesh.updateMatrix();
     rootGroup.add(mergedMesh);
   }
 
@@ -302,6 +325,7 @@ function getFastStandardMaterial(colorHex, roughness = 0.28, metalness = 0.15) {
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1
   });
+  markAsSharedAsset(mat);
   TRIM_MATERIAL_CACHE.set(key, mat);
   return mat;
 }
@@ -379,17 +403,21 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
   }
 
   const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.magFilter = THREE.LinearFilter;
   tex.anisotropy = 4;
+  markAsSharedAsset(tex);
 
   const emissiveTex = new THREE.CanvasTexture(emissiveCanvas);
+  emissiveTex.colorSpace = THREE.SRGBColorSpace;
   emissiveTex.wrapS = THREE.RepeatWrapping;
   emissiveTex.wrapT = THREE.RepeatWrapping;
   emissiveTex.minFilter = THREE.LinearMipmapLinearFilter;
   emissiveTex.magFilter = THREE.LinearFilter;
+  markAsSharedAsset(emissiveTex);
 
   // MeshStandardMaterial com emissiveMap real garante milhares de janelas iluminadas à noite a 60 FPS!
   const mat = new THREE.MeshStandardMaterial({
@@ -400,6 +428,7 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
     roughness: style.roughness,
     metalness: style.metalness
   });
+  markAsSharedAsset(mat);
 
   FACADE_MATERIAL_CACHE.set(cacheKey, mat);
   return mat;

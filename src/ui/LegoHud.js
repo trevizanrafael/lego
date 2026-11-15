@@ -235,7 +235,13 @@ export class LegoHud {
   }
 
   setHearts(activeCount) {
-    this.hearts = Math.max(0, Math.min(this.maxHearts, Math.round(activeCount)));
+    const clamped = Math.max(0, Math.min(this.maxHearts, Math.round(activeCount)));
+    if (this._lastRenderedHearts === clamped) {
+      this.hearts = clamped;
+      return;
+    }
+    this.hearts = clamped;
+    this._lastRenderedHearts = clamped;
     if (typeof this.heartsContainer?.querySelectorAll !== 'function') return;
     const nodes = this.heartsContainer.querySelectorAll('.lego-heart');
     nodes.forEach((node, idx) => {
@@ -300,15 +306,29 @@ export class LegoHud {
     if (!this.speedoContainerEl) return;
 
     if (!vehicleObj) {
-      this.speedoContainerEl.classList.add('hidden');
+      if (this._lastSpeedoHidden !== true) {
+        this._lastSpeedoHidden = true;
+        this.speedoContainerEl.classList.add('hidden');
+      }
       return;
     }
 
-    this.speedoContainerEl.classList.remove('hidden');
-    this.speedoContainerEl.classList.toggle('turbo-active', Boolean(isTurbo));
-    this.speedoContainerEl.classList.toggle('drift-active', Boolean(isDrifting));
+    if (this._lastSpeedoHidden !== false) {
+      this._lastSpeedoHidden = false;
+      this.speedoContainerEl.classList.remove('hidden');
+    }
+    const bTurbo = Boolean(isTurbo);
+    const bDrift = Boolean(isDrifting);
+    if (this._lastSpeedoTurbo !== bTurbo) {
+      this._lastSpeedoTurbo = bTurbo;
+      this.speedoContainerEl.classList.toggle('turbo-active', bTurbo);
+    }
+    if (this._lastSpeedoDrift !== bDrift) {
+      this._lastSpeedoDrift = bDrift;
+      this.speedoContainerEl.classList.toggle('drift-active', bDrift);
+    }
 
-    const carName = vehicleObj.mesh?.userData?.carName || 'VEÍCULO TÁTICO';
+    const carName = (vehicleObj.mesh?.userData?.carName || 'VEÍCULO TÁTICO').toUpperCase();
     const spec = vehicleObj.mesh?.userData?.vehicleSpec || {};
     const category = spec.category || 'car';
 
@@ -316,10 +336,12 @@ export class LegoHud {
     const kmh = Math.round(totalSpeed * (45 / 14));
     const maxKmh = spec.kmh || 140;
 
-    if (this.speedoNameEl) {
-      this.speedoNameEl.textContent = carName.toUpperCase();
+    if (this.speedoNameEl && this._lastSpeedoName !== carName) {
+      this._lastSpeedoName = carName;
+      this.speedoNameEl.textContent = carName;
     }
-    if (this.speedoKmhEl) {
+    if (this.speedoKmhEl && this._lastSpeedoKmh !== kmh) {
+      this._lastSpeedoKmh = kmh;
       this.speedoKmhEl.textContent = String(kmh).padStart(3, '0');
     }
 
@@ -335,32 +357,41 @@ export class LegoHud {
         const gearNum = Math.min(6, Math.max(1, Math.ceil((kmh / maxKmh) * 6)));
         gear = `D${gearNum}`;
       }
-      this.speedoGearEl.textContent = gear;
+      if (this._lastSpeedoGear !== gear) {
+        this._lastSpeedoGear = gear;
+        this.speedoGearEl.textContent = gear;
+      }
     }
 
     if (this.speedoModeEl) {
-      if (isTurbo) {
-        this.speedoModeEl.textContent = 'NITRO // ATIVO';
-      } else if (isDrifting) {
-        this.speedoModeEl.textContent = 'DRIFT // TÁTICO';
+      let modeText = 'TRAÇÃO URBANA';
+      if (bTurbo) {
+        modeText = 'NITRO // ATIVO';
+      } else if (bDrift) {
+        modeText = 'DRIFT // TÁTICO';
       } else if (category === 'helicopter' || category === 'plane') {
-        this.speedoModeEl.textContent = 'PROPULSÃO AÉREA';
+        modeText = 'PROPULSÃO AÉREA';
       } else if (category === 'boat') {
-        this.speedoModeEl.textContent = 'PROPULSÃO NAVAL';
-      } else {
-        this.speedoModeEl.textContent = 'TRAÇÃO URBANA';
+        modeText = 'PROPULSÃO NAVAL';
+      }
+      if (this._lastSpeedoMode !== modeText) {
+        this._lastSpeedoMode = modeText;
+        this.speedoModeEl.textContent = modeText;
       }
     }
 
     if (this._speedoBarNodes.length > 0) {
       const ratio = Math.min(1, kmh / Math.max(60, maxKmh));
       const litCount = kmh > 1 ? Math.max(1, Math.round(ratio * this._speedoBarNodes.length)) : 0;
-      this._speedoBarNodes.forEach((bar, idx) => {
-        const active = idx < litCount;
-        bar.classList.toggle('lit', active);
-        bar.classList.toggle('high', active && idx >= 9 && idx < 12);
-        bar.classList.toggle('redline', active && idx >= 12);
-      });
+      if (this._lastSpeedoLitCount !== litCount) {
+        this._lastSpeedoLitCount = litCount;
+        this._speedoBarNodes.forEach((bar, idx) => {
+          const active = idx < litCount;
+          bar.classList.toggle('lit', active);
+          bar.classList.toggle('high', active && idx >= 9 && idx < 12);
+          bar.classList.toggle('redline', active && idx >= 12);
+        });
+      }
     }
   }
 
@@ -562,45 +593,62 @@ export class LegoHud {
     if (!this.wantedPanelEl) return;
 
     if (this.wantedStars <= 0) {
-      this.wantedPanelEl.classList.add('hidden');
-      this.wantedPanelEl.classList.remove('escaping-mode', 'antihero-mode');
+      if (this._lastWantedStars !== 0) {
+        this._lastWantedStars = 0;
+        this._lastWantedEscaping = false;
+        this._lastWantedStatusText = '';
+        this.wantedPanelEl.classList.add('hidden');
+        this.wantedPanelEl.classList.remove('escaping-mode', 'antihero-mode');
+      }
       return;
     }
 
-    this.wantedPanelEl.classList.remove('hidden');
-    this.wantedPanelEl.classList.toggle('escaping-mode', this.wantedIsEscaping);
-    this.wantedPanelEl.classList.toggle(
-      'antihero-mode',
-      this.wantedStars >= 5 && !this.wantedIsEscaping
-    );
+    if (
+      this._lastWantedStars !== this.wantedStars ||
+      this._lastWantedEscaping !== this.wantedIsEscaping
+    ) {
+      this._lastWantedStars = this.wantedStars;
+      this._lastWantedEscaping = this.wantedIsEscaping;
+      this.wantedPanelEl.classList.remove('hidden');
+      this.wantedPanelEl.classList.toggle('escaping-mode', this.wantedIsEscaping);
+      this.wantedPanelEl.classList.toggle(
+        'antihero-mode',
+        this.wantedStars >= 5 && !this.wantedIsEscaping
+      );
 
-    if (this.wantedStarNodes.length > 0) {
-      this.wantedStarNodes.forEach((node, idx) => {
-        node.classList.toggle('active', idx < this.wantedStars);
-      });
-    }
-
-    if (this.wantedStatusTagEl) {
-      if (this.wantedIsEscaping) {
-        this.wantedStatusTagEl.textContent = 'DESPISTANDO... // SEM VISÃO';
-      } else if (this.wantedStars >= 5) {
-        this.wantedStatusTagEl.textContent = '5★ // CAÇADORES ANTI-HERÓI';
-      } else {
-        this.wantedStatusTagEl.textContent = `PROCURADO // ${tierInfo?.label || 'CERCO POLICIAL'}`;
+      if (this.wantedStarNodes.length > 0) {
+        this.wantedStarNodes.forEach((node, idx) => {
+          node.classList.toggle('active', idx < this.wantedStars);
+        });
+      }
+      if (this.wantedEscapeWrapEl) {
+        this.wantedEscapeWrapEl.classList.toggle('hidden', !this.wantedIsEscaping);
       }
     }
 
-    if (this.wantedEscapeWrapEl) {
-      this.wantedEscapeWrapEl.classList.toggle('hidden', !this.wantedIsEscaping);
-      if (this.wantedIsEscaping) {
-        const pct = Math.max(0, Math.min(100, (escapeTimer / Math.max(1, escapeDuration)) * 100));
-        const remSec = Math.max(1, Math.ceil(escapeDuration - escapeTimer));
-        if (this.wantedEscapeFillEl) {
-          this.wantedEscapeFillEl.style.width = `${pct.toFixed(1)}%`;
-        }
-        if (this.wantedEscapeSecEl) {
-          this.wantedEscapeSecEl.textContent = `${remSec}s`;
-        }
+    if (this.wantedStatusTagEl) {
+      const statusText = this.wantedIsEscaping
+        ? 'DESPISTANDO... // SEM VISÃO'
+        : this.wantedStars >= 5
+          ? '5★ // CAÇADORES ANTI-HERÓI'
+          : `PROCURADO // ${tierInfo?.label || 'CERCO POLICIAL'}`;
+      if (this._lastWantedStatusText !== statusText) {
+        this._lastWantedStatusText = statusText;
+        this.wantedStatusTagEl.textContent = statusText;
+      }
+    }
+
+    if (this.wantedEscapeWrapEl && this.wantedIsEscaping) {
+      const pct = Math.max(0, Math.min(100, (escapeTimer / Math.max(1, escapeDuration)) * 100));
+      const pctStr = `${pct.toFixed(1)}%`;
+      const remSec = `${Math.max(1, Math.ceil(escapeDuration - escapeTimer))}s`;
+      if (this.wantedEscapeFillEl && this._lastWantedPctStr !== pctStr) {
+        this._lastWantedPctStr = pctStr;
+        this.wantedEscapeFillEl.style.width = pctStr;
+      }
+      if (this.wantedEscapeSecEl && this._lastWantedRemSec !== remSec) {
+        this._lastWantedRemSec = remSec;
+        this.wantedEscapeSecEl.textContent = remSec;
       }
     }
   }
@@ -1248,8 +1296,10 @@ export class LegoHud {
         : Math.max(0, Math.min(4, Math.ceil((this.playerHp / this.playerMaxHp) * 4)));
     this.setHearts(activeHearts);
 
-    if (this.heartsContainer) {
-      this.heartsContainer.classList.toggle('healing-pulse', Boolean(isHealing));
+    const bHealing = Boolean(isHealing);
+    if (this.heartsContainer && this._lastHealingPulse !== bHealing) {
+      this._lastHealingPulse = bHealing;
+      this.heartsContainer.classList.toggle('healing-pulse', bHealing);
     }
   }
 
