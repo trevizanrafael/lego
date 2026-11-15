@@ -2448,6 +2448,42 @@ body.hero-wheel-active #crosshair {
   color: var(--idv-alert);
 }
 
+.option-row-quality {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tactical-quality-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tactical-quality-btn {
+  background: var(--idv-black);
+  border: 2px solid var(--idv-steel);
+  color: var(--idv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 6px 10px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.tactical-quality-btn:hover {
+  border-color: #f8fafc;
+  color: #f8fafc;
+}
+
+.tactical-quality-btn.active {
+  background: var(--idv-alert);
+  border-color: var(--idv-alert);
+  color: var(--idv-black);
+}
+
 .pause-save-feedback {
   background: #052e16;
   border: 1.5px solid #22c55e;

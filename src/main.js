@@ -5,6 +5,7 @@ import { TestBlockWorld } from './world/TestBlockWorld.js';
 import { DestructibleManager } from './world/DestructibleManager.js';
 import { ThirdPersonController } from './controls/ThirdPersonController.js';
 import { LegoHud } from './ui/LegoHud.js';
+import { GraphicsPipeline } from './graphics/GraphicsPipeline.js';
 
 class LegoCityGame {
   constructor() {
@@ -51,6 +52,12 @@ class LegoCityGame {
     this.hud.onChangeTimeMode = (mode) => {
       if (this.world?.atmosphere) {
         this.world.atmosphere.setTimeMode(mode);
+      }
+    };
+    this.hud.onChangeGraphicsQuality = (quality) => {
+      this._pendingGraphicsQuality = quality;
+      if (this.graphicsPipeline) {
+        this.graphicsPipeline.setPreset(quality);
       }
     };
     this.hud.onWarmupStep = (stage, stepIdx) => {
@@ -192,6 +199,15 @@ class LegoCityGame {
       this.hud
     );
     this.hud._lastController = this.controller;
+    const initialQuality =
+      this._pendingGraphicsQuality || this.hud?.settings?.graphicsQuality || 'auto';
+    this.graphicsPipeline = new GraphicsPipeline(
+      this.renderer,
+      this.scene,
+      this.camera,
+      this.world,
+      initialQuality
+    );
     this.controller.onToggleFullMap = () => {
       this.hud.toggleFullMap(this.world, this.controller);
     };
@@ -266,11 +282,22 @@ class LegoCityGame {
       if (!this.camera || !this.renderer) return;
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      if (this.graphicsPipeline) {
+        this.graphicsPipeline.resize(window.innerWidth, window.innerHeight);
+      } else {
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+      }
     });
 
     // Libera explicitamente o contexto WebGL ao recarregar/fechar a aba para nunca esgotar o processo GPU do Chrome!
     window.addEventListener('pagehide', () => {
+      if (this.graphicsPipeline) {
+        try {
+          this.graphicsPipeline.dispose();
+        } catch (_) {
+          // ignora no unload
+        }
+      }
       if (this.renderer) {
         try {
           this.renderer.dispose();
@@ -279,6 +306,14 @@ class LegoCityGame {
         }
       }
     });
+  }
+
+  _renderScene(dt = 0.016) {
+    if (this.graphicsPipeline) {
+      this.graphicsPipeline.render(dt);
+    } else if (this.renderer && this.scene && this.camera) {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   _executeWarmupStep(stage, stepIdx = 0) {
@@ -314,13 +349,13 @@ class LegoCityGame {
       this.camera.position.set(p.x, p.y + 8, p.z);
       this.camera.lookAt(p.x + Math.sin(ang) * 90, p.y + 4, p.z + Math.cos(ang) * 90);
       this.camera.updateMatrixWorld(true);
-      this.renderer.render(this.scene, this.camera);
+      this._renderScene(0.016);
     } else if (stage === 'finish') {
       this.controller.update(0.001);
       const pos = this.controller.position;
       const currentRegion = this.world.getRegionAt(pos.x, pos.y, pos.z);
       this.hud.updateMinimap(pos, this.controller.facingAngle, this.controller.yaw, currentRegion, this.world, 0, 0.016);
-      this.renderer.render(this.scene, this.camera);
+      this._renderScene(0.016);
       this.lastTime = performance.now();
     }
     return true;
@@ -344,7 +379,7 @@ class LegoCityGame {
       this.hud.update(baseDt);
       if (!this._renderedPauseFrame) {
         this._renderedPauseFrame = true;
-        this.renderer.render(this.scene, this.camera);
+        this._renderScene(0.016);
       }
       return;
     }
@@ -387,7 +422,7 @@ class LegoCityGame {
     const speed = this.controller.getHorizontalSpeed();
     this.hud.updateMinimap(pos, this.controller.facingAngle, this.controller.yaw, currentRegion, this.world, speed, baseDt);
 
-    this.renderer.render(this.scene, this.camera);
+    this._renderScene(baseDt);
   }
 }
 

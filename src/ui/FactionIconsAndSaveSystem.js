@@ -126,6 +126,13 @@ export const UI_TEXTS = {
     musicVol: 'VOLUME DA MÚSICA DA CIDADE',
     sfxVol: 'VOLUME DE EFEITOS SONOROS (PODERES / VEÍCULOS)',
     regionToastToggle: 'AVISO DE TROCA DE REGIÃO NA TELA',
+    graphicsQualityLabel: 'QUALIDADE GRÁFICA',
+    graphicsModes: {
+      auto: 'AUTO 60',
+      low: 'BAIXO',
+      medium: 'MÉDIO',
+      ultra: 'ULTRA'
+    },
     timeOfDayLabel: 'CLIMA & HORÁRIO DO MUNDO',
     timeModes: {
       auto: 'CICLO AUTOMÁTICO (12 MIN)',
@@ -171,6 +178,13 @@ export const UI_TEXTS = {
     musicVol: 'CITY MUSIC VOLUME',
     sfxVol: 'SOUND EFFECTS VOLUME (POWERS / VEHICLES)',
     regionToastToggle: 'REGION TRANSITION BANNER ON SCREEN',
+    graphicsQualityLabel: 'GRAPHICS QUALITY',
+    graphicsModes: {
+      auto: 'AUTO 60',
+      low: 'LOW',
+      medium: 'MEDIUM',
+      ultra: 'ULTRA'
+    },
     timeOfDayLabel: 'WORLD TIME & ATMOSPHERE',
     timeModes: {
       auto: 'AUTOMATIC CYCLE (12 MIN)',
@@ -391,6 +405,7 @@ export function loadGameSettings() {
     musicVolume: 0.55,
     sfxVolume: 0.9,
     showRegionToast: true,
+    graphicsQuality: 'auto',
     timeMode: 'auto',
     language: 'pt-BR'
   };

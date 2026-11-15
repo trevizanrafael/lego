@@ -107,6 +107,134 @@ function canonicalizeMaterialOptions(restOptions) {
 /**
  * Retorna um MeshPhysicalMaterial com acabamento de plástico ABS LEGO brilhante
  */
+export const LEGO_SHADER_GLOBALS = {
+  uLegoFxEnabled: { value: 1.0 },
+  uLegoMicroBevelScale: { value: 1.0 },
+  uLegoHeightFogMin: { value: 0.28 }
+};
+
+export function setLegoShaderQualityFX({ enabled = true, microBevel = 1.0 } = {}) {
+  LEGO_SHADER_GLOBALS.uLegoFxEnabled.value = enabled ? 1.0 : 0.0;
+  LEGO_SHADER_GLOBALS.uLegoMicroBevelScale.value = enabled ? microBevel : 0.0;
+}
+
+/**
+ * Injeta Micro-Chanfro / Realce ABS LEGO + Height-Fog atenuado por altitude (Y):
+ * - Mantém Torre dos Heróis (310m) e Aeroporta-Aviões (410m) nítidos acima da névoa baixa da cidade.
+ * - Usa glsl padrão WebGL2/Three.js e cache unificado `lego-surface-v1`.
+ */
+export function applyLegoSurfaceFX(mat, options = {}) {
+  if (!mat || typeof mat.onBeforeCompile !== 'function') return mat;
+  if (mat.userData?.hasAnimatedLegoWater || mat.userData?.hasLegoSurfaceFX) return mat;
+
+  const bevelWeight = options.bevelWeight ?? 1.0;
+  mat.userData = mat.userData || {};
+  mat.userData.hasLegoSurfaceFX = true;
+  mat.customProgramCacheKey = () => 'lego-surface-v1';
+
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uLegoFxEnabled = LEGO_SHADER_GLOBALS.uLegoFxEnabled;
+    shader.uniforms.uLegoMicroBevelScale = LEGO_SHADER_GLOBALS.uLegoMicroBevelScale;
+    shader.uniforms.uLegoHeightFogMin = LEGO_SHADER_GLOBALS.uLegoHeightFogMin;
+    shader.uniforms.uLegoBevelWeight = { value: bevelWeight };
+
+    if (shader.vertexShader.includes('#include <common>')) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vLegoSurfaceWorldPos;
+varying float vLegoViewDist;`
+      );
+    }
+
+    if (shader.vertexShader.includes('#include <project_vertex>')) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `vec4 _legoWPos = vec4( transformed, 1.0 );
+#ifdef USE_BATCHING
+  _legoWPos = batchingMatrix * _legoWPos;
+#endif
+#ifdef USE_INSTANCING
+  _legoWPos = instanceMatrix * _legoWPos;
+#endif
+_legoWPos = modelMatrix * _legoWPos;
+vLegoSurfaceWorldPos = _legoWPos.xyz;
+#include <project_vertex>
+vLegoViewDist = -mvPosition.z;`
+      );
+    }
+
+    if (shader.fragmentShader.includes('#include <common>')) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+uniform float uLegoFxEnabled;
+uniform float uLegoMicroBevelScale;
+uniform float uLegoBevelWeight;
+uniform float uLegoHeightFogMin;
+varying vec3 vLegoSurfaceWorldPos;
+varying float vLegoViewDist;`
+      );
+    }
+
+    if (shader.fragmentShader.includes('#include <fog_fragment>')) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <fog_fragment>',
+        `float _bevelStr = uLegoFxEnabled * uLegoMicroBevelScale * uLegoBevelWeight;
+if (_bevelStr > 0.01) {
+  vec3 _viewDirL = normalize(vViewPosition);
+  float _rimABS = pow(1.0 - clamp(abs(dot(_viewDirL, normal)), 0.0, 1.0), 4.2);
+  gl_FragColor.rgb += vec3(0.095, 0.105, 0.125) * _rimABS * _bevelStr;
+
+  float _nearFade = 1.0 - smoothstep(12.0, 38.0, vLegoViewDist);
+  if (_nearFade > 0.01) {
+    vec3 _brickCoord = vLegoSurfaceWorldPos / vec3(0.8, 0.96, 0.8);
+    vec3 _edgeDist = 0.5 - abs(fract(_brickCoord) - 0.5);
+    float _seamBand = max(0.018, vLegoViewDist * 0.0022);
+    float _seam = 1.0 - smoothstep(0.0, _seamBand, min(_edgeDist.x, min(_edgeDist.y * 0.85, _edgeDist.z)));
+    gl_FragColor.rgb *= (1.0 - _seam * 0.075 * _nearFade * _bevelStr);
+  }
+}
+#ifdef USE_FOG
+  #ifdef FOG_EXP2
+    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+  #else
+    float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+  #endif
+  float _hAtten = exp( - max( 0.0, vLegoSurfaceWorldPos.y - 6.0 ) * 0.0115 );
+  float _hWeight = mix( 1.0, clamp( mix( uLegoHeightFogMin, 1.0, _hAtten ), uLegoHeightFogMin, 1.0 ), uLegoFxEnabled );
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor * _hWeight );
+#endif`
+      );
+    }
+  };
+
+  mat.needsUpdate = true;
+  return mat;
+}
+
+/**
+ * Aplica Height-Fog e Micro-Chanfro aos materiais PBR da cena já construída sem clonar malhas.
+ */
+export function applyLegoSceneShaderEnhancements(scene) {
+  if (!scene || typeof scene.traverse !== 'function') return;
+  const visited = new Set();
+  scene.traverse((obj) => {
+    if (!obj || !obj.material) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      if (!m || visited.has(m)) continue;
+      visited.add(m);
+      if (!m.isMeshStandardMaterial && !m.isMeshPhysicalMaterial) continue;
+      if (m.userData?.hasAnimatedLegoWater || m.userData?.hasLegoSurfaceFX) continue;
+      const isMatteOrMapped = Boolean(m.map) || (typeof m.roughness === 'number' && m.roughness >= 0.48);
+      const bevelWeight = m.transparent ? 0.2 : isMatteOrMapped ? 0.0 : 0.85;
+      applyLegoSurfaceFX(m, { bevelWeight });
+    }
+  });
+}
+
 export function getLegoMaterial(colorHex, options = {}) {
   const resolvedColor = colorHex ?? 0xffffff;
   const { map, ...restOptions } = options;
@@ -126,6 +254,8 @@ export function getLegoMaterial(colorHex, options = {}) {
     ...(options.emissive ? { emissive: options.emissive, emissiveIntensity: options.emissiveIntensity ?? 1.0 } : {}),
     ...(options.map ? { map: options.map } : {})
   });
+  const defaultBevel = options.transparent ? 0.2 : options.emissive ? 0.3 : 1.0;
+  applyLegoSurfaceFX(mat, { bevelWeight: options.bevelWeight ?? defaultBevel });
   markAsSharedAsset(mat);
 
   materialCache.set(key, mat);

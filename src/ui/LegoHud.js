@@ -1362,6 +1362,18 @@ export class LegoHud {
     this.valMusicEl = document.getElementById('val-music-vol');
     this.valSfxEl = document.getElementById('val-sfx-vol');
     this.btnToggleRegionToastEl = document.getElementById('btn-toggle-region-toast');
+    const grpEl = document.getElementById('grp-graphics-quality');
+    this.graphicsQualityButtons =
+      grpEl && typeof grpEl.querySelectorAll === 'function'
+        ? Array.from(grpEl.querySelectorAll('.tactical-quality-btn'))
+        : typeof document.querySelectorAll === 'function'
+          ? Array.from(document.querySelectorAll('#grp-graphics-quality .tactical-quality-btn'))
+          : [];
+    if (this.graphicsQualityButtons.length === 0) {
+      this.graphicsQualityButtons = ['auto', 'low', 'medium', 'ultra']
+        .map((q) => document.getElementById(`btn-quality-${q}`))
+        .filter(Boolean);
+    }
     this.btnPauseTimeModeEl = document.getElementById('btn-pause-time-mode');
     this.btnPauseLangEl = document.getElementById('btn-pause-language');
 
@@ -1447,6 +1459,19 @@ export class LegoHud {
       soundFX.playPlasticHit();
       this._refreshLanguageAndOptionsUI();
     });
+
+    for (const btn of this.graphicsQualityButtons) {
+      btn.addEventListener('click', () => {
+        const nextQuality = btn.dataset?.quality || 'auto';
+        this.settings.graphicsQuality = nextQuality;
+        saveGameSettings(this.settings);
+        soundFX.playHeroSwap();
+        if (typeof this.onChangeGraphicsQuality === 'function') {
+          this.onChangeGraphicsQuality(this.settings.graphicsQuality);
+        }
+        this._refreshLanguageAndOptionsUI();
+      });
+    }
 
     this.btnPauseTimeModeEl?.addEventListener('click', () => {
       const order = ['auto', 'day', 'sunset', 'night'];
@@ -1846,6 +1871,7 @@ export class LegoHud {
     setTxt('lbl-music-vol', t.musicVol);
     setTxt('lbl-sfx-vol', t.sfxVol);
     setTxt('lbl-region-toast', t.regionToastToggle);
+    setTxt('lbl-graphics-quality', t.graphicsQualityLabel);
     setTxt('lbl-time-mode', t.timeOfDayLabel);
     setTxt('lbl-lang-select', t.langLabel);
     setTxt('btn-pause-resume', t.resumeBtn);
@@ -1873,6 +1899,16 @@ export class LegoHud {
         : lang === 'en-US'
           ? 'OFF // HIDDEN'
           : 'OFF // OCULTO';
+    }
+
+    if (this.graphicsQualityButtons && this.graphicsQualityButtons.length > 0) {
+      const qualityKey = this.settings.graphicsQuality || 'auto';
+      const qualityLabels = t.graphicsModes || UI_TEXTS['pt-BR'].graphicsModes;
+      for (const btn of this.graphicsQualityButtons) {
+        const key = btn.dataset?.quality || 'auto';
+        btn.textContent = qualityLabels[key] || key.toUpperCase();
+        btn.classList.toggle('active', key === qualityKey);
+      }
     }
 
     if (this.btnPauseTimeModeEl) {
