@@ -868,6 +868,40 @@ export class DayNightAtmosphereManager {
   }
 
   _updateClosestFourPointLights(playerPos, nightFactor) {
+    // Dentro do Super Banco Central: redireciona o pool de 4 PointLights mesmo de dia!
+    const inSuperBank =
+      playerPos &&
+      Math.abs(playerPos.x) <= 74 &&
+      playerPos.z >= -229 &&
+      playerPos.z <= -130 &&
+      playerPos.y < 41;
+
+    if (inSuperBank) {
+      const floorIdx = Math.max(0, Math.min(3, Math.floor(Math.max(0, playerPos.y) / 10)));
+      const lightY = floorIdx * 10 + 7.2;
+      const baseX = THREE.MathUtils.clamp(playerPos.x, -46, 46);
+      const baseZ = THREE.MathUtils.clamp(playerPos.z, -212, -148);
+      const offsets = [
+        [-16, -12],
+        [16, -12],
+        [-16, 12],
+        [16, 12]
+      ];
+      const warmColor = floorIdx === 3 ? 0xfde68a : 0xffe4a0;
+      for (let i = 0; i < this.pointLightPool.length; i++) {
+        const pl = this.pointLightPool[i];
+        const [ox, oz] = offsets[i] || [0, 0];
+        pl.color.setHex(warmColor);
+        pl.position.set(
+          THREE.MathUtils.clamp(baseX + ox, -64, 64),
+          lightY,
+          THREE.MathUtils.clamp(baseZ + oz, -222, -138)
+        );
+        pl.intensity = 2.6;
+      }
+      return;
+    }
+
     if (!playerPos || nightFactor <= 0.05) {
       for (const pl of this.pointLightPool) {
         pl.intensity = 0.0;
@@ -1007,6 +1041,15 @@ export class DayNightAtmosphereManager {
       this.hemiLight.intensity = s.hemiInt;
     }
 
+    if (this.scene && typeof this.scene.environmentIntensity === 'number') {
+      const sY = this._sunDir.y;
+      const envInt =
+        sY >= 0.12
+          ? THREE.MathUtils.lerp(0.38, 0.6, THREE.MathUtils.clamp((sY - 0.12) / 0.4, 0, 1))
+          : THREE.MathUtils.lerp(0.14, 0.38, THREE.MathUtils.clamp((sY + 0.16) / 0.28, 0, 1));
+      this.scene.environmentIntensity = Number(envInt.toFixed(3));
+    }
+
     if (this.sunLight) {
       this.sunLight.color.copy(s.dirColor);
       this.sunLight.intensity = s.dirInt;
@@ -1016,9 +1059,49 @@ export class DayNightAtmosphereManager {
       this._lightOrbitDir.y = Math.max(0.22, this._lightOrbitDir.y); // Sombras longas lindas no pôr do sol sem achatar!
       this._lightOrbitDir.normalize();
 
-      const targetX = playerPos ? playerPos.x : 0;
-      const targetY = playerPos ? playerPos.y : 0;
-      const targetZ = playerPos ? playerPos.z : 0;
+      const shadowCam = this.sunLight.shadow?.camera;
+      const desiredHalf =
+        controller?.isFlying || (playerPos && playerPos.y > 45) ? 150 : 95;
+      if (shadowCam && shadowCam.right !== desiredHalf) {
+        shadowCam.left = -desiredHalf;
+        shadowCam.right = desiredHalf;
+        shadowCam.top = desiredHalf;
+        shadowCam.bottom = -desiredHalf;
+        shadowCam.updateProjectionMatrix();
+      }
+
+      const rawX = playerPos ? playerPos.x : 0;
+      const rawY = playerPos ? playerPos.y : 0;
+      const rawZ = playerPos ? playerPos.z : 0;
+
+      // Texel snapping ortográfico: elimina shimmer das bordas das sombras ao mover
+      if (!this._snapRight) {
+        this._snapRight = new THREE.Vector3();
+        this._snapUp = new THREE.Vector3();
+      }
+      this._snapRight.set(0, 1, 0).cross(this._lightOrbitDir);
+      if (this._snapRight.lengthSq() > 1e-6) {
+        this._snapRight.normalize();
+      } else {
+        this._snapRight.set(1, 0, 0);
+      }
+      this._snapUp.copy(this._lightOrbitDir).cross(this._snapRight).normalize();
+
+      const mapRes = Math.max(256, this.sunLight.shadow?.mapSize?.width || 2048);
+      const texelWorld = (desiredHalf * 2) / mapRes;
+      const u = rawX * this._snapRight.x + rawY * this._snapRight.y + rawZ * this._snapRight.z;
+      const v = rawX * this._snapUp.x + rawY * this._snapUp.y + rawZ * this._snapUp.z;
+      const w =
+        rawX * this._lightOrbitDir.x +
+        rawY * this._lightOrbitDir.y +
+        rawZ * this._lightOrbitDir.z;
+      const su = Math.floor(u / texelWorld + 0.5) * texelWorld;
+      const sv = Math.floor(v / texelWorld + 0.5) * texelWorld;
+
+      const targetX = this._snapRight.x * su + this._snapUp.x * sv + this._lightOrbitDir.x * w;
+      const targetY = this._snapRight.y * su + this._snapUp.y * sv + this._lightOrbitDir.y * w;
+      const targetZ = this._snapRight.z * su + this._snapUp.z * sv + this._lightOrbitDir.z * w;
+
       this.sunLight.position.set(
         targetX + this._lightOrbitDir.x * 260,
         targetY + this._lightOrbitDir.y * 260,
@@ -1112,9 +1195,38 @@ export class DayNightAtmosphereManager {
       const rig = ensureVehicleNightLights(drivenObj.mesh, drivenObj.mesh.userData?.vehicleSpec);
       if (rig) rig.visible = vehicleLightsOn;
       this._lastDrivenRig = rig;
-    } else if (this._lastDrivenRig) {
-      this._lastDrivenRig.visible = false;
-      this._lastDrivenRig = null;
+
+      if (vehicleLightsOn) {
+        if (!this._playerHeadlightSpot) {
+          const spot = new THREE.SpotLight(0xfff4d6, 0.0, 74, Math.PI / 5.2, 0.55, 1.35);
+          spot.castShadow = false;
+          spot.name = 'PlayerVehicleHeadlightSpot';
+          this.scene.add(spot);
+          this.scene.add(spot.target);
+          this._playerHeadlightSpot = spot;
+          this._spotOriginTmp = new THREE.Vector3();
+          this._spotTargetTmp = new THREE.Vector3();
+        }
+        drivenObj.mesh.localToWorld(this._spotOriginTmp.set(0, 1.05, 2.35));
+        drivenObj.mesh.localToWorld(this._spotTargetTmp.set(0, -0.45, 36.0));
+        this._playerHeadlightSpot.position.copy(this._spotOriginTmp);
+        this._playerHeadlightSpot.target.position.copy(this._spotTargetTmp);
+        this._playerHeadlightSpot.target.updateMatrixWorld();
+        this._playerHeadlightSpot.intensity = 3.8;
+        this._playerHeadlightSpot.visible = true;
+      } else if (this._playerHeadlightSpot) {
+        this._playerHeadlightSpot.intensity = 0.0;
+        this._playerHeadlightSpot.visible = false;
+      }
+    } else {
+      if (this._lastDrivenRig) {
+        this._lastDrivenRig.visible = false;
+        this._lastDrivenRig = null;
+      }
+      if (this._playerHeadlightSpot) {
+        this._playerHeadlightSpot.intensity = 0.0;
+        this._playerHeadlightSpot.visible = false;
+      }
     }
 
     const lc = this.world.livingCity;

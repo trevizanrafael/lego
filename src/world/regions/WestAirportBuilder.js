@@ -79,34 +79,46 @@ export function buildWestHighwayAndAirport(world) {
 }
 
 function createWestBatcher() {
+  const legoPlastic = (color, opts = {}) =>
+    new THREE.MeshPhysicalMaterial({
+      color,
+      roughness: opts.roughness ?? 0.25,
+      metalness: opts.metalness ?? 0.04,
+      clearcoat: opts.clearcoat ?? 0.4,
+      clearcoatRoughness: opts.clearcoatRoughness ?? 0.15,
+      reflectivity: 0.72,
+      ...(opts.emissive !== undefined ? { emissive: opts.emissive, emissiveIntensity: opts.emissiveIntensity ?? 0.2 } : {})
+    });
   const palette = {
-    steel_silver: new THREE.MeshStandardMaterial({ color: LEGO_COLORS.silver, metalness: 0.45, roughness: 0.25 }),
-    steel_dark: new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.35, metalness: 0.35 }),
-    charcoal: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.42 }),
+    steel_silver: legoPlastic(LEGO_COLORS.silver, { metalness: 0.45, roughness: 0.25, clearcoat: 0.35 }),
+    steel_dark: legoPlastic(0x334155, { roughness: 0.35, metalness: 0.35, clearcoat: 0.28 }),
+    charcoal: legoPlastic(0x1e293b, { roughness: 0.42, clearcoat: 0.18 }),
     asphalt_dark: new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.68 }),
     concrete_wall: new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.45 }),
-    terminal_floor: new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.22, metalness: 0.08 }),
-    white_clean: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.22 }),
-    aviation_red: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.24 }),
-    aviation_blue: new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.22 }),
-    sky_blue: new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.24 }),
-    highway_green: new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.28 }),
-    military_olive: new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.34 }),
-    military_dark: new THREE.MeshStandardMaterial({ color: 0x1a2e05, roughness: 0.38 }),
-    camo_tan: new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.36 }),
-    gold_trim: new THREE.MeshStandardMaterial({ color: LEGO_COLORS.gold, metalness: 0.5, roughness: 0.22 }),
-    orange_windsock: new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.28 }),
-    glass_mirror: new THREE.MeshStandardMaterial({
-      color: 0x0ea5e9,
-      roughness: 0.14,
-      metalness: 0.35,
+    terminal_floor: legoPlastic(0xf1f5f9, { roughness: 0.22, metalness: 0.08, clearcoat: 0.55 }),
+    white_clean: legoPlastic(0xf8fafc, { roughness: 0.22 }),
+    aviation_red: legoPlastic(0xdc2626, { roughness: 0.24 }),
+    aviation_blue: legoPlastic(0x0284c7, { roughness: 0.22 }),
+    sky_blue: legoPlastic(0x38bdf8, { roughness: 0.24 }),
+    highway_green: legoPlastic(0x15803d, { roughness: 0.28 }),
+    military_olive: legoPlastic(0x3f6212, { roughness: 0.34, clearcoat: 0.28 }),
+    military_dark: legoPlastic(0x1a2e05, { roughness: 0.38, clearcoat: 0.22 }),
+    camo_tan: legoPlastic(0xa16207, { roughness: 0.36, clearcoat: 0.24 }),
+    gold_trim: legoPlastic(LEGO_COLORS.gold, { metalness: 0.5, roughness: 0.22, clearcoat: 0.48 }),
+    orange_windsock: legoPlastic(0xf97316, { roughness: 0.28 }),
+    glass_mirror: legoPlastic(0x0ea5e9, {
+      roughness: 0.1,
+      metalness: 0.42,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.06,
       emissive: 0x0284c7,
       emissiveIntensity: 0.18
     }),
-    glass_cockpit: new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      roughness: 0.12,
-      metalness: 0.28,
+    glass_cockpit: legoPlastic(0x38bdf8, {
+      roughness: 0.1,
+      metalness: 0.32,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.06,
       emissive: 0x0369a1,
       emissiveIntensity: 0.22
     }),

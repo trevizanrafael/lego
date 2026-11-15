@@ -43,12 +43,16 @@ class PrisonIslandBatcher {
         })
       );
     } else {
+      const r = opts.roughness ?? 0.36;
       this.materials.set(
         key,
-        new THREE.MeshStandardMaterial({
+        new THREE.MeshPhysicalMaterial({
           color: colorHex,
-          roughness: opts.roughness ?? 0.36,
+          roughness: r,
           metalness: opts.metalness ?? 0.14,
+          clearcoat: r > 0.52 ? 0.0 : 0.36,
+          clearcoatRoughness: 0.16,
+          reflectivity: 0.7,
           emissive: opts.emissive ? new THREE.Color(opts.emissive) : new THREE.Color(0x000000),
           emissiveIntensity: opts.emissiveIntensity ?? 0
         })

@@ -177,7 +177,22 @@ export function buildSuperBancoCentral(world) {
   B.mat('windowGlass', () =>
     getLegoMaterial(0x1d4ed8, { roughness: 0.06, metalness: 0.55, clearcoat: 1 })
   );
-  B.mat('lightPanel', () => new THREE.MeshBasicMaterial({ color: 0xfff7d6 }));
+  B.mat('lightPanel', () =>
+    getLegoMaterial(0xfff7d6, {
+      roughness: 0.18,
+      clearcoat: 0.3,
+      emissive: 0xffebb3,
+      emissiveIntensity: 1.4
+    })
+  );
+  B.mat('crystalGlow', () =>
+    getLegoMaterial(0xfffbeb, {
+      roughness: 0.08,
+      clearcoat: 0.85,
+      emissive: 0xfde68a,
+      emissiveIntensity: 1.55
+    })
+  );
   B.mat('screen', () => new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
   B.mat('screenGreen', () => new THREE.MeshBasicMaterial({ color: 0x4ade80 }));
   B.mat('ledRed', () => new THREE.MeshBasicMaterial({ color: 0xef4444 }));
@@ -504,16 +519,26 @@ function buildFloorsRampsAndElevator(world, B) {
         for (let lz = -150; lz >= -218; lz -= 17) {
           if (hole && insideRect(lx, lz, hole, 2)) continue;
           B.box('lightPanel', 5.5, 0.12, 2.4, lx, fy - FLOOR_T - 0.08, lz);
+          // Dois lustres monumentais no teto do saguão térreo (1º andar)
+          if (fy < 14 && lz === -167 && (lx === -40 || lx === 40)) {
+            const ceilY = fy - FLOOR_T;
+            B.cyl('gold', 0.22, 0.22, 0.65, lx, ceilY - 0.35, lz, 8);
+            B.cyl('gold', 2.3, 2.3, 0.22, lx, ceilY - 0.72, lz, 16);
+            B.cyl('crystalGlow', 1.85, 1.35, 0.5, lx, ceilY - 1.05, lz, 12);
+            B.cyl('crystalGlow', 1.05, 0.45, 0.42, lx, ceilY - 1.48, lz, 10);
+          }
         }
       }
     }
   });
 
-  // Teto do 4º andar (laje da cobertura)
+  // Teto do 4º andar (laje da cobertura) + iluminação dourada na área do Cofre
   B.box('cream', W, 0.7, D, 0, S.roofY - 0.85, midZ);
   for (let lx = -56; lx <= 56; lx += 16) {
     for (let lz = -150; lz >= -218; lz -= 17) B.box('lightPanel', 5.5, 0.12, 2.4, lx, S.roofY - 1.26, lz);
   }
+  B.box('gold', 10.6, 0.22, 1.8, 0, S.roofY - 1.18, -214);
+  B.box('crystalGlow', 10.0, 0.16, 1.4, 0, S.roofY - 1.32, -214);
 
   // Rampas largas (andáveis e dirigíveis)
   for (const r of S.ramps) {

@@ -52,12 +52,16 @@ export class SuburbBatcher {
     if (opts.basic) {
       this.materials.set(key, new THREE.MeshBasicMaterial({ color: colorHex }));
     } else {
+      const r = opts.roughness ?? 0.32;
       this.materials.set(
         key,
-        new THREE.MeshStandardMaterial({
+        new THREE.MeshPhysicalMaterial({
           color: colorHex,
-          roughness: opts.roughness ?? 0.32,
+          roughness: r,
           metalness: opts.metalness ?? 0.06,
+          clearcoat: r > 0.45 ? 0.06 : 0.4,
+          clearcoatRoughness: 0.15,
+          reflectivity: 0.72,
           emissive: opts.emissive ? new THREE.Color(opts.emissive) : new THREE.Color(0x000000),
           emissiveIntensity: opts.emissiveIntensity ?? 0
         })

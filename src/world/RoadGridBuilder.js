@@ -3,6 +3,7 @@ import {
   LEGO_COLORS,
   getLegoMaterial
 } from '../materials/LegoMaterials.js';
+import { applyAnimatedLegoWaterShader } from '../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, getGeometryChunkKey } from './BuildingGenerator.js';
 import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from './MetroSystemBuilder.js';
 import { getUrbanCityReliefY } from './ViaductAndReliefBuilder.js';
@@ -216,6 +217,15 @@ export function buildOceanAndMainIsland(world) {
     makeFastBox(1.5, 4.5, 2100, 539.25, -2.25, -270)
   );
 
+  if (!world.waterShaderUniforms) {
+    world.waterShaderUniforms = { uTime: { value: 0 } };
+  }
+  applyAnimatedLegoWaterShader(oceanMat, world.waterShaderUniforms, {
+    waveAmp: 0.08,
+    waveFreq: 0.13,
+    fresnelBoost: 0.25,
+    variant: 'ocean'
+  });
   world.oceanMaterial = oceanMat;
   world.oceanMesh = mergedOcean;
   addChunkedArrayToScene(world.scene, islandGeos, asphaltMat, { receiveShadow: true, chunkSize: 512 });

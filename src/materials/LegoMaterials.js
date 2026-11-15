@@ -132,9 +132,118 @@ export function getLegoMaterial(colorHex, options = {}) {
   return mat;
 }
 
+/**
+ * Aplica shader animado de água LEGO procedural (`onBeforeCompile`) sem alterar `mat.color`:
+ * - Ondulação suave de superfície no vertex shader (`uWaterTime`)
+ * - Normal perturbation + brilho especular de ondas + reflexão Fresnel + espuma nas bordas
+ * - Mantém 100% seguro em testes Node/headless sem contexto WebGL ativo.
+ */
+export function applyAnimatedLegoWaterShader(mat, sharedUniforms, options = {}) {
+  if (!mat || typeof mat.onBeforeCompile !== 'function') return mat;
+  if (mat.userData?.hasAnimatedLegoWater) return mat;
+
+  const uniforms = sharedUniforms && sharedUniforms.uTime ? sharedUniforms : { uTime: { value: 0 } };
+  const waveAmp = options.waveAmp ?? 0.075;
+  const waveFreq = options.waveFreq ?? 0.14;
+  const variant = options.variant || 'ocean';
+  const fresnelBoost = options.fresnelBoost ?? 0.24;
+
+  mat.userData = mat.userData || {};
+  mat.userData.hasAnimatedLegoWater = true;
+  mat.userData.waterUniforms = uniforms;
+  mat.customProgramCacheKey = () => `lego-water-v1-${variant}`;
+
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWaterTime = uniforms.uTime;
+    shader.uniforms.uWaterWaveAmp = { value: waveAmp };
+    shader.uniforms.uWaterWaveFreq = { value: waveFreq };
+    shader.uniforms.uWaterFresnelBoost = { value: fresnelBoost };
+
+    if (shader.vertexShader.includes('#include <common>')) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+uniform float uWaterTime;
+uniform float uWaterWaveAmp;
+uniform float uWaterWaveFreq;
+varying vec3 vLegoWaterWorldPos;`
+      );
+    }
+
+    if (shader.vertexShader.includes('#include <begin_vertex>')) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+vec4 _lwPos = modelMatrix * vec4(transformed, 1.0);
+vLegoWaterWorldPos = _lwPos.xyz;
+float _lwTopMask = smoothstep(-0.35, 0.05, transformed.y);
+float _lwDisp = sin(_lwPos.x * uWaterWaveFreq + uWaterTime * 1.55) * cos(_lwPos.z * (uWaterWaveFreq * 1.15) - uWaterTime * 1.2);
+transformed.y += _lwDisp * uWaterWaveAmp * _lwTopMask;`
+      );
+    }
+
+    if (shader.fragmentShader.includes('#include <common>')) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+uniform float uWaterTime;
+uniform float uWaterFresnelBoost;
+varying vec3 vLegoWaterWorldPos;`
+      );
+    }
+
+    if (shader.fragmentShader.includes('#include <normal_fragment_maps>')) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+float _lwN1 = sin(vLegoWaterWorldPos.x * 0.34 + uWaterTime * 1.85 + cos(vLegoWaterWorldPos.z * 0.25 - uWaterTime * 1.1));
+float _lwN2 = cos(vLegoWaterWorldPos.z * 0.41 - uWaterTime * 1.45 + sin(vLegoWaterWorldPos.x * 0.29 + uWaterTime * 0.95));
+normal = normalize(normal + vec3(_lwN1 * 0.085, _lwN2 * 0.085, 0.0));`
+      );
+    }
+
+    if (shader.fragmentShader.includes('#include <fog_fragment>')) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <fog_fragment>',
+        `float _lwWave1 = sin(vLegoWaterWorldPos.x * 0.31 + uWaterTime * 1.7 + cos(vLegoWaterWorldPos.z * 0.23 - uWaterTime * 1.15));
+float _lwWave2 = cos(vLegoWaterWorldPos.z * 0.38 - uWaterTime * 1.4 + sin(vLegoWaterWorldPos.x * 0.27 + uWaterTime * 0.9));
+float _lwRipple = (_lwWave1 + _lwWave2) * 0.5;
+float _lwVdotN = clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0);
+float _lwFresnel = pow(1.0 - _lwVdotN, 3.0);
+float _lwFoamCrest = smoothstep(0.62, 0.98, _lwRipple);
+gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.35, 0.80, 0.98), _lwFresnel * uWaterFresnelBoost);
+gl_FragColor.rgb += vec3(0.75, 0.94, 1.0) * _lwFoamCrest * 0.09;
+#include <fog_fragment>`
+      );
+    }
+  };
+
+  mat.needsUpdate = true;
+  return mat;
+}
+
 // Geometria compartilhada otimizada (8 lados) para os pinos cilíndricos de LEGO (Studs)
-export const SHARED_STUD_GEO = new THREE.CylinderGeometry(0.16, 0.16, 0.11, 8);
-SHARED_STUD_GEO.translate(0, 0.055, 0);
+// Remove apenas os triângulos da tampa inferior (nunca visíveis por baixo do pino), mantendo parede + topo (24 tris/stud).
+export const SHARED_STUD_GEO = (() => {
+  const geo = new THREE.CylinderGeometry(0.16, 0.16, 0.11, 8);
+  geo.translate(0, 0.055, 0);
+  const idx = geo.getIndex();
+  const pos = geo.getAttribute('position');
+  if (idx && pos) {
+    const kept = [];
+    const arr = idx.array;
+    for (let i = 0; i < arr.length; i += 3) {
+      const a = arr[i];
+      const b = arr[i + 1];
+      const c = arr[i + 2];
+      if (pos.getY(a) < 0.02 && pos.getY(b) < 0.02 && pos.getY(c) < 0.02) continue;
+      kept.push(a, b, c);
+    }
+    geo.setIndex(kept);
+    geo.clearGroups();
+  }
+  return geo;
+})();
 markAsSharedAsset(SHARED_STUD_GEO);
 
 /**

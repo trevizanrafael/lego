@@ -841,14 +841,17 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
   emissiveTex.magFilter = THREE.LinearFilter;
   markAsSharedAsset(emissiveTex);
 
-  // MeshStandardMaterial com emissiveMap real garante milhares de janelas iluminadas à noite a 60 FPS!
-  const mat = new THREE.MeshStandardMaterial({
+  // MeshPhysicalMaterial com emissiveMap + clearcoat garante reflexos vitrificados de dia e janelas acesas à noite!
+  const mat = new THREE.MeshPhysicalMaterial({
     map: tex,
     emissive: new THREE.Color(0xffffff),
     emissiveMap: emissiveTex,
     emissiveIntensity: 0.0,
     roughness: style.roughness,
-    metalness: style.metalness
+    metalness: style.metalness,
+    clearcoat: style.roughness < 0.35 ? 0.65 : 0.22,
+    clearcoatRoughness: 0.1,
+    reflectivity: 0.78
   });
   markAsSharedAsset(mat);
 

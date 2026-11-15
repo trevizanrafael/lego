@@ -5,6 +5,7 @@ import {
   createLegoBrick,
   SHARED_STUD_GEO
 } from '../../materials/LegoMaterials.js';
+import { applyAnimatedLegoWaterShader } from '../../materials/LegoMaterials.js';
 import {
   mergeBufferGeometries,
   makeTranslatedBox,
@@ -635,16 +636,26 @@ function buildGrandLakeBoatsAndArchedBridge(world, batcher, px, pz, groundY) {
   );
   deepBed.position.set(lakeX, groundY + 0.02, lakeZ);
 
+  if (!world.waterShaderUniforms) {
+    world.waterShaderUniforms = { uTime: { value: 0 } };
+  }
+  const lakeWaterMat = new THREE.MeshPhysicalMaterial({
+    color: 0x0ea5e9,
+    roughness: 0.05,
+    metalness: 0.08,
+    clearcoat: 0.96,
+    transparent: true,
+    opacity: 0.86
+  });
+  applyAnimatedLegoWaterShader(lakeWaterMat, world.waterShaderUniforms, {
+    waveAmp: 0.025,
+    waveFreq: 0.22,
+    fresnelBoost: 0.2,
+    variant: 'lake'
+  });
   const lakeSurface = new THREE.Mesh(
     new THREE.BoxGeometry(lakeW, 0.24, lakeD),
-    new THREE.MeshPhysicalMaterial({
-      color: 0x0ea5e9,
-      roughness: 0.05,
-      metalness: 0.08,
-      clearcoat: 0.96,
-      transparent: true,
-      opacity: 0.86
-    })
+    lakeWaterMat
   );
   lakeSurface.position.set(lakeX, groundY + 0.12, lakeZ);
   lakeSurface.receiveShadow = true;

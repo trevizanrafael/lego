@@ -4,6 +4,7 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
+import { applyAnimatedLegoWaterShader } from '../../materials/LegoMaterials.js';
 import {
   mergeBufferGeometries,
   mergeColoredGeometries,
@@ -282,10 +283,22 @@ function buildEastCanalBridgesAndPCCBarricades(world, batcher) {
   };
 
   // 1.1 Superfície da Água do Rio Navegável na cota Y = -3.50 (ligando o Oceano Norte direto ao Oceano Sul!)
-  const canalWaterMat = new THREE.MeshStandardMaterial({
+  if (!world.waterShaderUniforms) {
+    world.waterShaderUniforms = { uTime: { value: 0 } };
+  }
+  const canalWaterMat = new THREE.MeshPhysicalMaterial({
     color: 0x0284c7,
-    roughness: 0.16,
-    metalness: 0.12
+    roughness: 0.12,
+    metalness: 0.1,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.08,
+    reflectivity: 0.8
+  });
+  applyAnimatedLegoWaterShader(canalWaterMat, world.waterShaderUniforms, {
+    waveAmp: 0.035,
+    waveFreq: 0.18,
+    fresnelBoost: 0.22,
+    variant: 'canal'
   });
   const canal = new THREE.Mesh(new THREE.BoxGeometry(riverWidth, 0.3, riverLength), canalWaterMat);
   canal.position.set(riverX, waterY - 0.15, riverCenterZ);

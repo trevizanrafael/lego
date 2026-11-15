@@ -4,6 +4,7 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../materials/LegoMaterials.js';
+import { applyAnimatedLegoWaterShader } from '../materials/LegoMaterials.js';
 import { soundFX } from '../audio/SoundFX.js';
 import { MAP_REGIONS, MAP_LANDMARKS } from './MapRegionsData.js';
 import {
@@ -1058,18 +1059,22 @@ export class TestBlockWorld {
     const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.25);
     sunLight.position.set(140, 260, 120);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 15;
     sunLight.shadow.camera.far = 520;
 
-    const d = 140;
+    const d = 95;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
     sunLight.shadow.camera.bottom = -d;
-    sunLight.shadow.normalBias = 0.06;
-    sunLight.shadow.bias = -0.0008;
+    sunLight.shadow.normalBias = 0.022;
+    sunLight.shadow.bias = -0.0004;
+
+    if (!this.waterShaderUniforms) {
+      this.waterShaderUniforms = { uTime: { value: 0 } };
+    }
 
     this.scene.add(sunLight);
     this.scene.add(sunLight.target);
@@ -1101,6 +1106,10 @@ export class TestBlockWorld {
 
     for (const rot of this.rotatingElements) {
       rot.mesh.rotation[rot.axis] += rot.speed * dt;
+    }
+
+    if (this.waterShaderUniforms) {
+      this.waterShaderUniforms.uTime.value += Math.min(dt || 0, 0.1);
     }
 
     if (this.atmosphere) {
