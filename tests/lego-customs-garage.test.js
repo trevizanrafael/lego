@@ -309,7 +309,7 @@ describe('OFICINA DE RUA "LEGO CUSTOMS" (TUNING 0–10, PINTURA, DECALS, MONSTER
     assert.match(cssText, /\.customs-tabs::-webkit-scrollbar\s*\{[^}]*height:\s*4px;/s);
     assert.match(cssText, /#lego-customs-modal\s+button,\s*#lego-customs-modal\s+input\s*\{[^}]*pointer-events:\s*auto;/s);
     assert.match(cssText, /body\.customs-studio-open\s+#crosshair[\s\S]*?display:\s*none\s*!important;/);
-    assert.match(htmlText, /style\.css\?v=20261110[d-z]/);
+    assert.match(htmlText, /style\.css\?v=(20261110[d-z]|202611(1[8-9]|[2-9]\d)[a-z])/);
 
     setActiveGarageSaveData(createDefaultGarageSaveData());
     hud.totalStuds = 120000;

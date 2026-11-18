@@ -1972,6 +1972,23 @@ export class ThirdPersonController {
           this.toggleVehicleInteraction();
         }
         break;
+      case 'KeyK':
+        // [K] abre o Personalizador de Aeronaves em qualquer ponto do convés do Porta-Aviões; fora dele, pausa/toca a Rádio!
+        if (isDown && !e.repeat) {
+          if (
+            this.position.y > 404 &&
+            this.world?.helicarrierHangarData &&
+            this.hud?.aircraftStudio &&
+            !this.hud.isAircraftStudioOpen
+          ) {
+            const nearbyAir = this.currentVehicle || this.findNearbyVehicle?.();
+            const initialType = nearbyAir?.mesh?.userData?.carType || null;
+            this.hud.aircraftStudio.open(this.world, this, initialType);
+          } else if (this.hud?.tiktokRadio) {
+            this.hud.tiktokRadio.togglePlayPause();
+          }
+        }
+        break;
       case 'KeyQ':
         this.keys.turbo = isDown;
         if (this.minifigure.currentHeroKey === 'turbo') {
@@ -2153,11 +2170,6 @@ export class ThirdPersonController {
             this.resetHeldInputs();
             this.hud.toggleTikTokRadioModal?.(this);
           }
-        }
-        break;
-      case 'KeyK':
-        if (isDown && !e.repeat && this.hud?.tiktokRadio) {
-          this.hud.tiktokRadio.togglePlayPause();
         }
         break;
       case 'KeyL':
@@ -2504,17 +2516,21 @@ export class ThirdPersonController {
     const hangar = this.world?.helicarrierHangarData;
     if (!hangar || !this.position || this.position.y < 404) return null;
     const cPos = hangar.consolePos;
+    const qPos = hangar.quickConsolePos;
     const pPos = hangar.padPos;
     const distConsole = cPos
       ? Math.hypot(this.position.x - cPos.x, this.position.z - cPos.z)
       : Infinity;
+    const distQuick = qPos
+      ? Math.hypot(this.position.x - qPos.x, this.position.z - qPos.z)
+      : Infinity;
     const distPad = pPos
       ? Math.hypot(this.position.x - pPos.x, this.position.z - pPos.z)
       : Infinity;
-    const minDist = Math.min(distConsole, distPad);
-    if (minDist <= 16.5) {
+    const minDist = Math.min(distConsole, distQuick, distPad);
+    if (minDist <= 20.0) {
       return {
-        label: 'ACESSAR HANGAR DE AERONAVES (PERSONALIZADOR)',
+        label: 'ACESSAR PERSONALIZADOR DE AERONAVES (HANGAR)',
         dist: minDist,
         hangar
       };
@@ -2552,7 +2568,8 @@ export class ThirdPersonController {
     }
     const hangarHit = this._findNearbyHelicarrierHangar();
     if (hangarHit && this.hud?.aircraftStudio) {
-      this.hud.aircraftStudio.open(this.world, this);
+      const activeType = this.currentVehicle?.mesh?.userData?.carType || null;
+      this.hud.aircraftStudio.open(this.world, this, activeType);
       return true;
     }
     if (this.currentVehicle) {
@@ -2853,11 +2870,15 @@ export class ThirdPersonController {
     }
 
     const customsHit = this._findNearbyLegoCustoms();
+    const hangarHit = this._findNearbyHelicarrierHangar();
 
-    // Quando estiver dirigindo, oculta a linha inferior EXCETO sobre o Elevador Hidráulico da LEGO Customs!
+    // Quando estiver dirigindo, oculta a linha inferior EXCETO sobre o Elevador da LEGO Customs ou Hangar do Porta-Aviões!
     if (this.currentVehicle) {
       if (customsHit?.mode === 'lift_drive') {
         this.vehiclePromptTextEl.textContent = customsHit.label;
+        this.vehiclePromptEl.classList.remove('hidden');
+      } else if (hangarHit) {
+        this.vehiclePromptTextEl.textContent = hangarHit.label;
         this.vehiclePromptEl.classList.remove('hidden');
       } else {
         this.vehiclePromptEl.classList.add('hidden');
@@ -2871,7 +2892,6 @@ export class ThirdPersonController {
       return;
     }
 
-    const hangarHit = this._findNearbyHelicarrierHangar();
     if (hangarHit) {
       this.vehiclePromptTextEl.textContent = hangarHit.label;
       this.vehiclePromptEl.classList.remove('hidden');
@@ -2908,7 +2928,11 @@ export class ThirdPersonController {
       const actionVerb =
         spec?.category === 'boat' ? 'NAVEGAR EM' :
           spec?.category === 'helicopter' || spec?.category === 'plane' ? 'PILOTAR' : 'ENTRAR EM';
-      this.vehiclePromptTextEl.textContent = `${actionVerb} ${carName}`;
+      const isCarrierAir =
+        this.position.y > 404 && (spec?.category === 'helicopter' || spec?.category === 'plane');
+      this.vehiclePromptTextEl.textContent = isCarrierAir
+        ? `${actionVerb} ${carName}  •  [K] PERSONALIZAR`
+        : `${actionVerb} ${carName}`;
       this.vehiclePromptEl.classList.remove('hidden');
     } else {
       const elev = this._findNearbyHeroElevator();
@@ -4994,7 +5018,7 @@ export class ThirdPersonController {
     const desiredNear = THREE.MathUtils.clamp(
       0.65 + Math.max(0, camY - 22) * 0.012,
       0.65,
-      2.6
+      3.2
     );
     if (Math.abs(this.camera.near - desiredNear) > 0.04) {
       this.camera.near = desiredNear;

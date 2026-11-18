@@ -755,6 +755,7 @@ export class AircraftCustomStudio {
     this.bodyContainer = document.getElementById('aircraft-customs-body');
     this.statsEl = document.getElementById('aircraft-customs-stats');
     this.titleEl = document.getElementById('aircraft-customs-vehicle-title');
+    this.applyBtn = document.getElementById('aircraft-customs-apply-btn');
     this.saveBtn = document.getElementById('aircraft-customs-save-btn');
     this.launchBtn = document.getElementById('aircraft-customs-launch-btn');
     this.spinBtn = document.getElementById('aircraft-customs-spin-btn');
@@ -766,6 +767,7 @@ export class AircraftCustomStudio {
 
   _bindEvents() {
     this.closeBtn?.addEventListener('click', () => this.close(true));
+    this.applyBtn?.addEventListener('click', () => this.applyToWorldOnly());
     this.saveBtn?.addEventListener('click', () => this.saveCurrentConfig(true));
     this.launchBtn?.addEventListener('click', () => this.saveAndLaunch());
     this.spinBtn?.addEventListener('click', () => {
@@ -836,6 +838,9 @@ export class AircraftCustomStudio {
         controller.minifigure.root.visible = false;
       }
     }
+    if (world?.helicarrierShowcaseHolo) {
+      world.helicarrierShowcaseHolo.visible = false;
+    }
     if (document.pointerLockElement && document.exitPointerLock) {
       try {
         document.exitPointerLock();
@@ -871,6 +876,9 @@ export class AircraftCustomStudio {
 
     if (this._controller?.minifigure?.root && !this._controller.currentVehicle) {
       this._controller.minifigure.root.visible = true;
+    }
+    if (this._world?.helicarrierShowcaseHolo) {
+      this._world.helicarrierShowcaseHolo.visible = true;
     }
 
     document.body?.classList.remove('aircraft-studio-open');
@@ -918,6 +926,21 @@ export class AircraftCustomStudio {
     applyAircraftCustomization(mesh, this.draftConfig);
     this._previewMesh = mesh;
     this._previewGroup.add(mesh);
+  }
+
+  applyToWorldOnly() {
+    const saveData = getActiveAircraftSaveData();
+    saveData.selectedAircraftType = this.draftConfig.aircraftType;
+    saveData.configsByType[this.draftConfig.aircraftType] = { ...this.draftConfig };
+    setActiveAircraftSaveData(saveData);
+    applySavedAircraftConfigsToCarrier(this._world);
+    this.hud?.showWantedBanner?.(
+      'PERSONALIZAÇÃO APLICADA',
+      `${this.draftConfig.aircraftType.toUpperCase()} #${this.draftConfig.tailNumber} ATUALIZADA NO CONVÉS`,
+      'escaped',
+      2200
+    );
+    soundFX.playMenuClick?.();
   }
 
   saveCurrentConfig(showToast = false) {

@@ -7,6 +7,7 @@ import {
   markAsSharedAsset
 } from '../../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeFastBox } from '../BuildingGenerator.js';
+import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 
 function _createCarrierCanvasTex(w, h, drawFn) {
   const canvas = document.createElement('canvas');
@@ -631,16 +632,18 @@ export function buildSkyHelicarrier(world) {
   }
 
   // ============================================================================
-  // 5. HANGAR / OFICINA DE PERSONALIZAÇÃO DE AERONAVES NO CONVÉS (POPA ESTIBORDO)
-  //    Mundo: Pad = (20, 410.45, 64) | Console = (34, 410.45, 64) | Decolagem = (-14, 410.45, 36)
+  // 5. HANGAR / OFICINA DE PERSONALIZAÇÃO DE AERONAVES NO CONVÉS (VISÍVEL + INTERATIVO!)
+  //    Hangar Principal: Pad = (20, 410.48, 64) | Console Principal = (10, 410.45, 50)
+  //    Terminal Rápido no Spawn: (-14, 410.45, -34) | Decolagem = (-14, 410.48, 36)
   // ============================================================================
   const hangarLocalX = 20;
   const hangarLocalZ = 114; // -> Mundo Z = hz + 114 = +64
+
   const padMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(18, 18),
+    new THREE.PlaneGeometry(20, 20),
     new THREE.MeshStandardMaterial({
       map: _createTurntablePadTexture(),
-      roughness: 0.45,
+      roughness: 0.42,
       metalness: 0.25,
       polygonOffset: true,
       polygonOffsetFactor: -2,
@@ -652,40 +655,110 @@ export function buildSkyHelicarrier(world) {
   padMesh.receiveShadow = true;
   hullStructureGroup.add(padMesh);
 
-  // Pórtico Tático Aberto do Hangar Aéreo (não fecha a pista nem bloqueia entrada de jatos/helicópteros!)
-  const gantryBoxes = [
-    makeFastBox(1.8, 8.6, 1.8, hangarLocalX - 10.5, 4.7, hangarLocalZ - 8.5),
-    makeFastBox(1.8, 8.6, 1.8, hangarLocalX + 10.5, 4.7, hangarLocalZ - 8.5),
-    makeFastBox(1.8, 8.6, 1.8, hangarLocalX - 10.5, 4.7, hangarLocalZ + 8.5),
-    makeFastBox(1.8, 8.6, 1.8, hangarLocalX + 10.5, 4.7, hangarLocalZ + 8.5),
-    makeFastBox(23.2, 1.4, 2.2, hangarLocalX, 9.2, hangarLocalZ - 8.5),
-    makeFastBox(23.2, 1.4, 2.2, hangarLocalX, 9.2, hangarLocalZ + 8.5),
-    makeFastBox(2.0, 1.2, 19.0, hangarLocalX + 10.5, 9.2, hangarLocalZ)
+  // Anel luminoso de interação no chão do Hangar + Feixe vertical visível de qualquer ponto do convés
+  const padHaloMat = new THREE.MeshBasicMaterial({
+    color: 0x00f0ff,
+    transparent: true,
+    opacity: 0.48,
+    side: THREE.DoubleSide
+  });
+  nightFx.hangarGlowMats.push(padHaloMat);
+  const padRing = new THREE.Mesh(new THREE.RingGeometry(8.8, 10.2, 36), padHaloMat);
+  padRing.rotation.x = -Math.PI / 2;
+  padRing.position.set(hangarLocalX, 0.52, hangarLocalZ);
+  hullStructureGroup.add(padRing);
+
+  // Estrutura fechada nas laterais/fundo com grande portal aberto pro convés (-Z)
+  const bayBoxes = [
+    // Paredes laterais blindadas Leste e Oeste (abertura frontal ampla em -Z para jatos/herói!)
+    makeFastBox(2.2, 10.5, 24.0, hangarLocalX - 12.2, 5.65, hangarLocalZ),
+    makeFastBox(2.2, 10.5, 24.0, hangarLocalX + 12.2, 5.65, hangarLocalZ),
+    // Parede traseira Sul + Teto completo do Hangar
+    makeFastBox(26.6, 10.5, 2.2, hangarLocalX, 5.65, hangarLocalZ + 11.2),
+    makeFastBox(27.4, 1.4, 25.4, hangarLocalX, 11.3, hangarLocalZ)
   ];
-  const gantryMesh = _createMergedMesh(gantryBoxes, hullCharcoalMat, true, true);
-  if (gantryMesh) hullStructureGroup.add(gantryMesh);
+  const bayMesh = _createMergedMesh(bayBoxes, hullCharcoalMat, true, true);
+  if (bayMesh) hullStructureGroup.add(bayMesh);
 
-  const gantryStrip = new THREE.Mesh(new THREE.BoxGeometry(22.4, 0.36, 0.45), hangarGlowMat);
-  gantryStrip.position.set(hangarLocalX, 9.95, hangarLocalZ - 8.5);
-  const gantryStrip2 = gantryStrip.clone();
-  gantryStrip2.position.z = hangarLocalZ + 8.5;
-  hullStructureGroup.add(gantryStrip, gantryStrip2);
+  // Colisores apenas nas 2 paredes laterais, fundo e teto (centro livre para entrar a pé ou de jato!)
+  world.addCollider(hx + hangarLocalX - 12.2, hz + hangarLocalZ, 2.4, 24.2, hy + 11.5, hy);
+  world.addCollider(hx + hangarLocalX + 12.2, hz + hangarLocalZ, 2.4, 24.2, hy + 11.5, hy);
+  world.addCollider(hx + hangarLocalX, hz + hangarLocalZ + 11.2, 26.6, 2.4, hy + 11.5, hy);
 
-  // Console Tático do Personalizador de Aeronaves [E]
-  const consoleLocalX = 34;
-  const consoleLocalZ = 114;
-  const consoleBody = createLegoBrick(2.4, 1.5, 1.8, LEGO_COLORS.black, { studStep: 0.6 });
-  consoleBody.position.set(consoleLocalX, 1.15, consoleLocalZ);
-  const consoleScreen = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.9, 0.22), hangarGlowMat);
-  consoleScreen.position.set(consoleLocalX - 0.15, 2.05, consoleLocalZ);
-  consoleScreen.rotation.y = -Math.PI / 2;
-  hullStructureGroup.add(consoleBody, consoleScreen);
-  world.addCollider(hx + consoleLocalX, hz + consoleLocalZ, 2.4, 1.8, hy + 2.4, hy);
+  // Faixas luminosas de entrada do Hangar + Letreiro Gigante "HANGAR • PERSONALIZADOR [E]"
+  const portalBarTop = new THREE.Mesh(new THREE.BoxGeometry(25.0, 0.65, 0.8), hangarGlowMat);
+  portalBarTop.position.set(hangarLocalX, 11.0, hangarLocalZ - 12.2);
+  const portalPostL = new THREE.Mesh(new THREE.BoxGeometry(0.65, 10.4, 0.8), cautionYellowMat);
+  portalPostL.position.set(hangarLocalX - 11.4, 5.6, hangarLocalZ - 12.2);
+  const portalPostR = portalPostL.clone();
+  portalPostR.position.x = hangarLocalX + 11.4;
+  hullStructureGroup.add(portalBarTop, portalPostL, portalPostR);
+
+  const hangarSign = createSignBoardMesh({
+    x: hx + hangarLocalX,
+    y: hy + 14.4,
+    z: hz + hangarLocalZ - 12.2,
+    width: 24.0,
+    height: 4.4,
+    depth: 0.9,
+    title: 'HANGAR • PERSONALIZAR [E]',
+    bgColor: '#090a0d',
+    borderColor: '#00f0ff',
+    textColor: '#facc15',
+    doubleSided: true
+  });
+  world.scene.add(hangarSign);
+
+  // Mini-jato holográfico giratório exibido sobre a mesa giratória do Hangar quando o menu está fechado
+  const showcasePivot = new THREE.Group();
+  showcasePivot.position.set(hangarLocalX, 2.6, hangarLocalZ);
+  const holoMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.72 });
+  const hFuse = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 5.6), holoMat);
+  const hWing = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.16, 1.9), holoMat);
+  hWing.position.z = 0.2;
+  const hTail = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.85, 0.8), holoMat);
+  hTail.position.set(0, 0.5, 2.2);
+  showcasePivot.add(hFuse, hWing, hTail);
+  hullStructureGroup.add(showcasePivot);
+  world.rotatingElements.push({ mesh: showcasePivot, axis: 'y', speed: 0.95 });
+  world.helicarrierShowcaseHolo = showcasePivot;
+
+  // Console Principal na entrada do Hangar + Terminal Rápido logo ao lado do Spawn (-14, -34)
+  const buildHangarConsole = (lx, lz) => {
+    const consoleBody = createLegoBrick(2.6, 1.6, 1.8, LEGO_COLORS.black, { studStep: 0.6 });
+    consoleBody.position.set(lx, 1.2, lz);
+    const consoleScreen = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.1, 0.28), hangarGlowMat);
+    consoleScreen.position.set(lx, 2.25, lz - 0.55);
+    hullStructureGroup.add(consoleBody, consoleScreen);
+    world.addCollider(hx + lx, hz + lz, 2.6, 1.8, hy + 2.6, hy);
+  };
+  const consoleLocalX = 10;
+  const consoleLocalZ = 100; // Mundo (10, 410.45, 50) na boca do Hangar
+  const quickLocalX = -14;
+  const quickLocalZ = 16; // Mundo (-14, 410.45, -34) a 21m do Spawn (0, -50)!
+  buildHangarConsole(consoleLocalX, consoleLocalZ);
+  buildHangarConsole(quickLocalX, quickLocalZ);
+
+  const quickSign = createSignBoardMesh({
+    x: hx + quickLocalX,
+    y: hy + 4.8,
+    z: hz + quickLocalZ,
+    width: 11.5,
+    height: 2.5,
+    depth: 0.5,
+    title: 'CUSTOMIZAR [E] / [K]',
+    bgColor: '#090a0d',
+    borderColor: '#facc15',
+    textColor: '#00f0ff',
+    doubleSided: true
+  });
+  world.scene.add(quickSign);
 
   world.helicarrierHangarData = {
     padPos: { x: hx + hangarLocalX, y: hy + 0.48, z: hz + hangarLocalZ },
     consolePos: { x: hx + consoleLocalX, y: hy + 0.45, z: hz + consoleLocalZ },
-    launchPos: { x: hx - 14, y: hy + 0.48, z: hz + 86, rotY: Math.PI }, // ( -14, 410.48, 36 ) olhando -Z
+    quickConsolePos: { x: hx + quickLocalX, y: hy + 0.45, z: hz + quickLocalZ },
+    launchPos: { x: hx - 14, y: hy + 0.48, z: hz + 86, rotY: Math.PI }, // (-14, 410.48, 36) olhando -Z
     heliLaunchPos: { x: hx + 22, y: hy + 0.48, z: hz + 82, rotY: Math.PI }
   };
 

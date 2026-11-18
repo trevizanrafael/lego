@@ -157,4 +157,45 @@ test('Personalizador de Aeronaves customiza, gira preview orbital, salva configu
   applyAircraftCustomization(dummyObj, customFighter);
   assert.equal(parkedJet.mesh.userData.aircraftCustomConfig.primaryColor, 'alert_yellow');
   assert.ok(spawnCustomizedCarrierAircraft(world, customFighter), 'Spawn na catapulta deve funcionar');
+
+  // Terminal rápido ao lado do Spawn + Holoprojeção + Atalho [K] + applyToWorldOnly + prompt embarcado no Hangar
+  assert.ok(world.helicarrierHangarData?.quickConsolePos, 'quickConsolePos perto do spawn deve existir');
+  assert.ok(world.helicarrierShowcaseHolo, 'Holograma giratório de destaque do Hangar deve existir');
+  assert.equal(world.helicarrierShowcaseHolo.visible, true);
+
+  ctrl.exitVehicle();
+  const qPos = world.helicarrierHangarData.quickConsolePos;
+  ctrl.position.set(qPos.x + 2, 410.5, qPos.z);
+  assert.ok(ctrl._findNearbyHelicarrierHangar(), 'Deve detectar o Hangar também no terminal rápido do convés');
+
+  // Atalho [K] no convés abre o estúdio diretamente
+  hud.isTitleScreenActive = false;
+  window.dispatchEvent({ type: 'keydown', code: 'KeyK', repeat: false, target: canvas, preventDefault() {} });
+  window.dispatchEvent({ type: 'keyup', code: 'KeyK', target: canvas, preventDefault() {} });
+  assert.equal(hud.isAircraftStudioOpen, true, '[K] no convés do Porta-Aviões deve abrir o Personalizador');
+  assert.equal(world.helicarrierShowcaseHolo.visible, false, 'Holograma deve ocultar enquanto estúdio está aberto');
+
+  hud.aircraftStudio.draftConfig.tailNumber = '55';
+  hud.aircraftStudio.applyToWorldOnly();
+  assert.equal(hud.isAircraftStudioOpen, true, 'APLICAR mantém o estúdio aberto após atualizar o convés');
+  assert.equal(getActiveAircraftSaveData().configsByType[hud.aircraftStudio.draftConfig.aircraftType].tailNumber, '55');
+  hud.aircraftStudio.close(false);
+  assert.equal(world.helicarrierShowcaseHolo.visible, true, 'Holograma volta ao fechar o estúdio');
+
+  // Prompt deve continuar visível mesmo embarcado numa aeronave sobre o pad do Hangar!
+  const launchedAir = spawnCustomizedCarrierAircraft(world, customFighter);
+  ctrl.enterVehicle(launchedAir);
+  const padPos = world.helicarrierHangarData.padPos;
+  ctrl.position.set(padPos.x, padPos.y + 0.5, padPos.z);
+  ctrl._updateVehiclePrompt();
+  assert.equal(ctrl.vehiclePromptEl.classList.contains('hidden'), false, 'Prompt do Hangar fica visível embarcado');
+
+  // No chão (y=0), [K] alterna a Rádio sem abrir estúdio aéreo
+  ctrl.exitVehicle();
+  ctrl.position.set(0, 1, 0);
+  const playBefore = hud.tiktokRadio?.isPlaying;
+  window.dispatchEvent({ type: 'keydown', code: 'KeyK', repeat: false, target: canvas, preventDefault() {} });
+  window.dispatchEvent({ type: 'keyup', code: 'KeyK', target: canvas, preventDefault() {} });
+  assert.equal(hud.isAircraftStudioOpen, false, '[K] no solo não deve abrir estúdio do porta-aviões');
+  assert.notEqual(hud.tiktokRadio?.isPlaying, playBefore, '[K] no solo deve continuar alternando a Rádio');
 });
