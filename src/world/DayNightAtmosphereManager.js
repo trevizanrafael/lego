@@ -1166,6 +1166,38 @@ export class DayNightAtmosphereManager {
     for (const mat of this.landmarkNeonMaterials) {
       mat.opacity = nf * (mat.userData.maxOpacity || 0.38);
     }
+
+    const hcFx = this.world?.helicarrierNightFX;
+    if (hcFx) {
+      const pulse = 0.5 + 0.5 * Math.sin(this._animTime * 4.2);
+      const blink = Math.sin(this._animTime * 5.0) > 0.15;
+      for (const m of hcFx.bridgeWindowMats || []) {
+        if (m && 'emissiveIntensity' in m) {
+          m.emissiveIntensity = 0.32 + nf * 1.15;
+        }
+      }
+      for (const m of hcFx.deckStripMats || []) {
+        if (m?.color) {
+          const b = 0.58 + nf * 0.42 * (0.85 + 0.15 * pulse);
+          m.color.setRGB(b, b, b);
+        }
+      }
+      for (const m of hcFx.hangarGlowMats || []) {
+        if (m?.color) {
+          m.color.setHSL(0.55, 0.9, 0.38 + nf * 0.24 * (0.8 + 0.2 * pulse));
+        }
+      }
+      for (const bMesh of hcFx.beaconMeshes || []) {
+        if (bMesh) {
+          bMesh.visible = nf > 0.08 ? blink : pulse > 0.35;
+        }
+      }
+      for (const m of hcFx.plasmaMats || []) {
+        if (m?.color) {
+          m.color.setHSL(0.52, 1.0, 0.45 + 0.15 * pulse + nf * 0.1);
+        }
+      }
+    }
     for (const lb of this.lighthouseBeams) {
       lb.pivot.visible = nf > 0.1;
       if (lb.pivot.visible) {

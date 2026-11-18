@@ -6,6 +6,10 @@ import {
   updateVehicleDynamicTuningFX,
   getVehicleCustomFlameHex
 } from '../world/StreetCustomGarage.js';
+import {
+  applyAircraftCustomization,
+  getActiveAircraftSaveData
+} from '../world/AircraftCustomGarage.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -235,6 +239,7 @@ export class ThirdPersonController {
         this.hud?.isPauseMenuOpen ||
         this.hud?.isCreatorOpen ||
         this.hud?.isCustomsOpen ||
+        this.hud?.isAircraftStudioOpen ||
         this.hud?.isTikTokRadioOpen
       ) {
         return;
@@ -336,6 +341,7 @@ export class ThirdPersonController {
         !this.hud?.isHeroWheelOpen &&
         !this.hud?.isCreatorOpen &&
         !this.hud?.isCustomsOpen &&
+        !this.hud?.isAircraftStudioOpen &&
         !this.hud?.isTikTokRadioOpen &&
         !this.fastTravelState?.active
       ) {
@@ -354,6 +360,7 @@ export class ThirdPersonController {
           !this.hud?.isHeroWheelOpen &&
           !this.hud?.isCreatorOpen &&
           !this.hud?.isCustomsOpen &&
+          !this.hud?.isAircraftStudioOpen &&
           !this.hud?.isTikTokRadioOpen;
         promptEl.classList.toggle('visible', shouldShowPrompt);
       }
@@ -367,6 +374,7 @@ export class ThirdPersonController {
         this.hud?.isDossierOpen ||
         this.hud?.isCreatorOpen ||
         this.hud?.isCustomsOpen ||
+        this.hud?.isAircraftStudioOpen ||
         this.hud?.isTikTokRadioOpen ||
         this.fastTravelState?.active
       ) {
@@ -397,6 +405,7 @@ export class ThirdPersonController {
           this.hud?.isFullMapOpen ||
           this.hud?.isCreatorOpen ||
           this.hud?.isCustomsOpen ||
+          this.hud?.isAircraftStudioOpen ||
           this.hud?.isTikTokRadioOpen ||
           this.fastTravelState?.active
         ) {
@@ -743,19 +752,23 @@ export class ThirdPersonController {
     const carPos = carObj.mesh.position;
     const aimDir = aimData.point.clone().sub(carPos).normalize();
 
+    const isAir = spec.category === 'plane' || spec.category === 'helicopter';
+    const airForward = spec.category === 'plane' ? 8.2 : spec.category === 'helicopter' ? 5.6 : 0;
+
     if (spec.weapon === 'smg' || spec.weapon === 'machinegun') {
       this.primaryCooldown = spec.weapon === 'machinegun' ? 0.08 : 0.095;
       const muzzleY = spec.weapon === 'machinegun' ? 2.15 : 1.15;
+      const fDist = isAir ? airForward : 1.4;
       const muzzlePos = new THREE.Vector3(
-        carPos.x + aimDir.x * 1.4,
+        carPos.x + aimDir.x * fDist,
         carPos.y + muzzleY,
-        carPos.z + aimDir.z * 1.4
+        carPos.z + aimDir.z * fDist
       );
       this.destructibles.spawnVehicleProjectile(muzzlePos, aimData.point, spec.weapon);
     } else if (spec.weapon === 'plasma_laser') {
       this.primaryCooldown = 0.16;
-      const forwardDist = spec.isColossalShip ? 82.0 : 1.6;
-      const muzzleHeight = spec.isColossalShip ? 12.6 : 2.35;
+      const forwardDist = spec.isColossalShip ? 82.0 : isAir ? airForward : 1.6;
+      const muzzleHeight = spec.isColossalShip ? 12.6 : isAir ? 1.5 : 2.35;
       const muzzlePos = new THREE.Vector3(
         carPos.x + (spec.isColossalShip ? Math.sin(this.vehicleHeading) * forwardDist : aimDir.x * forwardDist),
         carPos.y + muzzleHeight,
@@ -764,10 +777,11 @@ export class ThirdPersonController {
       this.destructibles.spawnVehicleProjectile(muzzlePos, aimData.point, spec.weapon);
     } else if (spec.weapon === 'tank_cannon') {
       this.primaryCooldown = 0.6;
+      const fDist = isAir ? airForward : 3.1;
       const muzzlePos = new THREE.Vector3(
-        carPos.x + aimDir.x * 3.1,
-        carPos.y + 2.2,
-        carPos.z + aimDir.z * 3.1
+        carPos.x + aimDir.x * fDist,
+        carPos.y + (isAir ? 1.45 : 2.2),
+        carPos.z + aimDir.z * fDist
       );
       this.destructibles.spawnVehicleProjectile(muzzlePos, aimData.point, spec.weapon);
     }
@@ -1715,6 +1729,13 @@ export class ThirdPersonController {
       return;
     }
 
+    if (this.hud?.isAircraftStudioOpen) {
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud.aircraftStudio?.close(true);
+      }
+      return;
+    }
+
     if (this.hud?.isTikTokRadioOpen) {
       if (e.code === 'Escape' && isDown && !e.repeat) {
         this.hud.setTikTokRadioOpen(false, this);
@@ -2478,6 +2499,28 @@ export class ThirdPersonController {
     return true;
   }
 
+  _findNearbyHelicarrierHangar() {
+    const hangar = this.world?.helicarrierHangarData;
+    if (!hangar || !this.position || this.position.y < 404) return null;
+    const cPos = hangar.consolePos;
+    const pPos = hangar.padPos;
+    const distConsole = cPos
+      ? Math.hypot(this.position.x - cPos.x, this.position.z - cPos.z)
+      : Infinity;
+    const distPad = pPos
+      ? Math.hypot(this.position.x - pPos.x, this.position.z - pPos.z)
+      : Infinity;
+    const minDist = Math.min(distConsole, distPad);
+    if (minDist <= 16.5) {
+      return {
+        label: 'ACESSAR HANGAR DE AERONAVES (PERSONALIZADOR)',
+        dist: minDist,
+        hangar
+      };
+    }
+    return null;
+  }
+
   toggleVehicleInteraction() {
     // Elevador do Super Banco (a pé, perto da marca amarela)
     if (!this.currentVehicle && !this.activeRide && this.world?.bankElevator?.tryUse(this)) {
@@ -2505,6 +2548,11 @@ export class ThirdPersonController {
         this.hud.customsStudio.open(this, this.world, null, 'performance');
         return true;
       }
+    }
+    const hangarHit = this._findNearbyHelicarrierHangar();
+    if (hangarHit && this.hud?.aircraftStudio) {
+      this.hud.aircraftStudio.open(this.world, this);
+      return true;
     }
     if (this.currentVehicle) {
       this.exitVehicle();
@@ -2560,6 +2608,18 @@ export class ThirdPersonController {
   enterVehicle(carObj) {
     this._lastDryCarPos = null; // último ponto seco é por viagem (usado se um pulo cair na água)
     if (!carObj || carObj.destroyed) return;
+    const rawSpec = carObj.mesh?.userData?.vehicleSpec;
+    if (
+      carObj.mesh?.userData?.isHelicarrierParked ||
+      ((carObj.mesh?.position?.y || 0) >= 398 &&
+        (rawSpec?.category === 'plane' || rawSpec?.category === 'helicopter'))
+    ) {
+      const aircraftType = carObj.mesh?.userData?.carType || rawSpec?.id;
+      const savedAirCfg = getActiveAircraftSaveData()?.configsByType?.[aircraftType];
+      if (savedAirCfg && !carObj.mesh?.userData?.aircraftCustomConfig) {
+        applyAircraftCustomization(carObj, savedAirCfg);
+      }
+    }
     this.currentVehicle = carObj;
     carObj.isDriven = true;
     carObj.shakeTimer = 0;
@@ -2806,6 +2866,13 @@ export class ThirdPersonController {
 
     if (customsHit) {
       this.vehiclePromptTextEl.textContent = customsHit.label;
+      this.vehiclePromptEl.classList.remove('hidden');
+      return;
+    }
+
+    const hangarHit = this._findNearbyHelicarrierHangar();
+    if (hangarHit) {
+      this.vehiclePromptTextEl.textContent = hangarHit.label;
       this.vehiclePromptEl.classList.remove('hidden');
       return;
     }
@@ -3908,6 +3975,10 @@ export class ThirdPersonController {
     }
     if (this.hud?.isCustomsOpen) {
       this.hud.customsStudio?.updateStudioCamera(dt);
+      return;
+    }
+    if (this.hud?.isAircraftStudioOpen) {
+      this.hud.aircraftStudio?.updateStudioCamera(dt, this.camera);
       return;
     }
     if (this._customsExitCooldown > 0) {

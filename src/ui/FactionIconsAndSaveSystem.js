@@ -349,6 +349,12 @@ export function writeSaveSlot(slotIndex, data) {
       : prev?.customGarage && typeof prev.customGarage === 'object'
         ? JSON.parse(JSON.stringify(prev.customGarage))
         : createDefaultGarageSaveData();
+  const aircraftCustom =
+    data.aircraftCustom && typeof data.aircraftCustom === 'object'
+      ? JSON.parse(JSON.stringify(data.aircraftCustom))
+      : prev?.aircraftCustom && typeof prev.aircraftCustom === 'object'
+        ? JSON.parse(JSON.stringify(prev.aircraftCustom))
+        : null;
   const radioState =
     data.radioState !== undefined
       ? data.radioState
@@ -372,6 +378,7 @@ export function writeSaveSlot(slotIndex, data) {
           : {},
     customHero,
     customGarage,
+    aircraftCustom,
     radioState,
     updatedAt: new Date().toLocaleString('pt-BR', {
       day: '2-digit',

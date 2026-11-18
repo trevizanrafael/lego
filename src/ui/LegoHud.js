@@ -28,6 +28,13 @@ import {
   setActiveGarageSaveData
 } from '../world/StreetCustomGarage.js';
 import {
+  AircraftCustomStudio,
+  createDefaultAircraftSaveData,
+  getActiveAircraftSaveData,
+  setActiveAircraftSaveData,
+  applySavedAircraftConfigsToCarrier
+} from '../world/AircraftCustomGarage.js';
+import {
   FACTION_DATA,
   UI_TEXTS,
   getFactionLogoSvg,
@@ -190,6 +197,7 @@ export class LegoHud {
     this._gainTimeout = null;
     this.creatorStudio = new CustomHeroCreatorStudio(this);
     this.customsStudio = new LegoCustomsStudio(this);
+    this.aircraftStudio = new AircraftCustomStudio(this);
     this.tiktokRadio = new TikTokRadioSystem(this);
     this.isTikTokRadioOpen = false;
     this._tiktokToastTimeout = null;
@@ -208,6 +216,10 @@ export class LegoHud {
 
   get isCustomsOpen() {
     return Boolean(this.customsStudio?.isOpen);
+  }
+
+  get isAircraftStudioOpen() {
+    return Boolean(this.aircraftStudio?.isOpen);
   }
 
   syncOp09UI() {
@@ -2077,8 +2089,10 @@ export class LegoHud {
 
           const defaultCustom = createDefaultCustomHeroState();
           const defaultGarage = createDefaultGarageSaveData();
+          const defaultAircraft = createDefaultAircraftSaveData();
           setActiveCustomHero(defaultCustom);
           setActiveGarageSaveData(defaultGarage);
+          setActiveAircraftSaveData(defaultAircraft);
           syncOp09CatalogSlot();
           if (this.tiktokRadio) {
             this.tiktokRadio.importSaveState(null);
@@ -2090,6 +2104,7 @@ export class LegoHud {
             conqueredTerritories: [],
             customHero: defaultCustom,
             customGarage: defaultGarage,
+            aircraftCustom: defaultAircraft,
             radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
           });
           this.startLoadingSequence(slotData, true);
@@ -2207,6 +2222,8 @@ export class LegoHud {
       try {
         setActiveCustomHero(slotData?.customHero || createDefaultCustomHeroState());
         setActiveGarageSaveData(slotData?.customGarage || createDefaultGarageSaveData());
+        setActiveAircraftSaveData(slotData?.aircraftCustom || createDefaultAircraftSaveData());
+        applySavedAircraftConfigsToCarrier(this._lastController?.world);
         syncOp09CatalogSlot();
         this.totalStuds = Number(slotData?.studs || 0);
         this.displayedStuds = this.totalStuds;
@@ -2326,6 +2343,7 @@ export class LegoHud {
       territoryMeta: typeof this.getTerritoryMeta === 'function' ? this.getTerritoryMeta() : {},
       customHero: { ...getActiveCustomHero() },
       customGarage: JSON.parse(JSON.stringify(getActiveGarageSaveData())),
+      aircraftCustom: JSON.parse(JSON.stringify(getActiveAircraftSaveData())),
       radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
     });
   }
@@ -2339,6 +2357,9 @@ export class LegoHud {
     }
     if (open && this.isCustomsOpen) {
       this.customsStudio?.close(false);
+    }
+    if (open && this.isAircraftStudioOpen) {
+      this.aircraftStudio?.close(false);
     }
     this.isPauseMenuOpen = Boolean(open);
     if (this.pauseModalEl) {

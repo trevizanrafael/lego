@@ -30,6 +30,7 @@ import {
   buildGoldenLegoObjects
 } from './StreetPropsBuilder.js';
 import { buildBoatsAndAircraftFleet } from './NavalAndAirFleetBuilder.js';
+import { applySavedAircraftConfigsToCarrier } from './AircraftCustomGarage.js';
 import { buildSuperBancoCentral } from './regions/SuperBankBuilder.js';
 import {
   buildHeroTowerComplex,
@@ -141,6 +142,7 @@ export class TestBlockWorld {
     // 8. Objetos Quebráveis de Rua, Carros Dirigíveis, Embarcações, Aeronaves e Nuvens LEGO
     buildParkedLegoCars(this);
     buildBoatsAndAircraftFleet(this);
+    applySavedAircraftConfigsToCarrier(this);
     if (this.destructibles && this._pendingPortVehicles?.length) {
       for (const pv of this._pendingPortVehicles) {
         this.destructibles.registerDestructible(pv);

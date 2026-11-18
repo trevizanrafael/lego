@@ -953,6 +953,37 @@
     </div>
   </div>
 
+    <!-- MODAL DO HANGAR PERSONALIZADOR DE AERONAVES (HELIPORTO PORTA-AVIÕES) -->
+    <div id="aircraft-customs-modal" class="aircraft-customs-modal hidden">
+      <div class="aircraft-studio-topbar">
+        <div class="aircraft-studio-brand">
+          <span class="aircraft-studio-tag">S.H.I.E.L.D. HANGAR BAY 01</span>
+          <h2 id="aircraft-customs-vehicle-title">CAÇA SUPERSÔNICO F-99 • #64</h2>
+        </div>
+        <div class="aircraft-studio-cam-bar">
+          <button type="button" class="aircraft-cam-btn" data-cam-preset="front">FRENTE</button>
+          <button type="button" class="aircraft-cam-btn" data-cam-preset="wing">ASA</button>
+          <button type="button" class="aircraft-cam-btn" data-cam-preset="tail">CAUDA</button>
+          <button type="button" class="aircraft-cam-btn" data-cam-preset="top">TOPO</button>
+          <button type="button" id="aircraft-customs-spin-btn" class="aircraft-cam-btn">GIRO AUTO: ON</button>
+          <button type="button" id="aircraft-customs-thrust-btn" class="aircraft-cam-btn">TESTAR TURBINAS</button>
+          <button type="button" id="aircraft-customs-close-btn" class="aircraft-close-btn">FECHAR [ESC]</button>
+        </div>
+      </div>
+
+      <aside class="aircraft-studio-panel">
+        <div id="aircraft-customs-stats" class="aircraft-stats-grid"></div>
+        <div id="aircraft-customs-tabs" class="aircraft-tabs-row"></div>
+        <div id="aircraft-customs-body" class="aircraft-studio-body"></div>
+        <div class="aircraft-studio-footer">
+          <button type="button" id="aircraft-customs-reset-btn" class="aircraft-btn-secondary">PADRÃO</button>
+          <button type="button" id="aircraft-customs-save-btn" class="aircraft-btn-secondary">SALVAR</button>
+          <button type="button" id="aircraft-customs-launch-btn" class="aircraft-btn-primary">SALVAR &amp; DECOLAR</button>
+        </div>
+      </aside>
+      <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
+    </div>
+
   <script type="module" src="./src/main.js?v=20261110j"></script>
 </body>
 </html>

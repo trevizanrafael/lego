@@ -4,7 +4,7 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../materials/LegoMaterials.js';
-import { KMH_TO_UNITS, VEHICLE_SPECS } from './VehicleFleetBuilder.js';
+import { KMH_TO_UNITS, VEHICLE_SPECS, getFinishMaterialOpts } from './VehicleFleetBuilder.js';
 import { optimizeStaticGroupMeshes, mergeBufferGeometries } from './BuildingGenerator.js';
 
 /**
@@ -345,7 +345,8 @@ export function createNavalOrAircraftMesh(cfg) {
   const group = new THREE.Group();
   group.rotation.order = 'YXZ';
 
-  const bodyMat = getLegoMaterial(bodyColor, { roughness: 0.2, clearcoat: 0.55 });
+  const bodyFinish = getFinishMaterialOpts(cfg.finishStyle || 'glossy');
+  const bodyMat = getLegoMaterial(bodyColor, bodyFinish);
   const whiteMat = getLegoMaterial(LEGO_COLORS.white, { roughness: 0.22, clearcoat: 0.5 });
   const blackMat = getLegoMaterial(LEGO_COLORS.black, { roughness: 0.38 });
   const darkMat = getLegoMaterial(LEGO_COLORS.charcoal, { roughness: 0.34 });
@@ -353,9 +354,12 @@ export function createNavalOrAircraftMesh(cfg) {
   const goldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.6, roughness: 0.18 });
   const orangeMat = getLegoMaterial(LEGO_COLORS.orange, { roughness: 0.25 });
   const redMat = getLegoMaterial(LEGO_COLORS.red, { emissive: 0xdc2626, emissiveIntensity: 0.5 });
-  const glassMat = getLegoMaterial(0x38bdf8, {
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0x38bdf8,
     roughness: 0.1,
-    metalness: 0.35
+    metalness: 0.35,
+    clearcoat: 0.8,
+    clearcoatRoughness: 0.08
   });
 
   // ============================================================================
@@ -573,21 +577,24 @@ export function createNavalOrAircraftMesh(cfg) {
     }
 
     // Fuselagem Central + Cabine de Vidro Frontal (+Z) + Cauda Longa (-Z)
-    const fuselage = createLegoBrick(3.4, 2.7, 7.8, mainHue, { studStep: 0.85 });
+    const fuselage = createLegoBrick(3.4, 2.7, 7.8, mainHue, { studStep: 0.85, ...bodyFinish });
     fuselage.position.set(0, 2.15, 0);
-    const stripe = createLegoBrick(3.52, 0.45, 7.85, trimHue, { studs: false });
+    const stripe = createLegoBrick(3.52, 0.45, 7.85, trimHue, { studs: false, ...bodyFinish });
     stripe.position.set(0, 2.05, 0);
     const cockpit = new THREE.Mesh(new THREE.BoxGeometry(3.0, 2.1, 3.8), glassMat);
     cockpit.position.set(0, 2.15, 4.2);
-    const noseChin = createLegoBrick(2.6, 0.85, 2.2, mainHue, { studs: false });
+    cockpit.userData.isVehicleGlass = true;
+    const noseChin = createLegoBrick(2.6, 0.85, 2.2, mainHue, { studs: false, ...bodyFinish });
     noseChin.position.set(0, 1.35, 5.1);
 
     // Cauda Traseira (-Z) + Estabilizador Vertical
-    const tailBoom = createLegoBrick(1.2, 1.25, 7.6, mainHue, { studStep: 0.8 });
+    const tailBoom = createLegoBrick(1.2, 1.25, 7.6, mainHue, { studStep: 0.8, ...bodyFinish });
     tailBoom.position.set(0, 2.55, -6.8);
-    const tailFin = createLegoBrick(0.45, 2.9, 1.8, trimHue, { studs: false });
+    const tailFin = createLegoBrick(0.45, 2.9, 1.8, trimHue, { studs: false, ...bodyFinish });
     tailFin.position.set(0, 3.6, -10.2);
     group.add(fuselage, stripe, cockpit, noseChin, tailBoom, tailFin);
+    group.userData.initialColors = { color: mainHue, roofColor: trimHue };
+    group.userData.aircraftDims = { category: 'helicopter', w: isAttack ? 8.6 : 4.2, h: 4.5, d: 15.2 };
 
     // Asas Laterais de Armamento (Foguetes / Metralhadoras)
     if (isAttack) {
@@ -649,30 +656,35 @@ export function createNavalOrAircraftMesh(cfg) {
   // ============================================================================
   if (type === 'jato_vip' || type === 'jato_caca') {
     const isFighter = type === 'jato_caca';
-    const fuseHue = isFighter ? 0x334155 : LEGO_COLORS.white;
-    const wingHue = isFighter ? 0x1e293b : 0xf1f5f9;
-    const accentHue = isFighter ? LEGO_COLORS.red : LEGO_COLORS.gold;
+    const fuseHue = cfg.color ?? (isFighter ? 0x334155 : LEGO_COLORS.white);
+    const accentHue = cfg.roofColor ?? (isFighter ? LEGO_COLORS.red : LEGO_COLORS.gold);
+    const wingHue = cfg.wingColor ?? (isFighter ? accentHue : 0xf1f5f9);
+    const tailHue = cfg.wingColor ?? (isFighter ? 0x0f172a : accentHue);
 
     // Fuselagem Principal + Bico Supersônico (+Z) + Canopy de Vidro
-    const fuselage = createLegoBrick(3.4, 2.1, 14.5, fuseHue, { studStep: 1.0 });
+    const fuselage = createLegoBrick(3.4, 2.1, 14.5, fuseHue, { studStep: 1.0, ...bodyFinish });
     fuselage.position.set(0, 2.1, -0.5);
-    const stripe = createLegoBrick(3.52, 0.38, 14.6, accentHue, { studs: false });
+    const stripe = createLegoBrick(3.52, 0.38, 14.6, accentHue, { studs: false, ...bodyFinish });
     stripe.position.set(0, 2.0, -0.5);
 
-    const noseCone = createLegoBrick(2.2, 1.35, 4.6, isFighter ? 0x0f172a : fuseHue, { studs: false });
+    const noseCone = createLegoBrick(2.2, 1.35, 4.6, isFighter ? fuseHue : fuseHue, { studs: false, ...bodyFinish });
     noseCone.position.set(0, 1.85, 8.2);
-    const noseTip = new THREE.Mesh(new THREE.ConeGeometry(0.95, 2.8, 12), isFighter ? darkMat : whiteMat);
+    const noseTip = new THREE.Mesh(
+      new THREE.ConeGeometry(0.95, 2.8, 12),
+      getLegoMaterial(isFighter ? accentHue : fuseHue, bodyFinish)
+    );
     noseTip.rotation.x = Math.PI / 2;
     noseTip.position.set(0, 1.85, 11.6);
 
     const canopy = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.35, 4.8), glassMat);
     canopy.position.set(0, 3.05, 3.8);
+    canopy.userData.isVehicleGlass = true;
 
     // Asas Delta / Enflechadas Largas
-    const wings = createLegoBrick(15.6, 0.45, 6.8, wingHue, { studStep: 1.2 });
+    const wings = createLegoBrick(15.6, 0.45, 6.8, wingHue, { studStep: 1.2, ...bodyFinish });
     wings.position.set(0, 1.95, -1.2);
     for (const wx of [-7.9, 7.9]) {
-      const wingtip = createLegoBrick(0.55, 0.9, 4.2, accentHue, { studs: false });
+      const wingtip = createLegoBrick(0.55, 0.9, 4.2, accentHue, { studs: false, ...bodyFinish });
       wingtip.position.set(wx, 2.2, -1.2);
       group.add(wingtip);
     }
@@ -680,15 +692,15 @@ export function createNavalOrAircraftMesh(cfg) {
     // Estabilizadores Verticais na Cauda (-Z)
     if (isFighter) {
       for (const tx of [-1.45, 1.45]) {
-        const vTail = createLegoBrick(0.45, 3.4, 3.4, 0x0f172a, { studs: false });
+        const vTail = createLegoBrick(0.45, 3.4, 3.4, tailHue, { studs: false, ...bodyFinish });
         vTail.position.set(tx, 3.8, -6.2);
         vTail.rotation.z = tx > 0 ? -0.22 : 0.22;
         group.add(vTail);
       }
     } else {
-      const vTail = createLegoBrick(0.55, 4.2, 3.8, 0x0284c7, { studs: false });
+      const vTail = createLegoBrick(0.55, 4.2, 3.8, tailHue, { studs: false, ...bodyFinish });
       vTail.position.set(0, 4.4, -6.4);
-      const hTail = createLegoBrick(5.8, 0.38, 2.4, LEGO_COLORS.white, { studs: false });
+      const hTail = createLegoBrick(5.8, 0.38, 2.4, fuseHue, { studs: false, ...bodyFinish });
       hTail.position.set(0, 6.2, -6.6);
       group.add(vTail, hTail);
     }
@@ -704,6 +716,8 @@ export function createNavalOrAircraftMesh(cfg) {
     }
 
     group.add(fuselage, stripe, noseCone, noseTip, canopy, wings);
+    group.userData.initialColors = { color: fuseHue, roofColor: accentHue };
+    group.userData.aircraftDims = { category: 'plane', w: 16.4, h: 6.4, d: 20.5 };
     _attachExhaustFlames(group, [[-0.95, 2.0, -7.8], [0.95, 2.0, -7.8]], 1.45);
     return group;
   }
@@ -895,6 +909,7 @@ export function buildBoatsAndAircraftFleet(world) {
     mesh.userData.carType = cfg.type;
     mesh.userData.carName = cfg.customName || spec.name;
     mesh.userData.vehicleSpec = spec;
+    mesh.userData.isHelicarrierParked = (cfg.y ?? 0) >= 400;
     world.scene.add(mesh);
 
     // Registra rotores giratórios passivos para helicópteros estacionados

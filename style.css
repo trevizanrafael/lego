@@ -5126,3 +5126,308 @@ body.tiktok-radio-open #pointer-prompt {
   .objective-title { font-size: 19px; }
   .objective-status { min-width: 0; }
 }
+
+/* ============================================================================
+ * HANGAR PERSONALIZADOR DE AERONAVES (IDV TÁTICO URBANO ANGULAR - CHANFRO 45°)
+ * ============================================================================ */
+body.aircraft-studio-open .hud-panel,
+body.aircraft-studio-open .minimap-panel,
+body.aircraft-studio-open #bottom-bar,
+body.aircraft-studio-open #top-bar,
+body.aircraft-studio-open .wanted-banner,
+body.aircraft-studio-open .vehicle-hud,
+body.aircraft-studio-open #vehicle-prompt,
+body.aircraft-studio-open #vehicle-enter-prompt,
+body.aircraft-studio-open #crosshair,
+body.aircraft-studio-open .controls-hud,
+body.aircraft-studio-open .objective-hud {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.aircraft-customs-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 22px;
+  font-family: var(--font-ui, 'Chakra Petch', sans-serif);
+}
+
+.aircraft-customs-modal.hidden {
+  display: none !important;
+}
+
+.aircraft-studio-topbar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: rgba(9, 10, 13, 0.94);
+  border: 2px solid #facc15;
+  box-shadow: 6px 6px 0 #000;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+}
+
+.aircraft-studio-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aircraft-studio-tag {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #38bdf8;
+}
+
+.aircraft-studio-brand h2 {
+  margin: 0;
+  font-family: var(--font-display, 'Teko', sans-serif);
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
+}
+
+.aircraft-studio-cam-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aircraft-cam-btn,
+.aircraft-close-btn {
+  padding: 7px 12px;
+  background: #12151c;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+
+.aircraft-cam-btn:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.aircraft-close-btn {
+  background: #ef4444;
+  border-color: #f8fafc;
+  color: #090a0d;
+}
+
+.aircraft-studio-panel {
+  pointer-events: auto;
+  width: min(440px, 92vw);
+  max-height: calc(100vh - 135px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: #090a0d;
+  border: 2px solid #38bdf8;
+  box-shadow: 8px 8px 0 #000;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+}
+
+.aircraft-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.aircraft-stat-item {
+  background: #12151c;
+  border: 1px solid #1e293b;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aircraft-stat-item span {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.aircraft-stat-item strong {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  color: #facc15;
+}
+
+.aircraft-tabs-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.aircraft-tab-btn {
+  padding: 8px 6px;
+  background: #12151c;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-family: var(--font-ui, 'Chakra Petch', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aircraft-tab-btn.active {
+  background: #facc15;
+  border-color: #facc15;
+  color: #090a0d;
+}
+
+.aircraft-studio-body {
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 300px);
+}
+
+.aircraft-field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aircraft-field-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #38bdf8;
+}
+
+.aircraft-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.aircraft-type-btn {
+  padding: 8px;
+  text-align: left;
+  background: #12151c;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aircraft-type-btn strong {
+  font-size: 12px;
+}
+
+.aircraft-type-btn small {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.aircraft-type-btn.active {
+  border-color: #facc15;
+  background: #1e293b;
+}
+
+.aircraft-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+
+.aircraft-swatch-btn {
+  height: 26px;
+  border: 2px solid #1e293b;
+  cursor: pointer;
+}
+
+.aircraft-swatch-btn.active {
+  border-color: #facc15;
+  box-shadow: 0 0 0 2px #090a0d, 3px 3px 0 #facc15;
+}
+
+.aircraft-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.aircraft-chip-btn {
+  padding: 6px 10px;
+  background: #12151c;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aircraft-chip-btn.active {
+  background: #38bdf8;
+  border-color: #38bdf8;
+  color: #090a0d;
+  font-weight: 700;
+}
+
+.aircraft-studio-footer {
+  display: grid;
+  grid-template-columns: 0.8fr 0.9fr 1.4fr;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.aircraft-btn-secondary,
+.aircraft-btn-primary {
+  padding: 10px 8px;
+  border: 2px solid #334155;
+  font-family: var(--font-display, 'Teko', sans-serif);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+.aircraft-btn-secondary {
+  background: #12151c;
+  color: #f8fafc;
+}
+
+.aircraft-btn-primary {
+  background: #facc15;
+  border-color: #facc15;
+  color: #090a0d;
+  box-shadow: 3px 3px 0 #000;
+}
+
+.aircraft-studio-orbit-hint {
+  position: fixed;
+  right: 24px;
+  bottom: 20px;
+  padding: 6px 12px;
+  background: #090a0d;
+  border: 1px solid #facc15;
+  color: #facc15;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
