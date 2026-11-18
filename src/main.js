@@ -180,7 +180,7 @@ class LegoCityGame {
       60,
       window.innerWidth / window.innerHeight,
       0.65,
-      5200
+      7800
     );
 
     // Instancia Destruição Física, Cidade 3D Completa, Minifigura e Controlador 3ª Pessoa

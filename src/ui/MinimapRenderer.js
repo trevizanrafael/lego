@@ -6,7 +6,8 @@ import {
   PRISON_ISLAND_POLYGON,
   ARCHIPELAGO_ISLETS,
   REGION_BIOME_MAP,
-  REGION_BORDER_LINES
+  REGION_BORDER_LINES,
+  PANGAEA_HIGHWAYS
 } from '../world/CoastlineProfile.js';
 
 function normalizeAngleDiff(a, b) {
@@ -16,10 +17,10 @@ function normalizeAngleDiff(a, b) {
   return d;
 }
 
-const STATIC_MAP_MIN_WX = -1950;
-const STATIC_MAP_MIN_WZ = -1750;
-const STATIC_MAP_SPAN = 3900;
-const STATIC_MAP_PX = 2340; // 0.60 px/m (nitidez 1:1 até zoom máximo de 175m)
+const STATIC_MAP_MIN_WX = -3700;
+const STATIC_MAP_MIN_WZ = -3250;
+const STATIC_MAP_SPAN = 7400;
+const STATIC_MAP_PX = 2960; // 0.40 px/m cobrindo toda a Pangeia com nitidez
 
 function getStaticMinimapCache(world) {
   if (!world) return null;
@@ -59,9 +60,27 @@ function getStaticMinimapCache(world) {
   cctx.fillStyle = '#061322';
   cctx.fillRect(0, 0, STATIC_MAP_PX, STATIC_MAP_PX);
 
-  // 1. Massa Continental + Ilha da Prisão
-  cctx.fillStyle = '#141821';
-  // Massa terrestre orgânica (substituindo o antigo retângulo quadrado)
+  // 1. Halo de recife/onda rasa & Faixa Contínua de Areia ao redor de toda a Pangeia + Ilha da Prisão
+  cctx.save();
+  cctx.lineJoin = 'round';
+  cctx.lineCap = 'round';
+  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+    if (!poly || poly.length < 3) continue;
+    cctx.beginPath();
+    cctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
+    for (let i = 1; i < poly.length; i++) {
+      cctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
+    }
+    cctx.closePath();
+    cctx.lineWidth = Math.max(8, 56 * pxPerMeter);
+    cctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    cctx.stroke();
+    cctx.lineWidth = Math.max(5, 34 * pxPerMeter);
+    cctx.strokeStyle = '#ca8a04';
+    cctx.stroke();
+  }
+  cctx.restore();
+
   cctx.fillStyle = '#252932';
   for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
     if (!poly || poly.length < 3) continue;
@@ -73,6 +92,23 @@ function getStaticMinimapCache(world) {
     cctx.closePath();
     cctx.fill();
   }
+
+  // Rodovias Regionais da Pangeia (traço contínuo inclusive em trechos curvos/diagonais)
+  cctx.save();
+  cctx.lineCap = 'round';
+  cctx.lineJoin = 'round';
+  cctx.strokeStyle = '#090c12';
+  cctx.lineWidth = Math.max(4, 24 * pxPerMeter);
+  for (const hwy of PANGAEA_HIGHWAYS) {
+    if (!hwy.points || hwy.points.length < 2) continue;
+    cctx.beginPath();
+    cctx.moveTo(toX(hwy.points[0][0]), toY(hwy.points[0][1]));
+    for (let i = 1; i < hwy.points.length; i++) {
+      cctx.lineTo(toX(hwy.points[i][0]), toY(hwy.points[i][1]));
+    }
+    cctx.stroke();
+  }
+  cctx.restore();
   // Ilhotas do Arquipélago
   for (const isl of ARCHIPELAGO_ISLETS) {
     cctx.beginPath();

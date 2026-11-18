@@ -15,61 +15,93 @@ import {
   ARCHIPELAGO_ISLETS,
   HORIZON_MOUNTAINS,
   REGION_BORDER_LINES,
+  PANGAEA_HIGHWAYS,
+  getDistanceToCoastAt,
+  getPangaeaElevationAt,
   isPointOnOrganicLand,
   getWorldSoftBoundaryForce
 } from '../src/world/CoastlineProfile.js';
 
 setupTestEnvironment();
 
-test('Costa orgânica elimina o quadradão, adiciona ilhotas, horizonte 360° e respeita todas as zonas de água/terra', () => {
+test('Supercontinente Pangeia expandido, faixa contínua de areia, rodovias e respeito a água/terra', () => {
   const scene = new THREE.Scene();
   const dest = new DestructibleManager(scene);
   const world = new TestBlockWorld(scene, dest);
 
-  // Poligonais ricas com recortes costeiros reais (nunca um retângulo de 4 vértices)
-  assert.ok(MAIN_WEST_POLYGON.length >= 40, 'Costa principal deve ter contornos detalhados');
-  assert.ok(EAST_PENINSULA_POLYGON.length >= 25, 'Península Leste deve ter contornos detalhados');
+  // Poligonais amplas em formato assimétrico de Pangeia
+  assert.ok(MAIN_WEST_POLYGON.length >= 60, 'Costa principal deve ter contornos detalhados');
+  assert.ok(EAST_PENINSULA_POLYGON.length >= 25, 'Chifre Nordeste deve ter contornos detalhados');
   assert.ok(PRISON_ISLAND_POLYGON.length >= 40, 'Ilha da Prisão deve ter contorno rochoso orgânico');
-  assert.ok(ARCHIPELAGO_ISLETS.length >= 9, 'Deve haver pelo menos 9 ilhotas ao redor');
-  assert.ok(HORIZON_MOUNTAINS.length >= 16, 'Deve haver montanhas no horizonte em 360°');
-  assert.ok(REGION_BORDER_LINES.length >= 5, 'Fronteiras de região devem estar mapeadas');
+  assert.ok(ARCHIPELAGO_ISLETS.length >= 12, 'Deve haver pelo menos 12 ilhotas ao redor da Pangeia');
+  assert.ok(HORIZON_MOUNTAINS.length >= 24, 'Deve haver cadeia montanhosa no horizonte em 360°');
+  assert.ok(REGION_BORDER_LINES.length >= 8, 'Fronteiras claras inter-regionais mapeadas');
+  assert.ok(PANGAEA_HIGHWAYS.length >= 6, 'Rodovias regionais interligam as novas áreas');
 
-  // Testa variância orgânica na costa norte e oeste (baías vs penínsulas)
-  const northZs = MAIN_WEST_POLYGON.filter((p) => p[1] < -1300).map((p) => p[1]);
-  assert.ok(
-    Math.max(...northZs) - Math.min(...northZs) >= 60,
-    'Costa Norte deve variar entre baías e cabos em vez de linha reta'
-  );
+  // Escala supercontinental (~6700m x 5300m) + grande variação de costas
+  const westXs = MAIN_WEST_POLYGON.map((p) => p[0]);
+  const westZs = MAIN_WEST_POLYGON.map((p) => p[1]);
+  const eastXs = EAST_PENINSULA_POLYGON.map((p) => p[0]);
+  assert.ok(Math.min(...westXs) <= -3200, 'Cabo Noroeste / Sudoeste alcança <= -3200m');
+  assert.ok(Math.max(...eastXs) >= 3250, 'Chifre Nordeste alcança >= +3250m');
+  assert.ok(Math.min(...westZs) <= -2800, 'Planalto Boreal Norte alcança <= -2800m');
+  assert.ok(Math.max(...westZs) >= 2400, 'Península Sudoeste alcança >= +2400m');
 
-  // Ilhotas do arquipélago devem ser pisáveis (isDeepWaterAt=false e terreno elevado!)
-  for (const isl of ARCHIPELAGO_ISLETS) {
-    assert.equal(
-      world.isDeepWaterAt(isl.x, isl.z),
-      false,
-      `Ilhota ${isl.id} em (${isl.x},${isl.z}) deve ser terra firme`
-    );
-    assert.ok(
-      world.getSurfaceHeightAt(isl.x, isl.z, 2) >= isl.peakY - 0.1,
-      `Ilhota ${isl.id} deve ter elevação caminhável`
-    );
+  // Novas regiões periféricas caminháveis com elevação real e Golfo de Tétis aberto em mar profundo
+  assert.equal(isPointOnOrganicLand(-1215, -2420), true, 'Planalto Boreal Norte em terra firme');
+  assert.equal(isPointOnOrganicLand(-2920, -1285), true, 'Cabo Radar Noroeste em terra firme');
+  assert.equal(isPointOnOrganicLand(2740, -1120), true, 'Parque Eólico / Refinaria Tétis em terra firme');
+  assert.equal(isPointOnOrganicLand(-2520, 2020), true, 'Vila Dunas Sudoeste em terra firme');
+  assert.equal(world.isDeepWaterAt(2000, 480), true, 'Golfo de Tétis Leste deve ser mar aberto entre penínsulas');
+
+  // Verifica que TODA a costa tem faixa contínua de areia/descida natural até a água (zero corte seco)
+  for (const [sx, sz, label] of [
+    [-1280, -2840, 'Costa Boreal Norte'],
+    [-3340, -1040, 'Cabo Radar Noroeste'],
+    [-2660, 2440, 'Ponta Dunas Sudoeste'],
+    [3320, -1420, 'Ponta Leste Tétis']
+  ]) {
+    assert.ok(getDistanceToCoastAt(sx, sz) < 50, `${label} dentro da faixa costeira arenosa`);
+    const yShore = getPangaeaElevationAt(sx, sz);
+    assert.ok(yShore >= -0.35 && yShore <= 4.0, `${label} com rampa suave até a água (${yShore})`);
   }
 
-  // Oceano aberto e pontos críticos de teste preservados
+  // Chunks distantes usam origem local (mesh.position != 0) contra Z-fighting/jitter float32
+  let localOriginChunkCount = 0;
+  world.scene.traverse((n) => {
+    if (n.isMesh && Math.hypot(n.position.x, n.position.z) > 1200) {
+      localOriginChunkCount++;
+    }
+  });
+  assert.ok(localOriginChunkCount >= 6, `Chunks periféricos usam origem local (${localOriginChunkCount})`);
+
+  // Ponte Boreal sobre o Fjord em Z=-2150 sustenta tráfego seco sobre o canal do rio
+  assert.ok(world.getRoadElevation(560, -2150) >= 5.0, 'Ponte Boreal eleva em arco 5.5m');
+  assert.equal(world.isDeepWaterAt(560, -2150, { forCar: true }), false, 'Carros atravessam Ponte Boreal');
+  assert.equal(world.isDeepWaterAt(560, -2150, { forBoat: true }), true, 'Barcos passam sob Ponte Boreal');
+
+  // Ilhotas do arquipélago devem ser pisáveis
+  for (const isl of ARCHIPELAGO_ISLETS) {
+    assert.equal(world.isDeepWaterAt(isl.x, isl.z), false, `Ilhota ${isl.id} deve ser terra firme`);
+    assert.ok(world.getSurfaceHeightAt(isl.x, isl.z, 2) >= isl.peakY - 0.1, `Ilhota ${isl.id} elevação`);
+  }
+
+  // Pontos críticos de água/terra preservados
   assert.equal(world.isDeepWaterAt(220, 1080, { forCar: true }), true, 'Canal aberto Sul preservado');
   assert.equal(world.isDeepWaterAt(0, 1620), true, 'Oceano além do Mega Píer preservado');
   assert.equal(world.isDeepWaterAt(1650, 700), true, 'Canal de atracação do Porto preservado');
   assert.equal(world.isDeepWaterAt(-1380, 1135, false), false, 'Marina Oeste preservada');
   assert.equal(isPointOnOrganicLand(-1735, 945), true, 'Promontório do Farol Sudoeste preservado');
 
-  // Oceano estendido além de 3100m até ±9500m
+  // Oceano cobre super-horizonte além de ±14000m
   const oceanBox = new THREE.Box3().setFromObject(world.oceanMesh);
-  assert.ok(oceanBox.max.x >= 9000 && oceanBox.min.x <= -9000, 'Oceano deve cobrir horizonte até ±9500m');
+  assert.ok(oceanBox.max.x >= 13800 && oceanBox.min.x <= -13800, 'Oceano até ±14500m');
 });
 
-test('Limite suave do mundo não corta Ilha da Prisão e renderiza costa orgânica no Minimapa & Mapa [M]', () => {
+test('Limites da Pangeia, spawns em periferias, câmera longe da origem, Minimapa & Mapa [M]', () => {
   resetTestListeners();
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1.6, 0.5, 4500);
+  const camera = new THREE.PerspectiveCamera(60, 1.6, 0.65, 7800);
   const dest = new DestructibleManager(scene);
   const world = new TestBlockWorld(scene, dest);
   const hud = new LegoHud();
@@ -79,14 +111,25 @@ test('Limite suave do mundo não corta Ilha da Prisão e renderiza costa orgâni
   const canvas = document.getElementById('test-coast-canvas');
   const ctrl = new ThirdPersonController(camera, canvas, fig, world, dest, hud);
 
-  // Antigamente clamp z<=1700 travava o jogador antes do sul da Ilha da Prisão (Z=1960)!
-  ctrl.position.set(1375, 1.0, 1950);
+  // Alcança livremente regiões periféricas extremas (Parque Eólico Leste & Vila Sudoeste) sem bloqueio
+  ctrl.position.set(2680, 12.0, -1120);
   ctrl.update(0.016);
-  assert.ok(ctrl.position.z >= 1940, 'Jogador deve alcançar toda a Ilha da Prisão sem parede invisível em 1700');
+  assert.ok(ctrl.position.x >= 2650, 'Jogador alcança Parque Eólico no extremo Leste sem parede invisível');
+
+  // Região correta resolvida nas fronteiras expandidas (sem cair em Centro Financeiro!)
+  assert.equal(world.getRegionAt(2680, 2, -1120).id, 'industrial_leste');
+  assert.equal(world.getRegionAt(-2920, 2, -1285).id, 'aeroporto_oeste');
+  assert.equal(world.getRegionAt(-2520, 2, 2020).id, 'praia_sul');
+  assert.equal(world.getRegionAt(-1215, 2, -2420).id, 'suburbio_norte');
+
+  // Pedestres e tráfego validam novas áreas secas da Pangeia
+  assert.equal(world.livingCity._isValidDryLandForPedestrian(-2460, 2020), true);
+  assert.equal(world.livingCity._isValidDryLandForPedestrian(2680, -1120), true);
+  assert.equal(world.livingCity._isValidDryLandForPedestrian(2000, 480), false);
 
   // Limite natural no oceano extremo aplica força de retorno suave
-  const edgeForce = getWorldSoftBoundaryForce(2750, 0);
-  assert.ok(edgeForce.fx < 0 && edgeForce.intensity > 0, 'Força suave deve empurrar de volta ao arquipélago');
+  const edgeForce = getWorldSoftBoundaryForce(4150, 0);
+  assert.ok(edgeForce.fx < 0 && edgeForce.intensity > 0, 'Força suave empurra de volta além de 3950m');
 
   // Renderiza Minimapa e Mapa Tático [M] sem erros
   const region = world.getRegionAt(0, 1, -80);

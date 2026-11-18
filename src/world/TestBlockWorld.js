@@ -19,6 +19,7 @@ import {
 import {
   RIVER_BRIDGE_SPECS,
   RIVER_PIER_SPECS,
+  PANGAEA_BRIDGE_SPECS,
   buildOceanAndMainIsland,
   buildUrbanRoadGridAndMedians
 } from './RoadGridBuilder.js';
@@ -31,7 +32,7 @@ import {
 } from './StreetPropsBuilder.js';
 import { buildBoatsAndAircraftFleet } from './NavalAndAirFleetBuilder.js';
 import { applySavedAircraftConfigsToCarrier } from './AircraftCustomGarage.js';
-import { isPointOnOrganicLand, getIsletSampleAt } from './CoastlineProfile.js';
+import { isPointOnOrganicLand, getIsletSampleAt, getPangaeaElevationAt } from './CoastlineProfile.js';
 import { buildSuperBancoCentral } from './regions/SuperBankBuilder.js';
 import {
   buildHeroTowerComplex,
@@ -795,7 +796,7 @@ export class TestBlockWorld {
     if (x >= 70 && x <= 340 && z >= 187 && z <= 349) {
       return 0.42;
     }
-    if (x >= 539 && x <= 581 && z >= -1325 && z <= 1075) {
+    if (x >= 539 && x <= 581 && z >= -2950 && z <= 1075) {
       if (z > 1050) {
         const t = Math.min(1, (z - 1050) / 25);
         return -3.5 + t * 3.35;
@@ -816,6 +817,12 @@ export class TestBlockWorld {
   getRoadElevation(x, z) {
     if (x >= 526 && x <= 594) {
       for (const b of RIVER_BRIDGE_SPECS) {
+        if (Math.abs(z - b.z) <= b.width * 0.5) {
+          const t = Math.max(0, Math.min(1, (x - b.xStart) / (b.xEnd - b.xStart)));
+          return b.archHeight * Math.sin(t * Math.PI);
+        }
+      }
+      for (const b of PANGAEA_BRIDGE_SPECS) {
         if (Math.abs(z - b.z) <= b.width * 0.5) {
           const t = Math.max(0, Math.min(1, (x - b.xStart) / (b.xEnd - b.xStart)));
           return b.archHeight * Math.sin(t * Math.PI);
@@ -859,7 +866,8 @@ export class TestBlockWorld {
 
     return Math.max(
       getFavelaElevation(x, z),
-      getUrbanCityReliefY(x, z)
+      getUrbanCityReliefY(x, z),
+      getPangaeaElevationAt(x, z)
     );
   }
 
@@ -942,10 +950,13 @@ export class TestBlockWorld {
       }
     }
 
-    // 3. RIO / CANAL URBANO LESTE NAVEGÁVEL DE PONTA A PONTA (X: 540..580, Z: -1325..+1075 — Mar Norte ao Mar Sul!)
-    if (x >= 540 && x <= 580 && z >= -1325 && z <= 1075) {
+    // 3. RIO / CANAL URBANO & FIORDE BOREAL LESTE NAVEGÁVEL (X: 540..580, Z: -2950..+1075)
+    if (x >= 540 && x <= 580 && z >= -2950 && z <= 1075) {
       if (!forBoat) {
         for (const b of RIVER_BRIDGE_SPECS) {
+          if (Math.abs(z - b.z) <= b.width * 0.5) return false;
+        }
+        for (const b of PANGAEA_BRIDGE_SPECS) {
           if (Math.abs(z - b.z) <= b.width * 0.5) return false;
         }
         for (const p of RIVER_PIER_SPECS) {
@@ -1045,6 +1056,10 @@ export class TestBlockWorld {
       return this._subRegions.favela;
     }
 
+    if (z < -1320 && x >= -1650 && x <= 540 && y < 120) {
+      return this.regions[3];
+    }
+
     const priorityOrder = [1, 2, 8, 3, 4, 5, 6, 7, 0];
     for (const idx of priorityOrder) {
       const reg = this.regions[idx];
@@ -1059,7 +1074,7 @@ export class TestBlockWorld {
 
   _setupSkyAndLights() {
     this.scene.background = new THREE.Color(0x68b5f8);
-    this.scene.fog = new THREE.FogExp2(0x7ec2fc, 0.00028);
+    this.scene.fog = new THREE.FogExp2(0x7ec2fc, 0.00017);
 
     const hemiLight = new THREE.HemisphereLight(0xf0f9ff, 0x334155, 0.94);
     hemiLight.position.set(0, 480, 0);

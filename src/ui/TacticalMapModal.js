@@ -6,7 +6,8 @@ import {
   PRISON_ISLAND_POLYGON,
   ARCHIPELAGO_ISLETS,
   REGION_BIOME_MAP,
-  REGION_BORDER_LINES
+  REGION_BORDER_LINES,
+  PANGAEA_HIGHWAYS
 } from '../world/CoastlineProfile.js';
 
 /**
@@ -313,7 +314,7 @@ export function screenToWorldMapCoords(hud, e) {
   const clickX = ((e.clientX - rect.left) / rect.width) * w;
   const clickY = ((e.clientY - rect.top) / rect.height) * h;
 
-  const baseScale = 0.138;
+  const baseScale = 0.088;
   const scale = baseScale * hud.mapZoom;
   const cx = w * 0.48 + hud.mapPanX;
   const cy = h * 0.48 + hud.mapPanY;
@@ -411,7 +412,7 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
 
   const w = hud.fullmapCanvas.width;
   const h = hud.fullmapCanvas.height;
-  const baseScale = 0.138; // 680px cobre ~4900m na visao 1.0x
+  const baseScale = 0.088; // 680px cobre toda a super-escala Pangeia (~7700m na visao 1.0x)
   const scale = baseScale * hud.mapZoom;
   const cx = w * 0.48 + hud.mapPanX;
   const cy = h * 0.48 + hud.mapPanY;
@@ -421,13 +422,13 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
 
   ctx.clearRect(0, 0, w, h);
 
-  // 1. Oceano Atlantico Escuro + Grade Tatica de Coordenadas
+  // 1. Oceano Atlantico Escuro + Grade Tatica de Coordenadas da Pangeia
   ctx.fillStyle = '#061220';
   ctx.fillRect(0, 0, w, h);
 
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.07)';
   ctx.lineWidth = 1;
-  for (let g = -2000; g <= 2000; g += 250) {
+  for (let g = -3600; g <= 3600; g += 400) {
     ctx.beginPath();
     ctx.moveTo(toX(g), 0);
     ctx.lineTo(toX(g), h);
@@ -438,11 +439,10 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
     ctx.stroke();
   }
 
-  // 2. Massa Continental da Grande Ilha Metropolitana + Ilha da Prisao (100% alinhadas — ZERO tapetao cinza vazio!)
+  // 2. Supercontinente Pangeia + Ilha da Prisao com Orla de Areia Dourada Contínua
   ctx.fillStyle = '#141821';
   ctx.strokeStyle = '#334155';
   ctx.lineWidth = 2;
-  // Ilhas orgânicas + ilhotas com biomas e fronteiras claras
   const drawPolyPath = (poly) => {
     if (!poly || poly.length < 3) return;
     ctx.beginPath();
@@ -453,13 +453,17 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
     ctx.closePath();
   };
 
-  // Halos de água rasa costeira
+  // Halos de água rasa costeira + Faixa contínua de Areia Dourada ao redor de todo o continente
   ctx.save();
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(4, 28 * scale);
-  ctx.strokeStyle = 'rgba(56, 189, 248, 0.24)';
+  ctx.lineCap = 'round';
   for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
     drawPolyPath(poly);
+    ctx.lineWidth = Math.max(5, 48 * scale);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.24)';
+    ctx.stroke();
+    ctx.lineWidth = Math.max(3, 28 * scale);
+    ctx.strokeStyle = 'rgba(234, 179, 8, 0.72)';
     ctx.stroke();
   }
   ctx.restore();
@@ -467,12 +471,29 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
   // Base terrestre orgânica
   ctx.fillStyle = '#1e222b';
   ctx.strokeStyle = '#64748b';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.6;
   for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
     drawPolyPath(poly);
     ctx.fill();
     ctx.stroke();
   }
+
+  // Rodovias Inter-Regionais da Pangeia no Mapa [M]
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#090a0d';
+  ctx.lineWidth = Math.max(2.2, 24 * scale);
+  for (const hwy of PANGAEA_HIGHWAYS) {
+    if (!hwy.points || hwy.points.length < 2) continue;
+    ctx.beginPath();
+    ctx.moveTo(toX(hwy.points[0][0]), toY(hwy.points[0][1]));
+    for (let i = 1; i < hwy.points.length; i++) {
+      ctx.lineTo(toX(hwy.points[i][0]), toY(hwy.points[i][1]));
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // Ilhotas ao redor
   for (const isl of ARCHIPELAGO_ISLETS) {

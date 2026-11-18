@@ -1,5 +1,7 @@
+import { PANGAEA_OUTPOST_LANDMARKS } from './CoastlineProfile.js';
+
 /**
- * Catálogo Oficial das 10 Regiões do Mapa em Escala Metropolitana Ampliada (4200 x 3000 unidades)
+ * Catálogo Oficial das 10 Regiões do Mapa em Escala Supercontinental Pangeia (~6800 x 5600 unidades)
  */
 export const MAP_REGIONS = [
   {
@@ -44,8 +46,8 @@ export const MAP_REGIONS = [
     num: '04',
     name: 'BAIRRO RESIDENCIAL — ZONA NORTE',
     shortName: 'SUBÚRBIO (NORTE)',
-    sub: 'Quarteirões de Casas, Mansões Costeiras, Praça, Pizzaria & Posto de Gasolina',
-    bounds: { minX: -640, maxX: 550, minZ: -1320, maxZ: -440, minY: 0, maxY: 90 },
+    sub: 'Quarteirões Residenciais, Planalto Boreal Norte, Pinhal & Rodovia Panorâmica',
+    bounds: { minX: -1010, maxX: 540, minZ: -2920, maxZ: -440, minY: 0, maxY: 110 },
     spawn: { x: 120, y: 2.2, z: -646 },
     color: '#fb923c',
     icon: 'suburb'
@@ -54,10 +56,10 @@ export const MAP_REGIONS = [
     id: 'praia_sul',
     number: 5,
     num: '05',
-    name: 'ORLA MARÍTIMA, PRAIA & RODA-GIGANTE',
-    shortName: 'PRAIA & ORLA (SUL)',
-    sub: 'Skyline Balneário Camboriú (232m-296m!), Calçadão, Areia Dourada, Píer 540m, Farol & Marina',
-    bounds: { minX: -1825, maxX: 640, minZ: 420, maxZ: 1620, minY: 0, maxY: 325 },
+    name: 'ORLA MARÍTIMA, PRAIA & PENÍNSULA DAS DUNAS',
+    shortName: 'PRAIA & DUNAS (SUL)',
+    sub: 'Skyline Beira-Mar (232m-296m!), Píer 540m, Farol, Marina & Vila Sudoeste',
+    bounds: { minX: -3450, maxX: 640, minZ: 420, maxZ: 2580, minY: 0, maxY: 325 },
     spawn: { x: 0, y: 1.5, z: 1080 },
     color: '#fde047',
     icon: 'beach'
@@ -66,10 +68,10 @@ export const MAP_REGIONS = [
     id: 'industrial_leste',
     number: 6,
     num: '06',
-    name: 'DISTRITO INDUSTRIAL — IMPÉRIO BLINDADO DO PCC',
-    shortName: 'DISTRITO INDUSTRIAL (PCC)',
-    sub: 'Cidadela 112m, Torres de Lavagem, Silos Gigantes, Chaminés 85m & Frotas 100% PCC',
-    bounds: { minX: 520, maxX: 1628, minZ: -1320, maxZ: 120, minY: 0, maxY: 140 },
+    name: 'DISTRITO INDUSTRIAL, PARQUE EÓLICO & REFINARIA',
+    shortName: 'INDUSTRIAL & EÓLICO (PCC)',
+    sub: 'Cidadela PCC, Refinaria Tétis & 8 Aerogeradores Gigantes do Chifre Nordeste',
+    bounds: { minX: 520, maxX: 3450, minZ: -2750, maxZ: 120, minY: 0, maxY: 160 },
     spawn: { x: 820, y: 7.2, z: -340 },
     color: '#3b82f6',
     icon: 'pcc'
@@ -78,10 +80,10 @@ export const MAP_REGIONS = [
     id: 'porto_leste',
     number: 7,
     num: '07',
-    name: 'PORTO DE CARGAS & CAIS MARÍTIMO',
+    name: 'PORTO DE CARGAS & GOLFO DE TÉTIS',
     shortName: 'PORTO (LESTE)',
-    sub: 'Cais Pesado, Labirinto de Contêineres 4 Andares, 3 Guindastes Portainer, Docas 01/02 & Navio Cargueiro',
-    bounds: { minX: 520, maxX: 1720, minZ: 110, maxZ: 880, minY: 0, maxY: 95 },
+    sub: 'Cais Pesado, Labirinto de Contêineres, Portainers & Saída pro Golfo de Tétis',
+    bounds: { minX: 520, maxX: 1950, minZ: 110, maxZ: 960, minY: 0, maxY: 95 },
     spawn: { x: 825, y: 0.5, z: 380 },
     color: '#f59e0b',
     icon: 'port'
@@ -90,10 +92,10 @@ export const MAP_REGIONS = [
     id: 'aeroporto_oeste',
     number: 8,
     num: '08',
-    name: 'AEROPORTO INTERNACIONAL & BASE MILITAR',
-    shortName: 'AEROPORTO (OESTE)',
-    sub: 'Mega Terminal Entrável, Ala Militar Norte, 20 Hangares, 3 Torres ATC & Pista 09/27',
-    bounds: { minX: -1880, maxX: -1010, minZ: -1320, maxZ: 660, minY: 0, maxY: 165 },
+    name: 'AEROPORTO, BASE MILITAR & CABO RADAR',
+    shortName: 'AEROPORTO & CABO OESTE',
+    sub: 'Mega Terminal, Ala Militar Norte, Hangares, Pista 09/27 & Cabo Radar Noroeste',
+    bounds: { minX: -3450, maxX: -1010, minZ: -2920, maxZ: 660, minY: 0, maxY: 165 },
     spawn: { x: -1060, y: 0.5, z: 0 },
     color: '#94a3b8',
     icon: 'airport'
@@ -104,8 +106,8 @@ export const MAP_REGIONS = [
     num: '09',
     name: 'ILHA DA PRISÃO DE SEGURANÇA MÁXIMA',
     shortName: 'ILHA DA PRISÃO',
-    sub: 'Cidadela Panóptica 126m ("A Balsa"), 6 Pavilhões (58-82m), Doca Naval & 4 Setores',
-    bounds: { minX: 840, maxX: 1820, minZ: 880, maxZ: 2005, minY: 0, maxY: 150 },
+    sub: 'Cidadela Panóptica 126m ("A Balsa"), 6 Pavilhões, Orla Arenosa & Doca Naval',
+    bounds: { minX: 780, maxX: 2350, minZ: 880, maxZ: 2350, minY: 0, maxY: 150 },
     spawn: { x: 1375, y: 0.5, z: 1175 },
     color: '#f87171',
     icon: 'prison'
@@ -139,6 +141,7 @@ export const MAP_LANDMARKS = [
   { id: 'lm_aero', code: 'AER', icon: 'airport', label: 'AEROPORTO OESTE', x: -1340, y: 0.5, z: 0, labelPos: 'left', color: '#94a3b8', spawn: { x: -1060, y: 0.5, z: 0 } },
   { id: 'lm_prisao', code: 'PRI', icon: 'prison', label: 'ILHA DA PRISÃO', x: 1375, y: 0.8, z: 1540, labelPos: 'bottom', color: '#f87171', spawn: { x: 1375, y: 0.5, z: 1175 } },
   { id: 'lm_sky', code: 'SKY', icon: 'sky', label: 'AEROPORTA-AVIÕES', x: 0, y: 411.5, z: -50, displayX: 295, displayZ: -255, altitudeLabel: 'ALTITUDE: 410m', labelPos: 'right', color: '#60a5fa', spawn: { x: 0, y: 411.5, z: -50 } },
+  { id: 'lm_hangar', code: 'HGR', icon: 'sky', label: 'HANGAR AERONAVES (CUSTOM)', x: 20, y: 411.5, z: 54, displayX: 295, displayZ: -175, altitudeLabel: 'HANGAR 410m', labelPos: 'right', color: '#00f0ff', spawn: { x: 10, y: 411.5, z: 46 } },
   // Oficina de Rua LEGO Customs (Cidade Neutra: X = 60, Z = -448)
   { id: 'lm_customs', code: 'CUS', icon: 'customs', label: 'LEGO CUSTOMS (OFICINA)', x: 60, y: 0.5, z: -448, labelPos: 'right', color: '#facc15', spawn: { x: 24, y: 0.5, z: -416 } },
   // 5 Estações da Linha 01 Circular do Metrô LEGO (2 Subterrâneas em Y = -10.5m + 3 Elevadas em Y = +14.85m)
@@ -146,6 +149,7 @@ export const MAP_LANDMARKS = [
   { id: 'lm_metro_02', code: 'M02', icon: 'metro', label: 'METRÔ TIMES SQ. (SUBSOLO)', x: -77, y: -10.5, z: 20, labelPos: 'left', color: '#06b6d4', spawn: { x: -77.5, y: -10.4, z: 32 } },
   { id: 'lm_metro_03', code: 'M03', icon: 'metro', label: 'METRÔ TORRE (+14.9m)', x: -380, y: 14.85, z: -60, labelPos: 'left', color: '#22d3ee', spawn: { x: -379.6, y: 14.95, z: -60 } },
   { id: 'lm_metro_04', code: 'M04', icon: 'metro', label: 'METRÔ PRAIA SUL (+14.9m)', x: -117, y: 14.85, z: 650, labelPos: 'left', color: '#22d3ee', spawn: { x: -116.6, y: 14.95, z: 650 } },
-  { id: 'lm_metro_05', code: 'M05', icon: 'metro', label: 'METRÔ RIO LESTE (+14.9m)', x: 509, y: 14.85, z: -180, labelPos: 'right', color: '#22d3ee', spawn: { x: 509.1, y: 14.95, z: -180 } }
+  { id: 'lm_metro_05', code: 'M05', icon: 'metro', label: 'METRÔ RIO LESTE (+14.9m)', x: 509, y: 14.85, z: -180, labelPos: 'right', color: '#22d3ee', spawn: { x: 509.1, y: 14.95, z: -180 } },
+  ...PANGAEA_OUTPOST_LANDMARKS
 ];
 

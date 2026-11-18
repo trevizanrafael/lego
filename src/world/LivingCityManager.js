@@ -9,6 +9,7 @@ import {
 import { mergeBufferGeometries } from './BuildingGenerator.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from './VehicleFleetBuilder.js';
 import { getMetroCutoutFloorY } from './MetroSystemBuilder.js';
+import { isPointOnOrganicLand, isInsideBuiltUrbanCore } from './CoastlineProfile.js';
 import { FactionWarSystem, getTerritoryZoneAt } from './FactionWarSystem.js';
 import { WantedPursuitSystem } from './WantedPursuitSystem.js';
 import { ensureVehicleNightLights } from './DayNightAtmosphereManager.js';
@@ -641,9 +642,10 @@ export class LivingCityManager {
   }
 
   _isValidDryLandForPedestrian(x, z) {
-    // Limites seguros da Grande Ilha Metropolitana + Praia + Porto + Aeroporto (e fora das bocas subterrâneas do Metrô!)
-    if (x < -1420 || x > 1180 || z < -1180 || z > 885) return false;
+    // Limites estendidos do supercontinente Pangeia (excluindo mar aberto e bocas subterrâneas do Metrô)
+    if (x < -3380 || x > 3380 || z < -2900 || z > 2500) return false;
     if (getMetroCutoutFloorY(x, z) !== null) return false;
+    if (!isInsideBuiltUrbanCore(x, z) && !isPointOnOrganicLand(x, z)) return false;
     if (this.world?.isDeepWaterAt && this.world.isDeepWaterAt(x, z)) return false;
     return true;
   }
@@ -818,7 +820,19 @@ export class LivingCityManager {
       { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'z_const', roadCoord: 0, laneOffset: 3.8, posAlong: -880, dir: 1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0.28 },
       { type: 'onibus_urbano', color: 0xfacc15, roofColor: 0x2563eb, axis: 'z_const', roadCoord: 0, laneOffset: 3.8, posAlong: -620, dir: 1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0.28 },
       { type: 'apex_gtx', color: 0x38bdf8, roofColor: BLK, axis: 'z_const', roadCoord: 0, laneOffset: -3.8, posAlong: -560, dir: -1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0 },
-      { type: 'interceptor_v8', color: BLK, roofColor: WHT, axis: 'z_const', roadCoord: 0, laneOffset: -3.8, posAlong: -810, dir: -1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0 }
+      { type: 'interceptor_v8', color: BLK, roofColor: WHT, axis: 'z_const', roadCoord: 0, laneOffset: -3.8, posAlong: -810, dir: -1, minC: -1048, maxC: -446, startY: 9.2, wrapY: 0 },
+
+      // Rodovias Inter-Regionais da Pangeia (Planalto Boreal, Transversal do Fiorde, Parque Eólico, Cabo Radar & Costa Dunas)
+      { type: 'sedan_familiar', color: 0x22c55e, roofColor: WHT, axis: 'x_const', roadCoord: -1215, laneOffset: 5.0, posAlong: -1920, dir: 1, minC: -2600, maxC: -1310, startY: 8.5 },
+      { type: 'onibus_urbano', color: 0xfacc15, roofColor: 0x166534, axis: 'x_const', roadCoord: -1215, laneOffset: -5.0, posAlong: -1540, dir: -1, minC: -2600, maxC: -1310, startY: 8.5 },
+      { type: 'apex_gtx', color: 0xf97316, roofColor: BLK, axis: 'z_const', roadCoord: -2150, laneOffset: 5.0, posAlong: -450, dir: 1, minC: -2440, maxC: 2140, startY: 11.5 },
+      { type: 'trovao_v8', color: 0x2563eb, roofColor: WHT, axis: 'z_const', roadCoord: -2150, laneOffset: -5.0, posAlong: 1180, dir: -1, minC: -2440, maxC: 2140, startY: 11.5 },
+      { type: 'carro_forte', color: 0x1e3a8a, roofColor: LEGO_COLORS.gold, axis: 'x_const', roadCoord: 964, laneOffset: 5.0, posAlong: -1750, dir: 1, minC: -2130, maxC: -1310, startY: 8.5 },
+      { type: 'vortex_roadster', color: 0x38bdf8, roofColor: BLK, axis: 'z_const', roadCoord: -908, laneOffset: 5.0, posAlong: 2100, dir: 1, minC: 1620, maxC: 2660, startY: 4.5 },
+      { type: 'sedan_familiar', color: 0xfef08a, roofColor: WHT, axis: 'x_const', roadCoord: 2680, laneOffset: -5.0, posAlong: -1320, dir: -1, minC: -1700, maxC: -920, startY: 4.5 },
+      { type: 'interceptor_v8', color: BLK, roofColor: WHT, axis: 'z_const', roadCoord: -1285, laneOffset: 5.0, posAlong: -2420, dir: 1, minC: -3010, maxC: -1800, startY: 4.5 },
+      { type: 'cyber_blade', color: 0xe11d48, roofColor: BLK, axis: 'x_const', roadCoord: -2460, laneOffset: 5.0, posAlong: 320, dir: 1, minC: -2130, maxC: 2080, startY: 4.5 },
+      { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'z_const', roadCoord: 710, laneOffset: -5.0, posAlong: -2360, dir: -1, minC: -2900, maxC: -1815, startY: 4.2 }
     ];
 
     for (const cfg of trafficSpecs) {
