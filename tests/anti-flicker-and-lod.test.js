@@ -127,3 +127,57 @@ test('Câmera adapta near plane em voo e culling usa histerese anti-popping', ()
   lodTestWorld.helicarrierLOD.update(camMid);
   assert.equal(lodTestWorld.helicarrierLOD.getCurrentLevel(), 1);
 });
+
+test('Prédios da orla da praia têm LOD 3 níveis, texturas com mipmaps e brilho noturno sem Z-fighting', () => {
+  const scene = new THREE.Scene();
+  const dest = new DestructibleManager(scene);
+  const world = new TestBlockWorld(scene, dest);
+
+  assert.ok(Array.isArray(world.southBeachHotelLODs), 'southBeachHotelLODs deve existir');
+  assert.ok(
+    world.southBeachHotelLODs.length >= 30,
+    `Orla deve ter >= 30 torres com LOD próprio (${world.southBeachHotelLODs.length})`
+  );
+  assert.ok(Array.isArray(world.southBeachEmissiveMats), 'southBeachEmissiveMats deve existir');
+  assert.ok(
+    world.southBeachEmissiveMats.length >= 4,
+    `Materiais emissivos da orla devem ser >= 4 (${world.southBeachEmissiveMats.length})`
+  );
+
+  for (const mat of world.southBeachEmissiveMats) {
+    assert.ok(mat.map?.isCanvasTexture, 'Fachada da orla deve usar CanvasTexture');
+    assert.equal(mat.map.minFilter, THREE.LinearMipmapLinearFilter);
+    assert.ok(mat.map.anisotropy >= 8, `Anisotropy da fachada deve ser >= 8 (${mat.map.anisotropy})`);
+    assert.ok(mat.emissiveMap?.isCanvasTexture, 'emissiveMap noturno da orla deve existir');
+    assert.equal(mat.emissiveMap.minFilter, THREE.LinearMipmapLinearFilter);
+  }
+
+  const sampleLod = world.southBeachHotelLODs[0];
+  assert.ok(sampleLod instanceof THREE.LOD, 'Cada prédio da orla deve ser instância de THREE.LOD');
+  assert.equal(sampleLod.levels.length, 3, 'Cada prédio da orla deve ter 3 níveis de LOD');
+
+  const p = sampleLod.position;
+  const cam = new THREE.PerspectiveCamera(60, 1.6, 0.8, 5200);
+  cam.position.set(p.x, p.y + 40, p.z + 120);
+  cam.updateMatrixWorld();
+  sampleLod.update(cam);
+  assert.equal(sampleLod.getCurrentLevel(), 0, 'De perto o prédio da orla usa LOD 0 detalhado');
+
+  cam.position.set(p.x, p.y + 80, p.z + 520);
+  cam.updateMatrixWorld();
+  sampleLod.update(cam);
+  assert.equal(sampleLod.getCurrentLevel(), 1, 'À média distância usa LOD 1');
+
+  cam.position.set(p.x, p.y + 120, p.z + 1350);
+  cam.updateMatrixWorld();
+  sampleLod.update(cam);
+  assert.equal(sampleLod.getCurrentLevel(), 2, 'De longe (vôo/oceano) usa LOD 2 sólido sem cintilação');
+
+  world.atmosphere.timeMode = 'manual';
+  world.atmosphere.timeHours = 23.0;
+  world.atmosphere.update(0.016, new THREE.Vector3(0, 60, 650));
+  assert.ok(
+    world.southBeachEmissiveMats[0].emissiveIntensity > 0.7,
+    'Janelas e térreo comercial da orla devem acender à noite'
+  );
+});

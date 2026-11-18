@@ -426,7 +426,7 @@ export class DayNightAtmosphereManager {
       `
     });
 
-    this.skyDome = new THREE.Mesh(new THREE.SphereGeometry(4400, 32, 20), skyMat);
+    this.skyDome = new THREE.Mesh(new THREE.SphereGeometry(6600, 32, 20), skyMat);
     this.skyDome.renderOrder = -10;
     this.skyDome.frustumCulled = false;
     this.celestialRoot.add(this.skyDome);
@@ -445,7 +445,7 @@ export class DayNightAtmosphereManager {
       const theta = u * Math.PI * 2;
       const elevation = 0.06 + v * 0.92;
       const rHoriz = Math.sqrt(Math.max(0, 1 - elevation * elevation));
-      const rad = 4050;
+      const rad = 6100;
 
       starPositions[i * 3] = Math.cos(theta) * rHoriz * rad;
       starPositions[i * 3 + 1] = elevation * rad;
@@ -1009,7 +1009,7 @@ export class DayNightAtmosphereManager {
     // Disco Solar (cresce 1.48x e fica laranja-rubro no Pôr do Sol atrás do Morro da Cidade de Deus!)
     this.sunDiscGroup.visible = sunY > -0.14;
     if (this.sunDiscGroup.visible) {
-      this.sunDiscGroup.position.copy(this._sunDir).multiplyScalar(3850);
+      this.sunDiscGroup.position.copy(this._sunDir).multiplyScalar(5850);
       const sunScale = isGoldenHour || isSunrise ? 1.48 : 1.0;
       this.sunDiscGroup.scale.setScalar(sunScale);
       this.sunCoreMat.color.copy(isGoldenHour ? s.sunGlow : s.dirColor);
@@ -1020,7 +1020,7 @@ export class DayNightAtmosphereManager {
     // Lua Cheia LEGO + 1.200 Estrelas Cintilantes
     this.moonGroup.visible = nf > 0.06;
     if (this.moonGroup.visible) {
-      this.moonGroup.position.copy(this._moonDir).multiplyScalar(3720);
+      this.moonGroup.position.copy(this._moonDir).multiplyScalar(5650);
       this.moonGroup.lookAt(anchorX, 0, anchorZ);
       this.moonCoreMat.opacity = nf;
       this.moonCraterMat.opacity = nf * 0.75;
@@ -1118,6 +1118,11 @@ export class DayNightAtmosphereManager {
     const skyWinIntensity = nf * 1.45;
     for (let i = 0; i < facadeMats.length; i++) {
       facadeMats[i].emissiveIntensity = skyWinIntensity;
+    }
+    if (Array.isArray(this.world.southBeachEmissiveMats)) {
+      for (let i = 0; i < this.world.southBeachEmissiveMats.length; i++) {
+        this.world.southBeachEmissiveMats[i].emissiveIntensity = skyWinIntensity;
+      }
     }
 
     if (this.world.favelaEmissiveMats) {

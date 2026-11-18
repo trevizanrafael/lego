@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import {
   LEGO_COLORS,
   getLegoMaterial,
-  createLegoBrick
+  createLegoBrick,
+  configureCrispCanvasTexture
 } from '../../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, flushSpatialChunkedBuckets } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
@@ -31,9 +32,192 @@ const UMBRELLA_KEYS = [
 export const SANTOS_CANALS_X = [-384, -120, 252];
 const CANAL_WIDTH = 22;
 
+const BEACH_FACADE_THEMES = {
+  azure_balcony: { wall: '#e2e8f0', slab: '#f8fafc', glass: '#0c4a6e', glassHi: '#38bdf8', warmWin: '#fef08a', glow: '#38bdf8', rough: 0.24, metal: 0.22 },
+  sapphire_curtain: { wall: '#cbd5e1', slab: '#f1f5f9', glass: '#0f172a', glassHi: '#2563eb', warmWin: '#fde68a', glow: '#60a5fa', rough: 0.16, metal: 0.36 },
+  gold_imperial: { wall: '#f5ebe0', slab: '#d4a373', glass: '#1e293b', glassHi: '#0ea5e9', warmWin: '#fef08a', glow: '#facc15', rough: 0.28, metal: 0.18 },
+  coral_resort: { wall: '#fda4af', slab: '#fff1f2', glass: '#0e7490', glassHi: '#67e8f9', warmWin: '#fde047', glow: '#fb7185', rough: 0.26, metal: 0.14 },
+  aqua_wave: { wall: '#99f6e4', slab: '#f8fafc', glass: '#164e63', glassHi: '#22d3ee', warmWin: '#fef08a', glow: '#2dd4bf', rough: 0.18, metal: 0.28 },
+  sand_terrace: { wall: '#fef08a', slab: '#ffffff', glass: '#1e3a8a', glassHi: '#38bdf8', warmWin: '#fed7aa', glow: '#f59e0b', rough: 0.30, metal: 0.12 },
+  aurora_deco: { wall: '#f1f5f9', slab: '#334155', glass: '#1e1b4b', glassHi: '#ec4899', warmWin: '#e0f2fe', glow: '#f43f5e', rough: 0.20, metal: 0.30 },
+  retail_arcade: { wall: '#1e293b', slab: '#f8fafc', glass: '#0f172a', glassHi: '#38bdf8', warmWin: '#fef08a', glow: '#facc15', rough: 0.22, metal: 0.24 }
+};
+
+const _BEACH_FACADE_CACHE = new Map();
+
+function _getBeachFacadeMaterial(themeKey = 'azure_balcony', variant = 0) {
+  const key = `${themeKey}_${variant % 2}`;
+  if (_BEACH_FACADE_CACHE.has(key)) return _BEACH_FACADE_CACHE.get(key);
+
+  const th = BEACH_FACADE_THEMES[themeKey] || BEACH_FACADE_THEMES.azure_balcony;
+  const dayCanvas = document.createElement('canvas');
+  dayCanvas.width = 256;
+  dayCanvas.height = 512;
+  const ctx = dayCanvas.getContext('2d');
+
+  const nightCanvas = document.createElement('canvas');
+  nightCanvas.width = 256;
+  nightCanvas.height = 512;
+  const nctx = nightCanvas.getContext('2d');
+
+  if (ctx && nctx) {
+    ctx.fillStyle = th.wall;
+    ctx.fillRect(0, 0, 256, 512);
+    nctx.fillStyle = '#000000';
+    nctx.fillRect(0, 0, 256, 512);
+
+    const floors = themeKey === 'retail_arcade' ? 2 : 12;
+    const cols = themeKey === 'retail_arcade' ? 4 : 6;
+    const rowH = 512 / floors;
+    const colW = 256 / cols;
+
+    for (let r = 0; r < floors; r++) {
+      const y = r * rowH;
+      // Laje de varanda grossa e suave na textura (sem faixas finas que causem Moiré à distância!)
+      ctx.fillStyle = th.slab;
+      ctx.fillRect(0, y, 256, Math.max(8, rowH * 0.26));
+
+      for (let c = 0; c < cols; c++) {
+        const x = c * colW;
+        const padX = Math.max(4, colW * 0.12);
+        const winW = colW - padX * 2;
+        const winY = y + rowH * 0.28;
+        const winH = rowH * 0.66;
+
+        // Vidraça ampla de apartamento frente-mar com gradiente sutil (zero contraste binário duro)
+        ctx.fillStyle = th.glass;
+        ctx.fillRect(x + padX, winY, winW, winH);
+        ctx.fillStyle = th.glassHi;
+        ctx.globalAlpha = 0.28;
+        ctx.fillRect(x + padX + 2, winY + 2, winW * 0.42, winH - 4);
+        ctx.globalAlpha = 1.0;
+
+        // Guarda-corpo de vidro da varanda na metade inferior da janela
+        ctx.fillStyle = th.slab;
+        ctx.globalAlpha = 0.42;
+        ctx.fillRect(x + padX, winY + winH * 0.58, winW, 4);
+        ctx.globalAlpha = 1.0;
+
+        const hash = ((r * 23 + c * 41 + variant * 17 + themeKey.length * 7) * 2654435761) >>> 0;
+        const isLit = themeKey === 'retail_arcade' ? hash % 10 < 8 : hash % 10 < 5;
+        if (isLit) {
+          nctx.fillStyle = (hash % 7 === 0) ? th.glow : th.warmWin;
+          nctx.fillRect(x + padX + 2, winY + 3, winW - 4, winH - 6);
+        }
+      }
+    }
+  }
+
+  const dayTex = configureCrispCanvasTexture(new THREE.CanvasTexture(dayCanvas), 8);
+  dayTex.wrapS = THREE.RepeatWrapping;
+  dayTex.wrapT = THREE.RepeatWrapping;
+
+  const nightTex = configureCrispCanvasTexture(new THREE.CanvasTexture(nightCanvas), 8);
+  nightTex.wrapS = THREE.RepeatWrapping;
+  nightTex.wrapT = THREE.RepeatWrapping;
+
+  const mat = new THREE.MeshPhysicalMaterial({
+    map: dayTex,
+    emissive: new THREE.Color(0xffffff),
+    emissiveMap: nightTex,
+    emissiveIntensity: 0.0,
+    roughness: th.rough,
+    metalness: th.metal,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.16
+  });
+
+  _BEACH_FACADE_CACHE.set(key, mat);
+  return mat;
+}
+
+function _makeUvScaledBox(w, h, d, lx, ly, lz, tileW = 24, tileH = 44) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const uv = geo.attributes.uv;
+  const pos = geo.attributes.position;
+  const norm = geo.attributes.normal;
+  for (let i = 0; i < uv.count; i++) {
+    const nx = Math.abs(norm.getX(i));
+    const ny = Math.abs(norm.getY(i));
+    if (ny > 0.5) {
+      uv.setXY(i, 0.02, 0.02); // teto sem esticar janela
+    } else if (nx > 0.5) {
+      uv.setXY(i, ((pos.getZ(i) + d * 0.5) / tileW), ((pos.getY(i) + h * 0.5) / tileH));
+    } else {
+      uv.setXY(i, ((pos.getX(i) + w * 0.5) / tileW), ((pos.getY(i) + h * 0.5) / tileH));
+    }
+  }
+  uv.needsUpdate = true;
+  if (lx !== 0 || ly !== 0 || lz !== 0) {
+    geo.translate(lx, ly, lz);
+  }
+  return geo;
+}
+
 /**
- * Acumulador de Geometrias 3D da Orla Sul, 8 Hotéis Gigantes, 3 Canais de Santos, Praia & Super Píer:
- * Mantém 60 FPS cravados fundindo milhares de peças LEGO em ~25 Draw Calls!
+ * Construtor Limpo Local com 3 Níveis de LOD para Arranha-Céus da Orla:
+ * - Elimina 100% de caixas sobrepostas / coplanares e faixas finas horizontais (zero pisca-pisca!)
+ * - Usa coordenadas locais centradas em (0, 0, 0) para máxima precisão de profundidade em qualquer altitude
+ */
+class BeachTowerBuilder {
+  constructor() {
+    this.lodGroups = [new Map(), new Map(), new Map()];
+    this.materials = new Map();
+  }
+
+  _getSolidMat(key, hex, opts = {}) {
+    if (this.materials.has(key)) return this.materials.get(key);
+    const mat = opts.basic
+      ? new THREE.MeshBasicMaterial({ color: hex })
+      : getLegoMaterial(hex, { roughness: opts.roughness ?? 0.28, metalness: opts.metalness ?? 0.08 });
+    this.materials.set(key, mat);
+    return mat;
+  }
+
+  _push(lodIdx, matKey, mat, geo) {
+    const map = this.lodGroups[lodIdx];
+    let entry = map.get(matKey);
+    if (!entry) {
+      entry = { mat, geos: [] };
+      map.set(matKey, entry);
+    }
+    entry.geos.push(geo);
+  }
+
+  addSolid(lodIdx, key, hex, w, h, d, lx, ly, lz, opts = {}) {
+    const mat = this._getSolidMat(key, hex, opts);
+    this._push(lodIdx, key, mat, makeTranslatedBox(w, h, d, lx, ly, lz));
+  }
+
+  addFacade(lodIdx, themeKey, variant, w, h, d, lx, ly, lz, tileW = 24, tileH = 44) {
+    const matKey = `facade_${themeKey}_${variant % 2}`;
+    const mat = _getBeachFacadeMaterial(themeKey, variant);
+    this._push(lodIdx, matKey, mat, _makeUvScaledBox(w, h, d, lx, ly, lz, tileW, tileH));
+  }
+
+  buildLOD(worldX, worldY, worldZ) {
+    const lod = new THREE.LOD();
+    lod.position.set(worldX, worldY, worldZ);
+    const distances = [0, 360, 1050];
+
+    for (let li = 0; li < 3; li++) {
+      const grp = new THREE.Group();
+      for (const { mat, geos } of this.lodGroups[li].values()) {
+        if (!geos.length) continue;
+        const merged = mergeBufferGeometries(geos);
+        const mesh = new THREE.Mesh(merged, mat);
+        mesh.castShadow = li === 0;
+        mesh.receiveShadow = li < 2 && !mat.isMeshBasicMaterial;
+        grp.add(mesh);
+      }
+      lod.addLevel(grp, distances[li]);
+    }
+    return lod;
+  }
+}
+
+/**
+ * Acumulador de Geometrias 3D da Orla Sul (Canais, Calçadão, Areia, Quiosques, Mega Píer & Farol)
  */
 class SouthBeachBatcher {
   constructor() {
@@ -54,7 +238,10 @@ class SouthBeachBatcher {
           roughness: opts.roughness ?? 0.3,
           metalness: opts.metalness ?? 0.06,
           emissive: opts.emissive ? new THREE.Color(opts.emissive) : new THREE.Color(0x000000),
-          emissiveIntensity: opts.emissiveIntensity ?? 0
+          emissiveIntensity: opts.emissiveIntensity ?? 0,
+          polygonOffset: Boolean(opts.polygonOffset),
+          polygonOffsetFactor: opts.polygonOffsetFactor ?? 0,
+          polygonOffsetUnits: opts.polygonOffsetUnits ?? 0
         })
       );
     }
@@ -68,7 +255,7 @@ class SouthBeachBatcher {
     this._registerMat('stone_black', 0x18181b, { roughness: 0.55 });
     this._registerMat('stone_grey', 0x64748b, { roughness: 0.52 });
     this._registerMat('stone_white', 0xf1f5f9, { roughness: 0.48 });
-    this._registerMat('bike_red', 0xb91c1c, { roughness: 0.5 });
+    this._registerMat('bike_red', 0xb91c1c, { roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     this._registerMat('glass_cyan', 0x38bdf8, {
       roughness: 0.12,
       metalness: 0.28,
@@ -134,9 +321,6 @@ class SouthBeachBatcher {
   }
 }
 
-/**
- * Constrói um Coqueiro 3D de LEGO com tronco curvado segmentado, cocos e 8 folhas arqueadas no topo
- */
 function addCurvedLegoPalmTree(batcher, x, yBase, z, leanDirX = 0.25, leanDirZ = 0.85, scale = 1.0) {
   const segments = 5;
   const segH = 1.38 * scale;
@@ -157,14 +341,8 @@ function addCurvedLegoPalmTree(batcher, x, yBase, z, leanDirX = 0.25, leanDirZ =
   batcher.addBox('coconut_brown', 0.42 * scale, 0.42 * scale, 0.42 * scale, curX - 0.26, curY - 0.15, curZ + 0.24);
 
   const frondDirs = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-    [0.7, 0.7],
-    [-0.7, 0.7],
-    [0.7, -0.7],
-    [-0.7, -0.7]
+    [1, 0], [-1, 0], [0, 1], [0, -1],
+    [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]
   ];
   for (const [dx, dz] of frondDirs) {
     const f1X = curX + dx * 1.45 * scale;
@@ -199,12 +377,7 @@ function addNeonHotelSign(world, x, y, z, width, text, borderColor = '#00f0ff', 
 }
 
 /**
- * 5. SUL — RECONSTRUÇÃO MONUMENTAL:
- * - 8 Hotéis Arranha-Céus Gigantes e Individualizados na Orla (118m a 164m de altura!)
- * - 3 Canais Estilo Santos (Canal 1, Canal 2 e Canal 3) descendo da rua e separando a areia da praia até o mar!
- * - Calçadão de Pedras Portuguesas, Ciclovia, Coqueiros e 4 Quiosques
- * - Mega Píer Parque de 540m avançando fundo no mar com Restaurante 2 Andares, Fliperama, Carrossel Giratório,
- *   Montanha-Russa, Torre Big Drop, Roda-Gigante Colossal de 16 Cabines, Farol Marítimo e Marina!
+ * 5. SUL — REMODEL COMPLETO DOS ARRANHA-CÉUS DA ORLA (ZERO Z-FIGHTING + 3 NÍVEIS DE LOD + COMÉRCIO + VARANDAS)
  */
 export function buildSouthBeachAndFerrisWheel(world) {
   const batcher = new SouthBeachBatcher();
@@ -212,38 +385,83 @@ export function buildSouthBeachAndFerrisWheel(world) {
   world.southBeachHotels = [];
   world.beachSandcastles = [];
   world.santosCanals = [];
+  world.southBeachHotelLODs = [];
+  world.southBeachEmissiveMats = [];
 
-  // 1. OS 8 HOTÉIS GIGANTES E INDIVIDUALIZADOS DA ORLA (118m a 164m!) + SEGUNDA FILEIRA ALTA (Z = 480)
   buildCoastalHotelBlocks(world, batcher);
-
-  // 2. OS 3 CANAIS ESTILO SANTOS (Cortando o Calçadão e separando a Areia da Praia até o Oceano!)
   buildSantosStyleBeachCanals(world, batcher);
-
-  // 3. AVENIDA BEIRA-MAR, CALÇADÃO DE PEDRAS PORTUGUESAS, CICLOVIA, COQUEIROS & 4 QUIOSQUES
   buildOceanfrontBoardwalkAndKiosks(world, batcher);
-
-  // 4. FAIXA EXTENSA DE AREIA DOURADA (DIVIDIDA PELOS 3 CANAIS), GUARDA-SÓIS, SALVA-VIDAS, VÔLEI & CASTELOS
   buildGoldenBeachAndShorelineLife(world, batcher);
-
-  // 5. MEGA PÍER PARQUE DE 540m (MUITO MAIOR E MAIS PRO FUNDO!), ATRAÇÕES, RODA-GIGANTE, FAROL & MARINA
   buildMonumentalPierFerrisWheelAndMarina(world, batcher);
-
-  // 6. PONTA DA PRAIA / COSTÃO SUDOESTE (X = -1825..-634): FAROL MARÍTIMO LEGO, DUNAS DE BUGGY & MARINA OESTE
   buildSouthwestPointLighthouseDunesAndWestMarina(world, batcher);
+
+  for (const mat of _BEACH_FACADE_CACHE.values()) {
+    world.southBeachEmissiveMats.push(mat);
+  }
 
   batcher.flush(world.scene);
 }
 
-/**
- * 1. SKYLINE ESTILO BALNEÁRIO CAMBORIÚ ("DUBAI BRASILEIRA"):
- * - 8 Super-Arranha-Céus Exclusivos de Frente pro Mar (Z = 630, de 232m a 296m de altura / 60 a 78 andares!)
- * - 4 Quarteirões Costeiros Oeste (X = -955 a -582 em Z = 630) com Torres Gêmeas de 180m a 216m!
- * - Segunda Fileira "Quadra Mar" (Z = 480) com 18 Torres Residenciais de Luxo de 148m a 202m (38 a 52 andares)!
- */
+function _addResortPodiumAndRetail(tb, w, d, podiumH, accentHex, seed, hasSidewalkTables = true) {
+  // Alicerce de 8.5m para terreno em rampa
+  tb.addSolid(0, 'podium_base', 0xe2e8f0, w + 0.6, 8.5, d + 0.6, 0, -4.15, 0);
+  tb.addSolid(1, 'podium_base', 0xe2e8f0, w + 0.6, 8.5, d + 0.6, 0, -4.15, 0);
+  tb.addSolid(2, 'podium_base', 0xe2e8f0, w + 0.6, 8.5, d + 0.6, 0, -4.15, 0);
+
+  // Térreo comercial recuado com vitrines iluminadas (zero caixa dupla coplanar!)
+  const retailW = w - 3.6;
+  const retailD = d - 3.6;
+  tb.addFacade(0, 'retail_arcade', seed, retailW, podiumH - 1.2, retailD, 0, (podiumH - 1.2) * 0.5, 0, 14, 7.5);
+  tb.addFacade(1, 'retail_arcade', seed, retailW, podiumH - 1.2, retailD, 0, (podiumH - 1.2) * 0.5, 0, 14, 7.5);
+  tb.addSolid(2, 'podium_core', 0x334155, retailW, podiumH - 1.2, retailD, 0, (podiumH - 1.2) * 0.5, 0);
+
+  // Laje superior do pódio (separa pódio da torre sem sobreposição)
+  tb.addSolid(0, 'podium_cap', 0xf8fafc, w, 1.2, d, 0, podiumH - 0.6, 0);
+  tb.addSolid(1, 'podium_cap', 0xf8fafc, w, 1.2, d, 0, podiumH - 0.6, 0);
+  tb.addSolid(2, 'podium_cap', 0xf8fafc, w, 1.2, d, 0, podiumH - 0.6, 0);
+
+  // Pilares estruturais externos nos 4 cantos (afastados das paredes!)
+  const pxOff = w * 0.5 - 1.0;
+  const pzOff = d * 0.5 - 1.0;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      tb.addSolid(0, 'podium_pier', 0xffffff, 2.0, podiumH - 1.2, 2.0, sx * pxOff, (podiumH - 1.2) * 0.5, sz * pzOff);
+    }
+  }
+
+  // Toldos comerciais e mesinhas na calçada frontal (+Z) apenas em LOD 0
+  if (hasSidewalkTables) {
+    const awningZ = d * 0.5 + 1.25;
+    const stepX = Math.max(11, w * 0.34);
+    const paletteCols = [0xef4444, 0x06b6d4, 0xf97316, 0x22c55e, 0xfacc15, accentHex];
+    let idx = 0;
+    for (let ax = -w * 0.32; ax <= w * 0.32; ax += stepX) {
+      const col = paletteCols[(seed + idx++) % paletteCols.length];
+      tb.addSolid(0, `awning_${idx % 3}`, col, 8.2, 0.55, 2.5, ax, 4.6, awningZ);
+      tb.addSolid(0, 'cafe_table', 0xffffff, 1.4, 0.8, 1.4, ax, 0.4, awningZ + 1.4);
+      tb.addSolid(0, `cafe_umb_${idx % 3}`, col, 2.5, 0.36, 2.5, ax, 2.35, awningZ + 1.4);
+    }
+  }
+}
+
+function _addCleanBalconiesLOD0(tb, bx, byBase, bz, bw, bd, height, intervalY = 19, balconyHex = 0xf8fafc, railHex = 0x38bdf8) {
+  // Sacadas espessas e espaçadas (zero serrilhado/Moiré a distância, e zero intersecção coplanar!)
+  const frontZ = bz + bd * 0.5;
+  for (let fy = byBase + 10; fy < byBase + height - 6; fy += intervalY) {
+    // Laje projetada para frente (+2.4m além da fachada)
+    tb.addSolid(0, 'balc_slab', balconyHex, bw - 3.0, 0.95, 2.4, bx, fy, frontZ + 1.2);
+    // Guarda-corpo de vidro apoiado sobre a laje (sem cortar a parede!)
+    tb.addSolid(0, 'balc_glass', railHex, bw - 3.4, 1.05, 0.24, bx, fy + 1.0, frontZ + 2.28, {
+      roughness: 0.14,
+      metalness: 0.28
+    });
+  }
+}
+
 function buildCoastalHotelBlocks(world, batcher) {
   const hotelColsX = [-582, -450, -318, -186, -60, 60, 186, 318, 450];
 
-  // 1.1 Fileira Traseira "Quadra Mar" (Z = 480): 18 Super-Condomínios Costeiros (38 a 52 andares, 148m a 202m!)
+  // 1.1 Fileira Traseira "Quadra Mar" (Z = 480): 18 Torres Residenciais Costeiras (38 a 52 andares)
   hotelColsX.forEach((hx, idx) => {
     const bw = Math.abs(hx) === 60 ? 92 : 104;
     const bd = 96;
@@ -254,12 +472,11 @@ function buildCoastalHotelBlocks(world, batcher) {
     const lotW = (innerW - 6) * 0.5;
     const floors1 = 38 + (idx % 4) * 4;
     const floors2 = 42 + ((idx + 2) % 4) * 3;
-    buildGenericHighRiseResort(world, batcher, hx - (lotW + 6) * 0.5, 480, lotW, innerD, floors1, idx * 2);
-    buildGenericHighRiseResort(world, batcher, hx + (lotW + 6) * 0.5, 480, lotW, innerD, floors2, idx * 2 + 1);
+    buildGenericHighRiseResort(world, batcher, hx - (lotW + 6) * 0.5, 480, lotW, innerD, floors1, idx * 2, false);
+    buildGenericHighRiseResort(world, batcher, hx + (lotW + 6) * 0.5, 480, lotW, innerD, floors2, idx * 2 + 1, false);
   });
 
-  // 1.2 Orla Oeste (X = -955, -832, -710, -582 em Z = 630): Torres Gêmeas Costeiras de 46 a 56 andares (180m a 218m!)
-  // (Os 2 antigos prédios da direita em X = +582 foram removidos para abrir a Foz do Rio Urbano direto até o mar!)
+  // 1.2 Orla Oeste (X = -955..-582 em Z = 630): Torres Costeiras Remodeladas
   for (const [edgeX, seedIdx, bwEdge, floorsLeft, floorsRight, labelText] of [
     [-955, 2, 114, 46, 50, 'RESORT PONTA OESTE'],
     [-832, 4, 114, 48, 54, 'MIRANTE CAMBORIÚ TOWER'],
@@ -295,23 +512,23 @@ function buildCoastalHotelBlocks(world, batcher) {
     );
   }
 
-  // Parque Linear & Estacionamento Costeiro Oeste (X = -1825..-1015, Z = 664..720, logo abaixo do Aeroporto)
+  // Parque Linear & Estacionamento Costeiro Oeste
   world._addCityBlockSidewalk(-1420, 690, 810, 52, LEGO_COLORS.sidewalk);
   batcher.addBox('palm_leaf', 796, 0.22, 24, -1420, 0.35, 682);
   for (let px = -1790; px <= -1040; px += 46) {
     addCurvedLegoPalmTree(batcher, px, 0.32, 682, 0.16, 0.85, 1.15);
   }
 
-  // 1.3 OS 8 SUPER-ARRANHA-CÉUS EXCLUSIVOS DA ORLA ESTILO BALNEÁRIO CAMBORIÚ (X = -450 a +450 em Z = 630, 232m a 296m!)
+  // 1.3 OS 8 SUPER-ARRANHA-CÉUS EXCLUSIVOS DA ORLA REMODELADOS (Z = 630, 232m a 296m!)
   const signatureSpecs = [
     { x: -450, bw: 104, styleId: 1, floors: 68, height: 264, name: 'YACHTHOUSE TWIN TOWERS', color: '#06b6d4' },
     { x: -318, bw: 104, styleId: 2, floors: 74, height: 284, name: 'ONE TOWER BURJ NÁUTICO', color: '#38bdf8' },
     { x: -186, bw: 104, styleId: 3, floors: 60, height: 232, name: 'MILLENNIUM PALACE ROYAL', color: '#facc15' },
-    { x: -60,  bw: 92,  styleId: 4, floors: 78, height: 296, name: 'SOLARIS INFINITY COAST', color: '#fb7185' },
-    { x: 60,   bw: 92,  styleId: 5, floors: 72, height: 276, name: 'EPIC WAVE DIAMOND TOWER', color: '#2dd4bf' },
-    { x: 186,  bw: 104, styleId: 6, floors: 64, height: 246, name: 'BOREAL HANGING GARDENS', color: '#fde047' },
-    { x: 318,  bw: 104, styleId: 7, floors: 68, height: 260, name: 'AURORA NEON GRAND TOWER', color: '#ec4899' },
-    { x: 450,  bw: 104, styleId: 8, floors: 62, height: 240, name: 'PHAROS PANORAMA SUITES', color: '#06b6d4' }
+    { x: -60, bw: 92, styleId: 4, floors: 78, height: 296, name: 'SOLARIS INFINITY COAST', color: '#fb7185' },
+    { x: 60, bw: 92, styleId: 5, floors: 72, height: 276, name: 'EPIC WAVE DIAMOND TOWER', color: '#2dd4bf' },
+    { x: 186, bw: 104, styleId: 6, floors: 64, height: 246, name: 'BOREAL HANGING GARDENS', color: '#fde047' },
+    { x: 318, bw: 104, styleId: 7, floors: 68, height: 260, name: 'AURORA NEON GRAND TOWER', color: '#ec4899' },
+    { x: 450, bw: 104, styleId: 8, floors: 62, height: 240, name: 'PHAROS PANORAMA SUITES', color: '#06b6d4' }
   ];
 
   signatureSpecs.forEach((spec) => {
@@ -323,7 +540,6 @@ function buildCoastalHotelBlocks(world, batcher) {
 
     buildSignatureOceanfrontHotel(world, batcher, spec.x, bz, w, d, spec);
 
-    // Coqueiros altos na calçada frontal de cada super-prédio da orla
     const palmLY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(spec.x - w * 0.38, 675.5) : 0) + 0.3;
     const palmRY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(spec.x + w * 0.38, 675.5) : 0) + 0.3;
     addCurvedLegoPalmTree(batcher, spec.x - w * 0.38, palmLY, 675.5, -0.18, 0.78, 1.15);
@@ -334,48 +550,72 @@ function buildCoastalHotelBlocks(world, batcher) {
 function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, isFrontRow = false, signText = null) {
   const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
   const yBase = terrainY + 0.3;
-  // Alicerce de concreto de 8.0m para baixo garantindo zero canto flutuando na Crista Panorâmica Sul (+10.5m)!
-  batcher.addBox('trim_white', w + 0.6, 8.0, d + 0.6, x, yBase - 3.9, z);
+  const podiumH = 8.0;
   const floorH = 3.8;
-  const podiumH = 7.0;
   const totalH = podiumH + (floors - 1) * floorH;
   const palette = TROPICAL_WALL_KEYS[seed % TROPICAL_WALL_KEYS.length];
-  const accentKey = UMBRELLA_KEYS[seed % UMBRELLA_KEYS.length];
-  const glassKey = seed % 2 === 0 ? 'glass_cyan' : 'glass_sapphire';
-  const neonKey = seed % 3 === 0 ? 'neon_cyan' : seed % 3 === 1 ? 'neon_gold' : 'neon_pink';
+  const themeKeys = ['azure_balcony', 'sapphire_curtain', 'coral_resort', 'aqua_wave', 'sand_terrace'];
+  const themeKey = themeKeys[seed % themeKeys.length];
 
-  // Podium de luxo com colunata e vitrines duplas
-  batcher.addBox('trim_white', w, podiumH, d, x, yBase + podiumH * 0.5, z);
-  batcher.addBox(glassKey, w - 3.0, podiumH - 1.4, d + 0.3, x, yBase + 3.2, z);
+  const tb = new BeachTowerBuilder();
+  _addResortPodiumAndRetail(tb, w, d, podiumH, palette.hex, seed, isFrontRow);
 
-  const towerW = w - 4.0;
-  const towerD = d - 6.0;
-  const towerH = totalH - podiumH;
-  batcher.addBox(palette.key, towerW, towerH, towerD, x, yBase + podiumH + towerH * 0.5, z);
-  batcher.addBox(glassKey, towerW - 4.5, towerH - 2.0, towerD + 0.28, x, yBase + podiumH + towerH * 0.5, z);
+  // Massa escalonada em 2 segmentos sem faces sobrepostas (silhueta variada)
+  const lowerW = w - 4.0;
+  const lowerD = d - 6.0;
+  const splitRatio = seed % 3 === 0 ? 0.56 : seed % 3 === 1 ? 0.68 : 0.62;
+  const lowerH = (totalH - podiumH) * splitRatio;
+  const upperH = totalH - podiumH - lowerH;
+  const upperW = Math.max(14, lowerW - (seed % 2 === 0 ? 8 : 5));
+  const upperD = Math.max(14, lowerD - (seed % 2 === 0 ? 8 : 10));
+  const upperZOff = isFrontRow ? -3.0 : 0;
 
-  // Aletas verticais aerodinâmicas estilo Balneário Camboriú + Fita de LED vertical
-  batcher.addBox('trim_white', 2.4, towerH + 6.0, towerD + 1.4, x - towerW * 0.5 + 1.2, yBase + podiumH + towerH * 0.5 + 3.0, z);
-  batcher.addBox('trim_white', 2.4, towerH + 6.0, towerD + 1.4, x + towerW * 0.5 - 1.2, yBase + podiumH + towerH * 0.5 + 3.0, z);
-  batcher.addBox(neonKey, 1.1, towerH + 8.0, 1.2, x, yBase + podiumH + towerH * 0.5 + 4.0, z + towerD * 0.5 + 0.9);
+  // Bloco inferior + Bloco superior empilhados perfeitamente sem interseção!
+  for (let li = 0; li < 2; li++) {
+    tb.addFacade(li, themeKey, seed, lowerW, lowerH, lowerD, 0, podiumH + lowerH * 0.5, 0, 22, 42);
+    tb.addFacade(li, themeKey, seed + 1, upperW, upperH, upperD, 0, podiumH + lowerH + upperH * 0.5, upperZOff, 20, 40);
+  }
+  tb.addSolid(2, 'lod2_lower', palette.hex, lowerW, lowerH, lowerD, 0, podiumH + lowerH * 0.5, 0);
+  tb.addSolid(2, 'lod2_upper', 0x38bdf8, upperW, upperH, upperD, 0, podiumH + lowerH + upperH * 0.5, upperZOff);
 
-  // Sacadas salientes panorâmicas a cada 3 andares (otimizado para memória e 60 FPS)
-  for (let f = 1; f < floors; f += 3) {
-    const fy = yBase + podiumH + (f - 1) * floorH;
-    batcher.addBox('trim_white', towerW - 2.4, 0.42, 2.2, x, fy + 0.2, z + towerD * 0.5 + 1.0);
-    batcher.addBox('glass_cyan', towerW - 2.4, 1.0, 0.2, x, fy + 0.85, z + towerD * 0.5 + 2.0);
+  // Colunas externas nos flancos em LOD 0 + 1 (afastadas da fachada em ±lowerW*0.5+0.9, nunca coplanar!)
+  for (let li = 0; li < 2; li++) {
+    for (const sx of [-1, 1]) {
+      tb.addSolid(
+        li,
+        'side_fin',
+        0xf8fafc,
+        1.8,
+        lowerH,
+        lowerD * 0.72,
+        sx * (lowerW * 0.5 + 0.9),
+        podiumH + lowerH * 0.5,
+        0
+      );
+    }
   }
 
-  // Coroa Escalonada Iluminada + Pináculo no Topo
-  const roofY = yBase + totalH;
-  batcher.addBox('trim_white', towerW + 2.0, 1.8, towerD + 2.0, x, roofY + 0.9, z);
-  batcher.addBox('pool_water', towerW * 0.48, 0.6, towerD * 0.38, x, roofY + 1.9, z + 4.0);
-  batcher.addBox(accentKey, towerW * 0.52, 6.5, towerD * 0.42, x, roofY + 5.0, z - 6.0);
-  batcher.addBox(neonKey, towerW * 0.34, 4.5, towerD * 0.28, x, roofY + 10.5, z - 6.0);
-  batcher.addBox('trim_white', 1.2, 14.0, 1.2, x, roofY + 19.5, z - 6.0);
+  // Varandas amplas em LOD 0 apenas nas faces limpas
+  _addCleanBalconiesLOD0(tb, 0, podiumH, 0, lowerW, lowerD, lowerH, 19.0, 0xf8fafc, 0x38bdf8);
+  _addCleanBalconiesLOD0(tb, 0, podiumH + lowerH, upperZOff, upperW, upperD, upperH, 20.0, 0xffffff, 0x2dd4bf);
 
+  // Cobertura com piscina infinita, pérgola e coroa
+  const deckY = podiumH + lowerH;
+  tb.addSolid(0, 'deck_trim', 0xffffff, lowerW + 1.4, 1.2, lowerD + 1.4, 0, deckY + 0.6, 0);
+  if (isFrontRow) {
+    tb.addSolid(0, 'deck_pool', 0x06b6d4, upperW * 0.7, 0.6, 5.2, 0, deckY + 1.4, lowerD * 0.34);
+  }
+  tb.addSolid(0, 'crown_cap', palette.hex, upperW * 0.58, 5.0, upperD * 0.52, 0, totalH + 2.5, upperZOff);
+  tb.addSolid(1, 'crown_cap', palette.hex, upperW * 0.58, 5.0, upperD * 0.52, 0, totalH + 2.5, upperZOff);
+  tb.addSolid(0, 'spire', 0xfacc15, 1.1, 11.0, 1.1, 0, totalH + 10.5, upperZOff, { basic: true });
+
+  const lod = tb.buildLOD(x, yBase, z);
+  world.scene.add(lod);
+  world.southBeachHotelLODs.push(lod);
+
+  const roofY = yBase + totalH;
   if (signText) {
-    addNeonHotelSign(world, x, roofY + 4.5, z + towerD * 0.5 + 1.2, 34, signText);
+    addNeonHotelSign(world, x, roofY + 4.5, z + upperD * 0.5 + upperZOff + 1.6, 34, signText);
   }
 
   world.addCollider(x, z, w, d, roofY + 2.0, yBase);
@@ -383,266 +623,207 @@ function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, is
   world.southBeachHotels.push({ x, z, w, d, floors, height: totalH, hasRooftopPool: true, isFrontRow });
 }
 
-/**
- * Constrói cada um dos 8 Super-Arranha-Céus Exclusivos na Orla Estilo Balneário Camboriú (232m a 296m de altura!)
- */
 function buildSignatureOceanfrontHotel(world, batcher, x, z, w, d, spec) {
   const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
   const yBase = terrainY + 0.3;
-  const podiumH = 8.5;
-  const H = yBase + spec.height;
-  const southZ = z + d * 0.5;
+  const podiumH = 9.0;
+  const totalH = spec.height;
+  const bodyH = totalH - podiumH;
+  const H = yBase + totalH;
 
-  // Alicerce sólido de 8.0m para baixo acompanhando a Crista Panorâmica Sul (+10.5m)
-  batcher.addBox('trim_white', w + 0.6, 8.0, d + 0.6, x, yBase - 3.9, z);
-
-  // Base Podium de Luxo (Boulevard Atlântico, Vitrines Duplas, Toldos e Mesas na Calçada)
-  batcher.addBox('trim_white', w, podiumH, d, x, yBase + podiumH * 0.5, z);
-  batcher.addBox('glass_cyan', w - 3.0, podiumH - 1.8, d + 0.3, x, yBase + 3.8, z);
-
-  for (let mx = x - w * 0.38; mx <= x + w * 0.38; mx += 14) {
-    const awColor = UMBRELLA_KEYS[Math.abs(Math.round(mx)) % UMBRELLA_KEYS.length];
-    batcher.addBox(awColor, 10.5, 0.5, 2.8, mx, yBase + 5.6, southZ + 1.3);
-    batcher.addBox('trim_white', 1.5, 0.8, 1.5, mx, yBase + 0.4, southZ + 2.5);
-    batcher.addBox(awColor, 2.6, 0.38, 2.6, mx, yBase + 2.3, southZ + 2.5);
-  }
+  const tb = new BeachTowerBuilder();
+  _addResortPodiumAndRetail(tb, w, d, podiumH, parseInt(spec.color.replace('#', ''), 16), spec.styleId, true);
 
   if (spec.styleId === 1) {
-    // TORRE 1 (X=-450, 264m / 68 andares): YACHTHOUSE TWIN TOWERS (Duas Super-Torres Gêmeas Aerodinâmicas + 2 Skybridges!)
+    // 1. YACHTHOUSE TWIN TOWERS — Gêmeas com skybridges limpos e sem caixas coplanares
     const tw = (w - 16) * 0.5;
     const td = d - 8;
-    const towerH = H - podiumH;
-    const leftX = x - tw * 0.5 - 5.0;
-    const rightX = x + tw * 0.5 + 5.0;
-
-    for (const tx of [leftX, rightX]) {
-      batcher.addBox('coastal_white', tw, towerH, td, tx, yBase + podiumH + towerH * 0.5, z);
-      batcher.addBox('glass_sapphire', tw - 3.5, towerH - 3, td + 0.35, tx, yBase + podiumH + towerH * 0.5, z);
-      // Quinas aerodinâmicas brancas estilo Pininfarina Yachthouse
-      batcher.addBox('trim_white', 3.2, towerH + 10, td + 1.8, tx - tw * 0.5 + 1.4, yBase + podiumH + towerH * 0.5 + 5, z);
-      batcher.addBox('trim_white', 3.2, towerH + 10, td + 1.8, tx + tw * 0.5 - 1.4, yBase + podiumH + towerH * 0.5 + 5, z);
-      batcher.addBox('neon_cyan', 1.2, towerH + 14, 1.2, tx, yBase + podiumH + towerH * 0.5 + 7, z + td * 0.5 + 1.1);
-
-      for (let fy = yBase + podiumH + 5; fy < H - 4; fy += 5.2) {
-        batcher.addBox('coastal_turquoise', tw + 1.4, 0.4, 2.4, tx, fy, z + td * 0.5 + 1.0);
-        batcher.addBox('trim_white', tw + 1.6, 0.9, 0.22, tx, fy + 0.6, z + td * 0.5 + 2.1);
+    for (const sx of [-1, 1]) {
+      const tx = sx * (tw * 0.5 + 5.0);
+      for (let li = 0; li < 2; li++) {
+        tb.addFacade(li, 'sapphire_curtain', sx + 1, tw, bodyH, td, tx, podiumH + bodyH * 0.5, 0, 22, 42);
+        tb.addSolid(li, 'sail_fin', 0xffffff, 2.2, bodyH + 8, td * 0.72, tx + sx * (tw * 0.5 + 1.1), podiumH + (bodyH + 8) * 0.5, 0);
       }
-      // Coroa de Iate Aerodinâmica + Heliponto e Antena no topo de cada torre gêmea (até 292m!)
-      batcher.addBox('neon_cyan', tw - 3, 4.5, td - 4, tx, H + 2.25, z);
-      batcher.addBox('trim_white', tw - 8, 11.0, td - 10, tx, H + 10.0, z);
-      batcher.addBox('neon_gold', 1.4, 14.0, 1.4, tx, H + 22.0, z);
+      tb.addSolid(2, 'lod2_yacht', 0x38bdf8, tw, bodyH, td, tx, podiumH + bodyH * 0.5, 0);
+      _addCleanBalconiesLOD0(tb, tx, podiumH, 0, tw, td, bodyH, 20.0, 0xf8fafc, 0x06b6d4);
+      tb.addSolid(0, 'crown_wht', 0xffffff, tw - 4, 8.5, td - 8, tx, totalH + 4.25, 0);
+      tb.addSolid(1, 'crown_wht', 0xffffff, tw - 4, 8.5, td - 8, tx, totalH + 4.25, 0);
+      tb.addSolid(0, 'crown_spire', 0x00f0ff, 1.4, 15, 1.4, tx, totalH + 16.0, 0, { basic: true });
     }
-
-    // SKYBRIDGE INFERIOR (Y = 115m) + SKYDECK SUPERIOR COM PISCINA SUSPENSA NAS NUVENS (Y = 205m)!
-    batcher.addBox('trim_white', w - 10, 5.5, 18, x, 115.0, z + 2);
-    batcher.addBox('glass_cyan', w - 12, 3.8, 18.4, x, 115.0, z + 2);
-
-    batcher.addBox('trim_white', w - 8, 7.0, 24, x, 205.0, z + 4);
-    batcher.addBox('glass_sapphire', w - 10, 4.8, 24.4, x, 205.0, z + 4);
-    batcher.addBox('pool_water', 28, 0.9, 15, x, 208.8, z + 4);
-    addNeonHotelSign(world, x, 211.0, z + 16.8, 38, spec.name, '#00f0ff', '#facc15');
+    // Skybridges suspensos entre as duas torres (sem penetrar as fachadas frontais!)
+    for (const [sy, sh, sd, hasPool] of [[112, 6.2, 18, false], [202, 7.6, 24, true]]) {
+      const bridgeW = 10.0;
+      tb.addSolid(0, 'skybridge', 0xffffff, bridgeW, sh, sd, 0, sy, 2);
+      tb.addSolid(1, 'skybridge', 0xffffff, bridgeW, sh, sd, 0, sy, 2);
+      if (hasPool) tb.addSolid(0, 'pool', 0x06b6d4, bridgeW - 1.2, 0.9, sd - 4, 0, sy + sh * 0.5 + 0.45, 2);
+    }
+    addNeonHotelSign(world, x, yBase + 207, z + 15.5, 38, spec.name, '#00f0ff', '#facc15');
   } else if (spec.styleId === 2) {
-    // TORRE 2 (X=-318, 284m / 74 andares): ONE TOWER BURJ NÁUTICO (5 Estágios Escalonados + Pináculo até 312m!)
+    // 2. ONE TOWER BURJ NÁUTICO — 5 Estágios Escalonados + Pináculo
     const tiers = [
-      { h: 62, w: w - 4,  d: d - 4,  zOff: 0 },
-      { h: 58, w: w - 14, d: d - 10, zOff: 2.5 },
-      { h: 56, w: w - 24, d: d - 16, zOff: 5.0 },
-      { h: 54, w: w - 36, d: d - 22, zOff: 7.5 },
-      { h: 45.5, w: w - 48, d: d - 28, zOff: 10.0 }
+      { h: 62, w: w - 4, d: d - 4, zOff: 0 },
+      { h: 58, w: w - 14, d: d - 10, zOff: -2.0 },
+      { h: 56, w: w - 24, d: d - 16, zOff: -4.0 },
+      { h: 52, w: w - 36, d: d - 22, zOff: -6.0 },
+      { h: Math.max(30, bodyH - 228), w: w - 48, d: d - 28, zOff: -8.0 }
     ];
-    let curY = yBase + podiumH;
-    tiers.forEach((t) => {
-      batcher.addBox('glass_sapphire', t.w, t.h, t.d, x, curY + t.h * 0.5, z + t.zOff);
-      batcher.addBox('trim_white', 4.8, t.h, t.d + 1.4, x - t.w * 0.5, curY + t.h * 0.5, z + t.zOff);
-      batcher.addBox('trim_white', 4.8, t.h, t.d + 1.4, x + t.w * 0.5, curY + t.h * 0.5, z + t.zOff);
-      batcher.addBox('neon_cyan', 1.5, t.h, 1.6, x, curY + t.h * 0.5, z + t.zOff + t.d * 0.5 + 0.9);
-      for (let fy = curY + 4.5; fy < curY + t.h; fy += 5.2) {
-        batcher.addBox('trim_white', t.w + 1.8, 0.38, 2.2, x, fy, z + t.zOff + t.d * 0.5 + 0.9);
+    let curY = podiumH;
+    tiers.forEach((t, ti) => {
+      for (let li = 0; li < 2; li++) {
+        tb.addFacade(li, 'sapphire_curtain', ti, t.w, t.h, t.d, 0, curY + t.h * 0.5, t.zOff, 22, 42);
       }
-      // Piscina infinita e mirante em cada degrau da Vela!
-      batcher.addBox('pool_water', t.w * 0.52, 0.55, 6.2, x, curY + t.h + 0.3, z + t.zOff - t.d * 0.25);
+      tb.addSolid(2, 'lod2_one', 0x1d4ed8, t.w, t.h, t.d, 0, curY + t.h * 0.5, t.zOff);
+      _addCleanBalconiesLOD0(tb, 0, curY, t.zOff, t.w, t.d, t.h, 21.0, 0xf8fafc, 0x38bdf8);
+      tb.addSolid(0, 'tier_trim', 0xf8fafc, t.w + 1.2, 1.2, t.d + 1.2, 0, curY + t.h - 0.6, t.zOff);
       curY += t.h;
     });
-    // Heliponto Suspenso e Pináculo One Tower no Topo (284m -> 312m!)
-    batcher.addBox('trim_white', 26, 2.0, 26, x, curY + 1.0, z + 10);
-    batcher.addBox('neon_cyan', 16, 6.0, 16, x, curY + 5.0, z + 10);
-    batcher.addBox('neon_gold', 1.8, 22.0, 1.8, x, curY + 19.0, z + 10);
-    addNeonHotelSign(world, x, 128, southZ + 0.5, 38, spec.name, '#38bdf8', '#ffffff');
+    tb.addSolid(0, 'helipad_top', 0xf8fafc, 26, 2.0, 26, 0, curY + 1.0, -8);
+    tb.addSolid(0, 'spire_cyan', 0x00f0ff, 2.0, 24.0, 2.0, 0, curY + 14.0, -8, { basic: true });
+    addNeonHotelSign(world, x, yBase + 124, z + d * 0.5 + 1.2, 38, spec.name, '#38bdf8', '#ffffff');
   } else if (spec.styleId === 3) {
-    // TORRE 3 (X=-186, 232m / 60 andares): MILLENNIUM PALACE ROYAL (Arranha-Céu Neoclássico Imperial Branco e Ouro!)
-    const wingW = 24;
+    // 3. MILLENNIUM PALACE ROYAL — Imperial Branco e Ouro (alas laterais + torre central sem sobrepor!)
+    const wingW = 22;
     const wingH = 148;
-    // Alas Laterais Altas (148m) + Torre Imperial Central de 232m!
-    batcher.addBox('coastal_white', wingW, wingH, d - 6, x - w * 0.5 + wingW * 0.5 + 2, yBase + podiumH + wingH * 0.5, z);
-    batcher.addBox('coastal_white', wingW, wingH, d - 6, x + w * 0.5 - wingW * 0.5 - 2, yBase + podiumH + wingH * 0.5, z);
-    batcher.addBox('coastal_gold', wingW - 4, 4.5, d - 10, x - w * 0.5 + wingW * 0.5 + 2, yBase + podiumH + wingH + 2.25, z);
-    batcher.addBox('coastal_gold', wingW - 4, 4.5, d - 10, x + w * 0.5 - wingW * 0.5 - 2, yBase + podiumH + wingH + 2.25, z);
-
-    batcher.addBox('coastal_white', w - 24, H - podiumH, d - 10, x, yBase + podiumH + (H - podiumH) * 0.5, z - 3);
-    // Pilastras douradas verticais contínuas subindo até 232m
-    batcher.addBox('coastal_gold', 3.2, H - podiumH, d - 8, x - (w - 28) * 0.5, yBase + podiumH + (H - podiumH) * 0.5, z - 3);
-    batcher.addBox('coastal_gold', 3.2, H - podiumH, d - 8, x + (w - 28) * 0.5, yBase + podiumH + (H - podiumH) * 0.5, z - 3);
-
-    // Frisos Dourados Imperiais + Janelas Iluminadas Quentes
-    for (let fy = yBase + podiumH + 5; fy < H - 4; fy += 6.0) {
-      batcher.addBox('coastal_gold', w - 22, 0.6, d - 8, x, fy, z - 3);
-      batcher.addBox('window_warm', w - 28, 2.4, 0.45, x, fy + 2.5, z - 3 + (d - 10) * 0.5 + 0.25);
+    const wingD = d - 8;
+    const centerW = w - wingW * 2 - 4;
+    const centerD = d - 12;
+    for (const sx of [-1, 1]) {
+      const wx = sx * (centerW * 0.5 + wingW * 0.5 + 0.5);
+      for (let li = 0; li < 2; li++) {
+        tb.addFacade(li, 'gold_imperial', sx + 1, wingW, wingH, wingD, wx, podiumH + wingH * 0.5, 0, 18, 40);
+      }
+      tb.addSolid(2, 'lod2_wing', 0xf5ebe0, wingW, wingH, wingD, wx, podiumH + wingH * 0.5, 0);
+      tb.addSolid(0, 'gold_cap', 0xf59e0b, wingW + 1.2, 3.6, wingD + 1.2, wx, podiumH + wingH + 1.8, 0);
     }
-    // Cúpula Real Escalonada + Obelisco Dourado no Topo (232m a 264m!)
-    batcher.addBox('coastal_gold', 32, 9.0, 32, x, H + 4.5, z - 3);
-    batcher.addBox('neon_gold', 20, 11.0, 20, x, H + 14.5, z - 3);
-    batcher.addBox('trim_white', 2.2, 14.0, 2.2, x, H + 26.5, z - 3);
-    batcher.addBox('pool_water', 34, 0.7, 16, x, yBase + podiumH + 0.4, z + 22);
-    addNeonHotelSign(world, x, H + 3.5, z + (d - 10) * 0.5 - 2.0, 38, spec.name, '#facc15', '#fef08a');
+    for (let li = 0; li < 2; li++) {
+      tb.addFacade(li, 'gold_imperial', 0, centerW, bodyH, centerD, 0, podiumH + bodyH * 0.5, -2.0, 20, 42);
+    }
+    tb.addSolid(2, 'lod2_palace', 0xf5ebe0, centerW, bodyH, centerD, 0, podiumH + bodyH * 0.5, -2.0);
+    _addCleanBalconiesLOD0(tb, 0, podiumH, -2.0, centerW, centerD, bodyH, 22.0, 0xf59e0b, 0xfef08a);
+    tb.addSolid(0, 'dome_base', 0xf59e0b, centerW * 0.72, 9.0, centerD * 0.72, 0, totalH + 4.5, -2.0);
+    tb.addSolid(1, 'dome_base', 0xf59e0b, centerW * 0.72, 9.0, centerD * 0.72, 0, totalH + 4.5, -2.0);
+    tb.addSolid(0, 'dome_gold', 0xfacc15, 16, 10.0, 16, 0, totalH + 14.0, -2.0, { basic: true });
+    addNeonHotelSign(world, x, H + 3.5, z + centerD * 0.5 + 1.0, 38, spec.name, '#facc15', '#fef08a');
   } else if (spec.styleId === 4) {
-    // TORRE 4 (X=-60, 296m / 78 andares): SOLARIS INFINITY COAST (O Mais Alto da Orla: 296m + 2 Átrios Panorâmicos Vazados!)
-    const towerW = w - 4;
-    const towerD = d - 6;
-    const lowerH = 96;
-    const atrium1H = 22;
+    // 4. SOLARIS INFINITY COAST (296m) — 2 Átrios Panorâmicos Vazados com Piscinas Suspensas
+    const tw = w - 4;
+    const td = d - 6;
+    const lowerH = 92;
+    const atH = 22;
     const midH = 74;
-    const atrium2H = 22;
-    const upperH = H - podiumH - lowerH - atrium1H - midH - atrium2H;
+    const upperH = Math.max(40, bodyH - lowerH - atH * 2 - midH);
+    const colW = 20;
 
-    // 1) Bloco Inferior (Y=8.8m até Y=104.8m)
-    batcher.addBox('coastal_coral', towerW, lowerH, towerD, x, yBase + podiumH + lowerH * 0.5, z);
-    batcher.addBox('glass_cyan', towerW - 8, lowerH - 2, towerD + 0.3, x, yBase + podiumH + lowerH * 0.5, z);
+    const addBand = (yStart, hSeg, vIdx) => {
+      for (let li = 0; li < 2; li++) {
+        tb.addFacade(li, 'coral_resort', vIdx, tw, hSeg, td, 0, yStart + hSeg * 0.5, 0, 24, 44);
+      }
+      tb.addSolid(2, 'lod2_coral', 0xfb7185, tw, hSeg, td, 0, yStart + hSeg * 0.5, 0);
+      _addCleanBalconiesLOD0(tb, 0, yStart, 0, tw, td, hSeg, 20.0, 0xfde047, 0x38bdf8);
+    };
+    const addAtrium = (yStart) => {
+      for (const sx of [-1, 1]) {
+        tb.addSolid(0, 'coral_col', 0xfb7185, colW, atH, td, sx * (tw * 0.5 - colW * 0.5), yStart + atH * 0.5, 0);
+        tb.addSolid(1, 'coral_col', 0xfb7185, colW, atH, td, sx * (tw * 0.5 - colW * 0.5), yStart + atH * 0.5, 0);
+      }
+      tb.addSolid(0, 'atrium_deck', 0xf8fafc, tw - colW * 2, 1.4, td - 4, 0, yStart + 0.7, 0);
+      tb.addSolid(0, 'atrium_pool', 0x06b6d4, tw - colW * 2 - 4, 0.8, 18, 0, yStart + 1.8, 4);
+    };
 
-    // 2) 1º Átrio Panorâmico Vazado (Y=104.8m a 126.8m) com Piscina Suspensa e Coqueiros!
-    const at1Y = yBase + podiumH + lowerH;
-    batcher.addBox('coastal_coral', 18, atrium1H, towerD, x - towerW * 0.5 + 9, at1Y + atrium1H * 0.5, z);
-    batcher.addBox('coastal_coral', 18, atrium1H, towerD, x + towerW * 0.5 - 9, at1Y + atrium1H * 0.5, z);
-    batcher.addBox('pool_water', towerW - 36, 0.9, 18, x, at1Y + 0.5, z + 6);
-    addCurvedLegoPalmTree(batcher, x - 8, at1Y + 0.5, z, -0.2, 0.7, 1.0);
-    addCurvedLegoPalmTree(batcher, x + 8, at1Y + 0.5, z, 0.2, 0.7, 1.0);
+    let yCur = podiumH;
+    addBand(yCur, lowerH, 0);
+    yCur += lowerH;
+    addAtrium(yCur);
+    yCur += atH;
+    addBand(yCur, midH, 1);
+    yCur += midH;
+    addAtrium(yCur);
+    yCur += atH;
+    addBand(yCur, upperH, 2);
 
-    // 3) Bloco Intermediário (Y=126.8m a 200.8m)
-    const midY = at1Y + atrium1H;
-    batcher.addBox('coastal_coral', towerW, midH, towerD, x, midY + midH * 0.5, z);
-    batcher.addBox('glass_cyan', towerW - 8, midH - 2, towerD + 0.3, x, midY + midH * 0.5, z);
-
-    // 4) 2º Átrio Panorâmico nas Nuvens (Y=200.8m a 222.8m) com Sky-Pool!
-    const at2Y = midY + midH;
-    batcher.addBox('coastal_coral', 18, atrium2H, towerD, x - towerW * 0.5 + 9, at2Y + atrium2H * 0.5, z);
-    batcher.addBox('coastal_coral', 18, atrium2H, towerD, x + towerW * 0.5 - 9, at2Y + atrium2H * 0.5, z);
-    batcher.addBox('pool_water', towerW - 36, 0.9, 18, x, at2Y + 0.5, z + 6);
-
-    // 5) Bloco Superior (Y=222.8m até Y=296m!)
-    const topStart = at2Y + atrium2H;
-    batcher.addBox('coastal_coral', towerW, upperH, towerD, x, topStart + upperH * 0.5, z);
-    batcher.addBox('glass_cyan', towerW - 8, upperH - 2, towerD + 0.3, x, topStart + upperH * 0.5, z);
-
-    // Varandas Onduladas Douradas/Solares ao longo dos 296m!
-    for (let fy = yBase + podiumH + 4; fy < H - 2; fy += 5.2) {
-      if ((fy > at1Y && fy < midY) || (fy > at2Y && fy < topStart)) continue;
-      const waveShift = Math.sin(fy * 0.12) * 2.8;
-      batcher.addBox('coastal_sun', towerW - 4, 0.42, 2.6, x + waveShift, fy, z + towerD * 0.5 + 1.1);
-      batcher.addBox('glass_cyan', towerW - 4, 0.95, 0.22, x + waveShift, fy + 0.65, z + towerD * 0.5 + 2.2);
-    }
-
-    // Coroa Solar Monumental e Pináculo no Topo (Y = 296m -> 318m!)
-    batcher.addBox('neon_gold', towerW + 3, 3.2, towerD + 3, x, H + 1.6, z);
-    batcher.addBox('pool_water', towerW * 0.6, 0.8, 16, x, H + 3.4, z + 8);
-    batcher.addBox('trim_white', 22, 9.0, 22, x, H + 7.5, z - 8);
-    batcher.addBox('neon_gold', 2.0, 18.0, 2.0, x, H + 20.0, z - 8);
-    addNeonHotelSign(world, x, H + 5.5, z + towerD * 0.5 + 1.5, 38, spec.name, '#fb7185', '#fde047');
+    tb.addSolid(0, 'solar_crown', 0xfacc15, tw + 2, 3.0, td + 2, 0, totalH + 1.5, 0, { basic: true });
+    tb.addSolid(0, 'solar_pool', 0x06b6d4, tw * 0.6, 0.9, 16, 0, totalH + 3.4, 8);
+    tb.addSolid(0, 'solar_spire', 0xfacc15, 2.0, 18.0, 2.0, 0, totalH + 12.0, -8, { basic: true });
+    addNeonHotelSign(world, x, H + 5.5, z + td * 0.5 + 1.6, 38, spec.name, '#fb7185', '#fde047');
   } else if (spec.styleId === 5) {
-    // TORRE 5 (X=+60, 276m / 72 andares): EPIC WAVE DIAMOND TOWER (Torre Cristalina de 276m com Elevador Panorâmico Neon!)
-    const towerW = w - 4;
-    const towerD = d - 6;
-    const towerH = H - podiumH;
-
-    batcher.addBox('coastal_aqua', towerW, towerH, towerD, x, yBase + podiumH + towerH * 0.5, z);
-    batcher.addBox('glass_sapphire', towerW - 5, towerH - 2, towerD + 0.35, x, yBase + podiumH + towerH * 0.5, z);
-
-    // Coluna Central do Elevador Panorâmico Externo subindo 286m com Cápsulas Luminosas!
-    batcher.addBox('trim_white', 7.0, towerH + 10, 3.8, x, yBase + podiumH + towerH * 0.5 + 5, z + towerD * 0.5 + 1.5);
-    batcher.addBox('neon_cyan', 4.4, towerH + 8, 4.1, x, yBase + podiumH + towerH * 0.5 + 5, z + towerD * 0.5 + 1.6);
-
-    for (let fy = yBase + podiumH + 4.5; fy < H - 3; fy += 5.2) {
-      batcher.addBox('trim_white', (towerW - 12) * 0.46, 0.42, 2.4, x - towerW * 0.27, fy, z + towerD * 0.5 + 1.1);
-      batcher.addBox('trim_white', (towerW - 12) * 0.46, 0.42, 2.4, x + towerW * 0.27, fy, z + towerD * 0.5 + 1.1);
+    // 5. EPIC WAVE DIAMOND TOWER — Fachada Cristal + Coluna Panorâmica Externa (afastada!)
+    const tw = w - 6;
+    const td = d - 8;
+    for (let li = 0; li < 2; li++) {
+      tb.addFacade(li, 'aqua_wave', 0, tw, bodyH, td, 0, podiumH + bodyH * 0.5, 0, 22, 42);
+      // Coluna externa do elevador totalmente fora da fachada (Z = +td*0.5 + 2.4)!
+      tb.addSolid(li, 'elev_frame', 0xf8fafc, 6.4, bodyH + 8, 3.6, 0, podiumH + (bodyH + 8) * 0.5, td * 0.5 + 2.0);
     }
-
-    // Coroa Cristalina & Sky-Club no Topo (276m -> 300m!)
-    batcher.addBox('trim_white', towerW + 2.5, 2.4, towerD + 2.5, x, H + 1.2, z);
-    batcher.addBox('pool_water', towerW * 0.55, 0.75, 16, x, H + 2.6, z + 6);
-    batcher.addBox('neon_cyan', towerW * 0.42, 10.0, towerD * 0.42, x, H + 7.4, z - 6);
-    batcher.addBox('trim_white', 1.8, 16.0, 1.8, x, H + 20.0, z - 6);
-    addNeonHotelSign(world, x, H + 5.5, z + towerD * 0.5 + 2.2, 38, spec.name, '#00f0ff', '#ffffff');
+    tb.addSolid(0, 'elev_neon', 0x00f0ff, 2.6, bodyH + 6, 0.8, 0, podiumH + (bodyH + 6) * 0.5, td * 0.5 + 4.2, { basic: true });
+    tb.addSolid(2, 'lod2_wave', 0x2dd4bf, tw, bodyH, td, 0, podiumH + bodyH * 0.5, 0);
+    _addCleanBalconiesLOD0(tb, -tw * 0.27, podiumH, 0, tw * 0.36, td, bodyH, 20.0, 0xf8fafc, 0x2dd4bf);
+    _addCleanBalconiesLOD0(tb, tw * 0.27, podiumH, 0, tw * 0.36, td, bodyH, 20.0, 0xf8fafc, 0x2dd4bf);
+    tb.addSolid(0, 'wave_crown', 0x00f0ff, tw * 0.44, 10.0, td * 0.44, 0, totalH + 5.0, -6, { basic: true });
+    addNeonHotelSign(world, x, H + 5.5, z + td * 0.5 + 4.4, 38, spec.name, '#00f0ff', '#ffffff');
   } else if (spec.styleId === 6) {
-    // TORRE 6 (X=+186, 246m / 64 andares): BOREAL HANGING GARDENS (7 Terraços Escalonados Gigantes com Piscinas e Coqueiros!)
+    // 6. BOREAL HANGING GARDENS — 7 Terraços Escalonados Frente-Mar com Jardins Suspensos
     const steps = 7;
-    const stepH = (H - podiumH) / steps;
-    let curY = yBase + podiumH;
-
+    const stepH = bodyH / steps;
+    let curY = podiumH;
     for (let s = 0; s < steps; s++) {
       const sw = w - 4 - s * 8.5;
       const sd = d - 6 - s * 6.8;
-      const zOff = -s * 2.4; // Recua deixando grandes terraços ensolarados virados pro mar (+Z)!
-      const wallKey = s % 2 === 0 ? 'coastal_sun' : 'coastal_coral';
-
-      batcher.addBox(wallKey, sw, stepH, sd, x, curY + stepH * 0.5, z + zOff);
-      batcher.addBox('glass_cyan', sw - 4, stepH - 1.8, sd + 0.3, x, curY + stepH * 0.5, z + zOff);
-      batcher.addBox('trim_white', sw + 1.8, 0.9, sd + 1.8, x, curY + stepH, z + zOff);
-
-      // Jardim Suspenso com Piscina e Coqueiros em cada terraço!
-      const terraceZ = z + zOff + sd * 0.5 - 3.2;
-      batcher.addBox('pool_water', sw * 0.5, 0.55, 5.0, x, curY + stepH + 0.35, terraceZ);
-      addCurvedLegoPalmTree(batcher, x - sw * 0.36, curY + stepH + 0.3, terraceZ, -0.2, 0.75, 0.88);
-      addCurvedLegoPalmTree(batcher, x + sw * 0.36, curY + stepH + 0.3, terraceZ, 0.2, 0.75, 0.88);
-
+      const zOff = -s * 2.4;
+      for (let li = 0; li < 2; li++) {
+        tb.addFacade(li, s % 2 === 0 ? 'sand_terrace' : 'coral_resort', s, sw, stepH - 1.0, sd, 0, curY + (stepH - 1.0) * 0.5, zOff, 20, 36);
+        tb.addSolid(li, 'terrace_slab', 0xffffff, sw + 1.4, 1.0, sd + 1.4, 0, curY + stepH - 0.5, zOff);
+      }
+      tb.addSolid(2, 'lod2_gardens', 0xfde047, sw, stepH, sd, 0, curY + stepH * 0.5, zOff);
+      const terraceZ = zOff + sd * 0.5 - 3.0;
+      tb.addSolid(0, 't_pool', 0x06b6d4, sw * 0.48, 0.55, 4.6, 0, curY + stepH + 0.3, terraceZ);
+      addCurvedLegoPalmTree(batcher, x - sw * 0.34, yBase + curY + stepH, z + terraceZ, -0.18, 0.75, 0.85);
+      addCurvedLegoPalmTree(batcher, x + sw * 0.34, yBase + curY + stepH, z + terraceZ, 0.18, 0.75, 0.85);
       curY += stepH;
     }
-    batcher.addBox('neon_gold', 2.0, 18.0, 2.0, x, H + 9.0, z - 14);
-    addNeonHotelSign(world, x, H + 4.0, z - 10, 38, spec.name, '#fde047', '#fb7185');
+    tb.addSolid(0, 'gold_spire', 0xfacc15, 2.0, 18.0, 2.0, 0, totalH + 9.0, -14, { basic: true });
+    addNeonHotelSign(world, x, H + 4.0, z - 9, 38, spec.name, '#fde047', '#fb7185');
   } else if (spec.styleId === 7) {
-    // TORRE 7 (X=+318, 260m / 68 andares): AURORA NEON GRAND TOWER (Super-Torre Art-Déco de 260m com 4 Tubos Verticais de Neon!)
-    const towerW = w - 6;
-    const towerD = d - 8;
-    const towerH = H - podiumH;
-
-    batcher.addBox('coastal_white', towerW, towerH, towerD, x, yBase + podiumH + towerH * 0.5, z);
-    batcher.addBox('umb_pink', towerW * 0.56, towerH + 8, towerD + 1.0, x, yBase + podiumH + towerH * 0.5 + 4, z);
-
-    // 4 Tubos Verticais de Neon Ciano subindo até 268m!
-    for (const nx of [-towerW * 0.38, -towerW * 0.18, towerW * 0.18, towerW * 0.38]) {
-      batcher.addBox('neon_cyan', 1.6, towerH + 6, 1.6, x + nx, yBase + podiumH + towerH * 0.5 + 3, z + towerD * 0.5 + 0.9);
+    // 7. AURORA NEON GRAND TOWER — Art-Déco Escalonado Branco & Rosa com Pilastras Limpas
+    const tw = w - 6;
+    const td = d - 8;
+    const flankH = bodyH * 0.82;
+    for (let li = 0; li < 2; li++) {
+      tb.addFacade(li, 'aurora_deco', 0, tw, flankH, td, 0, podiumH + flankH * 0.5, 0, 22, 42);
+      tb.addFacade(li, 'aurora_deco', 1, tw * 0.58, bodyH - flankH, td * 0.72, 0, podiumH + flankH + (bodyH - flankH) * 0.5, -3.0, 20, 40);
     }
-
-    for (let fy = yBase + podiumH + 4.5; fy < H - 3; fy += 5.2) {
-      batcher.addBox('trim_white', towerW + 1.8, 0.42, 2.4, x, fy, z + towerD * 0.5 + 1.1);
-      batcher.addBox('neon_pink', towerW * 0.52, 0.28, 2.6, x, fy + 0.22, z + towerD * 0.5 + 1.2);
+    tb.addSolid(2, 'lod2_aurora', 0xec4899, tw, bodyH, td, 0, podiumH + bodyH * 0.5, 0);
+    for (const nx of [-tw * 0.36, tw * 0.36]) {
+      tb.addSolid(0, 'aurora_neon', 0x00f0ff, 1.4, flankH + 4, 1.4, nx, podiumH + (flankH + 4) * 0.5, td * 0.5 + 1.0, { basic: true });
     }
-
-    // Coroa Art-Déco Escalonada + Pináculo e Piscina de Cobertura (260m -> 286m!)
-    batcher.addBox('neon_cyan', towerW * 0.42, 12, towerD * 0.42, x, H + 9, z);
-    batcher.addBox('neon_pink', 2.0, 16, 2.0, x, H + 23, z);
-    batcher.addBox('pool_water', towerW * 0.5, 0.75, 15, x, H + 1.5, z + 10);
-    addNeonHotelSign(world, x, H + 4.8, z + towerD * 0.5 + 1.6, 38, spec.name, '#ec4899', '#00f0ff');
+    _addCleanBalconiesLOD0(tb, 0, podiumH, 0, tw, td, flankH, 21.0, 0xf8fafc, 0xec4899);
+    tb.addSolid(0, 'aurora_crown', 0x00f0ff, tw * 0.42, 10.0, td * 0.42, 0, totalH + 5.0, -3.0, { basic: true });
+    addNeonHotelSign(world, x, H + 4.8, z + td * 0.5 + 1.6, 38, spec.name, '#ec4899', '#00f0ff');
   } else {
-    // TORRE 8 (X=+450, 240m / 62 andares): PHAROS PANORAMA SUITES (Super-Torre Costeira com Restaurante Giratório 360° a 240m!)
-    const towerW = w - 10;
-    const towerD = d - 10;
-    const towerH = H - podiumH;
-
-    batcher.addBox('coastal_turquoise', towerW, towerH, towerD, x, yBase + podiumH + towerH * 0.5, z);
-    // Chanfros / Colunas Brancas nas 4 quinas dando aspecto octogonal de Balneário Camboriú
-    batcher.addBox('trim_white', towerW - 14, towerH + 4, towerD + 3.2, x, yBase + podiumH + towerH * 0.5 + 2, z);
-    batcher.addBox('glass_cyan', towerW - 18, towerH - 2, towerD + 3.6, x, yBase + podiumH + towerH * 0.5, z);
-
-    for (let fy = yBase + podiumH + 4.5; fy < H - 4; fy += 5.2) {
-      batcher.addBox('trim_white', towerW + 2.2, 0.42, towerD + 2.2, x, fy, z);
+    // 8. PHAROS PANORAMA SUITES — Torre Turquesa Chanfrada + Observatório 360° no Topo!
+    const tw = w - 12;
+    const td = d - 12;
+    for (let li = 0; li < 2; li++) {
+      tb.addFacade(li, 'azure_balcony', 1, tw, bodyH, td, 0, podiumH + bodyH * 0.5, 0, 22, 42);
+      // Pilastras de canto externas sem cruzar a face!
+      for (const sx of [-1, 1]) {
+        tb.addSolid(li, 'pharos_col', 0xffffff, 4.2, bodyH + 4, td * 0.56, sx * (tw * 0.5 + 2.1), podiumH + (bodyH + 4) * 0.5, 0);
+      }
     }
+    tb.addSolid(2, 'lod2_pharos', 0x06b6d4, tw, bodyH, td, 0, podiumH + bodyH * 0.5, 0);
+    _addCleanBalconiesLOD0(tb, 0, podiumH, 0, tw, td, bodyH, 20.0, 0xffffff, 0x06b6d4);
 
-    // Restaurante Panorâmico Circular/Octogonal no Topo (Y = 240m a 256m) + Farol Costeiro (até 272m!)
-    batcher.addBox('trim_white', towerW + 7, 3.4, towerD + 7, x, H + 1.7, z);
-    batcher.addBox('window_warm', towerW + 5, 6.5, towerD + 5, x, H + 6.6, z);
-    batcher.addBox('umb_red', towerW - 5, 3.5, towerD - 5, x, H + 11.6, z);
-    batcher.addBox('neon_gold', 2.2, 18.0, 2.2, x, H + 22.0, z);
-    batcher.addBox('pool_water', 26, 0.7, 13, x, H + 3.6, z + towerD * 0.35);
-    addNeonHotelSign(world, x, H + 4.5, z + towerD * 0.5 + 4.0, 38, spec.name, '#06b6d4', '#fde047');
+    // Restaurante Panorâmico no Topo
+    tb.addSolid(0, 'obs_base', 0xffffff, tw + 8, 2.8, td + 8, 0, totalH + 1.4, 0);
+    tb.addFacade(0, 'retail_arcade', 1, tw + 6, 6.2, td + 6, 0, totalH + 5.9, 0, 16, 8);
+    tb.addSolid(0, 'obs_cap', 0xef4444, tw - 4, 3.2, td - 4, 0, totalH + 10.6, 0);
+    tb.addSolid(1, 'obs_base', 0xffffff, tw + 8, 9.0, td + 8, 0, totalH + 4.5, 0);
+    tb.addSolid(0, 'obs_spire', 0xfacc15, 2.0, 18.0, 2.0, 0, totalH + 19.0, 0, { basic: true });
+    addNeonHotelSign(world, x, H + 4.5, z + td * 0.5 + 4.2, 38, spec.name, '#06b6d4', '#fde047');
   }
+
+  const lod = tb.buildLOD(x, yBase, z);
+  world.scene.add(lod);
+  world.southBeachHotelLODs.push(lod);
 
   world.addCollider(x, z, w, d, H + 4.0, yBase);
   world.mapBuildings.push({
@@ -697,7 +878,7 @@ function buildSantosStyleBeachCanals(world, batcher) {
 
     // 3. Ponte do Calçadão & Ciclovia sobre o Canal (Z = 752, largura 52m) com Balaustrada Branca
     batcher.addBox('stone_white', CANAL_WIDTH + 4, 0.48, 52, cx, 0.24, 752);
-    batcher.addBox('bike_red', CANAL_WIDTH + 4, 0.06, 4.6, cx, 0.5, 731);
+    batcher.addBox('bike_red', CANAL_WIDTH + 4, 0.06, 4.6, cx, 0.54, 731);
     batcher.addBox('trim_white', CANAL_WIDTH + 4, 1.1, 0.6, cx, 0.8, 726.5);
     batcher.addBox('trim_white', CANAL_WIDTH + 4, 1.1, 0.6, cx, 0.8, 777.5);
 
@@ -752,17 +933,17 @@ function buildOceanfrontBoardwalkAndKiosks(world, batcher) {
     world.scene.add(boardwalkSeg);
     world.mapBlocks.push({ x: segCenterX, z: bwZ, w: segW, d: bwDepth, color: '#e2e8f0' });
 
-    batcher.addBox('bike_red', segW, 0.05, 4.6, segCenterX, 0.33, 731);
-    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.34, 728.6);
-    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.34, 733.4);
+    batcher.addBox('bike_red', segW, 0.05, 4.6, segCenterX, 0.365, 731);
+    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.38, 728.6);
+    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.38, 733.4);
   }
 
-  // Padrão de Pedras Portuguesas em Ondas Pretas e Brancas + Coqueiros + Bancos (de X = -1800 até +528 na margem da Foz do Rio)
+  // Padrão de Pedras Portuguesas em Ondas Pretas e Brancas sem interseção coplanar com o piso
   for (let wx = -1800; wx <= 528; wx += 16) {
     if (isInsideSantosCanal(wx, 4)) continue;
     const waveOffset = Math.sin(wx * 0.06) * 4.5;
-    batcher.addBox('stone_black', 14.0, 0.04, 3.6, wx, 0.33, bwZ - 6 + waveOffset);
-    batcher.addBox('stone_black', 14.0, 0.04, 3.6, wx, 0.33, bwZ + 8 - waveOffset);
+    batcher.addBox('stone_black', 14.0, 0.04, 3.6, wx, 0.36, bwZ - 6 + waveOffset);
+    batcher.addBox('stone_black', 14.0, 0.04, 3.6, wx, 0.36, bwZ + 8 - waveOffset);
   }
 
   for (let px = -1780; px <= 516; px += 36) {
@@ -796,8 +977,8 @@ function buildBeachKiosk(world, batcher, kx, kz, idx, label = 'QUIOSQUE ORLA') {
   batcher.addBox('wood_pier', 9.4, 0.22, 9.4, kx, yBase + 1.42, kz);
 
   batcher.addBox('wood_pier', 3.6, 3.4, 3.6, kx, yBase + 1.8, kz - 1.0);
-  batcher.addBox('coastal_turquoise', 1.8, 2.8, 1.4, kx + 2.2, yBase + 1.5, kz - 1.2);
-  batcher.addBox('glass_cyan', 1.5, 2.2, 1.48, kx + 2.2, yBase + 1.6, kz - 1.2);
+  batcher.addBox('coastal_turquoise', 1.8, 1.3, 1.4, kx + 2.2, yBase + 1.5, kz - 1.2);
+  batcher.addBox('glass_cyan', 1.5, 1.0, 1.4, kx + 2.2, yBase + 2.65, kz - 1.2);
 
   for (const [dx, dz] of [[-3.8, -3.8], [3.8, -3.8], [-3.8, 3.8], [3.8, 3.8]]) {
     batcher.addBox('wood_pier', 0.45, 3.8, 0.45, kx + dx, yBase + 2.0, kz + dz);
@@ -920,9 +1101,9 @@ function buildGoldenBeachAndShorelineLife(world, batcher) {
   // 16 Castelos de Areia de LEGO Quebráveis espalhados pelas 4 faixas de praia!
   const castlePositions = [
     [-440, 955], [-310, 995], [-275, 945], [-210, 1005],
-    [-85, 935],  [-68, 990],  [-58, 845],  [-175, 975],
-    [62, 975],   [75, 845],   [95, 990],   [145, 935],
-    [195, 1005], [305, 945],  [355, 995],  [420, 955]
+    [-85, 935], [-68, 990], [-58, 845], [-175, 975],
+    [62, 975], [75, 845], [95, 990], [145, 935],
+    [195, 1005], [305, 945], [355, 995], [420, 955]
   ];
   for (const [cx, cz] of castlePositions) {
     spawnBreakableSandcastle(world, cx, sandY, cz);
@@ -1092,26 +1273,25 @@ function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   // 2. RESTAURANTE MARÍTIMO DE 2 ANDARES COM TERRAÇO PANORÂMICO (X = -28, Z = 1125)
   const restX = -28;
   const restZ = 1125;
-  batcher.addBox('coastal_white', 24, 5.2, 34, restX, deckTopY + 2.6, restZ);
-  batcher.addBox('glass_cyan', 22, 3.6, 34.4, restX, deckTopY + 2.4, restZ);
-  batcher.addBox('wood_deck', 26, 0.6, 36, restX, deckTopY + 5.5, restZ); // Piso do 2º andar
-  batcher.addBox('coastal_turquoise', 16, 4.4, 20, restX - 3, deckTopY + 7.8, restZ - 4);
-  batcher.addBox('umb_orange', 18, 0.9, 22, restX - 3, deckTopY + 10.4, restZ - 4);
-  // Mesas com guarda-sol no terraço do 2º andar do restaurante!
+  batcher.addBox('coastal_white', 24, 1.4, 34, restX, deckTopY + 0.7, restZ);
+  batcher.addBox('glass_cyan', 22.8, 3.6, 32.8, restX, deckTopY + 3.2, restZ);
+  batcher.addBox('wood_deck', 26, 0.7, 36, restX, deckTopY + 5.35, restZ);
+  batcher.addBox('coastal_turquoise', 16, 4.4, 20, restX - 3, deckTopY + 7.9, restZ - 4);
+  batcher.addBox('umb_orange', 18, 0.9, 22, restX - 3, deckTopY + 10.55, restZ - 4);
   for (const tz of [restZ + 8, restZ + 14]) {
-    batcher.addBox('trim_white', 1.6, 0.8, 1.6, restX + 5, deckTopY + 6.2, tz);
-    batcher.addBox('umb_red', 3.2, 0.4, 3.2, restX + 5, deckTopY + 8.2, tz);
+    batcher.addBox('trim_white', 1.6, 0.8, 1.6, restX + 5, deckTopY + 6.1, tz);
+    batcher.addBox('umb_red', 3.2, 0.4, 3.2, restX + 5, deckTopY + 8.1, tz);
   }
   addNeonHotelSign(world, restX + 12.5, deckTopY + 8.5, restZ, 24, 'RESTAURANTE DO PÍER', '#fb923c', '#ffffff');
   world.addCollider(restX, restZ, 25, 35, deckTopY + 10.5, deckTopY);
 
-  // 3. FLIPERAMA / ARCADE NEON 3D (X = +28, Z = 1125)
+  // 3. FLIPERAMA / ARCADE NEON 3D (X = +28, Z = 1125) — camadas verticais sem z-fighting!
   const arcX = 28;
   const arcZ = 1125;
-  batcher.addBox('stone_black', 24, 8.8, 34, arcX, deckTopY + 4.4, arcZ);
-  batcher.addBox('neon_cyan', 25, 0.8, 35, arcX, deckTopY + 8.6, arcZ);
-  batcher.addBox('neon_pink', 25, 0.8, 35, arcX, deckTopY + 4.8, arcZ);
-  batcher.addBox('window_warm', 20, 3.2, 34.4, arcX, deckTopY + 2.2, arcZ);
+  batcher.addBox('window_warm', 22, 3.6, 32, arcX, deckTopY + 1.8, arcZ);
+  batcher.addBox('neon_pink', 25, 0.9, 35, arcX, deckTopY + 4.05, arcZ);
+  batcher.addBox('stone_black', 24, 3.7, 34, arcX, deckTopY + 6.35, arcZ);
+  batcher.addBox('neon_cyan', 25.4, 0.9, 35.4, arcX, deckTopY + 8.65, arcZ);
   addNeonHotelSign(world, arcX - 12.5, deckTopY + 7.2, arcZ, 24, 'MEGA ARCADE LEGO ', '#ec4899', '#00f0ff');
   world.addCollider(arcX, arcZ, 25, 35, deckTopY + 9.2, deckTopY);
 
@@ -1406,9 +1586,9 @@ function buildSouthwestPointLighthouseDunesAndWestMarina(world, batcher) {
 
   // Clube Náutico Oeste na entrada da Marina (Z = 1032)
   batcher.addBox('wood_deck', 56, 0.8, 26, westMarinaX, 0.4, 1032);
-  batcher.addBox('coastal_white', 38, 6.4, 16, westMarinaX, 4.0, 1030);
-  batcher.addBox('glass_cyan', 34, 4.2, 16.4, westMarinaX, 3.6, 1030);
-  batcher.addBox('coastal_turquoise', 42, 1.2, 19, westMarinaX, 7.8, 1030);
+  batcher.addBox('coastal_white', 38, 1.6, 16, westMarinaX, 1.6, 1030);
+  batcher.addBox('glass_cyan', 34, 4.4, 14.8, westMarinaX, 4.6, 1030);
+  batcher.addBox('coastal_turquoise', 42, 1.2, 19, westMarinaX, 7.4, 1030);
   addNeonHotelSign(world, westMarinaX, 9.2, 1020.5, 32, 'MARINA OESTE ', '#06b6d4', '#fde047');
   world.addCollider(westMarinaX, 1030, 38, 16, 8.5, 0);
   world.mapBuildings.push({
