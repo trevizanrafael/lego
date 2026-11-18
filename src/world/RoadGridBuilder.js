@@ -7,6 +7,14 @@ import { applyAnimatedLegoWaterShader } from '../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, getGeometryChunkKey } from './BuildingGenerator.js';
 import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from './MetroSystemBuilder.js';
 import { getUrbanCityReliefY } from './ViaductAndReliefBuilder.js';
+import {
+  MAIN_WEST_POLYGON,
+  EAST_PENINSULA_POLYGON,
+  PRISON_ISLAND_POLYGON,
+  ARCHIPELAGO_ISLETS,
+  HORIZON_MOUNTAINS,
+  REGION_BORDER_LINES
+} from './CoastlineProfile.js';
 
 /**
  * Especificação Oficial das 9 Pontes Elevadas em Arco sobre o Rio/Canal Urbano Leste (X = 526..594, vão = 68m)
@@ -14,14 +22,14 @@ import { getUrbanCityReliefY } from './ViaductAndReliefBuilder.js';
  */
 export const RIVER_BRIDGE_SPECS = [
   { z: -776, width: 26, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_north', label: 'PONTE NORTE DO CANAL' },
-  { z: -512, width: 28, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate',  label: 'PONTE FRONTEIRA SUBÚRBIO-PCC' },
-  { z: -382, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate',  label: 'PONTE DA CIDADELA NORTE' },
-  { z: -250, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate',  label: 'PONTE CENTRAL DO SINDICATO' },
-  { z: -117, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate',  label: 'PONTE DO CENTRO FINANCEIRO' },
-  { z: 0,    width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate',  label: 'PONTE MONUMENTAL LESTE-OESTE' },
-  { z: 134,  width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'port_gate', label: 'PONTE DO PARQUE & PORTO' },
-  { z: 402,  width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'port_gate', label: 'PONTE LOGÍSTICA DAS DOCAS' },
-  { z: 712,  width: 32, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'beach',     label: 'PONTE COSTEIRA DA ORLA SUL' }
+  { z: -512, width: 28, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE FRONTEIRA SUBÚRBIO-PCC' },
+  { z: -382, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE DA CIDADELA NORTE' },
+  { z: -250, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE CENTRAL DO SINDICATO' },
+  { z: -117, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE DO CENTRO FINANCEIRO' },
+  { z: 0, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE MONUMENTAL LESTE-OESTE' },
+  { z: 134, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'port_gate', label: 'PONTE DO PARQUE & PORTO' },
+  { z: 402, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'port_gate', label: 'PONTE LOGÍSTICA DAS DOCAS' },
+  { z: 712, width: 32, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'beach', label: 'PONTE COSTEIRA DA ORLA SUL' }
 ];
 
 /**
@@ -152,16 +160,15 @@ export function buildOceanAndMainIsland(world) {
     addWaterPlate(cx - 12, cx + 12, 724, 1070, -0.52);
   }
 
-  // 3) Placas do Oceano Atlântico ESTRITAMENTE externas à Ilha Principal (X = -1825..+540, Z = -1320..+1035)
-  //    e externas à Península Leste (X = 580..1628, Z = -1320..+735) — ZERO água embaixo do continente!
-  addWaterPlate(-3100, -1825, -3100, 3100, -0.45); // Oceano Oeste (além do Aeroporto)
-  addWaterPlate(-1825, 540, -3100, -1320, -0.45);  // Oceano Norte Oeste (além das Falésias do Subúrbio)
-  addWaterPlate(540, 580, -3100, -1325, -0.45);    // Foz Norte Externa do Rio
-  addWaterPlate(580, 3100, -3100, -1320, -0.45);   // Oceano Nordeste
-  addWaterPlate(1628, 3100, -1320, 3100, -0.45);   // Oceano Extremo Leste (além do Porto)
-  addWaterPlate(580, 1628, 735, 3100, -0.45);      // Baía Sudeste (ao redor da Ponte Blindada e Ilha da Prisão)
-  addWaterPlate(-1825, 540, 1035, 3100, -0.45);    // Oceano Sul (além da faixa de areia da Praia Sul)
-  addWaterPlate(540, 580, 1075, 3100, -0.45);      // Foz Sul Externa do Rio
+  // 3) Placas do Oceano Atlântico ampliadas até o horizonte (±9500m) ao redor dos setores internos
+  addWaterPlate(-9500, -1825, -9500, 9500, -0.45); // Oceano Oeste além do horizonte
+  addWaterPlate(-1825, 540, -9500, -1320, -0.45);  // Oceano Norte Oeste além do horizonte
+  addWaterPlate(540, 580, -9500, -1325, -0.45);    // Foz Norte Externa do Rio
+  addWaterPlate(580, 9500, -9500, -1320, -0.45);   // Oceano Nordeste
+  addWaterPlate(1628, 9500, -1320, 9500, -0.45);   // Oceano Extremo Leste
+  addWaterPlate(580, 1628, 735, 9500, -0.45);      // Baía Sudeste (Ponte Blindada e Ilha da Prisão)
+  addWaterPlate(-1825, 540, 1035, 9500, -0.45);    // Oceano Sul
+  addWaterPlate(540, 580, 1075, 9500, -0.45);      // Foz Sul Externa do Rio
 
   const mergedOcean = new THREE.Mesh(mergeBufferGeometries(waterGeos), oceanMat);
   for (let i = 0; i < waterGeos.length; i++) waterGeos[i].dispose();
@@ -239,6 +246,208 @@ export function buildOceanAndMainIsland(world) {
   ];
   pushChunkedTerrainSectorGeos(eastGeos, 580, 1628, -1320, 735, 20);
   addChunkedArrayToScene(world.scene, eastGeos, asphaltMat, { receiveShadow: true, chunkSize: 512 });
+
+  // 6) Costa Orgânica (Praias, Costões/Falésias, Baías, Ilhotas do Arquipélago, Horizonte & Fronteiras)
+  _buildOrganicCoastAndArchipelago(world);
+}
+
+function _buildOrganicCoastAndArchipelago(world) {
+  const sandGeos = [];
+  const cliffGeos = [];
+  const turfGeos = [];
+  const reefGeos = [];
+  const horizonGeos = [];
+  const borderAccentGeos = {
+    '#fb923c': [],
+    '#4ade80': [],
+    '#fde047': [],
+    '#94a3b8': [],
+    '#ef4444': [],
+    '#f59e0b': []
+  };
+
+  // Helper: constrói faixa costeira orgânica conectando cada segmento da poligonal ao retângulo interno
+  const buildShoreRing = (poly, clampFn, isPrison = false) => {
+    for (let i = 0; i < poly.length; i++) {
+      const [ax, az] = poly[i];
+      const [bx, bz] = poly[(i + 1) % poly.length];
+      const mx = (ax + bx) * 0.5;
+      const mz = (az + bz) * 0.5;
+      const dx = bx - ax;
+      const dz = bz - az;
+      const segLen = Math.hypot(dx, dz);
+      if (segLen < 2 || segLen > 240) continue;
+
+      const [ix, iz] = clampFn(mx, mz);
+      const radialDx = mx - ix;
+      const radialDz = mz - iz;
+      const span = Math.hypot(radialDx, radialDz);
+      if (span < 4) continue;
+
+      // Não coloca falésia bloqueando Ponte da Prisão, Doca Guarda-Costeira ou Píer Sul/Canais
+      if (isPrison && mx > 1300 && mx < 1450 && mz < 1165) continue;
+      if (isPrison && mx < 955 && mz > 1470 && mz < 1630) continue;
+
+      const cx = (mx + ix) * 0.5;
+      const cz = (mz + iz) * 0.5;
+      const wBox = Math.max(24, Math.abs(dx) + Math.abs(radialDx) + 22);
+      const dBox = Math.max(24, Math.abs(dz) + Math.abs(radialDz) + 22);
+
+      // Base firme caminhável acima do nível da água (Y = -0.8 .. +0.25)
+      const isSandyCoast = mz > 700 || (mx < -1500 && mz > 650);
+      if (isSandyCoast) {
+        sandGeos.push(makeFastBox(wBox, 1.05, dBox, cx, -0.25, cz));
+        reefGeos.push(makeFastBox(wBox + 14, 0.35, dBox + 14, mx, -0.52, mz));
+      } else {
+        turfGeos.push(makeFastBox(wBox, 1.05, dBox, cx, -0.26, cz));
+        reefGeos.push(makeFastBox(wBox + 12, 0.35, dBox + 12, mx, -0.52, mz));
+        // Costões / Falésias rochosas em trechos de cabos salientes (longe das estradas)
+        if (span > 42 && i % 2 === 0) {
+          const cliffH = 3.2 + ((i * 19) % 7) * 1.1;
+          cliffGeos.push(
+            makeFastBox(
+              Math.max(18, Math.abs(dx) * 0.8 + 14),
+              cliffH,
+              Math.max(18, Math.abs(dz) * 0.8 + 14),
+              mx - radialDx * 0.18,
+              cliffH * 0.42 - 0.5,
+              mz - radialDz * 0.18
+            )
+          );
+        }
+      }
+    }
+  };
+
+  buildShoreRing(MAIN_WEST_POLYGON, (x, z) => [
+    THREE.MathUtils.clamp(x, -1820, 535),
+    THREE.MathUtils.clamp(z, -1315, 1040)
+  ]);
+
+  buildShoreRing(EAST_PENINSULA_POLYGON, (x, z) => [
+    THREE.MathUtils.clamp(x, 585, 1624),
+    THREE.MathUtils.clamp(z, -1315, 732)
+  ]);
+
+  buildShoreRing(
+    PRISON_ISLAND_POLYGON,
+    (x, z) => [
+      THREE.MathUtils.clamp(x, 960, 1790),
+      THREE.MathUtils.clamp(z, 1130, 1980)
+    ],
+    true
+  );
+
+  // Ilhotas do Arquipélago ao redor (camadas de recife, praia, grama/rocha + vegetação instanciada)
+  const treeTransforms = [];
+  for (const isl of ARCHIPELAGO_ISLETS) {
+    reefGeos.push(makeFastBox(isl.rx * 2.15, 0.45, isl.rz * 2.15, isl.x, -0.54, isl.z));
+    sandGeos.push(makeFastBox(isl.rx * 1.85, 0.9, isl.rz * 1.85, isl.x, -0.15, isl.z));
+    const coreGeos = isl.biome === 'rock' ? cliffGeos : isl.biome === 'forest' ? turfGeos : sandGeos;
+    const midH = Math.max(2.2, isl.peakY * 0.52);
+    coreGeos.push(makeFastBox(isl.rx * 1.35, midH, isl.rz * 1.35, isl.x, midH * 0.5, isl.z));
+    cliffGeos.push(makeFastBox(isl.rx * 0.72, isl.peakY, isl.rz * 0.72, isl.x, isl.peakY * 0.5, isl.z));
+
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + isl.seed * 0.3;
+      const distR = 0.42 + (k % 2) * 0.22;
+      treeTransforms.push({
+        x: isl.x + Math.cos(a) * isl.rx * distR,
+        y: midH + 2.4,
+        z: isl.z + Math.sin(a) * isl.rz * distR,
+        s: 1.0 + (k % 3) * 0.32
+      });
+    }
+  }
+
+  // Cadeia de Montanhas Distantes no Horizonte (360° dissolvendo o limite do oceano na neblina!)
+  for (const mt of HORIZON_MOUNTAINS) {
+    const r = mt.radius;
+    const h = mt.height;
+    horizonGeos.push(
+      makeFastBox(r * 1.85, h * 0.42, r * 1.65, mt.x, h * 0.18 - 4, mt.z),
+      makeFastBox(r * 1.15, h * 0.78, r * 1.05, mt.x + r * mt.ridgeSkew * 0.4, h * 0.36 - 2, mt.z),
+      makeFastBox(r * 0.55, h, r * 0.52, mt.x - r * mt.ridgeSkew * 0.2, h * 0.48 - 2, mt.z)
+    );
+  }
+
+  // Fronteiras Visuais Claras entre Regiões (meio-fios/muretas táticas sem fechar nenhuma rua!)
+  const blockedAvenuesX = [-384, -252, -120, 0, 120, 252, 384];
+  const blockedAvenuesZ = [-382, -250, -117, 0, 134, 402, 710];
+  const isNearAvenue = (val, list, margin = 22) => list.some((a) => Math.abs(val - a) < margin);
+
+  for (const brd of REGION_BORDER_LINES) {
+    const [x1, z1] = brd.from;
+    const [x2, z2] = brd.to;
+    const dx = x2 - x1;
+    const dz = z2 - z1;
+    const totalLen = Math.hypot(dx, dz);
+    const steps = Math.max(1, Math.floor(totalLen / 36));
+    const bucket = borderAccentGeos[brd.color] || [];
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const px = x1 + dx * t;
+      const pz = z1 + dz * t;
+      if (Math.abs(dx) >= Math.abs(dz)) {
+        if (isNearAvenue(px, blockedAvenuesX, 24)) continue;
+      } else {
+        if (isNearAvenue(pz, blockedAvenuesZ, 24)) continue;
+      }
+      const py = getUrbanCityReliefY(px, pz);
+      const isHoriz = Math.abs(dx) >= Math.abs(dz);
+      const isDriveOverBorder =
+        brd.id === 'border_oeste_aero' ||
+        brd.id === 'border_ind_porto' ||
+        brd.id === 'border_cdd_centro';
+      if (isDriveOverBorder) {
+        bucket.push(makeFastBox(isHoriz ? 18 : 1.5, 0.16, isHoriz ? 1.5 : 18, px, py + 0.08, pz));
+      } else {
+        bucket.push(makeFastBox(isHoriz ? 16 : 1.3, 0.65, isHoriz ? 1.3 : 16, px, py + 0.32, pz));
+        cliffGeos.push(makeFastBox(isHoriz ? 1.6 : 1.8, 1.15, isHoriz ? 1.8 : 1.6, px, py + 0.56, pz));
+      }
+    }
+  }
+
+  const flushBatch = (geos, mat, opts = {}) => {
+    if (!geos.length) return;
+    addChunkedArrayToScene(world.scene, geos, mat, { chunkSize: 700, receiveShadow: true, ...opts });
+  };
+
+  flushBatch(sandGeos, getLegoMaterial(0xeab308, { roughness: 0.72 }));
+  flushBatch(turfGeos, getLegoMaterial(0x4d8b31, { roughness: 0.65 }));
+  flushBatch(cliffGeos, getLegoMaterial(0x475569, { roughness: 0.78 }));
+  flushBatch(reefGeos, new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35, metalness: 0.15 }));
+  flushBatch(
+    horizonGeos,
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.92, metalness: 0.04 }),
+    { receiveShadow: false, chunkSize: 1800 }
+  );
+
+  for (const [hexStr, list] of Object.entries(borderAccentGeos)) {
+    if (!list.length) continue;
+    flushBatch(list, getLegoMaterial(parseInt(hexStr.replace('#', ''), 16), { roughness: 0.35 }));
+  }
+
+  if (treeTransforms.length > 0) {
+    const dummy = new THREE.Object3D();
+    const crownGeo = new THREE.ConeGeometry(4.2, 10.5, 6);
+    const trunkGeo = new THREE.CylinderGeometry(0.9, 1.1, 5.0, 6);
+    const crownInst = new THREE.InstancedMesh(crownGeo, getLegoMaterial(0x22c55e, { roughness: 0.5 }), treeTransforms.length);
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, getLegoMaterial(0x78350f, { roughness: 0.7 }), treeTransforms.length);
+    treeTransforms.forEach((tr, idx) => {
+      dummy.position.set(tr.x, tr.y + 4.0 * tr.s, tr.z);
+      dummy.scale.set(tr.s, tr.s, tr.s);
+      dummy.updateMatrix();
+      crownInst.setMatrixAt(idx, dummy.matrix);
+      dummy.position.set(tr.x, tr.y - 1.2, tr.z);
+      dummy.scale.set(tr.s, tr.s, tr.s);
+      dummy.updateMatrix();
+      trunkInst.setMatrixAt(idx, dummy.matrix);
+    });
+    crownInst.instanceMatrix.needsUpdate = true;
+    trunkInst.instanceMatrix.needsUpdate = true;
+    world.scene.add(crownInst, trunkInst);
+  }
 }
 
 /**

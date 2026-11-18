@@ -1,5 +1,13 @@
 import { getSvgIcon, drawCanvasVectorIcon } from './TacticalIcons.js';
 import { TERRITORY_ZONES, FACTION_THEME } from '../world/FactionWarSystem.js';
+import {
+  MAIN_WEST_POLYGON,
+  EAST_PENINSULA_POLYGON,
+  PRISON_ISLAND_POLYGON,
+  ARCHIPELAGO_ISLETS,
+  REGION_BIOME_MAP,
+  REGION_BORDER_LINES
+} from '../world/CoastlineProfile.js';
 
 function normalizeAngleDiff(a, b) {
   let d = (a - b) % (Math.PI * 2);
@@ -53,9 +61,58 @@ function getStaticMinimapCache(world) {
 
   // 1. Massa Continental + Ilha da Prisão
   cctx.fillStyle = '#141821';
-  cctx.fillRect(toX(-1825), toY(-1320), 2465 * pxPerMeter, 2365 * pxPerMeter);
-  cctx.fillRect(toX(580), toY(-1320), 1048 * pxPerMeter, 2055 * pxPerMeter);
-  cctx.fillRect(toX(955), toY(1120), 840 * pxPerMeter, 860 * pxPerMeter);
+  // Massa terrestre orgânica (substituindo o antigo retângulo quadrado)
+  cctx.fillStyle = '#252932';
+  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+    if (!poly || poly.length < 3) continue;
+    cctx.beginPath();
+    cctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
+    for (let i = 1; i < poly.length; i++) {
+      cctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
+    }
+    cctx.closePath();
+    cctx.fill();
+  }
+  // Ilhotas do Arquipélago
+  for (const isl of ARCHIPELAGO_ISLETS) {
+    cctx.beginPath();
+    cctx.ellipse(toX(isl.x), toY(isl.z), isl.rx * pxPerMeter, isl.rz * pxPerMeter, 0, 0, Math.PI * 2);
+    cctx.fill();
+  }
+
+  // Biomas sutis & Fronteiras claras entre regiões recortados dentro da costa orgânica
+  cctx.save();
+  cctx.beginPath();
+  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+    if (!poly || poly.length < 3) continue;
+    cctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
+    for (let i = 1; i < poly.length; i++) {
+      cctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
+    }
+    cctx.closePath();
+  }
+  cctx.clip();
+  for (const reg of REGION_BIOME_MAP) {
+    cctx.fillStyle = reg.tint;
+    cctx.globalAlpha = 0.24;
+    cctx.fillRect(
+      toX(reg.minX),
+      toY(reg.minZ),
+      (reg.maxX - reg.minX) * pxPerMeter,
+      (reg.maxZ - reg.minZ) * pxPerMeter
+    );
+  }
+  cctx.globalAlpha = 0.72;
+  cctx.setLineDash([4, 4]);
+  cctx.lineWidth = 1.2;
+  for (const brd of REGION_BORDER_LINES) {
+    cctx.strokeStyle = brd.color;
+    cctx.beginPath();
+    cctx.moveTo(toX(brd.from[0]), toY(brd.from[1]));
+    cctx.lineTo(toX(brd.to[0]), toY(brd.to[1]));
+    cctx.stroke();
+  }
+  cctx.restore();
 
   // 2. Quarteirões / Calçadas / Parques / Areia / Pátios / Morro da CDD
   if (Array.isArray(world.mapBlocks)) {
@@ -293,9 +350,21 @@ export function renderMinimapRadar(
     }
   } else {
     ctx.fillStyle = '#141821';
-    ctx.fillRect(relX(-1825), relY(-1320), 2465 * scale, 2365 * scale);
-    ctx.fillRect(relX(580), relY(-1320), 1048 * scale, 2055 * scale);
-    ctx.fillRect(relX(955), relY(1120), 840 * scale, 860 * scale);
+    for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+      if (!poly || poly.length < 3) continue;
+      ctx.beginPath();
+      ctx.moveTo(relX(poly[0][0]), relY(poly[0][1]));
+      for (let i = 1; i < poly.length; i++) {
+        ctx.lineTo(relX(poly[i][0]), relY(poly[i][1]));
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    for (const isl of ARCHIPELAGO_ISLETS) {
+      ctx.beginPath();
+      ctx.ellipse(relX(isl.x), relY(isl.z), isl.rx * scale, isl.rz * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   if (world) {

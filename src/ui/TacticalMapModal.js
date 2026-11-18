@@ -1,5 +1,13 @@
 import { getSvgIcon, drawCanvasVectorIcon } from './TacticalIcons.js';
 import { TERRITORY_ZONES, FACTION_THEME } from '../world/FactionWarSystem.js';
+import {
+  MAIN_WEST_POLYGON,
+  EAST_PENINSULA_POLYGON,
+  PRISON_ISLAND_POLYGON,
+  ARCHIPELAGO_ISLETS,
+  REGION_BIOME_MAP,
+  REGION_BORDER_LINES
+} from '../world/CoastlineProfile.js';
 
 /**
  * Modal do Mapa Tatico Completo [M] (Overhaul Completo de UX — Zero Emojis):
@@ -434,12 +442,82 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
   ctx.fillStyle = '#141821';
   ctx.strokeStyle = '#334155';
   ctx.lineWidth = 2;
-  ctx.fillRect(toX(-1825), toY(-1320), 2465 * scale, 2365 * scale);
-  ctx.strokeRect(toX(-1825), toY(-1320), 2465 * scale, 2365 * scale);
-  ctx.fillRect(toX(580), toY(-1320), 1048 * scale, 2055 * scale);
-  ctx.strokeRect(toX(580), toY(-1320), 1048 * scale, 2055 * scale);
-  ctx.fillRect(toX(955), toY(1120), 840 * scale, 860 * scale);
-  ctx.strokeRect(toX(955), toY(1120), 840 * scale, 860 * scale);
+  // Ilhas orgânicas + ilhotas com biomas e fronteiras claras
+  const drawPolyPath = (poly) => {
+    if (!poly || poly.length < 3) return;
+    ctx.beginPath();
+    ctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
+    for (let i = 1; i < poly.length; i++) {
+      ctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
+    }
+    ctx.closePath();
+  };
+
+  // Halos de água rasa costeira
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(4, 28 * scale);
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.24)';
+  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+    drawPolyPath(poly);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Base terrestre orgânica
+  ctx.fillStyle = '#1e222b';
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 2;
+  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+    drawPolyPath(poly);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Ilhotas ao redor
+  for (const isl of ARCHIPELAGO_ISLETS) {
+    ctx.beginPath();
+    ctx.ellipse(toX(isl.x), toY(isl.z), isl.rx * scale, isl.rz * scale, 0, 0, Math.PI * 2);
+    ctx.fillStyle = isl.biome === 'sand' ? '#4a3d22' : isl.biome === 'forest' ? '#1c3b29' : '#2f3747';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
+  // Realce sutil de Biomas e Linhas de Fronteira recortados dentro das massas de terra
+  ctx.save();
+  ctx.beginPath();
+  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+    if (!poly || poly.length < 3) continue;
+    ctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
+    for (let i = 1; i < poly.length; i++) {
+      ctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
+    }
+    ctx.closePath();
+  }
+  ctx.clip();
+  for (const reg of REGION_BIOME_MAP) {
+    ctx.fillStyle = reg.tint;
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(
+      toX(reg.minX),
+      toY(reg.minZ),
+      (reg.maxX - reg.minX) * scale,
+      (reg.maxZ - reg.minZ) * scale
+    );
+  }
+  ctx.globalAlpha = 0.85;
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = Math.max(1.2, 2.5 * scale);
+  for (const brd of REGION_BORDER_LINES) {
+    ctx.strokeStyle = brd.color;
+    ctx.beginPath();
+    ctx.moveTo(toX(brd.from[0]), toY(brd.from[1]));
+    ctx.lineTo(toX(brd.to[0]), toY(brd.to[1]));
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // 3. Quarteiroes, Praias, Morro da CDD, Patios do Porto e Parques
   for (const blk of world.mapBlocks) {

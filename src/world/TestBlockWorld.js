@@ -31,6 +31,7 @@ import {
 } from './StreetPropsBuilder.js';
 import { buildBoatsAndAircraftFleet } from './NavalAndAirFleetBuilder.js';
 import { applySavedAircraftConfigsToCarrier } from './AircraftCustomGarage.js';
+import { isPointOnOrganicLand, getIsletSampleAt } from './CoastlineProfile.js';
 import { buildSuperBancoCentral } from './regions/SuperBankBuilder.js';
 import {
   buildHeroTowerComplex,
@@ -850,6 +851,9 @@ export class TestBlockWorld {
     const roadY = this.getRoadElevation(x, z);
     if (roadY !== 0) return roadY;
 
+    const isletSample = getIsletSampleAt(x, z);
+    if (isletSample) return isletSample.height;
+
     return Math.max(
       getFavelaElevation(x, z),
       getUrbanCityReliefY(x, z)
@@ -952,7 +956,8 @@ export class TestBlockWorld {
       return true;
     }
 
-    // 4. TERRA FIRME (Ilha Principal X <= 540, Praia Sul + Ponta Sudoeste, Aeroporto + Ala Militar Norte, PCC + Porto Leste X >= 580, Ilha da Prisão e Píeres/Marinas)
+    // 4. TERRA FIRME (Ilha Principal Orgânica, Ilhotas do Arquipélago, Península Leste, Prisão e Píeres/Marinas)
+    if (isPointOnOrganicLand(x, z)) return false;
     if (x >= -1825 && x <= 540 && z >= -1320 && z <= 1045) return false;
     if (x >= 580 && x <= 1628 && z >= -1320 && z <= 736) return false;
     // 2 Grandes Navios Porta-Contêineres no Cais Leste + 1 Navio Blindado A.R.E.S. na Doca Sul (Rampas + Convés Dinâmico Pilotável!)

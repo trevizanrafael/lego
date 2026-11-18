@@ -10,6 +10,7 @@ import {
   applyAircraftCustomization,
   getActiveAircraftSaveData
 } from '../world/AircraftCustomGarage.js';
+import { getWorldSoftBoundaryForce } from '../world/CoastlineProfile.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -3059,8 +3060,10 @@ export class ThirdPersonController {
     const carRadius = 1.45;
     const curX = carObj.mesh.position.x;
     const curZ = carObj.mesh.position.z;
-    const nextX = THREE.MathUtils.clamp(curX + this.velocity.x * dt, -2200, 2200);
-    const nextZ = THREE.MathUtils.clamp(curZ + this.velocity.z * dt, -1500, 1700);
+    const sbDrive = getWorldSoftBoundaryForce(curX + this.velocity.x * dt, curZ + this.velocity.z * dt);
+    const bDrive = sbDrive.hardBounds;
+    const nextX = THREE.MathUtils.clamp(curX + (this.velocity.x + sbDrive.fx * 45) * dt, bDrive.minX, bDrive.maxX);
+    const nextZ = THREE.MathUtils.clamp(curZ + (this.velocity.z + sbDrive.fz * 45) * dt, bDrive.minZ, bDrive.maxZ);
 
     // Atropelamento O(1) de objetos quebráveis de rua (~460 props a 60 FPS!), Impacto de Ariete e RAMPA CUNHA!
     const isUnstoppable = spec.rammingPower === 'unstoppable';
@@ -3426,8 +3429,10 @@ export class ThirdPersonController {
 
     const curX = carObj.mesh.position.x;
     const curZ = carObj.mesh.position.z;
-    const nextX = THREE.MathUtils.clamp(curX + this.velocity.x * dt, -2600, 2600);
-    const nextZ = THREE.MathUtils.clamp(curZ + this.velocity.z * dt, -2000, 2200);
+    const sbBoat = getWorldSoftBoundaryForce(curX + this.velocity.x * dt, curZ + this.velocity.z * dt);
+    const bBoat = sbBoat.hardBounds;
+    const nextX = THREE.MathUtils.clamp(curX + (this.velocity.x + sbBoat.fx * 55) * dt, bBoat.minX, bBoat.maxX);
+    const nextZ = THREE.MathUtils.clamp(curZ + (this.velocity.z + sbBoat.fz * 55) * dt, bBoat.minZ, bBoat.maxZ);
 
     // Barcos só navegam onde há água profunda (bloqueia subir na areia seca ou calçada!)
     const isColossal = Boolean(spec.isColossalShip);
@@ -3598,8 +3603,10 @@ export class ThirdPersonController {
     const curY = carObj.mesh.position.y;
     const curZ = carObj.mesh.position.z;
 
-    const nextX = THREE.MathUtils.clamp(curX + this.velocity.x * dt, -2400, 2400);
-    const nextZ = THREE.MathUtils.clamp(curZ + this.velocity.z * dt, -1800, 2000);
+    const sbHeli = getWorldSoftBoundaryForce(curX + this.velocity.x * dt, curZ + this.velocity.z * dt);
+    const bHeli = sbHeli.hardBounds;
+    const nextX = THREE.MathUtils.clamp(curX + (this.velocity.x + sbHeli.fx * 65) * dt, bHeli.minX, bHeli.maxX);
+    const nextZ = THREE.MathUtils.clamp(curZ + (this.velocity.z + sbHeli.fz * 65) * dt, bHeli.minZ, bHeli.maxZ);
     const supportY = this._findGroundSupportAt(nextX, nextZ, curY);
     const finalY = THREE.MathUtils.clamp(curY + this.velocity.y * dt, supportY, 540);
     const isAirborne = finalY > supportY + 0.35;
@@ -3707,8 +3714,10 @@ export class ThirdPersonController {
     const forwardZ = Math.cos(this.vehicleHeading);
     this.velocity.set(forwardX * this.vehicleSpeed, this.vehicleVerticalSpeed, forwardZ * this.vehicleSpeed);
 
-    const nextX = THREE.MathUtils.clamp(curX + this.velocity.x * dt, -2600, 2600);
-    const nextZ = THREE.MathUtils.clamp(curZ + this.velocity.z * dt, -2000, 2200);
+    const sbBoat = getWorldSoftBoundaryForce(curX + this.velocity.x * dt, curZ + this.velocity.z * dt);
+    const bBoat = sbBoat.hardBounds;
+    const nextX = THREE.MathUtils.clamp(curX + (this.velocity.x + sbBoat.fx * 55) * dt, bBoat.minX, bBoat.maxX);
+    const nextZ = THREE.MathUtils.clamp(curZ + (this.velocity.z + sbBoat.fz * 55) * dt, bBoat.minZ, bBoat.maxZ);
     const nextSupportY = this._findGroundSupportAt(nextX, nextZ, curY);
     const finalY = THREE.MathUtils.clamp(curY + this.velocity.y * dt, nextSupportY, 550);
 
@@ -4684,8 +4693,13 @@ export class ThirdPersonController {
       this.grabbedCar.mesh.rotation.set(0, this.facingAngle + Math.PI * 0.5, 0);
     }
 
-    this.position.x = THREE.MathUtils.clamp(this.position.x, -2200, 2200);
-    this.position.z = THREE.MathUtils.clamp(this.position.z, -1500, 1700);
+    const sbFoot = getWorldSoftBoundaryForce(this.position.x, this.position.z);
+    if (sbFoot.intensity > 0) {
+      this.position.x += sbFoot.fx * 36 * dt;
+      this.position.z += sbFoot.fz * 36 * dt;
+    }
+    this.position.x = THREE.MathUtils.clamp(this.position.x, sbFoot.hardBounds.minX, sbFoot.hardBounds.maxX);
+    this.position.z = THREE.MathUtils.clamp(this.position.z, sbFoot.hardBounds.minZ, sbFoot.hardBounds.maxZ);
     this.position.y = THREE.MathUtils.clamp(this.position.y, -15.5, 560);
 
     this.minifigure.root.position.copy(this.position);
