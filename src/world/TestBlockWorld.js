@@ -305,6 +305,9 @@ export class TestBlockWorld {
         for (const b of this.attractions.baileEqBars) addDyn(b);
       }
       addDyn(this.attractions.djRig?.root);
+      if (this.attractions.baileCrowd?.allInstMeshes) {
+        for (const im of this.attractions.baileCrowd.allInstMeshes) addDyn(im);
+      }
       if (Array.isArray(this.attractions.baileLaserPivots)) {
         for (const ls of this.attractions.baileLaserPivots) addDyn(ls?.pivot);
       }

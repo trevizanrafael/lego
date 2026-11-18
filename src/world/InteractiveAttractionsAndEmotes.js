@@ -410,69 +410,360 @@ export class InteractiveAttractionsManager {
       this.baileLaserPivots.push({ pivot: lPivot, mat: lMat, phase: l * 1.5 });
     }
 
-    // E) 28 Moradores Civis LEGO Dançando Sincronizados na Quadra (InstancedMesh = apenas 4 Draw Calls -> 60 FPS!)
-    const dancerCount = 28;
-    const bodyGeo = mergeBufferGeometries([
-      makeTranslatedBox(0.72, 0.72, 0.38, 0, 0.36, 0),
-      makeTranslatedBox(0.82, 0.76, 0.42, 0, 1.1, 0)
-    ]);
-    const headGeo = new THREE.CylinderGeometry(0.31, 0.31, 0.44, 14);
-    const studGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.1, 10);
-    studGeo.translate(0, 0.27, 0);
-    const fullHeadGeo = mergeBufferGeometries([headGeo, studGeo]);
-    fullHeadGeo.translate(0, 1.72, 0);
+    // E) Multidão Instanciada do Baile da CDD (64 NPCs em Sistema Dual-LOD: 28 pista central + 36 palco/entorno, 60 FPS!)
+    const coreCount = 28; // Preserva compatibilidade com attr.baileCrowd.count === 28
+    const partyDefs = [];
 
-    const armGeo = new THREE.BoxGeometry(0.22, 0.62, 0.22);
-    armGeo.translate(0, -0.24, 0);
+    const isInsideObstacle = (px, pz) => {
+      // Palco do DJ (cx - 14.0, cz, 5.2 x 13.5) e Paredão (cx - 19.0, cz, 5.4 x 21.0)
+      if (px >= cx - 22.5 && px <= cx - 10.6 && Math.abs(pz - cz) <= 11.2) return true;
+      // Barracas laterais (cx - 5 e cx + 8 em cz +- 22.5)
+      if (Math.abs(pz - (cz - 22.5)) < 3.0 || Math.abs(pz - (cz + 22.5)) < 3.0) {
+        if (Math.abs(px - (cx - 5)) < 4.0 || Math.abs(px - (cx + 8)) < 4.0) return true;
+      }
+      // Mesas plásticas e cadeiras (mx de cx-6 até cx+14 passo 6.5 em cz +- 17.5)
+      if (Math.abs(pz - (cz - 17.5)) < 1.8 || Math.abs(pz - (cz + 17.5)) < 1.8) {
+        for (let mx = cx - 6; mx <= cx + 14; mx += 6.5) {
+          if (Math.abs(px - mx) < 2.2) return true;
+        }
+      }
+      return false;
+    };
 
-    const bodyInst = new THREE.InstancedMesh(
-      bodyGeo,
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.26 }),
-      dancerCount
-    );
-    const headInst = new THREE.InstancedMesh(
-      fullHeadGeo,
-      getLegoMaterial(0xfacc15, { roughness: 0.22 }),
-      dancerCount
-    );
-    const leftArmInst = new THREE.InstancedMesh(
-      armGeo,
-      getLegoMaterial(0xfacc15, { roughness: 0.24 }),
-      dancerCount
-    );
-    const rightArmInst = new THREE.InstancedMesh(
-      armGeo,
-      getLegoMaterial(0xfacc15, { roughness: 0.24 }),
-      dancerCount
-    );
-
-    const shirtPalette = [0xdc2626, 0xfacc15, 0x2563eb, 0x06b6d4, 0x22c55e, 0xec4899, 0xf97316, 0xf8fafc];
-    const dancers = [];
-    for (let i = 0; i < dancerCount; i++) {
-      const row = Math.floor(i / 7); // 4 fileiras de 7 dançarinos
+    // 1) 28 Dançarinos Centrais da Pista Vermelha (longe do palco/mesas, piso limpo em yBase + 0.22)
+    for (let i = 0; i < coreCount; i++) {
+      const row = Math.floor(i / 7);
       const col = i % 7;
-      const dx = cx - 8.5 + row * 5.2 + ((i * 7) % 3 - 1) * 0.85;
-      const dz = cz - 12.6 + col * 4.2 + ((i * 11) % 3 - 1) * 0.75;
-      bodyInst.setColorAt(i, new THREE.Color(shirtPalette[i % shirtPalette.length]));
-      dancers.push({
+      const dx = cx - 8.2 + row * 4.4 + (((i * 7) % 3) - 1) * 0.55;
+      const dz = cz - 12.6 + col * 4.2 + (((i * 11) % 3) - 1) * 0.6;
+      partyDefs.push({
         x: dx,
-        y: yBase + 0.2,
+        y: yBase + 0.22,
         z: dz,
-        baseYaw: -Math.PI / 2 + ((i % 5) - 2) * 0.15, // Olhando para o DJ / Paredão!
-        phase: (i % 4) * 0.45
+        baseYaw: -Math.PI / 2 + ((i % 5) - 2) * 0.16,
+        phase: (i * 0.63) % (Math.PI * 2),
+        danceStyle: i % 4,
+        hasCap: i % 3 !== 0,
+        tier: 'core'
       });
     }
-    if (bodyInst.instanceColor) bodyInst.instanceColor.needsUpdate = true;
 
-    this.scene.add(bodyInst, headInst, leftArmInst, rightArmInst);
-    this.baileCrowd = {
-      count: dancerCount,
-      dancers,
+    // 2) 2 Dançarinos Hype no Palco ao lado do DJ (yBase + 1.40 em cima do tablado!)
+    for (const [sx, sz, syaw] of [
+      [cx - 13.8, cz - 4.8, Math.PI * 0.42],
+      [cx - 13.8, cz + 4.8, Math.PI * 0.58]
+    ]) {
+      partyDefs.push({
+        x: sx,
+        y: yBase + 1.4,
+        z: sz,
+        baseYaw: syaw,
+        phase: sz > cz ? 1.1 : 2.9,
+        danceStyle: 3,
+        hasCap: true,
+        tier: 'stage'
+      });
+    }
+
+    // 3) 34 Festeiros no Entorno da Pista, Camarotes e Pátio Leste (filtrados contra obstáculos)
+    const candidateSlots = [];
+    for (let k = 0; k < 6; k++) {
+      candidateSlots.push([cx - 6.5 + k * 4.2, cz - 14.8, Math.PI * -0.32, k % 5]);
+      candidateSlots.push([cx - 6.5 + k * 4.2, cz + 14.8, Math.PI * -0.68, (k + 2) % 5]);
+    }
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 7; c++) {
+        candidateSlots.push([
+          cx + 9.6 + r * 4.2 + ((c % 2) * 0.6 - 0.3),
+          cz - 11.4 + c * 3.8,
+          -Math.PI / 2 + ((c % 3) - 1) * 0.18,
+          (r * 3 + c) % 4
+        ]);
+      }
+    }
+    for (let m = 0; m < 10; m++) {
+      const px = cx + 18.2 + (m % 2) * 3.2;
+      const pz = cz - 10.5 + Math.floor(m / 2) * 5.2;
+      candidateSlots.push([px, pz, -Math.PI / 2 + (((m * 3) % 5) - 2) * 0.2, 4]);
+    }
+
+    for (let idx = 0; idx < candidateSlots.length && partyDefs.length < 64; idx++) {
+      const [px, pz, pyaw, style] = candidateSlots[idx];
+      if (isInsideObstacle(px, pz)) continue;
+      partyDefs.push({
+        x: px,
+        y: yBase + 0.22,
+        z: pz,
+        baseYaw: pyaw,
+        phase: (partyDefs.length * 0.85) % (Math.PI * 2),
+        danceStyle: style,
+        hasCap: partyDefs.length % 4 !== 1,
+        tier: 'outer'
+      });
+    }
+
+    const totalCount = partyDefs.length;
+    const legGeo = new THREE.BoxGeometry(0.28, 0.72, 0.34);
+    legGeo.translate(0, -0.36, 0);
+
+    const bodyGeo = mergeBufferGeometries([
+      makeTranslatedBox(0.72, 0.14, 0.38, 0, 0.07, 0),
+      makeTranslatedBox(0.78, 0.62, 0.42, 0, 0.43, 0)
+    ]);
+
+    const headCyl = new THREE.CylinderGeometry(0.31, 0.31, 0.44, 14);
+    headCyl.rotateY(Math.PI);
+    const studGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.1, 10);
+    studGeo.translate(0, 0.27, 0);
+    const fullHeadGeo = mergeBufferGeometries([headCyl, studGeo]);
+    fullHeadGeo.translate(0, 0.22, 0);
+
+    const armGeo = new THREE.BoxGeometry(0.21, 0.6, 0.22);
+    armGeo.translate(0, -0.26, 0);
+
+    const crowdCapGeo = mergeBufferGeometries([
+      makeTranslatedBox(0.68, 0.15, 0.68, 0, 0.07, 0),
+      makeTranslatedBox(0.56, 0.06, 0.34, 0, 0.03, 0.34)
+    ]);
+
+    const farSilhouetteGeo = mergeBufferGeometries([
+      makeTranslatedBox(0.68, 0.72, 0.36, 0, 0.36, 0),
+      makeTranslatedBox(0.82, 0.74, 0.42, 0, 1.09, 0),
+      makeTranslatedBox(0.54, 0.46, 0.54, 0, 1.69, 0)
+    ]);
+
+    const shirtMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.28 });
+    const pantsMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.38 });
+    const skinMat = getLegoMaterial(0xfacc15, { roughness: 0.24 });
+    const headFaceMat = getSharedNpcFaceMaterial('civ_cool');
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.26 });
+    const farMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+
+    const leftLegInst = new THREE.InstancedMesh(legGeo, pantsMat, totalCount);
+    const rightLegInst = new THREE.InstancedMesh(legGeo, pantsMat, totalCount);
+    const bodyInst = new THREE.InstancedMesh(bodyGeo, shirtMat, totalCount);
+    const headInst = new THREE.InstancedMesh(fullHeadGeo, headFaceMat, totalCount);
+    const leftArmInst = new THREE.InstancedMesh(armGeo, skinMat, totalCount);
+    const rightArmInst = new THREE.InstancedMesh(armGeo, skinMat, totalCount);
+    const capInst = new THREE.InstancedMesh(crowdCapGeo, capMat, totalCount);
+    const farLodInst = new THREE.InstancedMesh(farSilhouetteGeo, farMat, totalCount);
+
+    const crowdSphere = new THREE.Sphere(new THREE.Vector3(cx, yBase + 2.0, cz), 55);
+    const allInstMeshes = [
+      leftLegInst,
+      rightLegInst,
       bodyInst,
       headInst,
       leftArmInst,
-      rightArmInst
+      rightArmInst,
+      capInst,
+      farLodInst
+    ];
+    for (const im of allInstMeshes) {
+      im.frustumCulled = false;
+      im.boundingSphere = crowdSphere.clone();
+    }
+    farLodInst.visible = false;
+
+    const shirtPalette = [0xdc2626, 0xfacc15, 0x2563eb, 0x06b6d4, 0x22c55e, 0xec4899, 0xf97316, 0xf8fafc];
+    const pantsPalette = [0x0f172a, 0x1e3a8a, 0x334155, 0x1f2937, 0x78350f];
+    const capPalette = [0xdc2626, 0xfacc15, 0xf8fafc, 0x06b6d4, 0x090a0d, 0x22c55e];
+    const tmpColor = new THREE.Color();
+
+    for (let i = 0; i < totalCount; i++) {
+      const sCol = shirtPalette[i % shirtPalette.length];
+      const pCol = pantsPalette[(i * 3) % pantsPalette.length];
+      const cCol = capPalette[(i * 5) % capPalette.length];
+      bodyInst.setColorAt(i, tmpColor.setHex(sCol));
+      farLodInst.setColorAt(i, tmpColor.setHex(sCol));
+      leftLegInst.setColorAt(i, tmpColor.setHex(pCol));
+      rightLegInst.setColorAt(i, tmpColor.setHex(pCol));
+      capInst.setColorAt(i, tmpColor.setHex(cCol));
+    }
+    for (const im of [bodyInst, farLodInst, leftLegInst, rightLegInst, capInst]) {
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    }
+
+    this.scene.add(...allInstMeshes);
+    this.baileCrowd = {
+      count: coreCount,
+      totalCount,
+      dancers: partyDefs.slice(0, coreCount),
+      allDancers: partyDefs,
+      lodMode: 'near',
+      leftLegInst,
+      rightLegInst,
+      bodyInst,
+      headInst,
+      leftArmInst,
+      rightArmInst,
+      capInst,
+      farLodInst,
+      allInstMeshes
     };
+
+    // Popula matrizes válidas imediatamente no Frame 0 (zero boneco empilhado em 0,0,0!)
+    this._updateBaileCrowdTransforms(0, null, 1.0, false, false);
+    this._updateBaileCrowdTransforms(0, null, 1.0, false, true);
+  }
+
+  _updateBaileCrowdTransforms(t, playerPos, hypeMult, isPlayerDancingHere, farLodOnly) {
+    if (!this.baileCrowd) return;
+    const {
+      allDancers,
+      leftLegInst,
+      rightLegInst,
+      bodyInst,
+      headInst,
+      leftArmInst,
+      rightArmInst,
+      capInst,
+      farLodInst
+    } = this.baileCrowd;
+    const dmy = this._dummy;
+    dmy.rotation.order = 'YXZ';
+
+    for (let i = 0; i < allDancers.length; i++) {
+      const d = allDancers[i];
+      const ph = t * 11.2 + d.phase;
+      const beat = Math.sin(ph);
+      const halfBeat = Math.sin(ph * 0.5);
+      const dblBeat = Math.sin(ph * 2.0);
+      const style = d.danceStyle;
+
+      let yaw = d.baseYaw + halfBeat * 0.22;
+      if (isPlayerDancingHere && playerPos) {
+        const pdx = playerPos.x - d.x;
+        const pdz = playerPos.z - d.z;
+        if (pdx * pdx + pdz * pdz < 144) {
+          yaw = Math.atan2(pdx, pdz);
+        }
+      }
+
+      const cosY = Math.cos(yaw);
+      const sinY = Math.sin(yaw);
+
+      let hop = Math.abs(beat) * 0.22 * hypeMult;
+      let sideStep = 0;
+      let leanX = 0.05;
+      let twistZ = beat * 0.08;
+      let legPitchL = 0;
+      let legPitchR = 0;
+      let armPitchL = -1.6;
+      let armPitchR = -1.6;
+      let armRollL = 0.22;
+      let armRollR = -0.22;
+
+      if (style === 0) {
+        hop = Math.abs(dblBeat) * 0.24 * hypeMult;
+        sideStep = halfBeat * 0.26;
+        legPitchL = Math.max(-0.65, Math.min(0.65, beat * 0.58));
+        legPitchR = -legPitchL;
+        armPitchL = -1.35 + beat * 0.55;
+        armPitchR = -1.35 - beat * 0.55;
+        leanX = 0.12;
+      } else if (style === 1) {
+        hop = Math.pow(Math.max(0, beat), 2) * 0.34 * hypeMult;
+        armPitchL = -2.45 + dblBeat * 0.38;
+        armPitchR = -2.45 + dblBeat * 0.38;
+        armRollL = 0.32;
+        armRollR = -0.32;
+        legPitchL = Math.abs(beat) * 0.22;
+        legPitchR = Math.abs(beat) * 0.22;
+      } else if (style === 2) {
+        sideStep = halfBeat * 0.42;
+        hop = Math.abs(beat) * 0.16 * hypeMult;
+        legPitchL = halfBeat * 0.36;
+        legPitchR = -halfBeat * 0.36;
+        armPitchL = -2.1 + beat * 0.35;
+        armPitchR = -0.55 - beat * 0.25;
+        twistZ = halfBeat * 0.14;
+      } else if (style === 3) {
+        hop = Math.abs(dblBeat) * 0.22 * hypeMult;
+        leanX = 0.16;
+        armPitchL = -2.05 + Math.abs(dblBeat) * 0.32;
+        armPitchR = -2.05 + Math.abs(dblBeat) * 0.32;
+        armRollL = -0.25 + Math.abs(dblBeat) * 0.24;
+        armRollR = 0.25 - Math.abs(dblBeat) * 0.24;
+      } else {
+        hop = Math.abs(halfBeat) * 0.08 * hypeMult;
+        armPitchL = -0.4 + halfBeat * 0.28;
+        armPitchR = -0.9 - beat * 0.22;
+        legPitchL = halfBeat * 0.14;
+        legPitchR = -halfBeat * 0.14;
+        twistZ = halfBeat * 0.06;
+      }
+
+      const px = d.x + cosY * sideStep;
+      const pz = d.z - sinY * sideStep;
+
+      if (farLodOnly) {
+        dmy.position.set(px, d.y + hop, pz);
+        dmy.rotation.set(0, yaw, twistZ);
+        dmy.scale.set(1, 1, 1);
+        dmy.updateMatrix();
+        farLodInst.setMatrixAt(i, dmy.matrix);
+        continue;
+      }
+
+      const hipY = d.y + 0.72 + hop;
+      const shoulderY = hipY + 0.68;
+
+      dmy.position.set(px - cosY * 0.21, hipY, pz + sinY * 0.21);
+      dmy.rotation.set(legPitchL, yaw, 0);
+      dmy.scale.set(1, 1, 1);
+      dmy.updateMatrix();
+      leftLegInst.setMatrixAt(i, dmy.matrix);
+
+      dmy.position.set(px + cosY * 0.21, hipY, pz - sinY * 0.21);
+      dmy.rotation.set(legPitchR, yaw, 0);
+      dmy.updateMatrix();
+      rightLegInst.setMatrixAt(i, dmy.matrix);
+
+      dmy.position.set(px, hipY, pz);
+      dmy.rotation.set(leanX, yaw, twistZ);
+      dmy.updateMatrix();
+      bodyInst.setMatrixAt(i, dmy.matrix);
+
+      dmy.position.set(px, hipY + 0.74, pz);
+      dmy.rotation.set(leanX * 0.6 + beat * 0.09, yaw, twistZ * 0.5);
+      dmy.updateMatrix();
+      headInst.setMatrixAt(i, dmy.matrix);
+
+      if (d.hasCap) {
+        dmy.position.set(px, hipY + 1.16, pz);
+        dmy.rotation.set(leanX * 0.6 + beat * 0.09, yaw, twistZ * 0.5);
+        dmy.scale.set(1, 1, 1);
+      } else {
+        dmy.position.set(px, hipY + 1.16, pz);
+        dmy.scale.set(0, 0, 0);
+      }
+      dmy.updateMatrix();
+      capInst.setMatrixAt(i, dmy.matrix);
+
+      dmy.scale.set(1, 1, 1);
+      dmy.position.set(px - cosY * 0.49, shoulderY, pz + sinY * 0.49);
+      dmy.rotation.set(armPitchL, yaw, armRollL);
+      dmy.updateMatrix();
+      leftArmInst.setMatrixAt(i, dmy.matrix);
+
+      dmy.position.set(px + cosY * 0.49, shoulderY, pz - sinY * 0.49);
+      dmy.rotation.set(armPitchR, yaw, armRollR);
+      dmy.updateMatrix();
+      rightArmInst.setMatrixAt(i, dmy.matrix);
+    }
+
+    if (farLodOnly) {
+      farLodInst.instanceMatrix.needsUpdate = true;
+    } else {
+      leftLegInst.instanceMatrix.needsUpdate = true;
+      rightLegInst.instanceMatrix.needsUpdate = true;
+      bodyInst.instanceMatrix.needsUpdate = true;
+      headInst.instanceMatrix.needsUpdate = true;
+      capInst.instanceMatrix.needsUpdate = true;
+      leftArmInst.instanceMatrix.needsUpdate = true;
+      rightArmInst.instanceMatrix.needsUpdate = true;
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -908,52 +1199,53 @@ export class InteractiveAttractionsManager {
         ls.pivot.rotation.z = 0.75 + Math.cos(t * 1.9 + ls.phase) * 0.32;
         ls.mat.opacity = 0.16 + nightFactor * 0.36;
       }
+    }
 
-      if (this.baileCrowd) {
-        const { dancers, bodyInst, headInst, leftArmInst, rightArmInst } = this.baileCrowd;
-        const dmy = this._dummy;
+    if (this.baileCrowd) {
+      const nightFactor = this.world.atmosphere?.nightFactor || 0;
+      const isPlayerDancingHere = Boolean(controller?.minifigure?.activeEmote && distToBaile < 36.0);
+      const hypeMult = 1.0 + nightFactor * 0.45 + (isPlayerDancingHere ? 0.45 : 0);
 
-        for (let i = 0; i < dancers.length; i++) {
-          const d = dancers[i];
-          const ph = t * 11.5 + d.phase;
-          const hop = Math.abs(Math.sin(ph)) * 0.28 * hypeMult;
-          let yaw = d.baseYaw + Math.sin(ph * 0.5) * 0.24;
+      // LOD em 2 níveis com histerese para evitar sumir na tela ou cair FPS:
+      // LOD Near (< 150..165m): 64 NPCs com 7 partes articuladas e 5 estilos de dança
+      // LOD Far (150..420..445m): 64 silhuetas unificadas (1 draw call) dançando à distância
+      const prevMode = this.baileCrowd.lodMode || 'near';
+      let nextMode = 'hidden';
+      if (distToBaile <= (prevMode === 'near' ? 165 : 150)) {
+        nextMode = 'near';
+      } else if (distToBaile <= (prevMode === 'far' ? 445 : 420)) {
+        nextMode = 'far';
+      }
+      this.baileCrowd.lodMode = nextMode;
 
-          // Se o jogador mandar um Passinho [B] no meio do Baile (< 12m), os moradores viram pra ele!
-          if (isPlayerDancingHere && playerPos) {
-            const dx = playerPos.x - d.x;
-            const dz = playerPos.z - d.z;
-            if (dx * dx + dz * dz < 144) {
-              yaw = Math.atan2(dx, dz);
-            }
-          }
+      const {
+        leftLegInst,
+        rightLegInst,
+        bodyInst,
+        headInst,
+        leftArmInst,
+        rightArmInst,
+        capInst,
+        farLodInst
+      } = this.baileCrowd;
+      const nearVisible = nextMode === 'near';
+      leftLegInst.visible = nearVisible;
+      rightLegInst.visible = nearVisible;
+      bodyInst.visible = nearVisible;
+      headInst.visible = nearVisible;
+      leftArmInst.visible = nearVisible;
+      rightArmInst.visible = nearVisible;
+      capInst.visible = nearVisible;
+      farLodInst.visible = nextMode === 'far';
 
-          dmy.position.set(d.x, d.y + hop, d.z);
-          dmy.rotation.set(0, yaw, Math.sin(ph) * 0.08);
-          dmy.scale.set(1, 1, 1);
-          dmy.updateMatrix();
-          bodyInst.setMatrixAt(i, dmy.matrix);
-          headInst.setMatrixAt(i, dmy.matrix);
-
-          // Braço Esquerdo
-          const cosY = Math.cos(yaw);
-          const sinY = Math.sin(yaw);
-          dmy.position.set(d.x - cosY * 0.5, d.y + 1.42 + hop, d.z + sinY * 0.5);
-          dmy.rotation.set(-2.1 + Math.sin(ph) * 0.65, yaw, 0.22);
-          dmy.updateMatrix();
-          leftArmInst.setMatrixAt(i, dmy.matrix);
-
-          // Braço Direito
-          dmy.position.set(d.x + cosY * 0.5, d.y + 1.42 + hop, d.z - sinY * 0.5);
-          dmy.rotation.set(-2.1 - Math.sin(ph) * 0.65, yaw, -0.22);
-          dmy.updateMatrix();
-          rightArmInst.setMatrixAt(i, dmy.matrix);
-        }
-
-        bodyInst.instanceMatrix.needsUpdate = true;
-        headInst.instanceMatrix.needsUpdate = true;
-        leftArmInst.instanceMatrix.needsUpdate = true;
-        rightArmInst.instanceMatrix.needsUpdate = true;
+      if (nextMode !== 'hidden') {
+        this._updateBaileCrowdTransforms(
+          t,
+          playerPos,
+          hypeMult,
+          isPlayerDancingHere,
+          nextMode === 'far'
+        );
       }
     }
 
