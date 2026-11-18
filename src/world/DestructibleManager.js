@@ -4016,12 +4016,14 @@ export class DestructibleManager {
         const dx = refX - playerPosition.x;
         const dz = refZ - playerPosition.z;
         const distSq = dx * dx + dz * dz;
-        const maxCullSq =
+        const baseDist =
           obj.type === 'car' || obj.type === 'police_helicopter'
-            ? 280 * 280
+            ? 280
             : obj.isStreetProp
-              ? 155 * 155
-              : 380 * 380;
+              ? 155
+              : 380;
+        const cullDist = obj.mesh.visible ? baseDist + 26 : baseDist;
+        const maxCullSq = cullDist * cullDist;
         const shouldBeVisible = distSq <= maxCullSq;
         if (obj.mesh.visible !== shouldBeVisible) {
           obj.mesh.visible = shouldBeVisible;

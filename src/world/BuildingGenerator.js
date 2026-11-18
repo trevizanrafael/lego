@@ -790,12 +790,16 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
     ctx.fillRect(0, y, 256, 12);
 
     ctx.fillStyle = style.mullionColor;
-    ctx.fillRect(0, y + 10, 256, 2);
+    ctx.globalAlpha = 0.72;
+    ctx.fillRect(0, y + 9, 256, 3);
+    ctx.globalAlpha = 1;
 
     for (let c = 0; c < cols; c++) {
       const x = c * cellW;
       ctx.fillStyle = style.mullionColor;
+      ctx.globalAlpha = 0.78;
       ctx.fillRect(x, y, 6, cellH);
+      ctx.globalAlpha = 1;
 
       const hash = ((r * 17 + c * 31 + seedVariant * 13) * 2654435761) >>> 0;
       const isLit = (hash % 10) < 4;
@@ -826,19 +830,25 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = true;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
   tex.anisotropy = 4;
   markAsSharedAsset(tex);
 
   const emissiveTex = new THREE.CanvasTexture(emissiveCanvas);
   emissiveTex.colorSpace = THREE.SRGBColorSpace;
+  emissiveTex.generateMipmaps = true;
   emissiveTex.wrapS = THREE.RepeatWrapping;
   emissiveTex.wrapT = THREE.RepeatWrapping;
   emissiveTex.minFilter = THREE.LinearMipmapLinearFilter;
   emissiveTex.magFilter = THREE.LinearFilter;
+  emissiveTex.anisotropy = 8;
+  emissiveTex.needsUpdate = true;
   markAsSharedAsset(emissiveTex);
 
   // MeshPhysicalMaterial com emissiveMap + clearcoat garante reflexos vitrificados de dia e janelas acesas à noite!

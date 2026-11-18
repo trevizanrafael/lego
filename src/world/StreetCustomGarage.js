@@ -496,6 +496,10 @@ export function createVehicleDecalTexture(decalId, secondaryHex = 0xf8fafc, plac
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 8;
   _decalTexCache.set(key, tex);
   return tex;
 }
@@ -530,6 +534,10 @@ function createLedBannerTexture(mainText, subText, accentColor = '#00e5ff') {
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 8;
   return tex;
 }
 
@@ -826,7 +834,8 @@ export function applyTuningToVehicleObject(carObj, tuningInput) {
       roughness: finishOpts.roughness,
       metalness: finishOpts.metalness,
       polygonOffset: true,
-      polygonOffsetFactor: -2
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -3
     });
     const sideDecalMat = new THREE.MeshStandardMaterial({
       map: sideTex,
@@ -834,7 +843,8 @@ export function applyTuningToVehicleObject(carObj, tuningInput) {
       roughness: finishOpts.roughness,
       metalness: finishOpts.metalness,
       polygonOffset: true,
-      polygonOffsetFactor: -2
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -3
     });
 
     if (!dims.isMoto) {

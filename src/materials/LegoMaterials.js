@@ -183,7 +183,8 @@ varying float vLegoViewDist;`
         `float _bevelStr = uLegoFxEnabled * uLegoMicroBevelScale * uLegoBevelWeight;
 if (_bevelStr > 0.01) {
   vec3 _viewDirL = normalize(vViewPosition);
-  float _rimABS = pow(1.0 - clamp(abs(dot(_viewDirL, normal)), 0.0, 1.0), 4.2);
+  float _rimDistFade = smoothstep(230.0, 42.0, vLegoViewDist);
+  float _rimABS = pow(1.0 - clamp(abs(dot(_viewDirL, normal)), 0.0, 1.0), 4.2) * _rimDistFade;
   gl_FragColor.rgb += vec3(0.095, 0.105, 0.125) * _rimABS * _bevelStr;
 
   float _nearFade = 1.0 - smoothstep(12.0, 38.0, vLegoViewDist);
@@ -422,6 +423,17 @@ export function createLegoBrick(width, height, depth, colorHex, options = {}) {
 /**
  * Gera uma textura de rosto de Minifigura LEGO em alta definição (aplicada na frente do cilindro)
  */
+export function configureCrispCanvasTexture(tex, anisotropy = 8) {
+  if (!tex) return tex;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = Math.max(tex.anisotropy || 1, anisotropy);
+  tex.needsUpdate = true;
+  return tex;
+}
+
 export function createMinifigFaceTexture(preset = 'caveira') {
   const cacheKey = typeof preset === 'string' ? preset : null;
   if (cacheKey && HERO_FACE_TEX_CACHE.has(cacheKey)) {
@@ -1422,10 +1434,7 @@ export function createMinifigFaceTexture(preset = 'caveira') {
     ctx.stroke();
   }
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  tex.needsUpdate = true;
+  const tex = configureCrispCanvasTexture(new THREE.CanvasTexture(canvas), 8);
   if (cacheKey) {
     markAsSharedAsset(tex);
     HERO_FACE_TEX_CACHE.set(cacheKey, tex);
@@ -1889,10 +1898,7 @@ export function createMinifigTorsoTexture(preset = 'caveira') {
     ctx.fillRect(118, 40, 20, 160);
   }
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  tex.needsUpdate = true;
+  const tex = configureCrispCanvasTexture(new THREE.CanvasTexture(canvas), 8);
   if (cacheKey) {
     markAsSharedAsset(tex);
     HERO_TORSO_TEX_CACHE.set(cacheKey, tex);
@@ -2239,10 +2245,7 @@ export function createNpcFaceTexture(faceKey = 'civ_smile') {
     ctx.stroke();
   }
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  tex.needsUpdate = true;
+  const tex = configureCrispCanvasTexture(new THREE.CanvasTexture(canvas), 8);
   markAsSharedAsset(tex);
   SHARED_NPC_FACE_TEXTURES.set(faceKey, tex);
   return tex;

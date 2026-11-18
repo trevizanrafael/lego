@@ -122,8 +122,18 @@ function createWestBatcher() {
       emissive: 0x0369a1,
       emissiveIntensity: 0.22
     }),
-    mark_white: new THREE.MeshBasicMaterial({ color: 0xffffff }),
-    mark_yellow: new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+    mark_white: new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -3
+    }),
+    mark_yellow: new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -3
+    }),
     light_green: new THREE.MeshBasicMaterial({ color: 0x22c55e }),
     light_red: new THREE.MeshBasicMaterial({ color: 0xef4444 }),
     light_warm: new THREE.MeshBasicMaterial({ color: 0xfef08a }),
@@ -165,8 +175,8 @@ function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
   // Pórtico de Acesso ao Aeroporto e Base Militar posicionado na entrada do perímetro Oeste (sem cortar a Favela!)
   const gantries = [
     { x: -1018, z: -117, text: 'AEROPORTO / BASE MILITAR ' },
-    { x: -1018, z: 0,    text: 'MEGA TERMINAL & ESTACIONAMENTO ' },
-    { x: -1018, z: 134,  text: 'BASE MILITAR & HANGARES ' }
+    { x: -1018, z: 0, text: 'MEGA TERMINAL & ESTACIONAMENTO ' },
+    { x: -1018, z: 134, text: 'BASE MILITAR & HANGARES ' }
   ];
   for (const g of gantries) {
     batcher.addBox('steel_silver', 1.2, 11.5, 1.2, g.x, 5.75, g.z - 16.5);
@@ -517,7 +527,7 @@ function buildThreeRunwayAtcTowersAndMainRunway(world, batcher, groundY) {
   world.scene.add(runway);
   world.mapRoads.push({ x: rwX, z: rwZ, w: rwW, d: rwD, isMain: true });
 
-  const markY = groundY + 0.13;
+  const markY = groundY + 0.16;
 
   // Linhas Laterais Contínuas + Linha Central Tracejada Branca
   batcher.addBox('mark_white', 1.2, 0.03, rwD - 20, rwX - rwW * 0.5 + 3.5, markY, rwZ);
@@ -700,11 +710,11 @@ function buildOpenArchedHangar(world, batcher, hx, yBase, hz, w, d, wallH, wallK
   const archSegments = [
     { dz: -27, sw: 13, dy: 1.5 },
     { dz: -18, sw: 13, dy: 4.5 },
-    { dz: -9,  sw: 13, dy: 7.0 },
-    { dz: 0,   sw: 14, dy: 8.2 },
-    { dz: 9,   sw: 13, dy: 7.0 },
-    { dz: 18,  sw: 13, dy: 4.5 },
-    { dz: 27,  sw: 13, dy: 1.5 }
+    { dz: -9, sw: 13, dy: 7.0 },
+    { dz: 0, sw: 14, dy: 8.2 },
+    { dz: 9, sw: 13, dy: 7.0 },
+    { dz: 18, sw: 13, dy: 4.5 },
+    { dz: 27, sw: 13, dy: 1.5 }
   ];
   for (const seg of archSegments) {
     batcher.addBox(roofKey, w + 2.0, 2.0, seg.sw, hx, yBase + wallH + seg.dy, hz + seg.dz);
@@ -901,8 +911,8 @@ function buildNorthMilitaryBaseWing(world, batcher, groundY) {
   // Três grandes blocos de Quartel & Comando dentro do complexo (Z = -1170, -990, -810)
   const barracksSpecs = [
     { z: -1170, h: 36, label: 'QUARTEL DE COMANDO NORTE' },
-    { z: -990,  h: 42, label: 'QG DO EXÉRCITO & INTELIGÊNCIA' },
-    { z: -810,  h: 34, label: 'ARSENAL & PAIOL MILITAR NORTE' }
+    { z: -990, h: 42, label: 'QG DO EXÉRCITO & INTELIGÊNCIA' },
+    { z: -810, h: 34, label: 'ARSENAL & PAIOL MILITAR NORTE' }
   ];
   for (const bSpec of barracksSpecs) {
     batcher.addBox('military_olive', 108, bSpec.h, 132, bx, groundY + bSpec.h * 0.5, bSpec.z);

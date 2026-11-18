@@ -112,15 +112,15 @@ export function getFavelaElevation(x, z) {
 const WINDING_LADEIRAS = [
   { zStart: -1190, amp1: 22, freq1: 0.015, amp2: -14, freq2: 0.009, hasStairs: true },
   { zStart: -1030, amp1: -25, freq1: 0.016, amp2: 15, freq2: 0.008, hasStairs: false },
-  { zStart: -840,  amp1: 26, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true },
+  { zStart: -840, amp1: 26, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true },
   { zStart: -640, amp1: 24, freq1: 0.016, amp2: -14, freq2: 0.009, hasStairs: true },
   { zStart: -382, amp1: -28, freq1: 0.015, amp2: 18, freq2: 0.008, hasStairs: false },
   { zStart: -250, amp1: 22, freq1: 0.017, amp2: -12, freq2: 0.010, hasStairs: true },
   { zStart: -117, amp1: -24, freq1: 0.014, amp2: -16, freq2: 0.008, hasStairs: false },
-  { zStart: 36,   amp1: 28, freq1: 0.015, amp2: 14, freq2: 0.009, hasStairs: true },
-  { zStart: 134,  amp1: -22, freq1: 0.016, amp2: 15, freq2: 0.009, hasStairs: false },
-  { zStart: 380,  amp1: 26, freq1: 0.015, amp2: -16, freq2: 0.008, hasStairs: true },
-  { zStart: 540,  amp1: -24, freq1: 0.016, amp2: 12, freq2: 0.010, hasStairs: true }
+  { zStart: 36, amp1: 28, freq1: 0.015, amp2: 14, freq2: 0.009, hasStairs: true },
+  { zStart: 134, amp1: -22, freq1: 0.016, amp2: 15, freq2: 0.009, hasStairs: false },
+  { zStart: 380, amp1: 26, freq1: 0.015, amp2: -16, freq2: 0.008, hasStairs: true },
+  { zStart: 540, amp1: -24, freq1: 0.016, amp2: 12, freq2: 0.010, hasStairs: true }
 ];
 
 function getLadeiraZAtX(ladeira, x) {
@@ -541,11 +541,11 @@ function buildCVBocasAndHeavyBarricades(world, batcher) {
     { x: -524, z: -382, label: 'BOCA NORTE-1 (CV)' },
     { x: -524, z: -250, label: 'BOCA CENTRAL-NORTE (CV)' },
     { x: -524, z: -117, label: 'BOCA PRINCIPAL CDD (CV)' },
-    { x: -524, z: 36,   label: 'BOCA CENTRAL CDD (CV)' },
-    { x: -524, z: 134,  label: 'BOCA CAMPINHO (CV)' },
-    { x: -524, z: 380,  label: 'BOCA SUL (CV)' },
+    { x: -524, z: 36, label: 'BOCA CENTRAL CDD (CV)' },
+    { x: -524, z: 134, label: 'BOCA CAMPINHO (CV)' },
+    { x: -524, z: 380, label: 'BOCA SUL (CV)' },
     { x: -654, z: -640, label: 'BOCA SUBÚRBIO-OESTE (CV)' },
-    { x: -654, z: 540,  label: 'BOCA ORLA-OESTE (CV)' }
+    { x: -654, z: 540, label: 'BOCA ORLA-OESTE (CV)' }
   ];
 
   for (let i = 0; i < bocas.length; i++) {
@@ -765,8 +765,8 @@ function buildCVBailePlazaAndGiantParedao(world, batcher, cx, yBase, cz) {
 
   // Alicerce de concreto embutido na colina + piso vermelho e preto da Quadra do Baile
   batcher.addBox('retaining_concrete', plazaW + 2, 4.5, plazaD + 2, cx, yBase - 2.15, cz);
-  batcher.addBox('cv_black', plazaW, 0.18, plazaD, cx, yBase + 0.08, cz);
-  batcher.addBox('cv_red', plazaW - 8, 0.22, plazaD - 8, cx, yBase + 0.1, cz);
+  batcher.addBox('cv_black', plazaW, 0.14, plazaD, cx, yBase + 0.07, cz);
+  batcher.addBox('cv_red', plazaW - 8, 0.08, plazaD - 8, cx, yBase + 0.18, cz);
 
   // O PAREDÃO DE SOM COLOSSAL DO BAILE DA CDD
   const paredaoX = cx - 19.0;

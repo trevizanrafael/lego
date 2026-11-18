@@ -484,7 +484,11 @@ export function createCustomFaceTexture(cfg = ACTIVE_CUSTOM_HERO) {
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
   markAsSharedAsset(tex);
   CUSTOM_FACE_TEX_CACHE.set(cacheKey, tex);
   return tex;
@@ -619,7 +623,11 @@ export function createCustomTorsoTexture(cfg = ACTIVE_CUSTOM_HERO) {
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
   markAsSharedAsset(tex);
   CUSTOM_TORSO_TEX_CACHE.set(cacheKey, tex);
   return tex;

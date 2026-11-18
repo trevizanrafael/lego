@@ -426,7 +426,7 @@ export class DayNightAtmosphereManager {
       `
     });
 
-    this.skyDome = new THREE.Mesh(new THREE.SphereGeometry(1860, 32, 20), skyMat);
+    this.skyDome = new THREE.Mesh(new THREE.SphereGeometry(4400, 32, 20), skyMat);
     this.skyDome.renderOrder = -10;
     this.skyDome.frustumCulled = false;
     this.celestialRoot.add(this.skyDome);
@@ -445,7 +445,7 @@ export class DayNightAtmosphereManager {
       const theta = u * Math.PI * 2;
       const elevation = 0.06 + v * 0.92;
       const rHoriz = Math.sqrt(Math.max(0, 1 - elevation * elevation));
-      const rad = 1690;
+      const rad = 4050;
 
       starPositions[i * 3] = Math.cos(theta) * rHoriz * rad;
       starPositions[i * 3 + 1] = elevation * rad;
@@ -1009,7 +1009,7 @@ export class DayNightAtmosphereManager {
     // Disco Solar (cresce 1.48x e fica laranja-rubro no Pôr do Sol atrás do Morro da Cidade de Deus!)
     this.sunDiscGroup.visible = sunY > -0.14;
     if (this.sunDiscGroup.visible) {
-      this.sunDiscGroup.position.copy(this._sunDir).multiplyScalar(1580);
+      this.sunDiscGroup.position.copy(this._sunDir).multiplyScalar(3850);
       const sunScale = isGoldenHour || isSunrise ? 1.48 : 1.0;
       this.sunDiscGroup.scale.setScalar(sunScale);
       this.sunCoreMat.color.copy(isGoldenHour ? s.sunGlow : s.dirColor);
@@ -1020,7 +1020,7 @@ export class DayNightAtmosphereManager {
     // Lua Cheia LEGO + 1.200 Estrelas Cintilantes
     this.moonGroup.visible = nf > 0.06;
     if (this.moonGroup.visible) {
-      this.moonGroup.position.copy(this._moonDir).multiplyScalar(1520);
+      this.moonGroup.position.copy(this._moonDir).multiplyScalar(3720);
       this.moonGroup.lookAt(anchorX, 0, anchorZ);
       this.moonCoreMat.opacity = nf;
       this.moonCraterMat.opacity = nf * 0.75;
@@ -1089,6 +1089,8 @@ export class DayNightAtmosphereManager {
 
       const mapRes = Math.max(256, this.sunLight.shadow?.mapSize?.width || 2048);
       const texelWorld = (desiredHalf * 2) / mapRes;
+      this.sunLight.shadow.normalBias = Math.max(0.05, texelWorld * 0.48);
+      this.sunLight.shadow.bias = -0.0005;
       const u = rawX * this._snapRight.x + rawY * this._snapRight.y + rawZ * this._snapRight.z;
       const v = rawX * this._snapUp.x + rawY * this._snapUp.y + rawZ * this._snapUp.z;
       const w =

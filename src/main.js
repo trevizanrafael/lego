@@ -179,8 +179,8 @@ class LegoCityGame {
     this.camera = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
-      0.35,
-      2600
+      0.65,
+      5200
     );
 
     // Instancia Destruição Física, Cidade 3D Completa, Minifigura e Controlador 3ª Pessoa

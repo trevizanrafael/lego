@@ -129,7 +129,10 @@ export function createCustomCanvasSignTexture(boardWidth, boardHeight, drawFn, o
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 8;
 
   const render = () => {
     if (!ctx) return;

@@ -4991,6 +4991,15 @@ export class ThirdPersonController {
     }
 
     this.camera.position.set(camX, camY, camZ);
+    const desiredNear = THREE.MathUtils.clamp(
+      0.65 + Math.max(0, camY - 22) * 0.012,
+      0.65,
+      2.6
+    );
+    if (Math.abs(this.camera.near - desiredNear) > 0.04) {
+      this.camera.near = desiredNear;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.lookAt(
       camX + viewDir.x * 25,
       camY + viewDir.y * 25,

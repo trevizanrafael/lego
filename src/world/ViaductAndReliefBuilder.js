@@ -347,8 +347,18 @@ function createReliefAndViaductBatcher() {
     wood_bench: getLegoMaterial(0x78350f, { roughness: 0.42, clearcoat: 0.25 }),
     dune_sand: new THREE.MeshStandardMaterial({ color: 0xfde047, roughness: 0.58, metalness: 0.02 }),
     dune_wet: new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.52, metalness: 0.04 }),
-    lane_white: new THREE.MeshBasicMaterial({ color: 0xf8fafc }),
-    lane_yellow: new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+    lane_white: new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -3
+    }),
+    lane_yellow: new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -3
+    }),
     lamp_glow: new THREE.MeshBasicMaterial({ color: 0xfef08a }),
     sea_foam: new THREE.MeshBasicMaterial({ color: 0xf8fafc })
   };
@@ -825,10 +835,10 @@ function addContinuousDeck(batcher, samples, axis, fixedCoord, deckWidth, opts =
   }
   // Asfalto, faixa dupla amarela central e linhas de acostamento
   rib('viaduct_asphalt', -(halfW - railW), halfW - railW, 0.07, 0.1, { top: true, bottom: false, sides: true });
-  for (const d of [-0.28, 0.28]) rib('lane_yellow', d - 0.11, d + 0.11, 0.095, 0.02, topOnly);
+  for (const d of [-0.28, 0.28]) rib('lane_yellow', d - 0.11, d + 0.11, 0.115, 0.025, topOnly);
   for (const side of [-1, 1]) {
     const o = side * (halfW - railW - 0.45);
-    rib('viaduct_shoulder', o - 0.17, o + 0.17, 0.09, 0.02, topOnly);
+    rib('viaduct_shoulder', o - 0.17, o + 0.17, 0.095, 0.02, topOnly);
   }
   // Linhas brancas tracejadas das faixas (cada traço também segue o perfil)
   const cStart = samples[0].c;
@@ -837,7 +847,7 @@ function addContinuousDeck(batcher, samples, axis, fixedCoord, deckWidth, opts =
     const dash = [0, 1.1, 2.2, 3.3].map((k) => ({ c: c + k, y: interpolateSamplesY(samples, c + k) }));
     for (const side of [-1, 1]) {
       const o = side * deckWidth * 0.24;
-      rib('lane_white', o - 0.11, o + 0.11, 0.095, 0.02, topOnly, dash);
+      rib('lane_white', o - 0.11, o + 0.11, 0.115, 0.025, topOnly, dash);
     }
   }
   // Muretas laterais (com aberturas opcionais) e friso amarelo na face externa da laje
@@ -1020,25 +1030,25 @@ function buildSegmentedExpressViaduct(world, batcher, cfg) {
   const deckEntry =
     axis === 'z_const'
       ? {
-          id,
-          minX: startC,
-          maxX: endC,
-          minZ: fixedCoord - halfW,
-          maxZ: fixedCoord + halfW,
-          thresholdBelow: 2.5,
-          getDeckY: (x) => getHeightAlong(x),
-          getTopY: (x) => getHeightAlong(x)
-        }
+        id,
+        minX: startC,
+        maxX: endC,
+        minZ: fixedCoord - halfW,
+        maxZ: fixedCoord + halfW,
+        thresholdBelow: 2.5,
+        getDeckY: (x) => getHeightAlong(x),
+        getTopY: (x) => getHeightAlong(x)
+      }
       : {
-          id,
-          minX: fixedCoord - halfW,
-          maxX: fixedCoord + halfW,
-          minZ: startC,
-          maxZ: endC,
-          thresholdBelow: 2.5,
-          getDeckY: (_x, z) => getHeightAlong(z),
-          getTopY: (_x, z) => getHeightAlong(z)
-        };
+        id,
+        minX: fixedCoord - halfW,
+        maxX: fixedCoord + halfW,
+        minZ: startC,
+        maxZ: endC,
+        thresholdBelow: 2.5,
+        getDeckY: (_x, z) => getHeightAlong(z),
+        getTopY: (_x, z) => getHeightAlong(z)
+      };
   world.elevatedDecks.push(deckEntry);
 
   if (axis === 'z_const') {

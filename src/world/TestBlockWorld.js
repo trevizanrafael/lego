@@ -1068,16 +1068,16 @@ export class TestBlockWorld {
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.camera.near = 15;
-    sunLight.shadow.camera.far = 520;
+    sunLight.shadow.camera.near = 10;
+    sunLight.shadow.camera.far = 920;
 
     const d = 95;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
     sunLight.shadow.camera.bottom = -d;
-    sunLight.shadow.normalBias = 0.022;
-    sunLight.shadow.bias = -0.0004;
+    sunLight.shadow.normalBias = 0.048;
+    sunLight.shadow.bias = -0.0005;
 
     if (!this.waterShaderUniforms) {
       this.waterShaderUniforms = { uTime: { value: 0 } };
