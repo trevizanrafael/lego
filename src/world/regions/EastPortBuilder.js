@@ -334,7 +334,7 @@ function buildEastCanalBridgesAndPCCBarricades(world, batcher) {
   batcher.addBox('armor_slate', 5.2, 4.6, 56, 582.0, -1.7, 760);
   for (const [bx, bz, beaconKey] of [
     [538.0, 1066, 'coastal_turquoise'],
-    [582.0, 785,  'c4_hazard_red'],
+    [582.0, 785, 'c4_hazard_red'],
     [538.0, -1318, 'coastal_turquoise'],
     [582.0, -1318, 'pcc_neon_blue']
   ]) {
@@ -1225,84 +1225,84 @@ function buildAllExpandedPCCIndustrialAndCorporateBlocks(world, batcher) {
   // Grade Completa de Quarteirões do Império do PCC (cobrindo 100% do Leste e Nordeste até a borda Norte da ilha Z = -1320!)
   const pccGridBlocks = [
     // BORDA EXTREMA NORTE / NORDESTE (Z = -1248, encostando 100% na beira Norte da ilha em Z = -1318!)
-    { cx: 684,  cz: -1248, w: 144, d: 140, type: 'corporate_tower', h: 72, label: 'TORRE COSTEIRA NORTE PCC' },
-    { cx: 866,  cz: -1248, w: 172, d: 140, type: 'heavy_silos',     h: 64, label: 'REFINARIA MARÍTIMA NORTE' },
-    { cx: 1062, cz: -1248, w: 172, d: 140, type: 'c4_factory',      h: 50, label: 'COMPLEXO DE ARMAMENTOS NORTE' },
+    { cx: 684, cz: -1248, w: 144, d: 140, type: 'corporate_tower', h: 72, label: 'TORRE COSTEIRA NORTE PCC' },
+    { cx: 866, cz: -1248, w: 172, d: 140, type: 'heavy_silos', h: 64, label: 'REFINARIA MARÍTIMA NORTE' },
+    { cx: 1062, cz: -1248, w: 172, d: 140, type: 'c4_factory', h: 50, label: 'COMPLEXO DE ARMAMENTOS NORTE' },
     { cx: 1252, cz: -1248, w: 160, d: 140, type: 'corporate_tower', h: 76, label: 'SEDE FINANCEIRA EXTREMO NORTE' },
-    { cx: 1434, cz: -1248, w: 160, d: 140, type: 'heavy_silos',     h: 62, label: 'BATERIA DE SILOS DO ATLÂNTICO' },
-    { cx: 1580, cz: -1248, w: 96,  d: 140, type: 'coastal_fort',    h: 58, label: 'FORTALEZA COSTEIRA NORDESTE' },
+    { cx: 1434, cz: -1248, w: 160, d: 140, type: 'heavy_silos', h: 62, label: 'BATERIA DE SILOS DO ATLÂNTICO' },
+    { cx: 1580, cz: -1248, w: 96, d: 140, type: 'coastal_fort', h: 58, label: 'FORTALEZA COSTEIRA NORDESTE' },
 
     // SETOR NORDESTE EXTREMO (Z = -1108 e Z = -976, ao lado leste do Rio Urbano até o mar X = 1620)
-    { cx: 684,  cz: -1108, w: 144, d: 112, type: 'heavy_silos',     h: 56, label: 'REFINARIA NORTE PCC' },
-    { cx: 866,  cz: -1108, w: 172, d: 112, type: 'corporate_tower', h: 68, label: 'TORRE FINANCEIRA PCC NORTE' },
-    { cx: 1062, cz: -1108, w: 172, d: 112, type: 'c4_factory',      h: 46, label: 'USINA DE SÍNTESE C4' },
-    { cx: 1252, cz: -1108, w: 160, d: 112, type: 'heavy_silos',     h: 62, label: 'TERMINAL DE SILOS BLINDADOS' },
-    { cx: 1434, cz: -1108, w: 160, d: 112, type: 'c4_factory',      h: 48, label: 'TERMOELÉTRICA DO SINDICATO' },
-    { cx: 1580, cz: -1108, w: 96,  d: 112, type: 'coastal_fort',    h: 54, label: 'BASTIÃO COSTEIRO NORTE' },
+    { cx: 684, cz: -1108, w: 144, d: 112, type: 'heavy_silos', h: 56, label: 'REFINARIA NORTE PCC' },
+    { cx: 866, cz: -1108, w: 172, d: 112, type: 'corporate_tower', h: 68, label: 'TORRE FINANCEIRA PCC NORTE' },
+    { cx: 1062, cz: -1108, w: 172, d: 112, type: 'c4_factory', h: 46, label: 'USINA DE SÍNTESE C4' },
+    { cx: 1252, cz: -1108, w: 160, d: 112, type: 'heavy_silos', h: 62, label: 'TERMINAL DE SILOS BLINDADOS' },
+    { cx: 1434, cz: -1108, w: 160, d: 112, type: 'c4_factory', h: 48, label: 'TERMOELÉTRICA DO SINDICATO' },
+    { cx: 1580, cz: -1108, w: 96, d: 112, type: 'coastal_fort', h: 54, label: 'BASTIÃO COSTEIRO NORTE' },
 
-    { cx: 684,  cz: -976,  w: 144, d: 112, type: 'corporate_tower', h: 58, label: 'EDIFÍCIO BLINDADO 1533' },
-    { cx: 866,  cz: -976,  w: 172, d: 112, type: 'c4_factory',      h: 48, label: 'COMPLEXO QUÍMICO PCC' },
-    { cx: 1062, cz: -976,  w: 172, d: 112, type: 'corporate_tower', h: 74, label: 'TORRE DE LAVAGEM SINDICATO' },
-    { cx: 1252, cz: -976,  w: 160, d: 112, type: 'c4_factory',      h: 46, label: 'FÁBRICA DE DETONADORES' },
-    { cx: 1434, cz: -976,  w: 160, d: 112, type: 'heavy_silos',     h: 58, label: 'BATERIA DE SILOS LESTE' },
-    { cx: 1580, cz: -976,  w: 96,  d: 112, type: 'coastal_fort',    h: 52, label: 'TORRE DE RADAR COSTEIRA' },
+    { cx: 684, cz: -976, w: 144, d: 112, type: 'corporate_tower', h: 58, label: 'EDIFÍCIO BLINDADO 1533' },
+    { cx: 866, cz: -976, w: 172, d: 112, type: 'c4_factory', h: 48, label: 'COMPLEXO QUÍMICO PCC' },
+    { cx: 1062, cz: -976, w: 172, d: 112, type: 'corporate_tower', h: 74, label: 'TORRE DE LAVAGEM SINDICATO' },
+    { cx: 1252, cz: -976, w: 160, d: 112, type: 'c4_factory', h: 46, label: 'FÁBRICA DE DETONADORES' },
+    { cx: 1434, cz: -976, w: 160, d: 112, type: 'heavy_silos', h: 58, label: 'BATERIA DE SILOS LESTE' },
+    { cx: 1580, cz: -976, w: 96, d: 112, type: 'coastal_fort', h: 52, label: 'TORRE DE RADAR COSTEIRA' },
 
     // LINHA NORTE-CENTRAL (Z = -842)
-    { cx: 684,  cz: -842,  w: 144, d: 108, type: 'c4_factory',      h: 44, label: 'DEPÓSITO BLINDADO OESTE' },
-    { cx: 866,  cz: -842,  w: 172, d: 108, type: 'heavy_silos',     h: 60, label: 'PETROQUÍMICA DO PCC' },
-    { cx: 1062, cz: -842,  w: 172, d: 108, type: 'c4_factory',      h: 48, label: 'FUNDIÇÃO DE BLINDADOS' },
-    { cx: 1252, cz: -842,  w: 160, d: 108, type: 'corporate_tower', h: 72, label: 'HOLDING INTERNACIONAL PCC' },
-    { cx: 1434, cz: -842,  w: 160, d: 108, type: 'c4_factory',      h: 46, label: 'GALPÃO DE MUNIÇÕES PESADAS' },
-    { cx: 1580, cz: -842,  w: 96,  d: 108, type: 'coastal_fort',    h: 56, label: 'FORTE MARÍTIMO PCC' },
+    { cx: 684, cz: -842, w: 144, d: 108, type: 'c4_factory', h: 44, label: 'DEPÓSITO BLINDADO OESTE' },
+    { cx: 866, cz: -842, w: 172, d: 108, type: 'heavy_silos', h: 60, label: 'PETROQUÍMICA DO PCC' },
+    { cx: 1062, cz: -842, w: 172, d: 108, type: 'c4_factory', h: 48, label: 'FUNDIÇÃO DE BLINDADOS' },
+    { cx: 1252, cz: -842, w: 160, d: 108, type: 'corporate_tower', h: 72, label: 'HOLDING INTERNACIONAL PCC' },
+    { cx: 1434, cz: -842, w: 160, d: 108, type: 'c4_factory', h: 46, label: 'GALPÃO DE MUNIÇÕES PESADAS' },
+    { cx: 1580, cz: -842, w: 96, d: 108, type: 'coastal_fort', h: 56, label: 'FORTE MARÍTIMO PCC' },
 
     // LINHA INDUSTRIAL ALTA (Z = -710)
-    { cx: 684,  cz: -710,  w: 144, d: 108, type: 'corporate_tower', h: 64, label: 'CENTRO DE DADOS & HACKING' },
-    { cx: 866,  cz: -710,  w: 172, d: 108, type: 'c4_factory',      h: 48, label: 'FÁBRICA CENTRAL DE C4' },
-    { cx: 1062, cz: -710,  w: 172, d: 108, type: 'heavy_silos',     h: 58, label: 'REFINARIA DE EXPLOSIVOS' },
-    { cx: 1252, cz: -710,  w: 160, d: 108, type: 'c4_factory',      h: 46, label: 'LOGÍSTICA DE CARROS-FORTES' },
-    { cx: 1434, cz: -710,  w: 160, d: 108, type: 'corporate_tower', h: 68, label: 'BANCO CLANDESTINO PCC' },
-    { cx: 1580, cz: -710,  w: 96,  d: 108, type: 'coastal_fort',    h: 52, label: 'DOCAS DE CONTRABANDO' },
+    { cx: 684, cz: -710, w: 144, d: 108, type: 'corporate_tower', h: 64, label: 'CENTRO DE DADOS & HACKING' },
+    { cx: 866, cz: -710, w: 172, d: 108, type: 'c4_factory', h: 48, label: 'FÁBRICA CENTRAL DE C4' },
+    { cx: 1062, cz: -710, w: 172, d: 108, type: 'heavy_silos', h: 58, label: 'REFINARIA DE EXPLOSIVOS' },
+    { cx: 1252, cz: -710, w: 160, d: 108, type: 'c4_factory', h: 46, label: 'LOGÍSTICA DE CARROS-FORTES' },
+    { cx: 1434, cz: -710, w: 160, d: 108, type: 'corporate_tower', h: 68, label: 'BANCO CLANDESTINO PCC' },
+    { cx: 1580, cz: -710, w: 96, d: 108, type: 'coastal_fort', h: 52, label: 'DOCAS DE CONTRABANDO' },
 
     // LINHA DO ANEL DE COMANDO (Z = -578)
-    { cx: 684,  cz: -578,  w: 144, d: 108, type: 'heavy_silos',     h: 54, label: 'RESERVATÓRIO QUÍMICO' },
-    { cx: 866,  cz: -578,  w: 172, d: 108, type: 'corporate_tower', h: 78, label: 'TORRE DE PLANEJAMENTO (PCC)' },
-    { cx: 1062, cz: -578,  w: 172, d: 108, type: 'c4_factory',      h: 48, label: 'ARSENAL DE ASSALTO PESADO' },
-    { cx: 1252, cz: -578,  w: 160, d: 108, type: 'heavy_silos',     h: 60, label: 'USINA DE FORÇA BLINDADA' },
-    { cx: 1434, cz: -578,  w: 160, d: 108, type: 'c4_factory',      h: 46, label: 'CENTRAL DE CONTÊINERES PCC' },
-    { cx: 1580, cz: -578,  w: 96,  d: 108, type: 'coastal_fort',    h: 58, label: 'BATERIA ANTIAÉREA LESTE' },
+    { cx: 684, cz: -578, w: 144, d: 108, type: 'heavy_silos', h: 54, label: 'RESERVATÓRIO QUÍMICO' },
+    { cx: 866, cz: -578, w: 172, d: 108, type: 'corporate_tower', h: 78, label: 'TORRE DE PLANEJAMENTO (PCC)' },
+    { cx: 1062, cz: -578, w: 172, d: 108, type: 'c4_factory', h: 48, label: 'ARSENAL DE ASSALTO PESADO' },
+    { cx: 1252, cz: -578, w: 160, d: 108, type: 'heavy_silos', h: 60, label: 'USINA DE FORÇA BLINDADA' },
+    { cx: 1434, cz: -578, w: 160, d: 108, type: 'c4_factory', h: 46, label: 'CENTRAL DE CONTÊINERES PCC' },
+    { cx: 1580, cz: -578, w: 96, d: 108, type: 'coastal_fort', h: 58, label: 'BATERIA ANTIAÉREA LESTE' },
 
     // LINHA CENTRAL (Z = -446 e Z = -316 — ao redor da Cidadela Central X=866 e do Desmanche X=1062)
-    { cx: 684,  cz: -446,  w: 144, d: 108, type: 'corporate_tower', h: 74, label: 'TORRE OESTE DE LAVAGEM' },
-    { cx: 1062, cz: -446,  w: 172, d: 108, type: 'corporate_tower', h: 80, label: 'TORRE LESTE DO COFRE (PCC)' },
-    { cx: 1252, cz: -446,  w: 160, d: 108, type: 'c4_factory',      h: 48, label: 'COMPLEXO METALÚRGICO PCC' },
-    { cx: 1434, cz: -446,  w: 160, d: 108, type: 'heavy_silos',     h: 62, label: 'SILOS GIGANTES DO SINDICATO' },
-    { cx: 1580, cz: -446,  w: 96,  d: 108, type: 'coastal_fort',    h: 54, label: 'HELIPONTO COSTEIRO PCC' },
+    { cx: 684, cz: -446, w: 144, d: 108, type: 'corporate_tower', h: 74, label: 'TORRE OESTE DE LAVAGEM' },
+    { cx: 1062, cz: -446, w: 172, d: 108, type: 'corporate_tower', h: 80, label: 'TORRE LESTE DO COFRE (PCC)' },
+    { cx: 1252, cz: -446, w: 160, d: 108, type: 'c4_factory', h: 48, label: 'COMPLEXO METALÚRGICO PCC' },
+    { cx: 1434, cz: -446, w: 160, d: 108, type: 'heavy_silos', h: 62, label: 'SILOS GIGANTES DO SINDICATO' },
+    { cx: 1580, cz: -446, w: 96, d: 108, type: 'coastal_fort', h: 54, label: 'HELIPONTO COSTEIRO PCC' },
 
-    { cx: 1252, cz: -316,  w: 160, d: 108, type: 'corporate_tower', h: 70, label: 'TORRE DE COMUNICAÇÕES PCC' },
-    { cx: 1434, cz: -316,  w: 160, d: 108, type: 'c4_factory',      h: 48, label: 'MONTADORA DE BLINDADOS' },
-    { cx: 1580, cz: -316,  w: 96,  d: 108, type: 'coastal_fort',    h: 52, label: 'GUARITA MARÍTIMA CENTRAL' },
+    { cx: 1252, cz: -316, w: 160, d: 108, type: 'corporate_tower', h: 70, label: 'TORRE DE COMUNICAÇÕES PCC' },
+    { cx: 1434, cz: -316, w: 160, d: 108, type: 'c4_factory', h: 48, label: 'MONTADORA DE BLINDADOS' },
+    { cx: 1580, cz: -316, w: 96, d: 108, type: 'coastal_fort', h: 52, label: 'GUARITA MARÍTIMA CENTRAL' },
 
     // LINHA SUL-CENTRAL (Z = -184 — Coluna 3 já é ocupada pelo Sul do Desmanche X=1062)
-    { cx: 684,  cz: -184,  w: 144, d: 108, type: 'c4_factory',      h: 46, label: 'DOCAS DE OURO ROUBADO' },
-    { cx: 866,  cz: -184,  w: 172, d: 108, type: 'heavy_silos',     h: 58, label: 'COMPLEXO DE SILOS & VAPOR' },
-    { cx: 1252, cz: -184,  w: 160, d: 108, type: 'c4_factory',      h: 48, label: 'DEPÓSITO DE CARROS-FORTES' },
-    { cx: 1434, cz: -184,  w: 160, d: 108, type: 'corporate_tower', h: 66, label: 'EDIFÍCIO LOGÍSTICO SUL' },
-    { cx: 1580, cz: -184,  w: 96,  d: 108, type: 'coastal_fort',    h: 54, label: 'TORRE DE VIGIA LESTE' },
+    { cx: 684, cz: -184, w: 144, d: 108, type: 'c4_factory', h: 46, label: 'DOCAS DE OURO ROUBADO' },
+    { cx: 866, cz: -184, w: 172, d: 108, type: 'heavy_silos', h: 58, label: 'COMPLEXO DE SILOS & VAPOR' },
+    { cx: 1252, cz: -184, w: 160, d: 108, type: 'c4_factory', h: 48, label: 'DEPÓSITO DE CARROS-FORTES' },
+    { cx: 1434, cz: -184, w: 160, d: 108, type: 'corporate_tower', h: 66, label: 'EDIFÍCIO LOGÍSTICO SUL' },
+    { cx: 1580, cz: -184, w: 96, d: 108, type: 'coastal_fort', h: 54, label: 'TORRE DE VIGIA LESTE' },
 
     // LINHA DE FRONTEIRA COM O PORTO (Z = -58 e Z = +58 — encostando 100% no Porto Metropolitano em Z = +110!)
-    { cx: 684,  cz: -58,   w: 144, d: 96,  type: 'corporate_tower', h: 62, label: 'TORRE DO CANAL LESTE' },
-    { cx: 866,  cz: -58,   w: 172, d: 96,  type: 'c4_factory',      h: 46, label: 'GALPÃO QUEBRA-COFRE SUL' },
-    { cx: 1062, cz: -58,   w: 172, d: 96,  type: 'heavy_silos',     h: 56, label: 'TERMINAL DE COMBUSTÍVEL PCC' },
-    { cx: 1252, cz: -58,   w: 160, d: 96,  type: 'corporate_tower', h: 64, label: 'SEDE ADUANEIRA DO PCC' },
-    { cx: 1434, cz: -58,   w: 160, d: 96,  type: 'c4_factory',      h: 46, label: 'HANGAR DE CAMINHÕES BAÚ' },
-    { cx: 1580, cz: -58,   w: 96,  d: 96,  type: 'coastal_fort',    h: 50, label: 'FORTALEZA DO CANAL' },
+    { cx: 684, cz: -58, w: 144, d: 96, type: 'corporate_tower', h: 62, label: 'TORRE DO CANAL LESTE' },
+    { cx: 866, cz: -58, w: 172, d: 96, type: 'c4_factory', h: 46, label: 'GALPÃO QUEBRA-COFRE SUL' },
+    { cx: 1062, cz: -58, w: 172, d: 96, type: 'heavy_silos', h: 56, label: 'TERMINAL DE COMBUSTÍVEL PCC' },
+    { cx: 1252, cz: -58, w: 160, d: 96, type: 'corporate_tower', h: 64, label: 'SEDE ADUANEIRA DO PCC' },
+    { cx: 1434, cz: -58, w: 160, d: 96, type: 'c4_factory', h: 46, label: 'HANGAR DE CAMINHÕES BAÚ' },
+    { cx: 1580, cz: -58, w: 96, d: 96, type: 'coastal_fort', h: 50, label: 'FORTALEZA DO CANAL' },
 
-    { cx: 684,  cz: 58,    w: 144, d: 96,  type: 'c4_factory',      h: 44, label: 'ENTREPOSTO PORTUÁRIO PCC' },
-    { cx: 866,  cz: 58,    w: 172, d: 96,  type: 'corporate_tower', h: 58, label: 'CONTROLADORIA DO PORTO (PCC)' },
-    { cx: 1062, cz: 58,    w: 172, d: 96,  type: 'c4_factory',      h: 46, label: 'TERMINAL DE EXPORTAÇÃO PCC' },
-    { cx: 1252, cz: 58,    w: 160, d: 96,  type: 'heavy_silos',     h: 54, label: 'SILOS PORTUÁRIOS BLINDADOS' },
-    { cx: 1434, cz: 58,    w: 160, d: 96,  type: 'c4_factory',      h: 46, label: 'DOCAS BLINDADAS LESTE' },
-    { cx: 1580, cz: 58,    w: 96,  d: 96,  type: 'coastal_fort',    h: 52, label: 'FAROL BLINDADO DO SINDICATO' }
+    { cx: 684, cz: 58, w: 144, d: 96, type: 'c4_factory', h: 44, label: 'ENTREPOSTO PORTUÁRIO PCC' },
+    { cx: 866, cz: 58, w: 172, d: 96, type: 'corporate_tower', h: 58, label: 'CONTROLADORIA DO PORTO (PCC)' },
+    { cx: 1062, cz: 58, w: 172, d: 96, type: 'c4_factory', h: 46, label: 'TERMINAL DE EXPORTAÇÃO PCC' },
+    { cx: 1252, cz: 58, w: 160, d: 96, type: 'heavy_silos', h: 54, label: 'SILOS PORTUÁRIOS BLINDADOS' },
+    { cx: 1434, cz: 58, w: 160, d: 96, type: 'c4_factory', h: 46, label: 'DOCAS BLINDADAS LESTE' },
+    { cx: 1580, cz: 58, w: 96, d: 96, type: 'coastal_fort', h: 52, label: 'FAROL BLINDADO DO SINDICATO' }
   ];
 
   pccGridBlocks.forEach((blk, idx) => {
@@ -1884,16 +1884,16 @@ function buildMetropolitanPortAndDocks(world, batcher) {
 function _buildPortLogisticsRoadNetworkAndQuay(world, batcher) {
   // 10 Pátios de Carga Demarcados (substituindo o antigo tapete cinza único por setores industriais diferenciados!)
   const sectors = [
-    { x: 718,  z: 235, w: 184, d: 166, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Setor Docas 01-02
-    { x: 718,  z: 435, w: 184, d: 166, mat: 'armor_slate',       mapColor: '#334155' }, // Setor Docas 03-04
-    { x: 718,  z: 622, w: 184, d: 138, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Setor Docas 05-06
-    { x: 992,  z: 235, w: 286, d: 166, mat: 'armor_slate',       mapColor: '#334155' }, // Setor Docas 07-08 + Capitania
+    { x: 718, z: 235, w: 184, d: 166, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Setor Docas 01-02
+    { x: 718, z: 435, w: 184, d: 166, mat: 'armor_slate', mapColor: '#334155' }, // Setor Docas 03-04
+    { x: 718, z: 622, w: 184, d: 138, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Setor Docas 05-06
+    { x: 992, z: 235, w: 286, d: 166, mat: 'armor_slate', mapColor: '#334155' }, // Setor Docas 07-08 + Capitania
     { x: 1265, z: 235, w: 172, d: 166, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Setor Terminal de Combustível
-    { x: 992,  z: 435, w: 286, d: 166, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Pátio Central de Contêineres Oeste
-    { x: 1265, z: 435, w: 172, d: 166, mat: 'armor_slate',       mapColor: '#334155' }, // Pátio Central de Contêineres Leste
-    { x: 995,  z: 625, w: 286, d: 142, mat: 'matte_black',       mapColor: '#0f172a' }, // Setor Fortificado A.R.E.S.
+    { x: 992, z: 435, w: 286, d: 166, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Pátio Central de Contêineres Oeste
+    { x: 1265, z: 435, w: 172, d: 166, mat: 'armor_slate', mapColor: '#334155' }, // Pátio Central de Contêineres Leste
+    { x: 995, z: 625, w: 286, d: 142, mat: 'matte_black', mapColor: '#0f172a' }, // Setor Fortificado A.R.E.S.
     { x: 1265, z: 625, w: 172, d: 142, mat: 'gunmetal_concrete', mapColor: '#1e293b' }, // Pátio Sul de Contêineres
-    { x: 1498, z: 425, w: 204, d: 616, mat: 'armor_slate',       mapColor: '#334155' }  // Plataforma Pesada do Cais Leste
+    { x: 1498, z: 425, w: 204, d: 616, mat: 'armor_slate', mapColor: '#334155' }  // Plataforma Pesada do Cais Leste
   ];
 
   for (const sec of sectors) {
@@ -2022,57 +2022,57 @@ function _buildMassiveContainerYardBlocksAndRTGCranes(world, batcher, colorKeys)
   // 40 Grandes Maciços de Contêineres cobrindo 90% de todos os pátios do Porto (Central-Oeste, Central-Leste, Sul-Leste, Cais Leste e Docas!)
   const yardBlocks = [
     // SETOR 1: PÁTIO CENTRAL-OESTE COMPLETO (X = 852..1142, Z = 356..518) — 10 Maciços de 6 a 8 Andares (36m a 48m!)
-    { bx: 868,  bz: 386, rows: 4, bays: 3, maxFloors: 7, shape: 'L', hasRTG: true,  seed: 1 },
-    { bx: 922,  bz: 386, rows: 4, bays: 3, maxFloors: 8, shape: 'U', hasRTG: false, seed: 2 },
-    { bx: 976,  bz: 386, rows: 4, bays: 3, maxFloors: 7, shape: 'T', hasRTG: true,  seed: 3 },
-    { bx: 1034, bz: 386, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 4 },
+    { bx: 868, bz: 386, rows: 4, bays: 3, maxFloors: 7, shape: 'L', hasRTG: true, seed: 1 },
+    { bx: 922, bz: 386, rows: 4, bays: 3, maxFloors: 8, shape: 'U', hasRTG: false, seed: 2 },
+    { bx: 976, bz: 386, rows: 4, bays: 3, maxFloors: 7, shape: 'T', hasRTG: true, seed: 3 },
+    { bx: 1034, bz: 386, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true, seed: 4 },
     { bx: 1098, bz: 386, rows: 5, bays: 3, maxFloors: 7, shape: 'L', hasRTG: false, seed: 5 },
 
-    { bx: 868,  bz: 478, rows: 4, bays: 3, maxFloors: 7, shape: 'U', hasRTG: false, seed: 6 },
-    { bx: 922,  bz: 478, rows: 4, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true,  seed: 7 },
-    { bx: 976,  bz: 478, rows: 4, bays: 3, maxFloors: 6, shape: 'U', hasRTG: false, seed: 8 },
-    { bx: 1034, bz: 478, rows: 5, bays: 3, maxFloors: 8, shape: 'T', hasRTG: true,  seed: 9 },
-    { bx: 1098, bz: 478, rows: 5, bays: 3, maxFloors: 7, shape: 'U', hasRTG: true,  seed: 10 },
+    { bx: 868, bz: 478, rows: 4, bays: 3, maxFloors: 7, shape: 'U', hasRTG: false, seed: 6 },
+    { bx: 922, bz: 478, rows: 4, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true, seed: 7 },
+    { bx: 976, bz: 478, rows: 4, bays: 3, maxFloors: 6, shape: 'U', hasRTG: false, seed: 8 },
+    { bx: 1034, bz: 478, rows: 5, bays: 3, maxFloors: 8, shape: 'T', hasRTG: true, seed: 9 },
+    { bx: 1098, bz: 478, rows: 5, bays: 3, maxFloors: 7, shape: 'U', hasRTG: true, seed: 10 },
 
     // SETOR 2: PÁTIO CENTRAL-LESTE COMPLETO (X = 1180..1352, Z = 356..518) — 6 Maciços de 6 a 8 Andares (36m a 48m!)
-    { bx: 1202, bz: 386, rows: 4, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 11 },
+    { bx: 1202, bz: 386, rows: 4, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true, seed: 11 },
     { bx: 1258, bz: 386, rows: 5, bays: 3, maxFloors: 7, shape: 'T', hasRTG: false, seed: 12 },
-    { bx: 1318, bz: 386, rows: 5, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true,  seed: 13 },
+    { bx: 1318, bz: 386, rows: 5, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true, seed: 13 },
 
     { bx: 1202, bz: 478, rows: 4, bays: 3, maxFloors: 7, shape: 'L', hasRTG: false, seed: 14 },
-    { bx: 1258, bz: 478, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 15 },
+    { bx: 1258, bz: 478, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true, seed: 15 },
     { bx: 1318, bz: 478, rows: 5, bays: 3, maxFloors: 7, shape: 'U', hasRTG: false, seed: 16 },
 
     // SETOR 3: PÁTIO SUL-LESTE (X = 1180..1352, Z = 556..692 — FIM DO QUADRADÃO CINZA VAZIO!) — 6 Maciços de 6 a 8 Andares!
-    { bx: 1202, bz: 586, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 17 },
+    { bx: 1202, bz: 586, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true, seed: 17 },
     { bx: 1260, bz: 586, rows: 5, bays: 3, maxFloors: 7, shape: 'T', hasRTG: false, seed: 18 },
-    { bx: 1318, bz: 586, rows: 5, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true,  seed: 19 },
+    { bx: 1318, bz: 586, rows: 5, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true, seed: 19 },
 
     { bx: 1202, bz: 658, rows: 5, bays: 2, maxFloors: 7, shape: 'L', hasRTG: false, seed: 20 },
-    { bx: 1260, bz: 658, rows: 5, bays: 2, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 21 },
+    { bx: 1260, bz: 658, rows: 5, bays: 2, maxFloors: 8, shape: 'U', hasRTG: true, seed: 21 },
     { bx: 1318, bz: 658, rows: 5, bays: 2, maxFloors: 7, shape: 'T', hasRTG: false, seed: 22 },
 
     // SETOR 4: FAIXA COMPLETA DO CAIS LESTE (X = 1396..1524, Z = 158..688) — 12 Maciços Colossais de 6 a 8 Andares!
-    { bx: 1424, bz: 194, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 23 },
+    { bx: 1424, bz: 194, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true, seed: 23 },
     { bx: 1488, bz: 194, rows: 5, bays: 3, maxFloors: 7, shape: 'L', hasRTG: false, seed: 24 },
     { bx: 1424, bz: 282, rows: 5, bays: 3, maxFloors: 7, shape: 'T', hasRTG: false, seed: 25 },
-    { bx: 1488, bz: 282, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 26 },
+    { bx: 1488, bz: 282, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true, seed: 26 },
 
-    { bx: 1424, bz: 386, rows: 5, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true,  seed: 27 },
+    { bx: 1424, bz: 386, rows: 5, bays: 3, maxFloors: 8, shape: 'L', hasRTG: true, seed: 27 },
     { bx: 1488, bz: 386, rows: 5, bays: 3, maxFloors: 7, shape: 'U', hasRTG: false, seed: 28 },
     { bx: 1424, bz: 478, rows: 5, bays: 3, maxFloors: 7, shape: 'U', hasRTG: false, seed: 29 },
-    { bx: 1488, bz: 478, rows: 5, bays: 3, maxFloors: 8, shape: 'T', hasRTG: true,  seed: 30 },
+    { bx: 1488, bz: 478, rows: 5, bays: 3, maxFloors: 8, shape: 'T', hasRTG: true, seed: 30 },
 
-    { bx: 1424, bz: 586, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 31 },
+    { bx: 1424, bz: 586, rows: 5, bays: 3, maxFloors: 8, shape: 'U', hasRTG: true, seed: 31 },
     { bx: 1488, bz: 586, rows: 5, bays: 3, maxFloors: 7, shape: 'L', hasRTG: false, seed: 32 },
     { bx: 1424, bz: 658, rows: 5, bays: 2, maxFloors: 7, shape: 'L', hasRTG: false, seed: 33 },
-    { bx: 1488, bz: 658, rows: 5, bays: 2, maxFloors: 8, shape: 'U', hasRTG: true,  seed: 34 },
+    { bx: 1488, bz: 658, rows: 5, bays: 2, maxFloors: 8, shape: 'U', hasRTG: true, seed: 34 },
 
     // SETOR 5: CORREDORES LABIRÍNTICOS ENTRE OS ARMAZÉNS E CAPITANIA (X = 620..1150) — 6 Maciços de 5 a 7 Andares!
-    { bx: 713,  bz: 304, rows: 4, bays: 1, maxFloors: 6, shape: 'L', hasRTG: false, seed: 35 },
-    { bx: 713,  bz: 504, rows: 4, bays: 1, maxFloors: 6, shape: 'L', hasRTG: false, seed: 36 },
-    { bx: 713,  bz: 682, rows: 4, bays: 1, maxFloors: 5, shape: 'L', hasRTG: false, seed: 37 },
-    { bx: 950,  bz: 304, rows: 5, bays: 1, maxFloors: 7, shape: 'U', hasRTG: false, seed: 38 },
+    { bx: 713, bz: 304, rows: 4, bays: 1, maxFloors: 6, shape: 'L', hasRTG: false, seed: 35 },
+    { bx: 713, bz: 504, rows: 4, bays: 1, maxFloors: 6, shape: 'L', hasRTG: false, seed: 36 },
+    { bx: 713, bz: 682, rows: 4, bays: 1, maxFloors: 5, shape: 'L', hasRTG: false, seed: 37 },
+    { bx: 950, bz: 304, rows: 5, bays: 1, maxFloors: 7, shape: 'U', hasRTG: false, seed: 38 },
     { bx: 1054, bz: 298, rows: 3, bays: 1, maxFloors: 6, shape: 'L', hasRTG: false, seed: 39 },
     { bx: 1142, bz: 298, rows: 3, bays: 1, maxFloors: 6, shape: 'L', hasRTG: false, seed: 40 }
   ];
@@ -2190,37 +2190,37 @@ function _buildMassiveContainerYardBlocksAndRTGCranes(world, batcher, colorKeys)
   // ==========================================================================
   const containerSkybridges = [
     // Pontes de Contêineres no Pátio Central-Oeste (a 24m e 36m de altura!)
-    { x: 895,  y: 24.28, z: 386, rotated: true,  color: 'lego_red' },
-    { x: 949,  y: 36.28, z: 386, rotated: true,  color: 'forklift_yellow' },
-    { x: 1005, y: 30.28, z: 386, rotated: true,  color: 'pcc_royal' },
-    { x: 1066, y: 36.28, z: 386, rotated: true,  color: 'lego_orange' },
-    { x: 895,  y: 30.28, z: 478, rotated: true,  color: 'lego_green' },
-    { x: 949,  y: 36.28, z: 478, rotated: true,  color: 'lego_red' },
-    { x: 1005, y: 24.28, z: 478, rotated: true,  color: 'tactical_white' },
-    { x: 1066, y: 36.28, z: 478, rotated: true,  color: 'forklift_yellow' },
+    { x: 895, y: 24.28, z: 386, rotated: true, color: 'lego_red' },
+    { x: 949, y: 36.28, z: 386, rotated: true, color: 'forklift_yellow' },
+    { x: 1005, y: 30.28, z: 386, rotated: true, color: 'pcc_royal' },
+    { x: 1066, y: 36.28, z: 386, rotated: true, color: 'lego_orange' },
+    { x: 895, y: 30.28, z: 478, rotated: true, color: 'lego_green' },
+    { x: 949, y: 36.28, z: 478, rotated: true, color: 'lego_red' },
+    { x: 1005, y: 24.28, z: 478, rotated: true, color: 'tactical_white' },
+    { x: 1066, y: 36.28, z: 478, rotated: true, color: 'forklift_yellow' },
     // Pontes longitudinais cruzando o corredor Z = 432 no alto (Y = 30m e 36m)
-    { x: 868,  y: 30.28, z: 432, rotated: false, color: 'lego_orange' },
-    { x: 976,  y: 36.28, z: 432, rotated: false, color: 'pcc_royal' },
+    { x: 868, y: 30.28, z: 432, rotated: false, color: 'lego_orange' },
+    { x: 976, y: 36.28, z: 432, rotated: false, color: 'pcc_royal' },
     { x: 1098, y: 30.28, z: 432, rotated: false, color: 'lego_red' },
 
     // Pontes de Contêineres no Pátio Central-Leste & Sul-Leste (a 24m, 30m e 36m!)
-    { x: 1230, y: 36.28, z: 386, rotated: true,  color: 'lego_orange' },
-    { x: 1288, y: 30.28, z: 386, rotated: true,  color: 'pcc_royal' },
-    { x: 1230, y: 30.28, z: 478, rotated: true,  color: 'forklift_yellow' },
-    { x: 1288, y: 36.28, z: 478, rotated: true,  color: 'lego_red' },
+    { x: 1230, y: 36.28, z: 386, rotated: true, color: 'lego_orange' },
+    { x: 1288, y: 30.28, z: 386, rotated: true, color: 'pcc_royal' },
+    { x: 1230, y: 30.28, z: 478, rotated: true, color: 'forklift_yellow' },
+    { x: 1288, y: 36.28, z: 478, rotated: true, color: 'lego_red' },
     { x: 1258, y: 36.28, z: 432, rotated: false, color: 'lego_green' },
-    { x: 1230, y: 36.28, z: 586, rotated: true,  color: 'lego_red' },
-    { x: 1288, y: 30.28, z: 586, rotated: true,  color: 'forklift_yellow' },
-    { x: 1230, y: 30.28, z: 658, rotated: true,  color: 'pcc_royal' },
-    { x: 1288, y: 36.28, z: 658, rotated: true,  color: 'lego_orange' },
+    { x: 1230, y: 36.28, z: 586, rotated: true, color: 'lego_red' },
+    { x: 1288, y: 30.28, z: 586, rotated: true, color: 'forklift_yellow' },
+    { x: 1230, y: 30.28, z: 658, rotated: true, color: 'pcc_royal' },
+    { x: 1288, y: 36.28, z: 658, rotated: true, color: 'lego_orange' },
 
     // Pontes de Contêineres no Cais Leste (X = 1456, ligando as fileiras de 8 andares!)
-    { x: 1456, y: 36.28, z: 194, rotated: true,  color: 'lego_red' },
-    { x: 1456, y: 30.28, z: 282, rotated: true,  color: 'forklift_yellow' },
-    { x: 1456, y: 36.28, z: 386, rotated: true,  color: 'pcc_royal' },
-    { x: 1456, y: 36.28, z: 478, rotated: true,  color: 'lego_orange' },
-    { x: 1456, y: 36.28, z: 586, rotated: true,  color: 'lego_green' },
-    { x: 1456, y: 30.28, z: 658, rotated: true,  color: 'lego_red' }
+    { x: 1456, y: 36.28, z: 194, rotated: true, color: 'lego_red' },
+    { x: 1456, y: 30.28, z: 282, rotated: true, color: 'forklift_yellow' },
+    { x: 1456, y: 36.28, z: 386, rotated: true, color: 'pcc_royal' },
+    { x: 1456, y: 36.28, z: 478, rotated: true, color: 'lego_orange' },
+    { x: 1456, y: 36.28, z: 586, rotated: true, color: 'lego_green' },
+    { x: 1456, y: 30.28, z: 658, rotated: true, color: 'lego_red' }
   ];
 
   for (const sb of containerSkybridges) {
@@ -2239,11 +2239,11 @@ function _buildMassiveContainerYardBlocksAndRTGCranes(world, batcher, colorKeys)
 
   // Contêineres em Diagonal nos cruzamentos internos da selva (quebrando a ortogonalidade e criando barricadas táticas!)
   const diagonalContainers = [
-    { x: 950,  z: 432, floors: 3, angle: 0.38,  color: 'lego_red' },
+    { x: 950, z: 432, floors: 3, angle: 0.38, color: 'lego_red' },
     { x: 1065, z: 432, floors: 4, angle: -0.42, color: 'forklift_yellow' },
-    { x: 1230, z: 432, floors: 3, angle: 0.35,  color: 'pcc_royal' },
+    { x: 1230, z: 432, floors: 3, angle: 0.35, color: 'pcc_royal' },
     { x: 1318, z: 624, floors: 4, angle: -0.36, color: 'lego_orange' },
-    { x: 1456, z: 335, floors: 3, angle: 0.40,  color: 'lego_green' },
+    { x: 1456, z: 335, floors: 3, angle: 0.40, color: 'lego_green' },
     { x: 1456, z: 535, floors: 3, angle: -0.38, color: 'lego_red' }
   ];
   for (const dc of diagonalContainers) {
@@ -2390,16 +2390,16 @@ function _addOpenAresContrabandContainer(world, batcher, x, z) {
  */
 function _buildEightPortWarehousesFuelTerminalAndHarborTower(world, batcher, colorKeys) {
   const warehouses = [
-    { cx: 668,  cz: 215, w: 66, d: 102, h: 46, bodyMat: 'scrap_teal',   trimMat: 'forklift_yellow', num: '01', label: 'DOCA 01' },
-    { cx: 758,  cz: 215, w: 66, d: 102, h: 50, bodyMat: 'scrap_rust',   trimMat: 'tactical_white',  num: '02', label: 'DOCA 02' },
-    { cx: 668,  cz: 415, w: 66, d: 102, h: 48, bodyMat: 'armor_slate',  trimMat: 'forklift_yellow', num: '03', label: 'DOCA 03' },
-    { cx: 758,  cz: 415, w: 66, d: 102, h: 54, bodyMat: 'pcc_navy',     trimMat: 'lego_orange',     num: '04', label: 'DOCA 04' },
-    { cx: 668,  cz: 602, w: 66, d: 92,  h: 44, bodyMat: 'scrap_rust',   trimMat: 'forklift_yellow', num: '05', label: 'DOCA 05' },
-    { cx: 758,  cz: 602, w: 66, d: 92,  h: 52, bodyMat: 'scrap_teal',   trimMat: 'tactical_white',  num: '06', label: 'DOCA 06' },
-    { cx: 892,  cz: 215, w: 72, d: 102, h: 50, bodyMat: 'pcc_navy',     trimMat: 'forklift_yellow', num: '07', label: 'DOCA 07' },
-    { cx: 994,  cz: 215, w: 72, d: 102, h: 54, bodyMat: 'armor_slate',  trimMat: 'lego_orange',     num: '08', label: 'DOCA 08' },
-    { cx: 634,  cz: 304, w: 34, d: 46,  h: 46, bodyMat: 'pcc_navy',     trimMat: 'tactical_white',  num: '09', label: 'DOCA 09' },
-    { cx: 792,  cz: 304, w: 34, d: 46,  h: 48, bodyMat: 'scrap_teal',   trimMat: 'forklift_yellow', num: '10', label: 'DOCA 10' }
+    { cx: 668, cz: 215, w: 66, d: 102, h: 46, bodyMat: 'scrap_teal', trimMat: 'forklift_yellow', num: '01', label: 'DOCA 01' },
+    { cx: 758, cz: 215, w: 66, d: 102, h: 50, bodyMat: 'scrap_rust', trimMat: 'tactical_white', num: '02', label: 'DOCA 02' },
+    { cx: 668, cz: 415, w: 66, d: 102, h: 48, bodyMat: 'armor_slate', trimMat: 'forklift_yellow', num: '03', label: 'DOCA 03' },
+    { cx: 758, cz: 415, w: 66, d: 102, h: 54, bodyMat: 'pcc_navy', trimMat: 'lego_orange', num: '04', label: 'DOCA 04' },
+    { cx: 668, cz: 602, w: 66, d: 92, h: 44, bodyMat: 'scrap_rust', trimMat: 'forklift_yellow', num: '05', label: 'DOCA 05' },
+    { cx: 758, cz: 602, w: 66, d: 92, h: 52, bodyMat: 'scrap_teal', trimMat: 'tactical_white', num: '06', label: 'DOCA 06' },
+    { cx: 892, cz: 215, w: 72, d: 102, h: 50, bodyMat: 'pcc_navy', trimMat: 'forklift_yellow', num: '07', label: 'DOCA 07' },
+    { cx: 994, cz: 215, w: 72, d: 102, h: 54, bodyMat: 'armor_slate', trimMat: 'lego_orange', num: '08', label: 'DOCA 08' },
+    { cx: 634, cz: 304, w: 34, d: 46, h: 46, bodyMat: 'pcc_navy', trimMat: 'tactical_white', num: '09', label: 'DOCA 09' },
+    { cx: 792, cz: 304, w: 34, d: 46, h: 48, bodyMat: 'scrap_teal', trimMat: 'forklift_yellow', num: '10', label: 'DOCA 10' }
   ];
 
   warehouses.forEach((wh, idx) => {
@@ -2479,18 +2479,18 @@ function _buildEightPortWarehousesFuelTerminalAndHarborTower(world, batcher, col
   const tankPositions = [
     { x: 1204, z: 176, r: 11.5, h: 58, color: 'tactical_white', stripe: 'lego_orange' },
     { x: 1236, z: 176, r: 11.5, h: 66, color: 'tactical_white', stripe: 'lego_orange' },
-    { x: 1268, z: 176, r: 11.5, h: 62, color: 'lego_orange',    stripe: 'tactical_white' },
+    { x: 1268, z: 176, r: 11.5, h: 62, color: 'lego_orange', stripe: 'tactical_white' },
     { x: 1300, z: 176, r: 11.5, h: 54, color: 'tactical_white', stripe: 'lego_orange' },
 
-    { x: 1204, z: 218, r: 11.5, h: 52, color: 'lego_orange',    stripe: 'tactical_white' },
+    { x: 1204, z: 218, r: 11.5, h: 52, color: 'lego_orange', stripe: 'tactical_white' },
     { x: 1236, z: 218, r: 11.5, h: 68, color: 'tactical_white', stripe: 'lego_orange' },
     { x: 1268, z: 218, r: 11.5, h: 60, color: 'tactical_white', stripe: 'lego_orange' },
-    { x: 1300, z: 218, r: 11.5, h: 48, color: 'lego_orange',    stripe: 'tactical_white' },
+    { x: 1300, z: 218, r: 11.5, h: 48, color: 'lego_orange', stripe: 'tactical_white' },
 
     { x: 1204, z: 256, r: 10.5, h: 50, color: 'tactical_white', stripe: 'forklift_yellow' },
     { x: 1236, z: 256, r: 10.5, h: 56, color: 'forklift_yellow', stripe: 'matte_black' },
     { x: 1268, z: 256, r: 10.5, h: 54, color: 'tactical_white', stripe: 'lego_orange' },
-    { x: 1300, z: 256, r: 10.5, h: 48, color: 'lego_orange',    stripe: 'tactical_white' }
+    { x: 1300, z: 256, r: 10.5, h: 48, color: 'lego_orange', stripe: 'tactical_white' }
   ];
 
   for (const tk of tankPositions) {

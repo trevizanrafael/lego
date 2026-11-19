@@ -358,7 +358,7 @@ function buildPavedPathsCentralPlazaAndFountain(world, batcher, px, pz, pw, pd, 
     { x1: -355, z1: 212, x2: -275, z2: 268 },
     { x1: -355, z1: 324, x2: -275, z2: 268 },
     { x1: -195, z1: 268, x2: -135, z2: 212 },
-    { x1: -105, z1: 324, x2: -32,  z2: 268 }
+    { x1: -105, z1: 324, x2: -32, z2: 268 }
   ];
   for (const dt of diagTrails) {
     const steps = 16;
@@ -514,11 +514,11 @@ function buildPavedPathsCentralPlazaAndFountain(world, batcher, px, pz, pw, pd, 
   // 6 CARRINHOS DE CACHORRO-QUENTE / SORVETE COM GUARDA-SOL COLORIDO (QUEBRÁVEIS!)
   const cartSpecs = [
     { x: -24, z: 236, color: LEGO_COLORS.red, umbrella: LEGO_COLORS.yellow },
-    { x: 24,  z: 236, color: 0xec4899,        umbrella: 0x38bdf8 },
-    { x: -24, z: 300, color: 0xf97316,        umbrella: LEGO_COLORS.red },
-    { x: 24,  z: 300, color: 0x38bdf8,        umbrella: 0xec4899 },
+    { x: 24, z: 236, color: 0xec4899, umbrella: 0x38bdf8 },
+    { x: -24, z: 300, color: 0xf97316, umbrella: LEGO_COLORS.red },
+    { x: 24, z: 300, color: 0x38bdf8, umbrella: 0xec4899 },
     { x: -195, z: 256, color: LEGO_COLORS.yellow, umbrella: LEGO_COLORS.red },
-    { x: 52,   z: 256, color: 0x22c55e,        umbrella: LEGO_COLORS.yellow }
+    { x: 52, z: 256, color: 0x22c55e, umbrella: LEGO_COLORS.yellow }
   ];
   for (const cfg of cartSpecs) {
     spawnBreakableFoodCart(world, cfg.x, groundY, cfg.z, cfg.color, cfg.umbrella);
@@ -548,8 +548,8 @@ function buildWoodenGazeboCoreto(world, batcher, gx, yBase, gz) {
   const deckY = yBase + 1.12;
   const posts = [
     [-6.5, -6.5], [0, -6.8], [6.5, -6.5],
-    [-6.8, 0],               [6.8, 0],
-    [-6.5, 6.5],             [6.5, 6.5]
+    [-6.8, 0], [6.8, 0],
+    [-6.5, 6.5], [6.5, 6.5]
   ];
   for (const [dx, dz] of posts) {
     batcher.addBox('white_marble', 0.55, 4.6, 0.55, gx + dx, deckY + 2.3, gz + dz);
@@ -905,11 +905,11 @@ function buildDenseJungleForestVegetation(world, batcher, px, pz, pw, pd, ground
   const flowerBedCoords = [
     [-420, 257], [-420, 279], [-315, 257], [-315, 279],
     [-235, 257], [-235, 279], [-150, 257], [-150, 279],
-    [-70, 257],  [-70, 279],  [365, 257],  [365, 279],
-    [425, 257],  [425, 279],  [-14, 168],  [14, 168],
-    [-14, 202],  [14, 202],   [-14, 334],  [14, 334],
-    [-14, 368],  [14, 368],   [130, 170],  [280, 170],
-    [130, 366],  [280, 366]
+    [-70, 257], [-70, 279], [365, 257], [365, 279],
+    [425, 257], [425, 279], [-14, 168], [14, 168],
+    [-14, 202], [14, 202], [-14, 334], [14, 334],
+    [-14, 368], [14, 368], [130, 170], [280, 170],
+    [130, 366], [280, 366]
   ];
   flowerBedCoords.forEach(([fx, fz], fIdx) => {
     const flKey1 = flowerKeys[fIdx % flowerKeys.length];

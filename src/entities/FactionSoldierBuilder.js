@@ -483,14 +483,14 @@ function decalMaterial(faction, role) {
   const tex = torsoDecalTexture(faction, role);
   const mat = tex
     ? new THREE.MeshPhysicalMaterial({
-        map: tex,
-        transparent: true,
-        roughness: 0.25,
-        clearcoat: 0.4,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2
-      })
+      map: tex,
+      transparent: true,
+      roughness: 0.25,
+      clearcoat: 0.4,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2
+    })
     : null;
   GLOW_CACHE.set(key, mat);
   return mat;
