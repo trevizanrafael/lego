@@ -417,28 +417,9 @@ function createReliefAndViaductBatcher() {
       });
       buckets.clear();
 
-      const flushStuds = (positions, colorHex) => {
-        if (positions.length === 0) return;
-        const inst = new THREE.InstancedMesh(
-          SHARED_STUD_GEO,
-          getLegoMaterial(colorHex, { roughness: 0.25, clearcoat: 0.45 }),
-          positions.length
-        );
-        const dummy = new THREE.Object3D();
-        for (let i = 0; i < positions.length; i++) {
-          dummy.position.set(positions[i][0], positions[i][1], positions[i][2]);
-          dummy.rotation.set(0, 0, 0);
-          dummy.scale.set(1.15, 1.15, 1.15);
-          dummy.updateMatrix();
-          inst.setMatrixAt(i, dummy.matrix);
-        }
-        inst.instanceMatrix.needsUpdate = true;
-        inst.receiveShadow = true;
-        scene.add(inst);
-      };
-
-      flushStuds(studPositionsYellow, 0xfacc15);
-      flushStuds(studPositionsStone, 0xcbd5e1);
+      // Opção 2 (Studless): não espalha fileiras de pinos plásticos sobre muretas de viaduto/parque
+      studPositionsYellow.length = 0;
+      studPositionsStone.length = 0;
     }
   };
 }

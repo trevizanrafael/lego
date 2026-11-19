@@ -153,7 +153,7 @@ class LegoCityGame {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 0.92;
     this.container.innerHTML = '';
     this.container.appendChild(this.renderer.domElement);
 
@@ -169,7 +169,7 @@ class LegoCityGame {
       const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
       const roomEnv = new RoomEnvironment();
       this.scene.environment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
-      this.scene.environmentIntensity = 0.55;
+      this.scene.environmentIntensity = 0.24;
       roomEnv.dispose();
       pmremGenerator.dispose();
     } catch (envErr) {

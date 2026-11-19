@@ -12,7 +12,7 @@ const {
   LEGO_SHADER_GLOBALS,
   setLegoShaderQualityFX
 } = await import('../src/materials/LegoMaterials.js');
-const { GraphicsPipeline } = await import('../src/graphics/GraphicsPipeline.js');
+const { GraphicsPipeline, GOTHAM_NOIR_SHADER } = await import('../src/graphics/GraphicsPipeline.js');
 const { loadGameSettings, saveGameSettings } = await import('../src/ui/FactionIconsAndSaveSystem.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
 
@@ -75,6 +75,8 @@ describe('ETAPA 3 & 4 — MATERIAIS PBR/SHADERS LEGO, PIPELINE GRÁFICO HDR & PR
     pipeline.setPreset('ultra');
     assert.equal(sun.shadow.mapSize.width, 2048);
     assert.equal(pipeline.getStats().preset, 'ultra');
+    assert.ok(GOTHAM_NOIR_SHADER.uniforms.uDesaturate.value > 0.2, 'Shader Gotham Noir dessatura tons infantis');
+    assert.ok(GOTHAM_NOIR_SHADER.uniforms.uVignette.value > 0.3, 'Shader Gotham Noir aplica vinheta cinematográfica');
 
     pipeline.setPreset('auto');
     assert.equal(pipeline.getStats().preset, 'auto');

@@ -1,34 +1,34 @@
 import * as THREE from 'three';
 
 /**
- * Paleta oficial inspirada nas cores clássicas de peças LEGO (ABS Brilhante)
+ * Paleta sombria e dessaturada estilo Gotham Noir / DC Super-Villains (Opção 2 — Sem cores infantis estouradas)
  */
 export const LEGO_COLORS = {
-  yellow: 0xfacc15,       // Bright Yellow (Cabeça clássica / Táxi / Detalhes)
-  red: 0xdc2626,          // Bright Red (Carros / Hidrantes / Solaris)
-  crimson: 0x991b1b,      // Dark Red
-  blue: 0x2563eb,         // Bright Blue (Polícia / Prédios)
-  navy: 0x1e3a8a,         // Earth Blue / Dark Blue
-  black: 0x171717,        // Black (BOPE / Pneus / Asfalto escuro)
-  charcoal: 0x262626,     // Dark Grey Tático
-  darkGrey: 0x4b5563,     // Dark Stone Grey (Calçadas / Estruturas)
-  lightGrey: 0x9ca3af,    // Medium Stone Grey (Concreto / Bordas)
-  white: 0xf8fafc,        // White (Faixas / Viaturas / Prédios)
-  green: 0x16a34a,        // Bright Green (Árvores / Parque)
-  darkGreen: 0x15803d,    // Dark Green
-  sandGreen: 0x6ee7b7,    // Sand Green
-  orange: 0xf97316,       // Bright Orange (Luzes / Fogo)
-  tan: 0xfde68a,          // Brick Yellow / Tan (Prédios clássicos)
-  brown: 0x78350f,        // Reddish Brown (Troncos / Bancos / Caixas)
-  nougat: 0xd97706,       // Warm Tan / Tijolo
-  cyan: 0x06b6d4,         // Neon Cyan (Turbo / Vidros)
-  purple: 0x9333ea,       // A.R.E.S. Purple
-  gold: 0xf59e0b,         // Warm Gold
-  silver: 0xcbd5e1,       // Metallic Silver
-  asphalt: 0x181c24,      // Asfalto Urbano Escuro
-  sidewalk: 0x64748b,     // Calçada LEGO
-  concrete: 0x475569,     // Concreto Urbano
-  darkBlue: 0x1e3a8a      // Azul Corporativo Escuro
+  yellow: 0xd99b16,       // Mostarda Queimado / Âmbar Táxi Gotham
+  red: 0x9f1d20,          // Vermelho Sangue Seco / Carmesim Sombrio
+  crimson: 0x6b1114,      // Sangue Profundo
+  blue: 0x1d3b6e,         // Azul Aço Noturno
+  navy: 0x111f3d,         // Azul Abissal
+  black: 0x0b0d11,        // Preto Obsidiana
+  charcoal: 0x1a1d24,     // Grafite Arma (Gunmetal)
+  darkGrey: 0x323844,     // Concreto Escuro Desgastado
+  lightGrey: 0x6e7685,    // Pedra Cinza-Chumbo (Smog)
+  white: 0xd6dce5,        // Off-White Urbano Frio (nunca branco estourado de brinquedo)
+  green: 0x1d4d2b,        // Verde Musgo Sombrio / Pinho Escuro
+  darkGreen: 0x13331d,    // Verde Pântano Profundo
+  sandGreen: 0x3b6e5c,    // Cobre Oxidado / Pátina de Gotham
+  orange: 0xc25115,       // Ferrugem / Vapor de Sódio
+  tan: 0x9c8769,          // Arenito Envelhecido Sóbrio
+  brown: 0x4a2511,        // Madeira Carbonizada / Terra Úmida
+  nougat: 0x8c4a20,       // Tijolo Queimado Escuro
+  cyan: 0x0e7490,         // Azul-Petróleo Profundo
+  purple: 0x6b21a8,       // Violeta Sombrio (A.R.E.S.)
+  gold: 0xb47b12,         // Latão / Ouro Envelhecido
+  silver: 0x8b95a5,       // Aço Escovado Oxidado
+  asphalt: 0x0b0d12,      // Asfalto Negro Úmido de Gotham
+  sidewalk: 0x343a46,     // Calçada Escura de Concreto Sujo
+  concrete: 0x282d38,     // Concreto Brutalista Pesado
+  darkBlue: 0x122244      // Azul Corporativo Noturno
 };
 
 const materialCache = new Map();
@@ -183,18 +183,17 @@ varying float vLegoViewDist;`
         `float _bevelStr = uLegoFxEnabled * uLegoMicroBevelScale * uLegoBevelWeight;
 if (_bevelStr > 0.01) {
   vec3 _viewDirL = normalize(vViewPosition);
-  float _rimDistFade = smoothstep(230.0, 42.0, vLegoViewDist);
-  float _rimABS = pow(1.0 - clamp(abs(dot(_viewDirL, normal)), 0.0, 1.0), 4.2) * _rimDistFade;
-  gl_FragColor.rgb += vec3(0.095, 0.105, 0.125) * _rimABS * _bevelStr;
+  float _rimDistFade = smoothstep(210.0, 32.0, vLegoViewDist);
+  float _rimCold = pow(1.0 - clamp(abs(dot(_viewDirL, normal)), 0.0, 1.0), 4.6) * _rimDistFade;
+  gl_FragColor.rgb += vec3(0.022, 0.036, 0.048) * _rimCold * _bevelStr;
 
-  float _nearFade = 1.0 - smoothstep(12.0, 38.0, vLegoViewDist);
-  if (_nearFade > 0.01) {
-    vec3 _brickCoord = vLegoSurfaceWorldPos / vec3(0.8, 0.96, 0.8);
-    vec3 _edgeDist = 0.5 - abs(fract(_brickCoord) - 0.5);
-    float _seamBand = max(0.018, vLegoViewDist * 0.0022);
-    float _seam = 1.0 - smoothstep(0.0, _seamBand, min(_edgeDist.x, min(_edgeDist.y * 0.85, _edgeDist.z)));
-    gl_FragColor.rgb *= (1.0 - _seam * 0.075 * _nearFade * _bevelStr);
-  }
+  // Fuligem urbana / oclusão junto ao asfalto + manchas sutis de chuva/umidade (estilo Gotham Noir)
+  float _groundSoot = (1.0 - smoothstep(-0.2, 5.8, vLegoSurfaceWorldPos.y)) * 0.24;
+  float _rainStreak = sin(vLegoSurfaceWorldPos.x * 0.65 + vLegoSurfaceWorldPos.z * 0.61)
+                    * cos(vLegoSurfaceWorldPos.y * 0.28 + vLegoSurfaceWorldPos.x * 0.19);
+  float _grimeFade = 1.0 - smoothstep(35.0, 180.0, vLegoViewDist);
+  float _weatherDarken = clamp(_groundSoot + max(0.0, _rainStreak) * 0.08 * _grimeFade, 0.0, 0.30);
+  gl_FragColor.rgb *= (1.0 - _weatherDarken * _bevelStr);
 }
 #ifdef USE_FOG
   #ifdef FOG_EXP2
@@ -202,9 +201,11 @@ if (_bevelStr > 0.01) {
   #else
     float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
   #endif
-  float _hAtten = exp( - max( 0.0, vLegoSurfaceWorldPos.y - 6.0 ) * 0.0115 );
+  // Neblina baixa pesada nos becos/avenidas (Y < 32m) com topos emergindo na bruma
+  float _hAtten = exp( - max( 0.0, vLegoSurfaceWorldPos.y - 12.0 ) * 0.0085 );
+  float _lowAlleyMist = (1.0 - smoothstep(0.0, 32.0, max(0.0, vLegoSurfaceWorldPos.y))) * 0.16 * smoothstep(28.0, 220.0, vFogDepth);
   float _hWeight = mix( 1.0, clamp( mix( uLegoHeightFogMin, 1.0, _hAtten ), uLegoHeightFogMin, 1.0 ), uLegoFxEnabled );
-  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor * _hWeight );
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, clamp(fogFactor * _hWeight + _lowAlleyMist * uLegoFxEnabled, 0.0, 1.0) );
 #endif`
       );
     }
@@ -246,11 +247,11 @@ export function getLegoMaterial(colorHex, options = {}) {
 
   const mat = new THREE.MeshPhysicalMaterial({
     color: resolvedColor,
-    roughness: options.roughness ?? 0.25,
-    metalness: options.metalness ?? 0.02,
-    clearcoat: options.clearcoat ?? 0.4,
-    clearcoatRoughness: options.clearcoatRoughness ?? 0.15,
-    reflectivity: 0.7,
+    roughness: options.roughness ?? 0.58,
+    metalness: options.metalness ?? 0.08,
+    clearcoat: options.clearcoat ?? 0.06,
+    clearcoatRoughness: options.clearcoatRoughness ?? 0.48,
+    reflectivity: 0.35,
     ...(options.transparent ? { transparent: true, opacity: options.opacity ?? 0.65 } : {}),
     ...(options.emissive ? { emissive: options.emissive, emissiveIntensity: options.emissiveIntensity ?? 1.0 } : {}),
     ...(options.map ? { map: options.map } : {})
@@ -342,8 +343,8 @@ float _lwRipple = (_lwWave1 + _lwWave2) * 0.5;
 float _lwVdotN = clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0);
 float _lwFresnel = pow(1.0 - _lwVdotN, 3.0);
 float _lwFoamCrest = smoothstep(0.62, 0.98, _lwRipple);
-gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.35, 0.80, 0.98), _lwFresnel * uWaterFresnelBoost);
-gl_FragColor.rgb += vec3(0.75, 0.94, 1.0) * _lwFoamCrest * 0.09;
+gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.12, 0.24, 0.31), _lwFresnel * uWaterFresnelBoost);
+gl_FragColor.rgb += vec3(0.28, 0.36, 0.42) * _lwFoamCrest * 0.06;
 #include <fog_fragment>`
       );
     }
@@ -390,7 +391,8 @@ export function createLegoBrick(width, height, depth, colorHex, options = {}) {
   bodyMesh.receiveShadow = options.receiveShadow ?? true;
   group.add(bodyMesh);
 
-  if (options.studs !== false) {
+  // Opção 2 (Studless por padrão no mundo/carros; pinos só quando explicitamente solicitado com studs: true)
+  if (options.studs === true) {
     const step = options.studStep ?? 0.6;
     const cols = Math.max(1, Math.floor(width / step));
     const rows = Math.max(1, Math.floor(depth / step));

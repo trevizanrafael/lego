@@ -8,19 +8,22 @@ setupTestEnvironment();
 const { LEGO_COLORS, getLegoMaterial, createLegoBrick } = await import('../src/materials/LegoMaterials.js');
 const { Minifigure, MINIFIG_PRESETS } = await import('../src/entities/Minifigure.js');
 
-test('Materiais LEGO devem usar MeshPhysicalMaterial com plástico ABS brilhante (clearcoat e baixo roughness)', () => {
+test('Materiais PBR Opção 2 (Gotham Noir) usam MeshPhysicalMaterial fosco/acetinado sem brilho infantil', () => {
   const mat1 = getLegoMaterial(LEGO_COLORS.red);
   const mat2 = getLegoMaterial(LEGO_COLORS.red);
 
   assert.equal(mat1, mat2, 'Materiais idênticos devem ser cacheados e reutilizados');
   assert.ok(mat1 instanceof THREE.MeshPhysicalMaterial, 'Deve ser instância de MeshPhysicalMaterial');
-  assert.ok(mat1.roughness <= 0.3, `Roughness (${mat1.roughness}) deve simular plástico liso`);
-  assert.ok(mat1.clearcoat >= 0.35, `Clearcoat (${mat1.clearcoat}) deve dar brilho verniz LEGO`);
+  assert.ok(mat1.roughness >= 0.45, `Roughness (${mat1.roughness}) deve evitar brilho de plástico infantil`);
+  assert.ok(mat1.clearcoat <= 0.15, `Clearcoat (${mat1.clearcoat}) deve ser contido no padrão sombrio`);
 });
 
-test('createLegoBrick deve criar peça 3D com corpo BoxGeometry e pinos (Studs) InstancedMesh no topo', () => {
-  const brick = createLegoBrick(2.4, 1.0, 1.2, LEGO_COLORS.yellow, { studStep: 0.6 });
-  assert.equal(brick.children.length, 2, 'Deve conter malha do bloco + InstancedMesh de pinos');
+test('createLegoBrick é studless por padrão na Opção 2 e suporta studs InstancedMesh quando studs: true', () => {
+  const cleanBrick = createLegoBrick(2.4, 1.0, 1.2, LEGO_COLORS.yellow);
+  assert.equal(cleanBrick.children.length, 1, 'Bloco padrão Opção 2 deve ser liso/studless');
+
+  const brick = createLegoBrick(2.4, 1.0, 1.2, LEGO_COLORS.yellow, { studs: true, studStep: 0.6 });
+  assert.equal(brick.children.length, 2, 'Com studs: true deve conter malha do bloco + InstancedMesh de pinos');
 
   const instancedStuds = brick.children.find((c) => c instanceof THREE.InstancedMesh);
   assert.ok(instancedStuds, 'Pinos superiores devem usar InstancedMesh para performance de 60 FPS');

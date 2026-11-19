@@ -22,12 +22,12 @@ Este arquivo contém **todo o contexto, regras de negócio, decisões de design 
 * **Identidade Visual (IDV Oficial):** Todas as telas, HUD, minimapa, menus e alertas devem seguir rigorosamente o documento **`IDV.md`** (Estética **Tático Urbano Angular** estilo GTA / Valorant / BOPE: cortes chanfrados em 45° via `clip-path`, alto contraste Preto Asfalto `#090a0d` + Amarelo Alerta `#facc15`, fontes `Teko` / `Chakra Petch` / `JetBrains Mono`, sombras duras geométricas, tela limpa sem poluição visual e **zero glassmorphism/pílulas redondas de IA**).
 * **Tecnologia:** **Three.js (WebGL 3D em JavaScript ES6 Modules + HTML5/CSS3)** sem dependência de engines pesadas externas (sem Unity/Godot/Blender).
 * **Execução:** Deve rodar direto no navegador (via Vite ou servidor HTTP local simples) a **60 FPS constantes**, em tela cheia (`100vw x 100vh`), com `PointerLockControls` ou câmera orbital suave em 3ª pessoa controlada pelo mouse.
-* **Estética LEGO 3D Obrigatória:**
-  * **Materiais (`MeshPhysicalMaterial` / `MeshStandardMaterial`):** Aparência de plástico ABS brilhante (`roughness: 0.25`, `clearcoat: 0.4`), cores vibrantes e sombras projetadas (`castShadow` / `receiveShadow`).
-  * **Pinos de LEGO (Studs):** Topo das cabeças dos bonecos, telhados, calçadas e objetos destrutíveis devem exibir os clássicos pinos cilíndricos de LEGO.
-  * **Minifiguras 3D Articuladas:** Cabeça cilíndrica amarela/customizada com pino superior, tronco trapezoidal, braços e pernas articulados que balançam ao andar/correr/voar, capas, capacetes e armas 3D nas mãos.
-  * **Big-Figs 3D:** Personagens gigantes (**Titã Blindado**, **Vórtex em forma monstruosa** e **General Overlord**) possuem o dobro do tamanho e largura de uma minifigura comum, ombros largos, punhos colossais e animação de peso que treme a câmera ao pousar.
-  * **Destruição Física Satisfatória:** Quando qualquer objeto quebrável do cenário (carro, hidrante, poste, banca, barricada, caixa) chega a 0 de vida, ele **desmonta em pecinhas 3D coloridas que quicam no chão** e espalha **Studs (moedinhas cilíndricas brilhantes)** que giram e são puxadas para o jogador.
+* **Estética Híbrida Tática Sombria — Opção 2 ("Gotham Trevosa" / Estilo *LEGO DC Super-Villains*):**
+  * **Materiais PBR Urbanos Sombrios (`MeshPhysicalMaterial` / `MeshStandardMaterial`):** Fim do plástico infantil brilhante universal e das cores primárias estouradas; concreto áspero e sujo (`roughness: 0.58+`), metal escovado/oxidado, asfalto negro semi-úmido espelhando luzes/neon, paleta dessaturada e *Color Grading Noir* cinematográfico com vinheta e sombras densas.
+  * **Geometria Studless e Angular no Mundo:** Carros, blindados, calçadas, prédios, casas e barracos **não usam pinos aparentes de brinquedo (*studless*)** nem formato "caixa de sapato" — priorizar chanfros, para-brisas inclinados, cunhas (*wedges*), vidros fumê escuros e arquitetura *Art-Deco / Brutalista* sombria.
+  * **Personagens & Big-Figs Articulados (Mantidos):** Preserva a estrutura e proporção articulada dos bonecos e *Big-Figs* (**Titã Blindado**, **Vórtex em forma monstruosa** e **General Overlord**), integrados à atmosfera pesada.
+  * **Clima Padrão Pesado:** Dia nublado/carregado com névoa urbana densa (*smog*) e noite escura e opressiva cortada por vapor de sódio, mercúrio, giroflex, faróis e neon das facções.
+  * **Destruição Física Satisfatória:** Quando qualquer objeto quebrável do cenário chega a 0 de vida, ele se estilhaça em fragmentos físicos 3D que quicam no chão e espalha recompensas/espólios brilhantes puxados para o jogador.
 
 ---
 

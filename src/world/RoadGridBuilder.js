@@ -156,9 +156,9 @@ function addChunkedArrayToScene(scene, geos, mat, opts = {}) {
  */
 export function buildOceanAndMainIsland(world) {
   const oceanMat = new THREE.MeshStandardMaterial({
-    color: 0x0369a1,
-    roughness: 0.22,
-    metalness: 0.08
+    color: 0x071924,
+    roughness: 0.24,
+    metalness: 0.18
   });
 
   const waterGeos = [];
@@ -195,10 +195,13 @@ export function buildOceanAndMainIsland(world) {
   mergedOcean.receiveShadow = false;
   world.scene.add(mergedOcean);
 
-  const asphaltMat = new THREE.MeshStandardMaterial({
+  // Asfalto negro semi-úmido reflexivo estilo Gotham Noir (espelha luzes de sódio, faróis e neon!)
+  const asphaltMat = new THREE.MeshPhysicalMaterial({
     color: LEGO_COLORS.asphalt,
-    roughness: 0.78,
-    metalness: 0.05
+    roughness: 0.28,
+    metalness: 0.16,
+    clearcoat: 0.56,
+    clearcoatRoughness: 0.24
   });
 
   // 4) Ilha Continental Principal (X = -1825..+540, Z = -1320..+780):
@@ -268,10 +271,18 @@ export function buildOceanAndMainIsland(world) {
   addChunkedArrayToScene(world.scene, eastGeos, asphaltMat, { receiveShadow: true, chunkSize: 512 });
 
   // 6) Supercontinente Pangeia (Terrenos Chunked com Origem Local, Praias de Areia Contínuas, Rodovias Regionais & Horizonte)
-  _buildPangaeaSupercontinentAndSandCoast(world);
+  _buildPangaeaSupercontinentAndSandCoast(world, asphaltMat);
 }
 
-function _buildPangaeaSupercontinentAndSandCoast(world) {
+function _buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat = null) {
+  const asphaltMat =
+    sharedAsphaltMat ||
+    getLegoMaterial(LEGO_COLORS.asphalt, {
+      roughness: 0.28,
+      metalness: 0.16,
+      clearcoat: 0.56,
+      clearcoatRoughness: 0.24
+    });
   const terrainMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     vertexColors: true,
@@ -279,11 +290,11 @@ function _buildPangaeaSupercontinentAndSandCoast(world) {
     metalness: 0.04
   });
 
-  const cSandDry = new THREE.Color(0xfde047);
-  const cSandWet = new THREE.Color(0xd97706);
-  const cRock = new THREE.Color(0x64748b);
-  const cBank = new THREE.Color(0x4d7c0f);
-  const cAsphaltShoulder = new THREE.Color(0x334155);
+  const cSandDry = new THREE.Color(0x8c7853);
+  const cSandWet = new THREE.Color(0x4f422d);
+  const cRock = new THREE.Color(0x3b4252);
+  const cBank = new THREE.Color(0x22361c);
+  const cAsphaltShoulder = new THREE.Color(0x1b202b);
   const cTmpBiome = new THREE.Color();
   const cOut = new THREE.Color();
 
@@ -919,12 +930,12 @@ function _buildPangaeaSupercontinentAndSandCoast(world) {
     addChunkedArrayToScene(world.scene, geos, mat, { chunkSize: 640, receiveShadow: true, ...opts });
   };
 
-  flushBatch(sandGeos, getLegoMaterial(0xeab308, { roughness: 0.72 }));
-  flushBatch(turfGeos, getLegoMaterial(0x4d8b31, { roughness: 0.65 }));
-  flushBatch(cliffGeos, getLegoMaterial(0x475569, { roughness: 0.78 }));
-  flushBatch(reefGeos, new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35, metalness: 0.15 }));
-  flushBatch(roadShoulderGeos, getLegoMaterial(0x475569, { roughness: 0.8 }), { receiveShadow: true, chunkSize: 560 });
-  flushBatch(roadAsphaltGeos, getLegoMaterial(LEGO_COLORS.asphalt, { roughness: 0.76, metalness: 0.05 }), { receiveShadow: true, chunkSize: 560 });
+  flushBatch(sandGeos, getLegoMaterial(0x7d6b4a, { roughness: 0.82 }));
+  flushBatch(turfGeos, getLegoMaterial(0x1f3d23, { roughness: 0.78 }));
+  flushBatch(cliffGeos, getLegoMaterial(0x282f3c, { roughness: 0.84 }));
+  flushBatch(reefGeos, new THREE.MeshStandardMaterial({ color: 0x0b2230, roughness: 0.35, metalness: 0.15 }));
+  flushBatch(roadShoulderGeos, getLegoMaterial(0x1e2430, { roughness: 0.82 }), { receiveShadow: true, chunkSize: 560 });
+  flushBatch(roadAsphaltGeos, asphaltMat, { receiveShadow: true, chunkSize: 560 });
   flushBatch(
     roadYellowGeos,
     new THREE.MeshBasicMaterial({

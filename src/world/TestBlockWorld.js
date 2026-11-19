@@ -1073,10 +1073,10 @@ export class TestBlockWorld {
   }
 
   _setupSkyAndLights() {
-    this.scene.background = new THREE.Color(0x68b5f8);
-    this.scene.fog = new THREE.FogExp2(0x7ec2fc, 0.00017);
+    this.scene.background = new THREE.Color(0x1d2d3c);
+    this.scene.fog = new THREE.FogExp2(0x1d2d3c, 0.00042);
 
-    const hemiLight = new THREE.HemisphereLight(0xf0f9ff, 0x334155, 0.94);
+    const hemiLight = new THREE.HemisphereLight(0x384657, 0x090b10, 0.44);
     hemiLight.position.set(0, 480, 0);
     this.scene.add(hemiLight);
     this.hemiLight = hemiLight;

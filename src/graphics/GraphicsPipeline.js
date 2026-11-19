@@ -14,11 +14,82 @@ import {
 
 export const GRAPHICS_PRESETS = ['auto', 'low', 'medium', 'ultra'];
 
+/**
+ * Shader cinematográfico "Gotham Noir" (Estilo LEGO DC Super-Villains / Arkham):
+ * - Dessaturação seletiva (mata cores infantis preservando vermelho-sangue, âmbar de sódio e violeta neon)
+ * - Curva S de contraste com sombras densas (crushed blacks) e split-toning frio nas sombras
+ * - Vinheta tática nas bordas + micro-grão de filme sutil
+ */
+export const GOTHAM_NOIR_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uTime: { value: 0 },
+    uDesaturate: { value: 0.34 },
+    uContrast: { value: 1.15 },
+    uVignette: { value: 0.44 },
+    uGrain: { value: 0.016 }
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform float uDesaturate;
+    uniform float uContrast;
+    uniform float uVignette;
+    uniform float uGrain;
+    varying vec2 vUv;
+
+    void main() {
+      vec4 texel = texture2D(tDiffuse, vUv);
+      vec3 col = texel.rgb;
+
+      float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+
+      // Preserva vermelhos arteriais, âmbar quente de sódio e violeta-neon das facções
+      float redDominance = clamp((col.r - max(col.g, col.b)) * 2.6, 0.0, 1.0);
+      float amberDominance = clamp((min(col.r, col.g * 1.25) - col.b) * 1.8, 0.0, 1.0);
+      float violetDominance = clamp((min(col.r, col.b) - col.g) * 2.2, 0.0, 1.0);
+      float accentKeep = clamp(max(redDominance, max(amberDominance * 0.75, violetDominance)), 0.0, 0.85);
+
+      float desatAmt = uDesaturate * (1.0 - accentKeep);
+      col = mix(col, vec3(luma), desatAmt);
+
+      // Curva de contraste pesada + esmagamento sutil de sombras
+      col = clamp((col - 0.46) * uContrast + 0.44, 0.0, 1.0);
+
+      // Split-toning: sombras em azul-petróleo/chumbo frio de Gotham, luzes levemente âmbar-sujo
+      float shadowMask = 1.0 - smoothstep(0.0, 0.45, luma);
+      float highlightMask = smoothstep(0.55, 1.0, luma);
+      col += vec3(-0.010, 0.008, 0.022) * shadowMask;
+      col += vec3(0.018, 0.008, -0.010) * highlightMask;
+
+      // Vinheta cinematográfica escura nas bordas da lente
+      vec2 centered = vUv - 0.5;
+      float distSq = dot(centered, centered) * 2.15;
+      float vig = clamp(1.0 - distSq * uVignette, 0.38, 1.0);
+      col *= vig;
+
+      // Micro-grão sutil de película urbana
+      float noise = fract(sin(dot(vUv * vec2(1280.0, 720.0) + fract(uTime * 0.37), vec2(12.9898, 78.233))) * 43758.5453);
+      col += (noise - 0.5) * uGrain * (0.4 + 0.6 * shadowMask);
+
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), texel.a);
+    }
+  `
+};
+
 const PRESET_PROFILES = {
   low: {
     useComposer: false,
     gtao: false,
     bloom: false,
+    noirGrade: false,
     aa: 'none',
     pixelRatioCap: 1.0,
     shadowMapSize: 1024,
@@ -31,25 +102,27 @@ const PRESET_PROFILES = {
     useComposer: true,
     gtao: false,
     bloom: true,
+    noirGrade: true,
     aa: 'fxaa',
     pixelRatioCap: 1.2,
     shadowMapSize: 1536,
     shaderFx: true,
     microBevel: 0.85,
-    bloomStrength: 0.32,
-    bloomRadius: 0.28
+    bloomStrength: 0.42,
+    bloomRadius: 0.34
   },
   ultra: {
     useComposer: true,
     gtao: true,
     bloom: true,
+    noirGrade: true,
     aa: 'smaa',
     pixelRatioCap: 1.5,
     shadowMapSize: 2048,
     shaderFx: true,
     microBevel: 1.0,
-    bloomStrength: 0.38,
-    bloomRadius: 0.32
+    bloomStrength: 0.48,
+    bloomRadius: 0.38
   }
 };
 
@@ -87,8 +160,10 @@ export class GraphicsPipeline {
     this.gtaoPass = null;
     this.bloomPass = null;
     this.outputPass = null;
+    this.noirPass = null;
     this.fxaaPass = null;
     this.smaaPass = null;
+    this._noirTime = 0;
 
     this._activeProfile = { ...PRESET_PROFILES.medium };
 
@@ -120,14 +195,17 @@ export class GraphicsPipeline {
 
       this.bloomPass = new UnrealBloomPass(
         new THREE.Vector2(Math.max(1, Math.floor(w * pr)), Math.max(1, Math.floor(h * pr))),
-        0.38,
-        0.32,
-        1.15
+        0.44,
+        0.36,
+        0.86
       );
       this.composer.addPass(this.bloomPass);
 
       this.outputPass = new OutputPass();
       this.composer.addPass(this.outputPass);
+
+      this.noirPass = new ShaderPass(GOTHAM_NOIR_SHADER);
+      this.composer.addPass(this.noirPass);
 
       this.fxaaPass = new ShaderPass(FXAAShader);
       this.fxaaPass.material.uniforms.resolution.value.set(1 / Math.max(1, w * pr), 1 / Math.max(1, h * pr));
@@ -271,6 +349,9 @@ export class GraphicsPipeline {
       this.bloomPass.strength = p.bloomStrength;
       this.bloomPass.radius = p.bloomRadius;
     }
+    if (this.noirPass) {
+      this.noirPass.enabled = Boolean(p.useComposer && p.noirGrade !== false);
+    }
 
     if (p.useComposer && p.aa === 'smaa') {
       this._ensureSmaaPass();
@@ -357,6 +438,10 @@ export class GraphicsPipeline {
   render(dt = 0.016) {
     if (this.isHeadless || !this.renderer || !this.scene || !this.camera) return;
     this._updateAutoDRS(dt);
+    this._noirTime += Math.min(0.05, dt || 0.016);
+    if (this.noirPass?.uniforms?.uTime) {
+      this.noirPass.uniforms.uTime.value = this._noirTime;
+    }
 
     if (this.composer && this._activeProfile.useComposer) {
       this.composer.render(dt);
@@ -375,6 +460,7 @@ export class GraphicsPipeline {
       useComposer: Boolean(this.composer && this._activeProfile.useComposer),
       gtaoEnabled: Boolean(this.gtaoPass?.enabled),
       bloomEnabled: Boolean(this.bloomPass?.enabled),
+      noirGradeEnabled: Boolean(this.noirPass?.enabled),
       aaMode: this._activeProfile.aa,
       shadowMapSize: this._activeProfile.shadowMapSize
     };
@@ -384,6 +470,7 @@ export class GraphicsPipeline {
     if (this.gtaoPass?.dispose) this.gtaoPass.dispose();
     if (this.bloomPass?.dispose) this.bloomPass.dispose();
     if (this.outputPass?.dispose) this.outputPass.dispose();
+    if (this.noirPass?.dispose) this.noirPass.dispose();
     if (this.fxaaPass?.dispose) this.fxaaPass.dispose();
     if (this.smaaPass?.dispose) this.smaaPass.dispose();
     if (this.composer?.dispose) this.composer.dispose();

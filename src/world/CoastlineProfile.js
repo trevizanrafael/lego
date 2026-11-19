@@ -305,15 +305,15 @@ export const PANGAEA_OUTPOST_LANDMARKS = [
 ];
 
 export const REGION_BIOME_MAP = [
-  { id: 'centro_financeiro', minX: -520, maxX: 520, minZ: -440, maxZ: 140, tint: '#1e293b', borderTint: '#facc15', hex: 0x263143 },
-  { id: 'parque_central', minX: -520, maxX: 520, minZ: 140, maxZ: 420, tint: '#14532d', borderTint: '#4ade80', hex: 0x2f7d3a },
-  { id: 'suburbio_norte', minX: -1010, maxX: 538, minZ: -2920, maxZ: -440, tint: '#3f6212', borderTint: '#4ade80', hex: 0x3b7a3e },
-  { id: 'favela_cdd', minX: -1010, maxX: -520, minZ: -440, maxZ: 420, tint: '#7c2d12', borderTint: '#ef4444', hex: 0x8d4930 },
-  { id: 'praia_sul', minX: -3420, maxX: 538, minZ: 420, maxZ: 2560, tint: '#a16207', borderTint: '#fde047', hex: 0xd9b86c },
-  { id: 'aeroporto_oeste', minX: -3440, maxX: -1010, minZ: -2920, maxZ: 660, tint: '#334155', borderTint: '#94a3b8', hex: 0x475569 },
-  { id: 'industrial_leste', minX: 582, maxX: 3420, minZ: -2740, maxZ: 110, tint: '#1e3a8a', borderTint: '#3b82f6', hex: 0x334155 },
-  { id: 'porto_leste', minX: 582, maxX: 1850, minZ: 110, maxZ: 880, tint: '#78350f', borderTint: '#f59e0b', hex: 0x52525b },
-  { id: 'ilha_prisao', minX: 800, maxX: 2320, minZ: 1020, maxZ: 2320, tint: '#7f1d1d', borderTint: '#f87171', hex: 0x57534e }
+  { id: 'centro_financeiro', minX: -520, maxX: 520, minZ: -440, maxZ: 140, tint: '#121824', borderTint: '#d99b16', hex: 0x161d2b },
+  { id: 'parque_central', minX: -520, maxX: 520, minZ: 140, maxZ: 420, tint: '#0f291a', borderTint: '#2f6e44', hex: 0x1a3822 },
+  { id: 'suburbio_norte', minX: -1010, maxX: 538, minZ: -2920, maxZ: -440, tint: '#1b2b18', borderTint: '#9a5b25', hex: 0x223822 },
+  { id: 'favela_cdd', minX: -1010, maxX: -520, minZ: -440, maxZ: 420, tint: '#4a1d10', borderTint: '#9f1d20', hex: 0x4d2a1c },
+  { id: 'praia_sul', minX: -3420, maxX: 538, minZ: 420, maxZ: 2560, tint: '#57462b', borderTint: '#b48a2c', hex: 0x6e5d40 },
+  { id: 'aeroporto_oeste', minX: -3440, maxX: -1010, minZ: -2920, maxZ: 660, tint: '#1e2530', borderTint: '#64748b', hex: 0x28303d },
+  { id: 'industrial_leste', minX: 582, maxX: 3420, minZ: -2740, maxZ: 110, tint: '#12213d', borderTint: '#2563eb', hex: 0x1d2533 },
+  { id: 'porto_leste', minX: 582, maxX: 1850, minZ: 110, maxZ: 880, tint: '#3d2210', borderTint: '#b45309', hex: 0x2f333d },
+  { id: 'ilha_prisao', minX: 800, maxX: 2320, minZ: 1020, maxZ: 2320, tint: '#451215', borderTint: '#b91c1c', hex: 0x333130 }
 ];
 
 export const REGION_BORDER_LINES = [

@@ -83,9 +83,9 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
     world.update(0.1, controller.position, controller);
 
     assert.equal(atm.nightFactor, 1.0);
-    assert.equal(atm.sunLight.color.getHex(), 0x93c5fd, 'DirectionalLight assume cor azul-prata da Lua Cheia');
-    assert.ok(atm.sunLight.intensity >= 0.78, 'Luar nunca fica escuro demais (intensity >= 0.78)');
-    assert.ok(atm.hemiLight.intensity >= 0.62, 'HemisphereLight noturna vibrante (>= 0.62)');
+    assert.equal(atm.sunLight.color.getHex(), 0x6488a8, 'DirectionalLight assume luar frio acinzentado de Gotham');
+    assert.ok(atm.sunLight.intensity >= 0.40 && atm.sunLight.intensity <= 0.65, 'Luar sombrio equilibrado');
+    assert.ok(atm.hemiLight.intensity >= 0.18 && atm.hemiLight.intensity <= 0.36, 'HemisphereLight noturna escura/densa estilo Gotham');
     assert.equal(atm.moonGroup.visible, true, 'Lua Cheia LEGO visível');
     assert.equal(atm.starPoints.visible, true, '1.200 Estrelas visíveis');
 

@@ -14,18 +14,20 @@ Para garantir cara de **jogo AAA real (Valorant / GTA / Tropa de Elite + LEGO)**
 
 ---
 
-## 🎨 2. Paleta de Cores Oficial (Alto Contraste Tático Urbano)
+## 🎨 2. Paleta de Cores Oficial (Dark Gotham / Syndicate Tech — Alto Contraste Sombrio)
 
-| Token CSS | Hex | Uso na Interface |
+A direção visual combina **estética tática sombria estilo *Gotham Noir / LEGO DC Super-Villains / BOPE*** com metais escuros, concreto úmido, vermelho arterial e âmbar de vapor de sódio (evitando amarelos/azuis infantis saturados):
+
+| Token CSS | Hex | Uso na Interface e Mundo |
 | :--- | :---: | :--- |
-| `--idv-black` | `#090a0d` | Preto Asfalto Profundo (Fundos principais e contornos secos) |
-| `--idv-carbon` | `#12151c` | Cinza Carbono Tático (Superfícies internas de painéis) |
-| `--idv-steel` | `#262b38` | Cinza Aço (Divisórias técnicas, linhas de grade e slots vazios) |
-| `--idv-alert` | `#facc15` | **Amarelo Alerta / LEGO** (Cor primária de destaque, bordas ativas e True Hero) |
-| `--idv-amber` | `#f59e0b` | Âmbar Solar (Destaques secundários e energia do Solaris) |
-| `--idv-crimson` | `#ef4444` | Vermelho Operacional (Corações LEGO de vida e alertas de crime/CV) |
-| `--idv-white` | `#f8fafc` | Branco Puro Tático (Tipografia principal e números de Studs) |
-| `--idv-muted` | `#94a3b8` | Cinza Técnico (Rótulos secundários, coordenadas e códigos `[OP-01]`) |
+| `--idv-black` | `#07080b` | Preto Abissal / Asfalto Molhado (Fundos principais e contornos secos) |
+| `--idv-carbon` | `#10131a` | Aço Carbono Escuro (Superfícies internas de chassis e painéis) |
+| `--idv-steel` | `#222733` | Grafite Blindado (Divisórias técnicas, molduras de radar e rebites) |
+| `--idv-alert` | `#d99b16` | **Âmbar Tático / Ouro Velho** (Destaques operacionais sem cara de brinquedo) |
+| `--idv-amber` | `#c25115` | Vapor de Sódio / Ferrugem Quente (Energia, alertas secundários e luzes) |
+| `--idv-crimson` | `#b91c1c` | Vermelho Sangue / Operacional (Dano, ameaça crítica e facção CV) |
+| `--idv-white` | `#dce2ec` | Branco Frio Acinzentado (Tipografia principal sem estourar) |
+| `--idv-muted` | `#7c8798` | Cinza Chumbo (Rótulos secundários, telemetria e códigos `[OP-01]`) |
 
 ---
 

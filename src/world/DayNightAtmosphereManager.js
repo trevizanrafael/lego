@@ -110,142 +110,142 @@ export function ensureVehicleNightLights(carGroup, spec = null) {
 }
 
 // ============================================================================
-// KEYFRAMES CONTÍNUOS DE COR E ILUMINAÇÃO (00:00 -> 24:00)
-// Nunca deixa a noite escura demais: Luar Prateado 0x93c5fd (0.78) + Hemi 0x3b82f6/0x1e1b4b (0.62)!
+// KEYFRAMES CONTÍNUOS DE COR E ILUMINAÇÃO (00:00 -> 24:00) — ESTILO GOTHAM NOIR / DC SUPER-VILLAINS
+// Dia nublado/pesado em azul-petróleo/chumbo (sombras densas) + Crepúsculo sangrento + Noite abissal opressiva!
 // ============================================================================
 const ATMOSPHERE_KEYFRAMES = [
   {
     hour: 0.0,
-    zenith: 0x060b1e,
-    mid: 0x0f1f4b,
-    horizon: 0x172b5c,
-    sunGlow: 0x1e3a8a,
-    dirColor: 0x93c5fd,
-    dirInt: 0.78,
-    hemiSky: 0x3b82f6,
-    hemiGnd: 0x1e1b4b,
-    hemiInt: 0.62,
+    zenith: 0x020409,
+    mid: 0x07111c,
+    horizon: 0x0e1c26,
+    sunGlow: 0x0f293a,
+    dirColor: 0x6488a8,
+    dirInt: 0.48,
+    hemiSky: 0x162638,
+    hemiGnd: 0x050608,
+    hemiInt: 0.24,
     nightFactor: 1.0
   },
   {
     hour: 5.25,
-    zenith: 0x081029,
-    mid: 0x172554,
-    horizon: 0x1e3a8a,
-    sunGlow: 0x3b82f6,
-    dirColor: 0x93c5fd,
-    dirInt: 0.78,
-    hemiSky: 0x3b82f6,
-    hemiGnd: 0x1e1b4b,
-    hemiInt: 0.62,
+    zenith: 0x040711,
+    mid: 0x0b1626,
+    horizon: 0x142433,
+    sunGlow: 0x1d3b52,
+    dirColor: 0x6488a8,
+    dirInt: 0.50,
+    hemiSky: 0x1a2c40,
+    hemiGnd: 0x06070a,
+    hemiInt: 0.26,
     nightFactor: 0.96
   },
   {
-    // Amanhecer (05:30 - 07:30): Horizonte pêssego/dourado, neblina suave rosada, sol nascendo a Leste!
+    // Amanhecer Frio & Bruma Vermelha-Cinza (05:30 - 07:30)
     hour: 6.35,
-    zenith: 0x2563eb,
-    mid: 0xf472b6,
-    horizon: 0xfdba74,
-    sunGlow: 0xfef08a,
-    dirColor: 0xfed7aa,
-    dirInt: 1.55,
-    hemiSky: 0xfde68a,
-    hemiGnd: 0x334155,
-    hemiInt: 0.78,
-    nightFactor: 0.25
+    zenith: 0x0f1726,
+    mid: 0x3b1f2b,
+    horizon: 0x6e3424,
+    sunGlow: 0xb45309,
+    dirColor: 0xd69e72,
+    dirInt: 1.05,
+    hemiSky: 0x475569,
+    hemiGnd: 0x0f131a,
+    hemiInt: 0.36,
+    nightFactor: 0.28
   },
   {
     hour: 7.75,
-    zenith: 0x1d7bf6,
-    mid: 0x4aa3fc,
-    horizon: 0x7ec2fc,
-    sunGlow: 0xfffbeb,
-    dirColor: 0xfffbeb,
-    dirInt: 2.22,
-    hemiSky: 0xf0f9ff,
-    hemiGnd: 0x334155,
-    hemiInt: 0.94,
+    zenith: 0x0e1724,
+    mid: 0x1c2b3a,
+    horizon: 0x2c3c48,
+    sunGlow: 0x94a3b8,
+    dirColor: 0xcbd5e1,
+    dirInt: 1.44,
+    hemiSky: 0x334155,
+    hemiGnd: 0x090b10,
+    hemiInt: 0.42,
     nightFactor: 0.0
   },
   {
-    // Dia Tropical (07:30 - 16:45): Céu azul vibrante e cores vivas LEGO
+    // Dia Carregado de Gotham (07:30 - 16:45): Céu chumbo/petróleo e sombras dramáticas profundas!
     hour: 12.0,
-    zenith: 0x1565d8,
-    mid: 0x429ef5,
-    horizon: 0x7ec2fc,
-    sunGlow: 0xffffff,
-    dirColor: 0xfffbeb,
-    dirInt: 2.28,
-    hemiSky: 0xf0f9ff,
-    hemiGnd: 0x334155,
-    hemiInt: 0.95,
+    zenith: 0x0e1724,
+    mid: 0x1d2d3c,
+    horizon: 0x2e3f4b,
+    sunGlow: 0xa8b5c4,
+    dirColor: 0xd6dde6,
+    dirInt: 1.52,
+    hemiSky: 0x384657,
+    hemiGnd: 0x090b10,
+    hemiInt: 0.44,
     nightFactor: 0.0
   },
   {
     hour: 16.5,
-    zenith: 0x1e64d8,
-    mid: 0x5ca8f8,
-    horizon: 0x93c5fd,
-    sunGlow: 0xfef08a,
-    dirColor: 0xfff7ed,
-    dirInt: 2.1,
-    hemiSky: 0xe0f2fe,
-    hemiGnd: 0x334155,
-    hemiInt: 0.9,
-    nightFactor: 0.02
+    zenith: 0x0d1422,
+    mid: 0x242a3d,
+    horizon: 0x3d3846,
+    sunGlow: 0xb45309,
+    dirColor: 0xd6a87c,
+    dirInt: 1.35,
+    hemiSky: 0x334155,
+    hemiGnd: 0x090b10,
+    hemiInt: 0.40,
+    nightFactor: 0.06
   },
   {
-    // Pôr do Sol Dourado / Golden Hour (16:45 - 18:45): Sol gigante laranja-avermelhado atrás do Morro da CDD!
+    // Crepúsculo Sangrento / Smog de Gotham (16:45 - 18:45): Céu rubro-violeta atrás do Morro da CDD!
     hour: 17.75,
-    zenith: 0x2e1065,
-    mid: 0xc026d3,
-    horizon: 0xf97316,
-    sunGlow: 0xff4500,
-    dirColor: 0xfb923c,
-    dirInt: 1.72,
-    hemiSky: 0xf59e0b,
-    hemiGnd: 0x271a38,
-    hemiInt: 0.74,
-    nightFactor: 0.48
+    zenith: 0x090714,
+    mid: 0x3b122b,
+    horizon: 0x7f1d1d,
+    sunGlow: 0xdc2626,
+    dirColor: 0xea580c,
+    dirInt: 1.26,
+    hemiSky: 0x5c2418,
+    hemiGnd: 0x0c0812,
+    hemiInt: 0.34,
+    nightFactor: 0.50
   },
   {
     hour: 18.75,
-    zenith: 0x0f172a,
-    mid: 0x3b1d5e,
-    horizon: 0x7c2d12,
-    sunGlow: 0xea580c,
-    dirColor: 0x93c5fd,
-    dirInt: 0.85,
-    hemiSky: 0x3b82f6,
-    hemiGnd: 0x1e1b4b,
-    hemiInt: 0.64,
+    zenith: 0x04060d,
+    mid: 0x161229,
+    horizon: 0x381918,
+    sunGlow: 0x991b1b,
+    dirColor: 0x6488a8,
+    dirInt: 0.56,
+    hemiSky: 0x1b293b,
+    hemiGnd: 0x06070a,
+    hemiInt: 0.26,
     nightFactor: 0.92
   },
   {
-    // Noite Azul-Profunda & Luar Prateado (18:45 - 05:30)
+    // Noite Trevosa de Gotham (18:45 - 05:30): Escuridão densa cortada por vapor de sódio e neon!
     hour: 19.5,
-    zenith: 0x060b1e,
-    mid: 0x0f1f4b,
-    horizon: 0x172b5c,
-    sunGlow: 0x1e3a8a,
-    dirColor: 0x93c5fd,
-    dirInt: 0.78,
-    hemiSky: 0x3b82f6,
-    hemiGnd: 0x1e1b4b,
-    hemiInt: 0.62,
+    zenith: 0x020409,
+    mid: 0x07111c,
+    horizon: 0x0e1c26,
+    sunGlow: 0x0f293a,
+    dirColor: 0x6488a8,
+    dirInt: 0.48,
+    hemiSky: 0x162638,
+    hemiGnd: 0x050608,
+    hemiInt: 0.24,
     nightFactor: 1.0
   },
   {
     hour: 24.0,
-    zenith: 0x060b1e,
-    mid: 0x0f1f4b,
-    horizon: 0x172b5c,
-    sunGlow: 0x1e3a8a,
-    dirColor: 0x93c5fd,
-    dirInt: 0.78,
-    hemiSky: 0x3b82f6,
-    hemiGnd: 0x1e1b4b,
-    hemiInt: 0.62,
+    zenith: 0x020409,
+    mid: 0x07111c,
+    horizon: 0x0e1c26,
+    sunGlow: 0x0f293a,
+    dirColor: 0x6488a8,
+    dirInt: 0.48,
+    hemiSky: 0x162638,
+    hemiGnd: 0x050608,
+    hemiInt: 0.24,
     nightFactor: 1.0
   }
 ];
@@ -290,8 +290,8 @@ export class DayNightAtmosphereManager {
     this.sunLight = world.sunLight;
     this.hemiLight = world.hemiLight;
 
-    // Começa às 15:30 no modo automático para o jogador já ver o Sol da tarde virando Pôr do Sol Dourado e Noite Neon!
-    this.timeHours = 15.5;
+    // Começa às 18:10 (crepúsculo sombrio mergulhando na noite de Gotham!)
+    this.timeHours = 18.15;
     this.dayCycleDurationSec = 720.0; // 12 minutos reais = 24h no jogo
     this.timeMode = 'auto';
     this.nightFactor = 0.0;
@@ -700,8 +700,8 @@ export class DayNightAtmosphereManager {
     this.coneInstMesh = new THREE.InstancedMesh(coneGeo, this.coneInstMat, count);
     this.poolInstMesh = new THREE.InstancedMesh(poolGeo, this.poolInstMat, count);
 
-    const warmCol = new THREE.Color(0xfbbf24);
-    const coolCol = new THREE.Color(0xe0f2fe);
+    const warmCol = new THREE.Color(0xf58216);
+    const coolCol = new THREE.Color(0x5cc8be);
 
     this.lampNodes.forEach((n, idx) => {
       const col = n.warm ? warmCol : coolCol;
@@ -1141,8 +1141,8 @@ export class DayNightAtmosphereManager {
     this.coneInstMesh.visible = lampsOn;
     this.poolInstMesh.visible = lampsOn;
     if (lampsOn) {
-      this.coneInstMat.opacity = nf * 0.22;
-      this.poolInstMat.opacity = nf * 0.34;
+      this.coneInstMat.opacity = nf * 0.28;
+      this.poolInstMat.opacity = nf * 0.42;
     }
 
     // Campinho da CDD (4 Refletores), Baile do Morro (3 Skytrackers giratórios) & Luzes Aeronáuticas no Topo!

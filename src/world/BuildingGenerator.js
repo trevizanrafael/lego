@@ -18,10 +18,10 @@ const _VC_MAT_CACHE = new Map();
  * para zero shader recompiles e zero leaks em objetos transientes).
  */
 export function getSharedVertexColorMaterial(opts = {}) {
-  const roughness = Number((opts.roughness ?? 0.32).toFixed(2));
+  const roughness = Number((opts.roughness ?? 0.62).toFixed(2));
   const metalness = Number((opts.metalness ?? 0.08).toFixed(2));
-  const clearcoat = Number((opts.clearcoat ?? 0.36).toFixed(2));
-  const clearcoatRoughness = Number((opts.clearcoatRoughness ?? 0.24).toFixed(2));
+  const clearcoat = Number((opts.clearcoat ?? 0.06).toFixed(2));
+  const clearcoatRoughness = Number((opts.clearcoatRoughness ?? 0.46).toFixed(2));
   const emissiveHex = opts.emissive ? new THREE.Color(opts.emissive).getHex() : 0;
   const emissiveIntensity = emissiveHex ? Number((opts.emissiveIntensity ?? 0).toFixed(2)) : 0;
   const key = `${roughness}|${metalness}|${clearcoat}|${clearcoatRoughness}|${emissiveHex}|${emissiveIntensity}`;
@@ -392,8 +392,8 @@ export function flushSpatialChunkedBuckets(scene, buckets, materials, opts = {})
       const vcMat = getSharedVertexColorMaterial({
         roughness: grp.roughness,
         metalness: grp.metalness,
-        clearcoat: 0.36,
-        clearcoatRoughness: 0.24
+        clearcoat: 0.06,
+        clearcoatRoughness: 0.46
       });
       mesh = new THREE.Mesh(mergedGeo, vcMat);
     }
