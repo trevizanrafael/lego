@@ -432,15 +432,78 @@ VEHICLE_SPECS.taxi = VEHICLE_SPECS.taxi_metro;
  */
 export function getFinishMaterialOpts(finishStyle = 'glossy') {
   if (finishStyle === 'matte') {
-    return { roughness: 0.72, metalness: 0.08, clearcoat: 0.04 };
+    return { roughness: 0.72, metalness: 0.14, clearcoat: 0.04 };
   }
   if (finishStyle === 'pearl') {
-    return { roughness: 0.15, metalness: 0.58, clearcoat: 0.78 };
+    return { roughness: 0.18, metalness: 0.58, clearcoat: 0.76 };
   }
   if (finishStyle === 'chrome') {
-    return { roughness: 0.06, metalness: 0.92, clearcoat: 0.95 };
+    return { roughness: 0.08, metalness: 0.92, clearcoat: 0.94 };
   }
-  return { roughness: 0.2, metalness: 0.06, clearcoat: 0.55 };
+  return { roughness: 0.28, metalness: 0.26, clearcoat: 0.46 };
+}
+
+/**
+ * Gera um volume chanfrado / cunha hard-surface (studless) sem faces coplanares:
+ * permite afunilar topo vs base, inclinar capô/glacis frontal (frontDrop) e traseira (rearDrop).
+ */
+function makeTaperedHullGeo(
+  wBot,
+  wTop,
+  h,
+  dBot,
+  dTop,
+  zShiftTop = 0,
+  frontDrop = 0,
+  rearDrop = 0
+) {
+  const base = new THREE.BoxGeometry(1, 1, 1);
+  const pos = base.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const sx = pos.getX(i); // -0.5 ou +0.5
+    const sy = pos.getY(i);
+    const sz = pos.getZ(i);
+    const isTop = sy > 0;
+    const isFront = sz > 0;
+    const x = sx * (isTop ? wTop : wBot);
+    const z = sz * (isTop ? dTop : dBot) + (isTop ? zShiftTop : 0);
+    let y = sy * h;
+    if (isTop && isFront) y -= frontDrop;
+    if (isTop && !isFront) y -= rearDrop;
+    pos.setXYZ(i, x, y, z);
+  }
+  const geo = base.toNonIndexed();
+  base.dispose();
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Gera cabine / greenhouse trapezoidal com para-brisa inclinado (frontRake),
+ * vigia traseira inclinada (rearRake) e laterais anguladas (tumblehome).
+ */
+function makeRakedCabinGeo(wBot, wTop, h, dBot, zBotCenter, zTopFront, zTopRear) {
+  const base = new THREE.BoxGeometry(1, 1, 1);
+  const pos = base.attributes.position;
+  const zBotFront = zBotCenter + dBot * 0.5;
+  const zBotRear = zBotCenter - dBot * 0.5;
+  for (let i = 0; i < pos.count; i++) {
+    const sx = pos.getX(i);
+    const sy = pos.getY(i);
+    const sz = pos.getZ(i);
+    const isTop = sy > 0;
+    const isFront = sz > 0;
+    const x = sx * (isTop ? wTop : wBot);
+    const y = (sy + 0.5) * h; // base em y=0, topo em y=h
+    const z = isTop
+      ? (isFront ? zTopFront : zTopRear)
+      : (isFront ? zBotFront : zBotRear);
+    pos.setXYZ(i, x, y, z);
+  }
+  const geo = base.toNonIndexed();
+  base.dispose();
+  geo.computeVertexNormals();
+  return geo;
 }
 
 const _VEHICLE_PROTO_CACHE = new Map();
@@ -557,14 +620,20 @@ function _buildLegoCarMeshUncached(cfg) {
   const silverMat = getLegoMaterial(LEGO_COLORS.silver, { metalness: 0.5, roughness: 0.2 });
   const neonCyanMat = getLegoMaterial(0x06b6d4, { emissive: 0x06b6d4, emissiveIntensity: 0.9 });
   const neonPurpleMat = getLegoMaterial(0xa855f7, { emissive: 0x9333ea, emissiveIntensity: 0.9 });
-  const glassMat = getLegoMaterial(type === 'suv_pcc' || type === 'van_pcc' ? 0x05070c : 0x38bdf8, {
+  const glassTintHex =
+    type === 'suv_pcc' || type === 'van_pcc' || type === 'caveirao_bope' || type === 'carro_forte'
+      ? 0x04060a
+      : 0x070b13;
+  const glassMat = getLegoMaterial(glassTintHex, {
     roughness: 0.08,
-    metalness: 0.45
+    metalness: 0.58,
+    clearcoat: 0.88
   });
   glassMat.userData = { ...glassMat.userData, isVehicleGlass: true };
-  const headlightMat = getLegoMaterial(0xfef08a, { emissive: 0xfef08a, emissiveIntensity: 0.95 });
+  const headlightMat = getLegoMaterial(0xfef3c7, { emissive: 0xfde68a, emissiveIntensity: 1.05 });
   headlightMat.userData = { ...headlightMat.userData, isVehicleHeadlight: true };
-  const taillightMat = getLegoMaterial(LEGO_COLORS.red, { emissive: 0xef4444, emissiveIntensity: 0.85 });
+  const taillightMat = getLegoMaterial(0x991b1b, { emissive: 0xdc2626, emissiveIntensity: 0.95 });
+  const gunmetalTrimMat = getLegoMaterial(0x1e2430, { metalness: 0.48, roughness: 0.34 });
 
   // ============================================================================
   // CASO ESPECIAL 1: MOTOS DE ALTA CILINDRADA & DETALHAMENTO 3D COMPLETO
@@ -656,16 +725,19 @@ function _buildLegoCarMeshUncached(cfg) {
     rearShock.position.set(0, 0.82, -0.45);
     group.add(rearShock);
 
-    // 4. Tanque de Combustível Musculoso Esculpido com Pinos de LEGO (Studs) + Abas Laterais
-    const mainTank = createLegoBrick(0.96, 0.42, 1.12, primaryColor, { studStep: 0.45 });
+    // 4. Tanque de Combustível Musculoso Angular Studless + Carenagens Laterais Chanfradas
+    const mainTank = new THREE.Mesh(
+      makeTaperedHullGeo(0.84, 0.98, 0.42, 1.06, 0.92, -0.06, 0.08, 0.12),
+      primaryMat
+    );
     mainTank.position.set(0, 1.24, 0.28);
-    const tankTopCap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.06, 12), silverMat);
-    tankTopCap.position.set(0, 1.47, 0.38);
+    const tankTopCap = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.05, 12), silverMat);
+    tankTopCap.position.set(0, 1.46, 0.36);
     group.add(mainTank, tankTopCap);
 
     for (const sx of [-0.5, 0.5]) {
       const tankShroud = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.36, 0.92),
+        makeTaperedHullGeo(0.1, 0.14, 0.36, 0.88, 0.96, 0.06, 0.12, 0),
         isPolice ? secondaryMat : primaryMat
       );
       tankShroud.rotation.x = -0.14;
@@ -673,14 +745,17 @@ function _buildLegoCarMeshUncached(cfg) {
       group.add(tankShroud);
     }
 
-    // 5. Banco Esportivo Bipartido em 2 Níveis (Sela do Piloto + Banco Elevado do Garupa) + Rabeta Empinada
-    const riderSaddle = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.18, 0.78), blackMat);
+    // 5. Banco Esportivo Bipartido em 2 Níveis + Rabeta Afiada Studless
+    const riderSaddle = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.17, 0.78), blackMat);
     riderSaddle.position.set(0, 1.05, -0.34);
-    const pillionSaddle = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.2, 0.68), darkTrimMat);
+    const pillionSaddle = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.19, 0.66), darkTrimMat);
     pillionSaddle.rotation.x = -0.12;
     pillionSaddle.position.set(0, 1.18, -0.96);
-    const tailFairing = createLegoBrick(0.82, 0.24, 0.92, isPolice ? secondaryColor : primaryColor, { studStep: 0.45 });
-    tailFairing.rotation.x = -0.14;
+    const tailFairing = new THREE.Mesh(
+      makeTaperedHullGeo(0.82, 0.54, 0.24, 0.94, 0.76, -0.06, 0, 0.08),
+      isPolice ? secondaryMat : primaryMat
+    );
+    tailFairing.rotation.x = -0.16;
     tailFairing.position.set(0, 1.12, -1.08);
     group.add(riderSaddle, pillionSaddle, tailFairing);
 
@@ -852,8 +927,11 @@ function _buildLegoCarMeshUncached(cfg) {
         group.add(crashBar, sideBox, goldStripe, frontStrobe);
       }
 
-      // Baú Traseiro Superior (Top Case) + Mastro de Rádio com Giroflex Traseiro Elevado
-      const topCase = createLegoBrick(0.68, 0.38, 0.58, secondaryColor, { studStep: 0.35 });
+      // Baú Traseiro Superior Angular Studless + Mastro de Rádio com Giroflex Traseiro Elevado
+      const topCase = new THREE.Mesh(
+        makeTaperedHullGeo(0.68, 0.58, 0.38, 0.58, 0.5, -0.02, 0.05, 0.03),
+        secondaryMat
+      );
       topCase.position.set(0, 1.44, -1.36);
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.72, 8), silverMat);
       pole.position.set(0.28, 1.76, -1.48);
@@ -944,42 +1022,75 @@ function _buildLegoCarMeshUncached(cfg) {
   }
 
   // ============================================================================
-  // CASO ESPECIAL 2: TANQUE MILITAR TITAN-M1 (COM ESTEIRAS E CANHÃO GIRATÓRIO)
+  // CASO ESPECIAL 2: TANQUE MILITAR TITAN-M1 (BLINDAGEM GLACIS INCLINADA & TORRETA STEALTH)
   // ============================================================================
   if (type === 'tanque_titan') {
-    const hull = createLegoBrick(3.4, 1.15, 5.8, 0x3f6212, { studStep: 0.8 });
-    hull.position.set(0, 0.92, 0);
-    group.add(hull);
+    const tankOliveMat = getLegoMaterial(cfg.color ?? 0x2b3620, { roughness: 0.62, metalness: 0.28 });
+    const tankDarkArmorMat = getLegoMaterial(0x1b2215, { roughness: 0.68, metalness: 0.34 });
 
-    // Esteiras blindadas laterais (Tracks)
-    for (const tx of [-1.75, 1.75]) {
-      const track = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.88, 5.9), blackMat);
+    // Casco blindado com glacis frontal em cunha inclinada + deck de motor traseiro
+    const hull = new THREE.Mesh(
+      makeTaperedHullGeo(3.38, 3.05, 1.12, 5.88, 5.15, -0.18, 0.34, 0.14),
+      tankOliveMat
+    );
+    hull.position.set(0, 0.92, 0);
+    const lowerBelly = new THREE.Mesh(
+      makeTaperedHullGeo(2.85, 3.36, 0.34, 5.1, 5.84, 0, 0, 0),
+      tankDarkArmorMat
+    );
+    lowerBelly.position.set(0, 0.42, 0);
+    const engineGrille = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 1.45), gunmetalTrimMat);
+    engineGrille.position.set(0, 1.44, -1.85);
+    group.add(hull, lowerBelly, engineGrille);
+
+    // Esteiras blindadas laterais + Saias de Blindagem Reativa Chanfradas (ERA Skirts)
+    for (const tx of [-1.76, 1.76]) {
+      const track = new THREE.Mesh(
+        makeTaperedHullGeo(0.64, 0.64, 0.86, 5.4, 5.92, 0, 0, 0),
+        blackMat
+      );
       track.position.set(tx, 0.46, 0);
-      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.38, 5.95), bodyMat);
-      skirt.position.set(tx, 0.92, 0);
+      const skirt = new THREE.Mesh(
+        makeTaperedHullGeo(0.74, 0.62, 0.44, 5.96, 5.65, -0.05, 0.14, 0.08),
+        tankDarkArmorMat
+      );
+      skirt.position.set(tx, 0.96, 0);
       group.add(track, skirt);
     }
 
-    // Faróis militares e lanternas traseiras
-    for (const lx of [-1.1, 1.1]) {
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.22, 0.14), headlightMat);
-      hl.position.set(lx, 1.15, 2.92);
-      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.22, 0.14), taillightMat);
-      tl.position.set(lx, 1.15, -2.92);
+    // Faróis táticos embutidos e lanternas traseiras
+    for (const lx of [-1.14, 1.14]) {
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.14), headlightMat);
+      hl.position.set(lx, 1.06, 2.86);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.14), taillightMat);
+      tl.position.set(lx, 1.12, -2.92);
       group.add(hl, tl);
     }
 
-    // Torreta Giratória com Canhão Principal Longo
+    // Torreta Facetada Angular Estilo Abrams/Stealth + Cúpula + Lançadores de Fumaça
     const turretGroup = new THREE.Group();
-    turretGroup.position.set(0, 1.85, -0.2);
-    const turretBody = createLegoBrick(2.3, 0.78, 2.7, 0x365314, { studStep: 0.7 });
-    const cannonBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 3.8, 12), darkTrimMat);
+    turretGroup.position.set(0, 1.84, -0.18);
+    const turretBody = new THREE.Mesh(
+      makeTaperedHullGeo(2.48, 1.92, 0.76, 2.95, 2.35, -0.16, 0.22, 0.08),
+      tankDarkArmorMat
+    );
+    const mantlet = new THREE.Mesh(
+      makeTaperedHullGeo(0.86, 0.72, 0.48, 0.65, 0.48, 0.08, 0.1, 0),
+      gunmetalTrimMat
+    );
+    mantlet.position.set(0, 0.04, 1.38);
+    const cupola = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.44, 0.24, 8), gunmetalTrimMat);
+    cupola.position.set(0.48, 0.48, -0.35);
+    const cannonBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.21, 3.95, 12), gunmetalTrimMat);
     cannonBarrel.rotation.x = Math.PI / 2;
-    cannonBarrel.position.set(0, 0.08, 2.4);
-    const muzzleBrake = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.45, 12), blackMat);
+    cannonBarrel.position.set(0, 0.06, 2.55);
+    const boreEvacuator = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.68, 12), tankOliveMat);
+    boreEvacuator.rotation.x = Math.PI / 2;
+    boreEvacuator.position.set(0, 0.06, 2.85);
+    const muzzleBrake = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.44, 12), blackMat);
     muzzleBrake.rotation.x = Math.PI / 2;
-    muzzleBrake.position.set(0, 0.08, 4.3);
-    turretGroup.add(turretBody, cannonBarrel, muzzleBrake);
+    muzzleBrake.position.set(0, 0.06, 4.48);
+    turretGroup.add(turretBody, mantlet, cupola, cannonBarrel, boreEvacuator, muzzleBrake);
     group.add(turretGroup);
     group.userData.turretGroup = turretGroup;
 
@@ -989,7 +1100,7 @@ function _buildLegoCarMeshUncached(cfg) {
         const steerGroup = new THREE.Group();
         steerGroup.position.set(wx, 0.44, wz);
         const spinGroup = new THREE.Group();
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.42, 12), silverMat);
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.42, 12), gunmetalTrimMat);
         wheel.rotation.z = Math.PI / 2;
         spinGroup.add(wheel);
         steerGroup.add(spinGroup);
@@ -1017,68 +1128,92 @@ function _buildLegoCarMeshUncached(cfg) {
   }
 
   // ============================================================================
-  // CASO ESPECIAL 3: ÔNIBUS METROPOLITANO LEGO (ESTILO MANHATTAN / METRÓPOLE)
+  // CASO ESPECIAL 3: ÔNIBUS METROPOLITANO SOMBRIO (FRENTE AERODINÂMICA & VIDRO FUMÊ)
   // ============================================================================
   if (type === 'onibus_urbano') {
     const busW = 2.82;
     const busD = 8.4;
     const lowerH = 1.05;
     const upperH = 1.18;
-    const accentMat = getLegoMaterial(roofColor, { roughness: 0.22, clearcoat: 0.5 });
-    const ledSignMat = getLegoMaterial(0xfacc15, { emissive: 0xf59e0b, emissiveIntensity: 1.25 });
+    const accentMat = getLegoMaterial(roofColor, { roughness: 0.34, metalness: 0.24, clearcoat: 0.38 });
+    const ledSignMat = getLegoMaterial(0xd97706, { emissive: 0xd97706, emissiveIntensity: 1.15 });
 
-    // Saia inferior colorida + faixa central + teto com pinos LEGO
-    const lowerHull = createLegoBrick(busW, lowerH, busD, bodyColor, { studs: false });
+    // Saia inferior chanfrada + faixa metálica central studless
+    const lowerHull = new THREE.Mesh(
+      makeTaperedHullGeo(busW - 0.06, busW, lowerH, busD - 0.12, busD, 0, 0.06, 0.03),
+      bodyMat
+    );
     lowerHull.position.set(0, 0.44 + lowerH * 0.5, 0);
-    const midBelt = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.04, 0.22, busD + 0.02), accentMat);
-    midBelt.position.set(0, 0.44 + lowerH + 0.06, 0);
+    const midBelt = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.04, 0.18, busD + 0.02), accentMat);
+    midBelt.position.set(0, 0.44 + lowerH + 0.05, 0);
     group.add(lowerHull, midBelt);
 
-    // Galeria panorâmica de janelas + colunas LEGO
-    const winBaseY = 0.44 + lowerH + 0.16;
+    // Galeria panorâmica de vidro fumê com para-brisa frontal inclinado!
+    const winBaseY = 0.44 + lowerH + 0.14;
     const panoramicGlass = new THREE.Mesh(
-      new THREE.BoxGeometry(busW - 0.14, upperH, busD - 0.26),
+      makeRakedCabinGeo(
+        busW - 0.12,
+        busW - 0.22,
+        upperH,
+        busD - 0.18,
+        0,
+        busD * 0.5 - 0.36,
+        -busD * 0.5 + 0.16
+      ),
       glassMat
     );
-    panoramicGlass.position.set(0, winBaseY + upperH * 0.5, 0);
+    panoramicGlass.position.set(0, winBaseY, 0);
     group.add(panoramicGlass);
 
-    for (const pz of [-3.95, -2.5, -1.05, 0.4, 1.85, 3.3, 4.05]) {
-      for (const px of [-busW * 0.49, busW * 0.49]) {
-        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.1, upperH + 0.04, 0.22), accentMat);
+    for (const pz of [-3.9, -2.5, -1.05, 0.4, 1.85, 3.25]) {
+      for (const px of [-busW * 0.485, busW * 0.485]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.09, upperH, 0.2), gunmetalTrimMat);
         pillar.position.set(px, winBaseY + upperH * 0.5, pz);
         group.add(pillar);
       }
     }
 
-    // Teto longo LEGO com pinos (Studs) e 2 módulos de Ar-Condicionado
-    const roofY = winBaseY + upperH + 0.11;
-    const busRoof = createLegoBrick(busW + 0.04, 0.22, busD + 0.04, roofColor, { studStep: 0.8 });
-    busRoof.position.set(0, roofY, 0);
-    const acFront = createLegoBrick(1.75, 0.26, 1.85, LEGO_COLORS.white, { studStep: 0.65 });
-    acFront.position.set(0, roofY + 0.24, 1.65);
-    const acRear = createLegoBrick(1.75, 0.26, 1.85, LEGO_COLORS.white, { studStep: 0.65 });
-    acRear.position.set(0, roofY + 0.24, -1.75);
+    // Teto aerodinâmico studless + 2 módulos HVAC low-profile chanfrados
+    const roofY = winBaseY + upperH + 0.09;
+    const busRoof = new THREE.Mesh(
+      makeTaperedHullGeo(busW - 0.16, busW - 0.34, 0.2, busD - 0.38, busD - 0.72, -0.08, 0.05, 0.04),
+      accentMat
+    );
+    busRoof.position.set(0, roofY, -0.05);
+    const acFront = new THREE.Mesh(
+      makeTaperedHullGeo(1.68, 1.42, 0.22, 1.85, 1.52, -0.04, 0.06, 0.04),
+      gunmetalTrimMat
+    );
+    acFront.position.set(0, roofY + 0.2, 1.55);
+    const acRear = new THREE.Mesh(
+      makeTaperedHullGeo(1.68, 1.42, 0.22, 1.85, 1.52, -0.04, 0.06, 0.04),
+      gunmetalTrimMat
+    );
+    acRear.position.set(0, roofY + 0.2, -1.8);
     group.add(busRoof, acFront, acRear);
 
-    // Letreiro Digital Luminoso frontal + Para-choques + Faróis e Lanternas
-    const destBoard = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.3, 0.12), ledSignMat);
-    destBoard.position.set(0, roofY - 0.26, busD * 0.5 + 0.03);
-    const fBumper = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.1, 0.34, 0.36), darkTrimMat);
-    fBumper.position.set(0, 0.48, busD * 0.5 + 0.06);
-    const rBumper = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.1, 0.36, 0.36), darkTrimMat);
-    rBumper.position.set(0, 0.48, -busD * 0.5 - 0.06);
-    group.add(destBoard, fBumper, rBumper);
+    // Letreiro Âmbar + Grade Escura Frontal + Para-choques + Faróis Slim LED
+    const destBoard = new THREE.Mesh(new THREE.BoxGeometry(1.88, 0.24, 0.1), ledSignMat);
+    destBoard.rotation.x = -0.18;
+    destBoard.position.set(0, roofY - 0.26, busD * 0.5 - 0.24);
+    const frontGrille = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.44, 0.1), blackMat);
+    frontGrille.position.set(0, 0.86, busD * 0.5 + 0.02);
+    const fBumper = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.08, 0.32, 0.34), gunmetalTrimMat);
+    fBumper.position.set(0, 0.48, busD * 0.5 + 0.05);
+    const rBumper = new THREE.Mesh(new THREE.BoxGeometry(busW + 0.08, 0.34, 0.34), gunmetalTrimMat);
+    rBumper.position.set(0, 0.48, -busD * 0.5 - 0.05);
+    group.add(destBoard, frontGrille, fBumper, rBumper);
 
-    for (const lx of [-1.02, 1.02]) {
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.26, 0.14), headlightMat);
-      hl.position.set(lx, 0.86, busD * 0.5 + 0.06);
-      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.14), taillightMat);
-      tl.position.set(lx, 0.92, -busD * 0.5 - 0.06);
+    for (const lx of [-1.06, 1.06]) {
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.18, 0.12), headlightMat);
+      hl.rotation.z = lx > 0 ? -0.1 : 0.1;
+      hl.position.set(lx, 0.88, busD * 0.5 + 0.04);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.32, 0.12), taillightMat);
+      tl.position.set(lx, 0.94, -busD * 0.5 - 0.04);
       group.add(hl, tl);
     }
 
-    // 6 Rodas Pesadas (Eixo dianteiro direcional + Eixo traseiro duplo) em 1 malha fundida por roda
+    // 6 Rodas Pesadas
     const busTireG = new THREE.CylinderGeometry(0.52, 0.52, 0.42, 16);
     busTireG.rotateZ(Math.PI / 2);
     const busHubG = new THREE.CylinderGeometry(0.3, 0.3, 0.44, 12);
@@ -1086,14 +1221,14 @@ function _buildLegoCarMeshUncached(cfg) {
     const busWheelGeo = markAsSharedAsset(
       mergeColoredGeometries([
         { geo: busTireG, color: tireMat.color },
-        { geo: busHubG, color: silverMat.color }
+        { geo: busHubG, color: gunmetalTrimMat.color }
       ])
     );
     const busWheelMat = getSharedVertexColorMaterial({
-      roughness: 0.3,
-      metalness: 0.18,
-      clearcoat: 0.28,
-      clearcoatRoughness: 0.24
+      roughness: 0.34,
+      metalness: 0.28,
+      clearcoat: 0.24,
+      clearcoatRoughness: 0.28
     });
     const wheels = [];
     for (const wz of [2.65, -1.85, -3.05]) {
@@ -1129,226 +1264,523 @@ function _buildLegoCarMeshUncached(cfg) {
   }
 
   // ============================================================================
-  // DEMAIS 15 VEÍCULOS (CARROS, CONVERSÍVEIS, PICAPES, VANS, APC E CAMINHÕES BLINDADOS)
+  // DEMAIS 15 VEÍCULOS — REMODEL HARD-SURFACE ANGULAR STUDLESS ("GOTHAM NOIR")
+  // Cunha aerodinâmica, cabines inclinadas (fastback / V-hull), caixas de roda e vidro fumê!
   // ============================================================================
   const isHeavyTruck = type === 'caveirao_bope' || type === 'carro_forte' || type === 'van_pcc';
   const isSixWheelApc = type === 'hover_apc_ares';
   const isPickup = type === 'picape_cv' || type === 'choque_pickup';
+  const isSuv = type === 'suv_pcc';
+  const isSport =
+    type === 'apex_gtx' ||
+    type === 'cyber_blade' ||
+    type === 'vortex_roadster' ||
+    type === 'trovao_v8';
   const isWideHyper = type === 'apex_gtx' || type === 'cyber_blade';
 
-  const chassisW = isHeavyTruck || isSixWheelApc ? 2.65 : isWideHyper ? 2.52 : 2.36;
-  const chassisH = isHeavyTruck ? 0.95 : isWideHyper ? 0.62 : 0.72;
-  const chassisD = isHeavyTruck || isSixWheelApc ? 5.6 : 4.85;
-
-  // Chassi principal + Capô com pinos de LEGO (Studs)
-  const chassis = createLegoBrick(chassisW, chassisH, chassisD, bodyColor, {
-    studStep: 0.65,
-    roughness: finishOpts.roughness,
-    metalness: finishOpts.metalness
-  });
-  chassis.position.set(0, 0.42 + chassisH * 0.5, 0);
-  group.add(chassis);
-
-  // Para-choque dianteiro e traseiro + Faróis brilhantes + Lanternas traseiras vermelhas
+  const chassisW = isHeavyTruck || isSixWheelApc ? 2.66 : isWideHyper ? 2.54 : isSuv || isPickup ? 2.44 : 2.36;
+  const chassisH = isHeavyTruck ? 0.96 : isSixWheelApc ? 0.88 : isWideHyper ? 0.58 : isSport ? 0.64 : 0.72;
+  const chassisD = isHeavyTruck || isSixWheelApc ? 5.64 : isPickup || isSuv ? 5.05 : 4.88;
+  const chassisTopY = 0.42 + chassisH;
   const frontZ = chassisD * 0.5 + 0.04;
-  const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(chassisW + 0.1, 0.3, 0.38), darkTrimMat);
-  frontBumper.position.set(0, 0.46, frontZ);
-  const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(chassisW + 0.1, 0.32, 0.38), darkTrimMat);
-  rearBumper.position.set(0, 0.46, -frontZ);
-  group.add(frontBumper, rearBumper);
+  const roofAccentMat = getLegoMaterial(roofColor, finishOpts);
 
+  // 1. Assoalho / Saia Inferior Aerodinâmica + Cunha Esculpida da Carroceria Principal (Zero Studs!)
+  const undertray = new THREE.Mesh(
+    makeTaperedHullGeo(chassisW - 0.14, chassisW + 0.02, 0.22, chassisD - 0.16, chassisD, 0, 0, 0),
+    darkTrimMat
+  );
+  undertray.position.set(0, 0.42, 0);
+  group.add(undertray);
+
+  const hoodDrop = isWideHyper
+    ? 0.26
+    : isSport
+      ? 0.18
+      : isSixWheelApc
+        ? 0.32
+        : type === 'caveirao_bope'
+          ? 0.22
+          : 0.13;
+  const rearDeckDrop = isWideHyper ? -0.05 : isPickup ? 0.02 : 0.05;
+  const mainBody = new THREE.Mesh(
+    makeTaperedHullGeo(
+      chassisW + 0.02,
+      chassisW - (isSport ? 0.16 : 0.08),
+      chassisH,
+      chassisD,
+      chassisD - (isSixWheelApc ? 0.42 : 0.18),
+      isSport ? -0.08 : -0.03,
+      hoodDrop,
+      rearDeckDrop
+    ),
+    bodyMat
+  );
+  mainBody.position.set(0, 0.42 + chassisH * 0.5, 0);
+  group.add(mainBody);
+
+  // 2. Para-lamas Musculosos nas Caixas de Roda (Flared Wheel Arches) + Saias Laterais
+  const wheelZList = isSixWheelApc ? [1.75, 0, -1.75] : [chassisD * 0.31, -chassisD * 0.31];
+  for (const wz of wheelZList) {
+    for (const sx of [-1, 1]) {
+      const flare = new THREE.Mesh(
+        makeTaperedHullGeo(0.16, 0.08, 0.34, 1.24, 0.92, 0, 0.04, 0.04),
+        isHeavyTruck || isSixWheelApc || isSuv ? gunmetalTrimMat : bodyMat
+      );
+      flare.position.set(sx * (chassisW * 0.5 + 0.03), 0.68, wz);
+      group.add(flare);
+    }
+  }
+  if (!isSixWheelApc) {
+    for (const sx of [-1, 1]) {
+      const sideSkirt = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.14, chassisD * 0.44),
+        gunmetalTrimMat
+      );
+      sideSkirt.position.set(sx * (chassisW * 0.5 + 0.01), 0.44, 0);
+      group.add(sideSkirt);
+    }
+  }
+
+  // 3. Splitter Frontal / Para-choques Chanfrados + Grade Escura + Difusor Traseiro + Escapamentos
+  const fSplitter = new THREE.Mesh(
+    makeTaperedHullGeo(chassisW + 0.08, chassisW - 0.04, 0.24, 0.44, 0.28, -0.06, 0.06, 0),
+    gunmetalTrimMat
+  );
+  fSplitter.position.set(0, 0.42, frontZ + 0.02);
+  const rDiffuser = new THREE.Mesh(
+    makeTaperedHullGeo(chassisW + 0.06, chassisW - 0.04, 0.28, 0.38, 0.26, 0.05, 0, 0.06),
+    gunmetalTrimMat
+  );
+  rDiffuser.position.set(0, 0.44, -frontZ - 0.01);
+  const frontGrille = new THREE.Mesh(
+    new THREE.BoxGeometry(chassisW * (isSport ? 0.58 : 0.52), isSport ? 0.22 : 0.34, 0.1),
+    blackMat
+  );
+  frontGrille.position.set(0, isSport ? 0.58 : 0.68, frontZ + 0.01);
+  group.add(fSplitter, rDiffuser, frontGrille);
+
+  for (const ex of isSport ? [-0.68, -0.48, 0.48, 0.68] : [-0.62, 0.62]) {
+    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.24, 10), silverMat);
+    exhaust.rotation.x = Math.PI / 2;
+    exhaust.position.set(ex, 0.42, -frontZ - 0.12);
+    group.add(exhaust);
+  }
+
+  // 4. Faróis Agressivos em Fenda Angular (LED Slits) + Barra/Lanternas Traseiras Carmesim
   const lightOffsetX = chassisW * 0.35;
+  const hlY = 0.42 + chassisH - hoodDrop - 0.04;
   for (const lx of [-lightOffsetX, lightOffsetX]) {
-    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.24, 0.14), headlightMat);
-    hl.position.set(lx, 0.78, frontZ);
-    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.24, 0.14), taillightMat);
-    tl.position.set(lx, 0.78, -frontZ);
+    const hl = new THREE.Mesh(
+      new THREE.BoxGeometry(isSport ? 0.54 : 0.46, isSport ? 0.13 : 0.19, 0.14),
+      headlightMat
+    );
+    hl.rotation.z = (lx > 0 ? -1 : 1) * (isSport ? 0.16 : 0.08);
+    hl.rotation.y = (lx > 0 ? -1 : 1) * 0.12;
+    hl.position.set(lx, hlY, frontZ - 0.04);
+    const tl = new THREE.Mesh(
+      new THREE.BoxGeometry(0.54, isSport ? 0.14 : 0.2, 0.12),
+      taillightMat
+    );
+    tl.position.set(lx, chassisTopY - 0.14, -frontZ + 0.02);
     group.add(hl, tl);
   }
+  if (isSport || type === 'suv_pcc' || type === 'interceptor_v8') {
+    const rearLightBar = new THREE.Mesh(
+      new THREE.BoxGeometry(chassisW - 0.26, 0.07, 0.1),
+      taillightMat
+    );
+    rearLightBar.position.set(0, chassisTopY - 0.12, -frontZ + 0.03);
+    group.add(rearLightBar);
+  }
 
-  // Bancos internos e Volante 3D (Steering Wheel) dentro da cabine!
-  const seatMat = type === 'vortex_roadster' ? whiteMat : blackMat;
-  const driverSeat = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.55, 0.65), seatMat);
-  driverSeat.position.set(-0.42, 1.05, -0.15);
-  const passSeat = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.55, 0.65), seatMat);
-  passSeat.position.set(0.42, 1.05, -0.15);
-  const steeringWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.08, 12), blackMat);
+  // 5. Bancos Internos + Volante Tático 3D
+  const seatMat = type === 'vortex_roadster' ? darkTrimMat : blackMat;
+  const driverSeat = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.52, 0.62), seatMat);
+  driverSeat.position.set(-0.42, 1.02, -0.15);
+  const passSeat = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.52, 0.62), seatMat);
+  passSeat.position.set(0.42, 1.02, -0.15);
+  const steeringWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.07, 12), blackMat);
   steeringWheel.rotation.x = Math.PI / 3;
-  steeringWheel.position.set(-0.42, 1.18, 0.52);
+  steeringWheel.position.set(-0.42, 1.15, 0.52);
   group.add(driverSeat, passSeat, steeringWheel);
 
-  // Para-brisa translúcido e Cabine / Teto específico por modelo
-  const chassisTopY = 0.42 + chassisH;
+  // 6. Cabine / Greenhouse Inclinada (Fastback, SUV, Pickup ou Casco Facetado V-Hull de Blindado!)
   if (spec.openTop) {
-    // Conversível (Vortex Roadster) ou Buggy de Praia (Sem teto ou Gaiola aberta!)
-    const windshield = new THREE.Mesh(new THREE.BoxGeometry(chassisW - 0.3, 0.52, 0.16), glassMat);
-    windshield.rotation.x = -0.32;
-    windshield.position.set(0, chassisTopY + 0.24, 0.82);
-    group.add(windshield);
+    // Conversível Esportivo (Vortex Roadster) ou Buggy Tático de Dunas
+    const windshield = new THREE.Mesh(new THREE.BoxGeometry(chassisW - 0.34, 0.5, 0.1), glassMat);
+    windshield.rotation.x = -0.52;
+    windshield.position.set(0, chassisTopY + 0.2, 0.78);
+    const wsFrameTop = new THREE.Mesh(new THREE.BoxGeometry(chassisW - 0.3, 0.06, 0.12), gunmetalTrimMat);
+    wsFrameTop.rotation.x = -0.52;
+    wsFrameTop.position.set(0, chassisTopY + 0.42, 0.64);
+    group.add(windshield, wsFrameTop);
+
+    for (const sx of [-0.52, 0.52]) {
+      const rollHoop = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.26, 0.1), gunmetalTrimMat);
+      rollHoop.rotation.x = -0.2;
+      rollHoop.position.set(sx, chassisTopY + 0.13, -0.62);
+      group.add(rollHoop);
+    }
 
     if (type === 'buggy_praia') {
-      // Gaiola tubular aberta (Roll Cage) laranja/verde-limão
-      const cageMat = getLegoMaterial(0x84cc16);
-      for (const cx of [-0.92, 0.92]) {
-        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.78, 2.2), cageMat);
-        bar.position.set(cx, chassisTopY + 0.39, -0.1);
-        group.add(bar);
+      const cageMat = getLegoMaterial(roofColor ?? 0xd97706, { roughness: 0.38, metalness: 0.35 });
+      for (const cx of [-0.9, 0.9]) {
+        const frontCage = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.92, 8), cageMat);
+        frontCage.rotation.x = -0.46;
+        frontCage.position.set(cx, chassisTopY + 0.38, 0.55);
+        const topCage = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.45, 8), cageMat);
+        topCage.rotation.x = Math.PI / 2;
+        topCage.position.set(cx, chassisTopY + 0.76, -0.35);
+        const rearCage = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.15, 8), cageMat);
+        rearCage.rotation.x = 0.58;
+        rearCage.position.set(cx, chassisTopY + 0.4, -1.35);
+        group.add(frontCage, topCage, rearCage);
       }
     }
-  } else {
-    const cabinW = chassisW - 0.28;
-    const cabinH = isHeavyTruck ? 1.05 : isPickup ? 0.72 : 0.68;
-    const cabinD = isHeavyTruck ? chassisD - 1.3 : isPickup ? 2.1 : 2.38;
-    const cabinZ = isHeavyTruck ? -0.45 : isPickup ? 0.35 : -0.12;
+  } else if (type === 'caveirao_bope') {
+    // CAVEIRÃO DO BOPE: Superestrutura Balística V-Hull Facetada + Fendas de Visão Blindadas!
+    const cabinW = chassisW - 0.12;
+    const cabinH = 1.08;
+    const cabinD = 3.95;
+    const cabinZ = -0.48;
+    const armoredUpper = new THREE.Mesh(
+      makeRakedCabinGeo(
+        cabinW,
+        cabinW - 0.44,
+        cabinH,
+        cabinD,
+        cabinZ,
+        cabinZ + cabinD * 0.5 - 0.52,
+        cabinZ - cabinD * 0.5 + 0.24
+      ),
+      bodyMat
+    );
+    armoredUpper.position.set(0, chassisTopY - 0.02, 0);
+    // Visor balístico estreito fumê + seteiras laterais
+    const visorSlit = new THREE.Mesh(new THREE.BoxGeometry(cabinW - 0.54, 0.28, 0.14), glassMat);
+    visorSlit.rotation.x = -0.44;
+    visorSlit.position.set(0, chassisTopY + 0.58, cabinZ + cabinD * 0.5 - 0.26);
+    const visorLouver = new THREE.Mesh(new THREE.BoxGeometry(cabinW - 0.48, 0.05, 0.18), silverMat);
+    visorLouver.position.set(0, chassisTopY + 0.62, cabinZ + cabinD * 0.5 - 0.22);
+    group.add(armoredUpper, visorSlit, visorLouver);
 
-    const cabinGlass = new THREE.Mesh(new THREE.BoxGeometry(cabinW, cabinH, cabinD), glassMat);
-    cabinGlass.position.set(0, chassisTopY + cabinH * 0.5, cabinZ);
-    group.add(cabinGlass);
-
-    const roofY = chassisTopY + cabinH + 0.09;
-    const roofPlate = createLegoBrick(cabinW + 0.08, 0.18, cabinD + 0.08, roofColor, {
-      studStep: 0.65,
-      roughness: finishOpts.roughness,
-      metalness: finishOpts.metalness
-    });
+    for (const pz of [-1.6, -0.6, 0.4]) {
+      for (const sx of [-1, 1]) {
+        const gunPort = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.34), glassMat);
+        gunPort.rotation.z = sx * 0.18;
+        gunPort.position.set(sx * (cabinW * 0.5 - 0.11), chassisTopY + 0.62, pz);
+        group.add(gunPort);
+      }
+    }
+    const roofY = chassisTopY + cabinH + 0.04;
+    const roofPlate = new THREE.Mesh(
+      makeTaperedHullGeo(cabinW - 0.42, cabinW - 0.56, 0.12, cabinD - 0.78, cabinD - 0.96, -0.14, 0, 0),
+      roofAccentMat
+    );
     roofPlate.position.set(0, roofY, cabinZ);
     group.add(roofPlate);
-    group.userData._roofMeta = { roofY, cabinW, cabinD, cabinZ };
+    group.userData._roofMeta = { roofY, cabinW: cabinW - 0.42, cabinD: cabinD - 0.78, cabinZ };
+  } else if (type === 'carro_forte' || type === 'van_pcc') {
+    // CARRO-FORTE & VAN QUEBRA-COFRE: Cabine frontal inclinada + Cofre Traseiro Chanfrado Studless
+    const cabinW = chassisW - 0.16;
+    const cabinH = 1.04;
+    const cabinD = 4.25;
+    const cabinZ = -0.42;
+    const vaultBody = new THREE.Mesh(
+      makeRakedCabinGeo(
+        cabinW,
+        cabinW - 0.24,
+        cabinH,
+        cabinD,
+        cabinZ,
+        cabinZ + cabinD * 0.5 - 0.46,
+        cabinZ - cabinD * 0.5 + 0.12
+      ),
+      bodyMat
+    );
+    vaultBody.position.set(0, chassisTopY - 0.02, 0);
+    const frontVisor = new THREE.Mesh(new THREE.BoxGeometry(cabinW - 0.38, 0.42, 0.14), glassMat);
+    frontVisor.rotation.x = -0.4;
+    frontVisor.position.set(0, chassisTopY + 0.56, cabinZ + cabinD * 0.5 - 0.22);
+    const sideCabGlass = new THREE.Mesh(new THREE.BoxGeometry(cabinW - 0.08, 0.4, 0.92), glassMat);
+    sideCabGlass.position.set(0, chassisTopY + 0.56, cabinZ + cabinD * 0.5 - 0.78);
+    group.add(vaultBody, frontVisor, sideCabGlass);
+
+    const roofY = chassisTopY + cabinH + 0.05;
+    const roofPlate = new THREE.Mesh(
+      makeTaperedHullGeo(cabinW - 0.22, cabinW - 0.34, 0.12, cabinD - 0.62, cabinD - 0.8, -0.16, 0, 0),
+      roofAccentMat
+    );
+    roofPlate.position.set(0, roofY, cabinZ);
+    group.add(roofPlate);
+    group.userData._roofMeta = { roofY, cabinW: cabinW - 0.22, cabinD: cabinD - 0.62, cabinZ };
+  } else if (type === 'hover_apc_ares') {
+    // HOVER-APC A.R.E.S.: Casco Cyberpunk Stealth Angular de 6 Rodas
+    const cabinW = chassisW - 0.18;
+    const cabinH = 0.78;
+    const cabinD = 3.9;
+    const cabinZ = -0.24;
+    const stealthDeck = new THREE.Mesh(
+      makeRakedCabinGeo(
+        cabinW,
+        cabinW - 0.58,
+        cabinH,
+        cabinD,
+        cabinZ,
+        cabinZ + cabinD * 0.5 - 0.78,
+        cabinZ - cabinD * 0.5 + 0.48
+      ),
+      bodyMat
+    );
+    stealthDeck.position.set(0, chassisTopY - 0.02, 0);
+    const cyberVisor = new THREE.Mesh(new THREE.BoxGeometry(cabinW - 0.64, 0.22, 0.16), glassMat);
+    cyberVisor.rotation.x = -0.68;
+    cyberVisor.position.set(0, chassisTopY + 0.42, cabinZ + cabinD * 0.5 - 0.42);
+    group.add(stealthDeck, cyberVisor);
+
+    const roofY = chassisTopY + cabinH + 0.04;
+    group.userData._roofMeta = { roofY, cabinW: cabinW - 0.58, cabinD: cabinD - 1.25, cabinZ };
+  } else {
+    // CARROS ESPORTIVOS, MUSCLE, SEDANS, INTERCEPTORS, SUVs & PICAPES:
+    // Greenhouse trapezoidal fumê com para-brisa inclinado, coluna C fastback e teto chanfrado studless!
+    const cabinWBot = chassisW - 0.24;
+    const cabinWTop = cabinWBot - (isSport ? 0.38 : 0.26);
+    const cabinH = isSuv ? 0.74 : isPickup ? 0.72 : isWideHyper ? 0.54 : isSport ? 0.58 : 0.66;
+    const cabinDBot = isSuv ? 2.95 : isPickup ? 2.15 : isSport ? 2.48 : 2.52;
+    const cabinZ = isSuv ? -0.32 : isPickup ? 0.36 : isSport ? -0.18 : -0.14;
+    const frontRake = isWideHyper ? 0.78 : isSport ? 0.68 : 0.54;
+    const rearRake = isPickup ? 0.16 : isSuv ? 0.36 : isWideHyper ? 0.88 : isSport ? 0.74 : 0.52;
+    const zTopFront = cabinZ + cabinDBot * 0.5 - frontRake;
+    const zTopRear = cabinZ - cabinDBot * 0.5 + rearRake;
+    const topD = Math.max(0.85, zTopFront - zTopRear);
+    const topZCenter = (zTopFront + zTopRear) * 0.5;
+
+    const cabinGlass = new THREE.Mesh(
+      makeRakedCabinGeo(cabinWBot, cabinWTop, cabinH, cabinDBot, cabinZ, zTopFront, zTopRear),
+      glassMat
+    );
+    cabinGlass.position.set(0, chassisTopY - 0.01, 0);
+    group.add(cabinGlass);
+
+    // Colunas A e C inclinadas em metal/cor do teto para silhueta automotiva real
+    for (const sx of [-1, 1]) {
+      const aPillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, cabinH * 1.12, 0.1), roofAccentMat);
+      aPillar.rotation.x = -Math.atan2(frontRake, cabinH);
+      aPillar.rotation.z = sx * 0.16;
+      aPillar.position.set(
+        sx * ((cabinWBot + cabinWTop) * 0.25 - 0.02),
+        chassisTopY + cabinH * 0.48,
+        (cabinZ + cabinDBot * 0.5 + zTopFront) * 0.5
+      );
+      const cPillar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.09, cabinH * 1.12, isSport ? 0.22 : 0.16),
+        roofAccentMat
+      );
+      cPillar.rotation.x = Math.atan2(rearRake, cabinH);
+      cPillar.rotation.z = sx * 0.16;
+      cPillar.position.set(
+        sx * ((cabinWBot + cabinWTop) * 0.25 - 0.02),
+        chassisTopY + cabinH * 0.48,
+        (cabinZ - cabinDBot * 0.5 + zTopRear) * 0.5
+      );
+      group.add(aPillar, cPillar);
+    }
+
+    const roofY = chassisTopY + cabinH + 0.04;
+    const roofPlate = new THREE.Mesh(
+      makeTaperedHullGeo(cabinWTop + 0.06, cabinWTop - 0.04, 0.1, topD + 0.08, topD - 0.04, 0, 0.02, 0.02),
+      roofAccentMat
+    );
+    roofPlate.position.set(0, roofY, topZCenter);
+    group.add(roofPlate);
+    group.userData._roofMeta = { roofY, cabinW: cabinWTop, cabinD: topD, cabinZ: topZCenter };
+
+    // Caçamba esculpida nas Picapes (paredes laterais + santo-antônio tático)
+    if (isPickup) {
+      for (const sx of [-1, 1]) {
+        const bedWall = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 1.65), bodyMat);
+        bedWall.position.set(sx * (chassisW * 0.5 - 0.1), chassisTopY + 0.1, -1.55);
+        const rollBar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.72, 8), gunmetalTrimMat);
+        rollBar.rotation.x = 0.52;
+        rollBar.position.set(sx * (chassisW * 0.38), chassisTopY + 0.34, -0.98);
+        group.add(bedWall, rollBar);
+      }
+    }
   }
 
   // ============================================================================
-  // DETALHES EXCLUSIVOS DE CADA UM DOS VEÍCULOS
+  // 7. DETALHES EXCLUSIVOS DE CADA UM DOS VEÍCULOS
   // ============================================================================
   if (type === 'apex_gtx' && !cfg.suppressDefaultSpoiler) {
-    // Faixa preta central + Aerofólio GT largo
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, chassisD - 0.2), blackMat);
-    stripe.position.set(0, chassisTopY + 0.03, 0);
-    const wingBlade = new THREE.Mesh(new THREE.BoxGeometry(2.55, 0.12, 0.58), blackMat);
-    wingBlade.position.set(0, chassisTopY + 0.52, -2.18);
-    const wingPostL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.48, 0.3), blackMat);
-    wingPostL.position.set(-0.85, chassisTopY + 0.26, -2.15);
-    const wingPostR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.48, 0.3), blackMat);
-    wingPostR.position.set(0.85, chassisTopY + 0.26, -2.15);
-    group.add(stripe, wingBlade, wingPostL, wingPostR);
-  } else if (type === 'trovao_v8') {
-    // Listras brancas + Motor V8 Blower cromado saltando do capô!
-    for (const sx of [-0.32, 0.32]) {
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.05, 1.6), whiteMat);
-      stripe.position.set(sx, chassisTopY + 0.03, 1.55);
-      group.add(stripe);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.04, 1.65), blackMat);
+    stripe.rotation.x = Math.atan2(hoodDrop, chassisD * 0.5) * 0.65;
+    stripe.position.set(0, chassisTopY - 0.08, 1.35);
+    const wingBlade = new THREE.Mesh(
+      makeTaperedHullGeo(2.52, 2.58, 0.09, 0.52, 0.42, -0.04, 0.04, 0),
+      gunmetalTrimMat
+    );
+    wingBlade.position.set(0, chassisTopY + 0.48, -2.18);
+    for (const sx of [-1, 1]) {
+      const wingPost = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.44, 0.28), blackMat);
+      wingPost.rotation.x = 0.22;
+      wingPost.position.set(sx * 0.78, chassisTopY + 0.24, -2.12);
+      const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.24, 0.56), bodyMat);
+      endplate.position.set(sx * 1.28, chassisTopY + 0.48, -2.18);
+      group.add(wingPost, endplate);
     }
-    const blower = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.38, 0.92), silverMat);
-    blower.position.set(0, chassisTopY + 0.2, 1.5);
-    const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.22, 0.65), blackMat);
-    scoop.position.set(0, chassisTopY + 0.44, 1.58);
-    group.add(blower, scoop);
+    group.add(stripe, wingBlade);
+  } else if (type === 'trovao_v8') {
+    const blower = new THREE.Mesh(
+      makeTaperedHullGeo(0.84, 0.72, 0.32, 0.96, 0.82, -0.04, 0.05, 0.02),
+      gunmetalTrimMat
+    );
+    blower.position.set(0, chassisTopY + 0.1, 1.42);
+    const scoop = new THREE.Mesh(
+      makeTaperedHullGeo(0.68, 0.58, 0.2, 0.68, 0.52, -0.06, 0, 0.05),
+      silverMat
+    );
+    scoop.position.set(0, chassisTopY + 0.32, 1.48);
+    const ducktail = new THREE.Mesh(
+      makeTaperedHullGeo(chassisW - 0.16, chassisW - 0.24, 0.16, 0.28, 0.18, -0.04, 0.08, 0),
+      blackMat
+    );
+    ducktail.position.set(0, chassisTopY + 0.05, -2.28);
+    group.add(blower, scoop, ducktail);
   } else if (type === 'cyber_blade') {
-    // Frisos luminosos Ciano e Roxo-Neon no chassi
     for (const nx of [-chassisW * 0.51, chassisW * 0.51]) {
-      const neonStrip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, chassisD - 0.3), neonCyanMat);
-      neonStrip.position.set(nx, 0.56, 0);
+      const neonStrip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, chassisD - 0.4), neonCyanMat);
+      neonStrip.position.set(nx, 0.52, 0);
       group.add(neonStrip);
     }
-    const rearNeon = new THREE.Mesh(new THREE.BoxGeometry(chassisW, 0.14, 0.12), neonPurpleMat);
-    rearNeon.position.set(0, chassisTopY + 0.35, -2.25);
+    const rearNeon = new THREE.Mesh(new THREE.BoxGeometry(chassisW - 0.12, 0.1, 0.1), neonPurpleMat);
+    rearNeon.position.set(0, chassisTopY + 0.22, -2.28);
     group.add(rearNeon);
   } else if (type === 'caveirao_bope') {
-    // Quebra-mato gigante + Emblema de Caveira Branca nas laterais + Escotilha e Giroflex no teto!
-    const ram = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.95, 0.45), silverMat);
-    ram.position.set(0, 0.85, frontZ + 0.22);
-    const hatch = createLegoBrick(1.1, 0.25, 1.1, LEGO_COLORS.charcoal, { studStep: 0.5 });
-    hatch.position.set(0, 2.62, -0.2);
-    for (const sx of [-1.35, 1.35]) {
-      const skullEmblem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.72, 0.72), whiteMat);
-      skullEmblem.position.set(sx, 1.75, -0.5);
+    // Ariete Frontal em Cunha V-Plow + Escotilha Blindada Octogonal + Emblema Tático + Giroflex Low-Profile!
+    const ram = new THREE.Mesh(
+      makeTaperedHullGeo(2.74, 2.48, 0.92, 0.58, 0.28, -0.14, 0.18, 0),
+      gunmetalTrimMat
+    );
+    ram.position.set(0, 0.78, frontZ + 0.24);
+    const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.68, 0.24, 8), gunmetalTrimMat);
+    hatch.position.set(0, 2.58, -0.22);
+    const hatchShield = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.34, 0.12), darkTrimMat);
+    hatchShield.rotation.x = -0.24;
+    hatchShield.position.set(0, 2.78, 0.22);
+    for (const sx of [-1.22, 1.22]) {
+      const skullEmblem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.52, 0.52), goldMat);
+      skullEmblem.rotation.z = sx > 0 ? 0.16 : -0.16;
+      skullEmblem.position.set(sx, 1.82, -0.52);
       group.add(skullEmblem);
     }
-    _addPoliceLightbar(group, 2.65, 0.8);
-    group.add(ram, hatch);
+    _addPoliceLightbar(group, 2.56, 0.78);
+    group.add(ram, hatch, hatchShield);
   } else if (type === 'interceptor_v8' || type === 'choque_pickup') {
-    const pushBar = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.6, 0.25), blackMat);
-    pushBar.position.set(0, 0.68, frontZ + 0.15);
+    const pushBar = new THREE.Mesh(
+      makeTaperedHullGeo(1.68, 1.48, 0.58, 0.28, 0.18, -0.05, 0.08, 0),
+      blackMat
+    );
+    pushBar.position.set(0, 0.66, frontZ + 0.14);
     group.add(pushBar);
-    _addPoliceLightbar(group, 2.02, 0.1);
+    const lbY = group.userData._roofMeta ? group.userData._roofMeta.roofY + 0.1 : 1.92;
+    _addPoliceLightbar(group, lbY, isPickup ? 0.25 : -0.15);
   } else if (type === 'picape_cv') {
-    // Metralhadora Giratória montada na caçamba traseira!
     const turretGroup = new THREE.Group();
-    turretGroup.position.set(0, chassisTopY + 0.55, -1.35);
+    turretGroup.position.set(0, chassisTopY + 0.55, -1.42);
     const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.9, 8), blackMat);
     ped.position.y = -0.2;
-    const shield = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.65, 0.12), darkTrimMat);
+    const shield = new THREE.Mesh(
+      makeTaperedHullGeo(0.96, 0.78, 0.64, 0.14, 0.1, 0, 0, 0),
+      gunmetalTrimMat
+    );
+    shield.rotation.x = -0.18;
     shield.position.set(0, 0.3, 0.35);
-    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 1.1), blackMat);
+    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 1.1), blackMat);
     gunBody.position.set(0, 0.25, 0.2);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 8), silverMat);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 1.42, 8), silverMat);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.25, 0.95);
+    barrel.position.set(0, 0.25, 0.96);
     turretGroup.add(ped, shield, gunBody, barrel);
     group.add(turretGroup);
     group.userData.turretGroup = turretGroup;
   } else if (type === 'hover_apc_ares') {
-    // Blindado 6 Rodas Cinza/Roxo-Neon com Torreta de Canhão Laser no teto!
-    for (const nx of [-1.36, 1.36]) {
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 5.2), neonPurpleMat);
-      strip.position.set(nx, 0.95, 0);
+    for (const nx of [-1.34, 1.34]) {
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 4.9), neonPurpleMat);
+      strip.position.set(nx, 0.92, -0.08);
       group.add(strip);
     }
     const turretGroup = new THREE.Group();
-    turretGroup.position.set(0, 2.38, -0.2);
-    const pod = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.55, 1.5), darkTrimMat);
-    const laserBarrelL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.8, 10), neonPurpleMat);
+    turretGroup.position.set(0, 2.28, -0.24);
+    const pod = new THREE.Mesh(
+      makeTaperedHullGeo(1.38, 1.04, 0.52, 1.62, 1.24, -0.1, 0.16, 0.06),
+      gunmetalTrimMat
+    );
+    const laserBarrelL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.85, 10), neonPurpleMat);
     laserBarrelL.rotation.x = Math.PI / 2;
-    laserBarrelL.position.set(-0.32, 0.05, 1.1);
-    const laserBarrelR = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.8, 10), neonCyanMat);
+    laserBarrelL.position.set(-0.32, 0.04, 1.12);
+    const laserBarrelR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.85, 10), neonCyanMat);
     laserBarrelR.rotation.x = Math.PI / 2;
-    laserBarrelR.position.set(0.32, 0.05, 1.1);
+    laserBarrelR.position.set(0.32, 0.04, 1.12);
     turretGroup.add(pod, laserBarrelL, laserBarrelR);
     group.add(turretGroup);
     group.userData.turretGroup = turretGroup;
   } else if (type === 'taxi_metro') {
-    const sign = createLegoBrick(0.95, 0.28, 0.42, LEGO_COLORS.orange, { studs: false });
-    sign.position.set(0, 2.02, -0.1);
+    const signY = group.userData._roofMeta ? group.userData._roofMeta.roofY + 0.14 : 1.92;
+    const taxiGlowMat = getLegoMaterial(0xd97706, { emissive: 0xb45309, emissiveIntensity: 0.85 });
+    const sign = new THREE.Mesh(
+      makeTaperedHullGeo(0.86, 0.68, 0.22, 0.38, 0.28, 0, 0.04, 0.04),
+      taxiGlowMat
+    );
+    sign.position.set(0, signY, -0.14);
     group.add(sign);
   } else if (type === 'carro_forte') {
-    // Faixas e detalhes Dourados do Super Banco Central
-    for (const sx of [-1.35, 1.35]) {
-      const goldStripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 5.2), goldMat);
-      goldStripe.position.set(sx, 1.55, -0.2);
+    for (const sx of [-1.24, 1.24]) {
+      const goldStripe = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.24, 4.15), goldMat);
+      goldStripe.position.set(sx, 1.62, -0.42);
       group.add(goldStripe);
     }
   } else if (type === 'suv_pcc') {
-    // SUV Blindada Executiva do PCC: Quebra-mato de aço preto, frisos Azul-Marinho/Neon e antena de rádio tático
-    const bullBar = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.65, 0.28), darkTrimMat);
-    bullBar.position.set(0, 0.68, frontZ + 0.16);
-    const blueMat = getLegoMaterial(0x1d4ed8, { roughness: 0.22 });
+    const bullBar = new THREE.Mesh(
+      makeTaperedHullGeo(2.08, 1.84, 0.62, 0.28, 0.18, -0.05, 0.08, 0),
+      gunmetalTrimMat
+    );
+    bullBar.position.set(0, 0.68, frontZ + 0.15);
+    const blueMat = getLegoMaterial(0x1e3a8a, { roughness: 0.28 });
     for (const sx of [-chassisW * 0.51, chassisW * 0.51]) {
-      const pccStripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, chassisD - 0.35), blueMat);
-      pccStripe.position.set(sx, 0.92, 0);
-      const cyanTrim = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, chassisD - 0.6), neonCyanMat);
-      cyanTrim.position.set(sx, 0.78, 0);
+      const pccStripe = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, chassisD - 0.45), blueMat);
+      pccStripe.position.set(sx, 0.88, 0);
+      const cyanTrim = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, chassisD - 0.7), neonCyanMat);
+      cyanTrim.position.set(sx, 0.76, 0);
       group.add(pccStripe, cyanTrim);
     }
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.95, 6), silverMat);
-    antenna.position.set(0, 2.38, -0.75);
+    const antennaY = group.userData._roofMeta ? group.userData._roofMeta.roofY + 0.42 : 2.28;
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.85, 6), silverMat);
+    antenna.position.set(0, antennaY, -0.85);
     group.add(bullBar, antenna);
   } else if (type === 'van_pcc') {
-    // Van Quebra-Cofre de Assalto do PCC: Ariete frontal blindado, faixas Azul-Escuro/Prata e módulo C4 no teto
-    const ramPlate = new THREE.Mesh(new THREE.BoxGeometry(2.55, 0.85, 0.36), silverMat);
-    ramPlate.position.set(0, 0.78, frontZ + 0.18);
-    const blueMat = getLegoMaterial(0x1e3a8a, { roughness: 0.24 });
-    for (const sx of [-1.35, 1.35]) {
-      const sideArmor = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.45, 5.1), blueMat);
-      sideArmor.position.set(sx, 1.55, -0.2);
-      const silverLine = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.12, 4.9), silverMat);
-      silverLine.position.set(sx, 1.88, -0.2);
+    const ramPlate = new THREE.Mesh(
+      makeTaperedHullGeo(2.54, 2.32, 0.82, 0.44, 0.24, -0.1, 0.14, 0),
+      gunmetalTrimMat
+    );
+    ramPlate.position.set(0, 0.76, frontZ + 0.18);
+    const blueMat = getLegoMaterial(0x1e3a8a, { roughness: 0.3 });
+    for (const sx of [-1.24, 1.24]) {
+      const sideArmor = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.34, 4.1), blueMat);
+      sideArmor.position.set(sx, 1.58, -0.42);
+      const silverLine = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 3.95), silverMat);
+      silverLine.position.set(sx, 1.84, -0.42);
       group.add(sideArmor, silverLine);
     }
-    const roofBox = createLegoBrick(1.4, 0.32, 1.9, 0x0f172a, { studStep: 0.5 });
-    roofBox.position.set(0, 2.66, -0.5);
+    const roofBox = new THREE.Mesh(
+      makeTaperedHullGeo(1.32, 1.16, 0.26, 1.82, 1.58, -0.04, 0.05, 0.03),
+      gunmetalTrimMat
+    );
+    roofBox.position.set(0, 2.6, -0.58);
     group.add(ramPlate, roofBox);
   }
 
-  // Rodas cilíndricas com calotas (4 rodas padrão, ou 6 rodas para o Hover-APC)
+  // Rodas cilíndricas com aros metálicos escovados (4 rodas padrão, ou 6 rodas para o Hover-APC)
   const wheelX = chassisW * 0.5;
   const wheelRadius = isHeavyTruck || type === 'buggy_praia' ? 0.52 : 0.44;
   const zPositions = isSixWheelApc ? [1.75, 0, -1.75] : [chassisD * 0.31, -chassisD * 0.31];
@@ -1358,12 +1790,14 @@ function _buildLegoCarMeshUncached(cfg) {
       ? neonCyanMat
       : type === 'apex_gtx' || type === 'carro_forte'
         ? goldMat
-        : silverMat);
+        : isHeavyTruck || type === 'suv_pcc'
+          ? gunmetalTrimMat
+          : silverMat);
 
   const wheels = [];
-  const tireGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.4, 16);
+  const tireGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.42, 16);
   tireGeo.rotateZ(Math.PI / 2);
-  const hubGeo = new THREE.CylinderGeometry(wheelRadius * 0.58, wheelRadius * 0.58, 0.42, 12);
+  const hubGeo = new THREE.CylinderGeometry(wheelRadius * 0.6, wheelRadius * 0.6, 0.44, 12);
   hubGeo.rotateZ(Math.PI / 2);
   const wheelGeo = mergeColoredGeometries([
     { geo: tireGeo, color: tireMat.color },
@@ -1371,8 +1805,8 @@ function _buildLegoCarMeshUncached(cfg) {
   ]);
   const hubIsEmissive = Boolean(hubMat.emissive && hubMat.emissive.getHex() !== 0 && (hubMat.emissiveIntensity ?? 0) > 0);
   const wheelMat = getSharedVertexColorMaterial({
-    roughness: customWheelMat ? (customWheelMat.roughness ?? 0.24) : 0.3,
-    metalness: customWheelMat ? Math.min(0.45, customWheelMat.metalness ?? 0.25) : 0.18,
+    roughness: customWheelMat ? (customWheelMat.roughness ?? 0.24) : 0.32,
+    metalness: customWheelMat ? Math.min(0.45, customWheelMat.metalness ?? 0.25) : 0.28,
     clearcoat: customWheelMat ? (customWheelMat.clearcoat ?? 0.45) : 0.28,
     emissive: hubIsEmissive ? hubMat.emissive : 0x000000,
     emissiveIntensity: hubIsEmissive ? 0.3 : 0
@@ -1398,7 +1832,7 @@ function _buildLegoCarMeshUncached(cfg) {
     h: chassisH,
     d: chassisD,
     topY: chassisTopY,
-    roofY: rm ? rm.roofY + 0.09 : chassisTopY,
+    roofY: rm ? rm.roofY + 0.06 : chassisTopY,
     cabinW: rm ? rm.cabinW : chassisW - 0.3,
     cabinD: rm ? rm.cabinD : 2.1,
     cabinZ: rm ? rm.cabinZ : -0.1,
@@ -1413,17 +1847,22 @@ function _buildLegoCarMeshUncached(cfg) {
 }
 
 function _addPoliceLightbar(group, y, z) {
+  const baseBar = new THREE.Mesh(
+    new THREE.BoxGeometry(1.56, 0.08, 0.28),
+    getLegoMaterial(0x111827, { roughness: 0.4, metalness: 0.5 })
+  );
+  baseBar.position.set(0, y - 0.06, z);
   const redLight = new THREE.Mesh(
-    new THREE.BoxGeometry(0.75, 0.22, 0.36),
-    getLegoMaterial(LEGO_COLORS.red, { emissive: 0xdc2626, emissiveIntensity: 0.85 })
+    new THREE.BoxGeometry(0.68, 0.14, 0.24),
+    getLegoMaterial(0x991b1b, { emissive: 0xdc2626, emissiveIntensity: 1.0 })
   );
-  redLight.position.set(-0.4, y, z);
+  redLight.position.set(-0.38, y + 0.02, z);
   const blueLight = new THREE.Mesh(
-    new THREE.BoxGeometry(0.75, 0.22, 0.36),
-    getLegoMaterial(LEGO_COLORS.blue, { emissive: 0x2563eb, emissiveIntensity: 0.85 })
+    new THREE.BoxGeometry(0.68, 0.14, 0.24),
+    getLegoMaterial(0x1d4ed8, { emissive: 0x2563eb, emissiveIntensity: 1.0 })
   );
-  blueLight.position.set(0.4, y, z);
-  group.add(redLight, blueLight);
+  blueLight.position.set(0.38, y + 0.02, z);
+  group.add(baseBar, redLight, blueLight);
 }
 
 const SHARED_FLAME_MAT = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
@@ -1472,25 +1911,25 @@ export function buildParkedLegoCars(world) {
     { x: 18.0, z: -48.0, rotY: 0, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },
     { x: 24.0, z: -48.0, rotY: 0, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },
     // Posto de Gasolina no Subúrbio Norte (explodem junto com as bombas!)
-    { x: 181.0, z: -700.0, rotY: 0, color: 0xdc2626, roofColor: LEGO_COLORS.black, type: 'apex_gtx' },
-    { x: 213.0, z: -700.0, rotY: Math.PI, color: 0x3b82f6, roofColor: LEGO_COLORS.white, type: 'sedan_familiar' },
+    { x: 181.0, z: -700.0, rotY: 0, color: 0x991b1b, roofColor: LEGO_COLORS.black, type: 'apex_gtx' },
+    { x: 213.0, z: -700.0, rotY: Math.PI, color: 0x1e3a5f, roofColor: 0x0f172a, type: 'sedan_familiar' },
     // Estacionamento da Pizzaria & Ruas do Subúrbio Norte
-    { x: 48.0, z: -680.0, rotY: 0, color: LEGO_COLORS.yellow, roofColor: LEGO_COLORS.yellow, type: 'taxi_metro' },
-    { x: 64.0, z: -680.0, rotY: 0, color: 0x2563eb, roofColor: LEGO_COLORS.white, type: 'vortex_roadster' },
-    { x: -45.0, z: -646.0, rotY: Math.PI / 2, color: 0x16a34a, roofColor: LEGO_COLORS.white, type: 'sedan_familiar' },
-    { x: -178.0, z: -646.0, rotY: Math.PI / 2, color: 0xf97316, roofColor: LEGO_COLORS.black, type: 'trovao_v8' },
+    { x: 48.0, z: -680.0, rotY: 0, color: 0xc88a14, roofColor: 0x111827, type: 'taxi_metro' },
+    { x: 64.0, z: -680.0, rotY: 0, color: 0x1e293b, roofColor: 0x090a0d, type: 'vortex_roadster' },
+    { x: -45.0, z: -646.0, rotY: Math.PI / 2, color: 0x143828, roofColor: 0x0f172a, type: 'sedan_familiar' },
+    { x: -178.0, z: -646.0, rotY: Math.PI / 2, color: 0x9a3412, roofColor: LEGO_COLORS.black, type: 'trovao_v8' },
     // Orla & Praia Sul (Buggies de Dunas na Areia, Conversíveis, Supercarros e Motos Táticas da Polícia na Avenida Beira-Mar)
-    { x: -24.0, z: 710.0, rotY: Math.PI / 2, color: 0xec4899, roofColor: LEGO_COLORS.white, type: 'vortex_roadster' },
+    { x: -24.0, z: 710.0, rotY: Math.PI / 2, color: 0x7f1d1d, roofColor: 0x0f172a, type: 'vortex_roadster' },
     { x: -12.0, z: 710.0, rotY: Math.PI / 2, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },
     { x: 14.0, z: 710.0, rotY: -Math.PI / 2, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },
-    { x: 28.0, z: 710.0, rotY: -Math.PI / 2, color: 0xfacc15, roofColor: LEGO_COLORS.black, type: 'apex_gtx' },
-    { x: -32.0, z: 825.0, rotY: 0.35, color: 0xf97316, roofColor: 0x84cc16, type: 'buggy_praia' },
-    { x: 32.0, z: 825.0, rotY: -0.35, color: 0x84cc16, roofColor: 0xf97316, type: 'buggy_praia' },
-    { x: -195.0, z: 895.0, rotY: 0.2, color: 0xf97316, roofColor: 0x84cc16, type: 'buggy_praia' },
-    { x: 195.0, z: 895.0, rotY: -0.2, color: 0x22c55e, roofColor: 0xfacc15, type: 'buggy_praia' },
+    { x: 28.0, z: 710.0, rotY: -Math.PI / 2, color: 0xb47b12, roofColor: LEGO_COLORS.black, type: 'apex_gtx' },
+    { x: -32.0, z: 825.0, rotY: 0.35, color: 0x9a3412, roofColor: 0x1e293b, type: 'buggy_praia' },
+    { x: 32.0, z: 825.0, rotY: -0.35, color: 0x2b3620, roofColor: 0xb45309, type: 'buggy_praia' },
+    { x: -195.0, z: 895.0, rotY: 0.2, color: 0x7c2d12, roofColor: 0x1e293b, type: 'buggy_praia' },
+    { x: 195.0, z: 895.0, rotY: -0.2, color: 0x143828, roofColor: 0xb47b12, type: 'buggy_praia' },
     // Dunas da Ponta da Praia / Costão Sudoeste (Buggies de Duna ao lado do Farol e Marina Oeste):
-    { x: -1450.0, z: 830.0, rotY: 0.35, color: 0xf97316, roofColor: 0xfacc15, type: 'buggy_praia' },
-    { x: -1215.0, z: 830.0, rotY: -0.25, color: 0x22c55e, roofColor: 0xf97316, type: 'buggy_praia' },
+    { x: -1450.0, z: 830.0, rotY: 0.35, color: 0x9a3412, roofColor: 0x1e293b, type: 'buggy_praia' },
+    { x: -1215.0, z: 830.0, rotY: -0.25, color: 0x1f2937, roofColor: 0xb45309, type: 'buggy_praia' },
     // Favela / Complexo da Cidade de Deus — Bocas de Entrada do CV (Oeste: Motos de Assalto 600cc e Picapes Armadas do CV!)
     { x: -518.0, z: -382.0, rotY: Math.PI / 2, color: 0xdc2626, roofColor: LEGO_COLORS.black, type: 'moto_cv' },
     { x: -518.0, z: -250.0, rotY: Math.PI / 2, color: 0x991b1b, roofColor: 0x1c1917, type: 'picape_cv' },
