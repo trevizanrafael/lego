@@ -1,12 +1,13 @@
 :root {
-  --idv-black: #090a0d;
-  --idv-carbon: #12151c;
-  --idv-steel: #262b38;
-  --idv-alert: #facc15;
-  --idv-amber: #f59e0b;
-  --idv-crimson: #ef4444;
-  --idv-white: #f8fafc;
-  --idv-muted: #94a3b8;
+  --idv-black: #07080b;
+  --idv-carbon: #10131a;
+  --idv-steel: #222733;
+  --idv-alert: #d99b16;
+  --idv-amber: #c25115;
+  --idv-crimson: #b91c1c;
+  --idv-white: #dce2ec;
+  --idv-muted: #7c8798;
+  --hero-accent: #d99b16;
 
   --font-display: 'Teko', 'Chakra Petch', sans-serif;
   --font-tactical: 'Chakra Petch', sans-serif;
@@ -225,22 +226,39 @@ body.title-or-loading-active #vehicle-prompt {
 }
 
 /* ===================================================
-   BLOCO DO OPERADOR (CANTO SUPERIOR ESQUERDO)
-   Zero caixa de vidro borrado: Retrato Chanfrado + Elementos Soltos com Sombra Dura
+   CHASSI TÁTICO DARK-TECH DO OPERADOR (CANTO SUPERIOR ESQUERDO)
+   Estética Gotham Trevosa / Dark Syndicate (Zero Glassmorphism)
    =================================================== */
-#lego-classic-hud {
+#lego-classic-hud,
+#lego-classic-hud.gotham-operator-chassis {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  box-shadow: none;
-  clip-path: none;
+  gap: 13px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 3px,
+      transparent 3px,
+      transparent 8px
+    ),
+    linear-gradient(135deg, rgba(7, 9, 14, 0.96) 0%, rgba(15, 19, 28, 0.93) 100%);
+  border: 1.5px solid #242b3a;
+  border-left: 4px solid var(--hero-accent, var(--idv-alert));
+  padding: 9px 16px 9px 11px;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.92);
 }
 
 #world-war-hud-panel,
-#hud-hp-bar-wrap,
 #hud-faction-badge,
 #hud-medic-heal-tag,
 #hud-esc-hint-pill,
@@ -252,17 +270,17 @@ body.title-or-loading-active #vehicle-prompt {
   position: relative;
   width: 78px;
   height: 78px;
-  background: var(--idv-black);
-  border: 2px solid var(--idv-alert);
+  background: #050609;
+  border: 2px solid var(--hero-accent, var(--idv-alert));
   clip-path: polygon(
-    12px 0,
+    11px 0,
     100% 0,
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%,
+    100% calc(100% - 11px),
+    calc(100% - 11px) 100%,
     0 100%,
-    0 12px
+    0 11px
   );
-  box-shadow: 4px 4px 0 var(--idv-black);
+  box-shadow: 4px 4px 0 #000000;
   flex-shrink: 0;
 }
 
@@ -270,9 +288,9 @@ body.title-or-loading-active #vehicle-prompt {
   position: absolute;
   top: 0;
   left: 0;
-  width: 16px;
-  height: 16px;
-  background: var(--idv-alert);
+  width: 15px;
+  height: 15px;
+  background: var(--hero-accent, var(--idv-alert));
   clip-path: polygon(0 0, 100% 0, 0 100%);
   z-index: 2;
 }
@@ -281,9 +299,9 @@ body.title-or-loading-active #vehicle-prompt {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 14px;
-  height: 14px;
-  background: var(--idv-alert);
+  width: 13px;
+  height: 13px;
+  background: var(--hero-accent, var(--idv-alert));
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
   z-index: 2;
 }
@@ -298,49 +316,136 @@ body.title-or-loading-active #vehicle-prompt {
   position: absolute;
   bottom: 2px;
   left: 4px;
-  background: var(--idv-black);
-  color: var(--idv-alert);
+  background: #06070a;
+  color: var(--hero-accent, var(--idv-alert));
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  padding: 0px 4px;
-  letter-spacing: 0.04em;
-  border-left: 2px solid var(--idv-alert);
+  padding: 0px 5px;
+  letter-spacing: 0.05em;
+  border-left: 2px solid var(--hero-accent, var(--idv-alert));
   z-index: 3;
 }
 
 .hud-right-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  min-width: 222px;
 }
 
 .hud-name-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
   font-family: var(--font-display);
-  font-size: 1.4rem;
+  font-size: 1.38rem;
   font-weight: 700;
-  line-height: 0.95;
+  line-height: 0.94;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--idv-alert);
-  text-shadow: 2px 2px 0 var(--idv-black), -1px -1px 0 var(--idv-black);
+  color: var(--idv-white);
+  text-shadow: 2px 2px 0 #000000;
 }
 
-.hud-sub-row {
+.hud-hp-num {
   font-family: var(--font-mono);
-  font-size: 0.64rem;
-  font-weight: 700;
+  font-size: 0.66rem;
+  font-weight: 800;
   letter-spacing: 0.06em;
-  color: var(--idv-white);
-  background: var(--idv-black);
-  padding: 2px 7px;
-  border-left: 3px solid var(--idv-alert);
-  width: fit-content;
-  margin-bottom: 3px;
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.85);
+  color: #9aa6b8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barra Blindada Dupla de HP com Ghost-Damage + Segmentos Táticos */
+.hud-hp-bar-wrap {
+  position: relative;
+  width: 222px;
+  height: 11px;
+  background: #050609;
+  border: 1px solid #283142;
+  transform: skewX(-18deg);
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.85);
+}
+
+.hud-hp-ghost-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: rgba(220, 226, 236, 0.82);
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 1;
+}
+
+.hud-hp-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #7f1d1d 0%, #b91c1c 58%, var(--hero-accent, #d99b16) 100%);
+  transition: width 0.12s ease-out;
+  z-index: 2;
+}
+
+.hud-hp-notches {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 20px,
+    rgba(5, 6, 9, 0.72) 20px,
+    rgba(5, 6, 9, 0.72) 22px
+  );
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hud-hp-bar-wrap.critical-hp {
+  border-color: #ef4444;
+  animation: hudCriticalPulse 0.75s infinite alternate;
+}
+
+.hud-hp-bar-wrap.healing-hp .hud-hp-bar-fill {
+  background: linear-gradient(90deg, #065f46 0%, #10b981 100%);
+}
+
+@keyframes hudCriticalPulse {
+  from { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+  to   { box-shadow: 0 0 10px rgba(239, 68, 68, 0.65); }
+}
+
+/* Faixa Dinâmica de Kit / Poderes do Operador */
+.hud-ability-strip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.ability-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #0a0c12;
+  border: 1px solid #222938;
+  border-bottom: 2px solid var(--hero-accent, var(--idv-alert));
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #aeb8c7;
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  white-space: nowrap;
+}
+
+.ability-chip b {
+  color: var(--hero-accent, var(--idv-alert));
+  font-weight: 800;
 }
 
 .hearts-row {
@@ -348,6 +453,10 @@ body.title-or-loading-active #vehicle-prompt {
   align-items: center;
   gap: 5px;
   margin: 1px 0;
+}
+
+.hearts-row.hud-hearts-compact {
+  display: none;
 }
 
 .lego-heart {
@@ -360,36 +469,36 @@ body.title-or-loading-active #vehicle-prompt {
   transform: scale(1.06);
 }
 
-/* Contador de Studs solto na tela estilo jogo LEGO / GTA */
+/* Contador Sombrio de Espólios / Créditos */
 .stud-counter-row {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin-top: 2px;
+  gap: 8px;
+  margin-top: 1px;
 }
 
 .hud-stud-3d {
-  width: 24px;
-  height: 24px;
-  background: var(--idv-alert);
-  border: 2px solid var(--idv-black);
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(145deg, #f5b935 0%, #9a6b0d 100%);
+  border: 1.5px solid #050609;
   clip-path: polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%);
-  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 2px 2px 0 #000000;
   position: relative;
 }
 
 .hud-stud-3d::after {
   content: '';
   position: absolute;
-  inset: 5px;
-  border: 2px solid rgba(255, 255, 255, 0.75);
+  inset: 4px;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
   clip-path: polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%);
 }
 
-.hud-stud-3d[data-tier="silver"] { background: #cbd5e1; }
-.hud-stud-3d[data-tier="gold"]   { background: var(--idv-alert); }
-.hud-stud-3d[data-tier="blue"]   { background: #3b82f6; }
-.hud-stud-3d[data-tier="purple"] { background: #a855f7; }
+.hud-stud-3d[data-tier="silver"] { background: linear-gradient(145deg, #cbd5e1, #64748b); }
+.hud-stud-3d[data-tier="gold"]   { background: linear-gradient(145deg, #e5a922, #92600a); }
+.hud-stud-3d[data-tier="blue"]   { background: linear-gradient(145deg, #38bdf8, #1d4ed8); }
+.hud-stud-3d[data-tier="purple"] { background: linear-gradient(145deg, #c084fc, #6b21a8); }
 
 .hud-stud-3d.pop {
   animation: studPop 0.2s steps(3);
@@ -397,31 +506,27 @@ body.title-or-loading-active #vehicle-prompt {
 
 @keyframes studPop {
   0% { transform: scale(1); }
-  50% { transform: scale(1.32); }
+  50% { transform: scale(1.28); }
   100% { transform: scale(1); }
 }
 
 #hud-stud-count {
   font-family: var(--font-display);
-  font-size: 2.05rem;
+  font-size: 1.82rem;
   font-weight: 700;
   line-height: 0.85;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
   color: var(--idv-white);
-  text-shadow:
-    3px 3px 0 var(--idv-black),
-    -1.5px -1.5px 0 var(--idv-black),
-    1.5px -1.5px 0 var(--idv-black),
-    -1.5px 1.5px 0 var(--idv-black);
+  text-shadow: 2px 2px 0 #000000;
 }
 
 #hud-stud-gain {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  padding: 2px 6px;
-  background: var(--idv-black);
+  padding: 1px 6px;
+  background: #06070a;
   border-left: 3px solid var(--idv-alert);
   opacity: 0;
   transform: translateX(-6px);
@@ -525,27 +630,27 @@ body.title-or-loading-active #vehicle-prompt {
 }
 
 /* ===================================================
-   VELOCÍMETRO ESTILIZADO IDV (CANTO SUPERIOR DIREITO)
+   VELOCÍMETRO DARK-TUNER DIGITAL (CANTO SUPERIOR DIREITO)
    Exibido APENAS ao Dirigir/Pilotar Veículos
    =================================================== */
 #vehicle-speedometer {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  min-width: 220px;
-  background: var(--idv-black);
-  border: 2px solid var(--idv-alert);
-  border-right-width: 6px;
-  padding: 8px 14px 10px;
+  min-width: 232px;
+  background: linear-gradient(145deg, rgba(6, 8, 12, 0.96) 0%, rgba(14, 18, 27, 0.94) 100%);
+  border: 1.5px solid #262e3e;
+  border-right: 5px solid var(--idv-alert);
+  padding: 9px 15px 10px;
   clip-path: polygon(
-    12px 0,
+    14px 0,
     100% 0,
     100% calc(100% - 12px),
     calc(100% - 12px) 100%,
     0 100%,
-    0 12px
+    0 14px
   );
-  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.92);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.94);
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
@@ -555,10 +660,12 @@ body.title-or-loading-active #vehicle-prompt {
 
 #vehicle-speedometer.turbo-active {
   border-color: #00f0ff;
+  border-right-color: #00f0ff;
 }
 
 #vehicle-speedometer.drift-active {
   border-color: var(--idv-amber);
+  border-right-color: var(--idv-amber);
 }
 
 .speedo-header {
@@ -566,8 +673,8 @@ body.title-or-loading-active #vehicle-prompt {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  border-bottom: 1.5px solid var(--idv-steel);
-  padding-bottom: 3px;
+  border-bottom: 1px solid #232a38;
+  padding-bottom: 4px;
 }
 
 .speedo-veh-name {
@@ -575,11 +682,11 @@ body.title-or-loading-active #vehicle-prompt {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--idv-alert);
+  color: #aeb8c8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 155px;
+  max-width: 162px;
 }
 
 #vehicle-speedometer.turbo-active .speedo-veh-name {
@@ -588,11 +695,11 @@ body.title-or-loading-active #vehicle-prompt {
 
 .speedo-gear {
   background: var(--idv-alert);
-  color: var(--idv-black);
+  color: #050609;
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 800;
-  padding: 1px 6px;
+  padding: 1px 7px;
   clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
 }
 
@@ -605,22 +712,40 @@ body.title-or-loading-active #vehicle-prompt {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  padding: 1px 0;
+  padding: 2px 0 1px;
+}
+
+.speedo-kmh-stack {
+  position: relative;
+  display: inline-grid;
+  align-items: baseline;
+}
+
+.speedo-kmh-ghost,
+.speedo-kmh-val {
+  grid-area: 1 / 1;
+  font-family: var(--font-display);
+  font-size: 3.05rem;
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.speedo-kmh-ghost {
+  color: rgba(148, 163, 184, 0.11);
+  pointer-events: none;
+  user-select: none;
 }
 
 .speedo-kmh-val {
-  font-family: var(--font-display);
-  font-size: 2.9rem;
-  font-weight: 700;
-  line-height: 0.82;
-  letter-spacing: 0.03em;
-  font-variant-numeric: tabular-nums;
   color: var(--idv-white);
-  text-shadow: 3px 3px 0 #000;
+  text-shadow: 3px 3px 0 #000000;
 }
 
 #vehicle-speedometer.turbo-active .speedo-kmh-val {
   color: #00f0ff;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.45), 3px 3px 0 #000;
 }
 
 .speedo-unit-col {
@@ -632,7 +757,7 @@ body.title-or-loading-active #vehicle-prompt {
 
 .speedo-unit {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 800;
   color: var(--idv-alert);
   letter-spacing: 0.08em;
@@ -640,7 +765,7 @@ body.title-or-loading-active #vehicle-prompt {
 
 .speedo-mode-tag {
   font-family: var(--font-mono);
-  font-size: 0.56rem;
+  font-size: 0.55rem;
   font-weight: 800;
   color: var(--idv-muted);
   letter-spacing: 0.06em;
@@ -656,17 +781,24 @@ body.title-or-loading-active #vehicle-prompt {
 
 .speedo-rpm-bars {
   display: flex;
+  align-items: flex-end;
   gap: 3px;
+  height: 15px;
   margin-top: 2px;
 }
 
 .speedo-bar-seg {
   flex: 1;
-  height: 8px;
-  background: var(--idv-steel);
+  height: 7px;
+  background: #1a202c;
   transform: skewX(-24deg);
   transition: background 0.08s ease;
 }
+
+.speedo-bar-seg:nth-child(n+4)  { height: 8.5px; }
+.speedo-bar-seg:nth-child(n+7)  { height: 10px; }
+.speedo-bar-seg:nth-child(n+10) { height: 12px; }
+.speedo-bar-seg:nth-child(n+12) { height: 14px; }
 
 .speedo-bar-seg.lit {
   background: var(--idv-alert);
@@ -678,6 +810,7 @@ body.title-or-loading-active #vehicle-prompt {
 
 .speedo-bar-seg.lit.redline {
   background: var(--idv-crimson);
+  box-shadow: 0 0 6px rgba(185, 28, 28, 0.65);
 }
 
 #vehicle-speedometer.turbo-active .speedo-bar-seg.lit {
@@ -883,6 +1016,36 @@ body.hero-wheel-active #crosshair {
   gap: 16px;
 }
 
+.hud-bottom-left-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tactical-micro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(7, 9, 14, 0.92);
+  border: 1px solid #222938;
+  border-left: 3px solid var(--hero-accent, var(--idv-alert));
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.88);
+}
+
+.tactical-micro-chip b {
+  color: var(--idv-white);
+  background: #1a202e;
+  padding: 1px 5px;
+  font-size: 0.6rem;
+}
+
 #hero-switcher-pills {
   display: flex;
   align-items: center;
@@ -970,14 +1133,14 @@ body.hero-wheel-active #crosshair {
    =================================================== */
 #region-toast {
   position: fixed;
-  top: 98px;
+  top: 96px;
   left: 50%;
-  background: var(--idv-black);
-  border: 2px solid var(--idv-alert);
-  border-left-width: 6px;
-  padding: 8px 26px;
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
-  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.92);
+  background: linear-gradient(135deg, rgba(6, 8, 12, 0.96), rgba(16, 20, 29, 0.94));
+  border: 1.5px solid #283142;
+  border-left: 5px solid var(--idv-alert);
+  padding: 8px 28px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.94);
   text-align: center;
   transition: opacity 0.22s ease, transform 0.22s ease;
   opacity: 1;
@@ -993,10 +1156,10 @@ body.hero-wheel-active #crosshair {
 
 .toast-code {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.63rem;
   font-weight: 800;
   color: var(--idv-alert);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
 }
 
 .toast-title {
@@ -1010,20 +1173,21 @@ body.hero-wheel-active #crosshair {
 
 .toast-sub {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--idv-muted);
   margin-top: 2px;
 }
 
 /* ===================================================
-   MINIMAPA TÁTICO URBANO ANGULAR (CANTO INFERIOR DIREITO)
+   MINIMAPA RADAR GUNMETAL (CANTO INFERIOR DIREITO)
    =================================================== */
 #minimap-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 204px;
-  background: var(--idv-black);
-  border: 2px solid var(--idv-alert);
+  background: #06080d;
+  border: 1.5px solid #252d3d;
   clip-path: polygon(
     12px 0,
     100% 0,
@@ -1032,18 +1196,42 @@ body.hero-wheel-active #crosshair {
     0 100%,
     0 12px
   );
-  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.9);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.94);
   pointer-events: auto;
   cursor: pointer;
+}
+
+.minimap-corner-tl {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--hero-accent, var(--idv-alert));
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  z-index: 8;
+  pointer-events: none;
+}
+
+.minimap-corner-br {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  background: var(--hero-accent, var(--idv-alert));
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  z-index: 8;
+  pointer-events: none;
 }
 
 .minimap-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  background: var(--idv-carbon);
-  border-bottom: 1.5px solid var(--idv-steel);
+  padding: 5px 8px 5px 12px;
+  background: #0c0f16;
+  border-bottom: 1px solid #202736;
 }
 
 .tactical-svg-icon {
@@ -1053,12 +1241,13 @@ body.hero-wheel-active #crosshair {
 }
 
 .minimap-num {
-  background: var(--idv-alert);
-  color: var(--idv-black);
+  background: #1b2230;
+  color: var(--idv-alert);
+  border-left: 2px solid var(--idv-alert);
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  padding: 1px 4px;
+  padding: 1px 5px;
   flex-shrink: 0;
 }
 
@@ -1078,10 +1267,22 @@ body.hero-wheel-active #crosshair {
 
 .minimap-frame {
   position: relative;
-  width: 200px;
+  width: 201px;
   height: 176px;
-  background: #060911;
+  background: #04060b;
   overflow: hidden;
+}
+
+.minimap-radar-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 33%, rgba(217, 155, 22, 0.09) 34%, transparent 35%, transparent 65%, rgba(148, 163, 184, 0.08) 66%, transparent 67%),
+    linear-gradient(90deg, transparent 49.5%, rgba(148, 163, 184, 0.07) 50%, transparent 50.5%),
+    linear-gradient(0deg, transparent 49.5%, rgba(148, 163, 184, 0.07) 50%, transparent 50.5%);
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.72);
 }
 
 #minimap-canvas {
@@ -1095,11 +1296,11 @@ body.hero-wheel-active #crosshair {
   top: 6px;
   left: 50%;
   transform: translate(-50%, 0);
-  background: var(--idv-black);
+  background: #06080d;
   color: var(--idv-alert);
-  border: 1.5px solid var(--idv-alert);
+  border: 1px solid #333d52;
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 800;
   padding: 0 5px;
   pointer-events: none;
@@ -1108,13 +1309,13 @@ body.hero-wheel-active #crosshair {
 }
 
 .minimap-sub {
-  padding: 4px 8px;
-  background: var(--idv-black);
-  border-top: 1.5px solid var(--idv-steel);
+  padding: 4px 10px;
+  background: #080a10;
+  border-top: 1px solid #202736;
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   font-weight: 800;
-  color: var(--idv-alert);
+  color: #8f9bb0;
   letter-spacing: 0.04em;
   white-space: nowrap;
   overflow: hidden;
@@ -2102,16 +2303,27 @@ body.hero-wheel-active #crosshair {
   line-height: 1.38;
 }
 
+.title-noir-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 72% 44%, transparent 18%, rgba(4, 5, 9, 0.72) 82%),
+    linear-gradient(90deg, rgba(4, 5, 9, 0.94) 0%, rgba(5, 7, 12, 0.74) 44%, rgba(5, 7, 12, 0.14) 100%);
+}
+
 .title-scanlines {
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(250, 204, 21, 0.02) 0px,
-    rgba(250, 204, 21, 0.02) 2px,
-    rgba(0, 0, 0, 0.22) 2px,
-    rgba(0, 0, 0, 0.22) 4px
+    rgba(255, 255, 255, 0.012) 0px,
+    rgba(255, 255, 255, 0.012) 2px,
+    rgba(0, 0, 0, 0.24) 2px,
+    rgba(0, 0, 0, 0.24) 4px
   );
 }
 
@@ -2119,22 +2331,23 @@ body.hero-wheel-active #crosshair {
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 1060px;
+  max-width: 1280px;
   max-height: 92vh;
+  padding: 0 clamp(18px, 5vw, 72px);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  gap: 20px;
+  gap: 22px;
 }
 
 .official-logo-block {
-  background: var(--idv-black);
-  border: 2.5px solid var(--idv-alert);
-  border-left: 8px solid var(--idv-alert);
-  padding: 16px 28px;
-  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
-  box-shadow: 10px 10px 0 #000;
+  background: linear-gradient(135deg, rgba(6, 8, 13, 0.96) 0%, rgba(15, 19, 28, 0.92) 100%);
+  border: 1.5px solid #283144;
+  border-left: 7px solid var(--idv-alert);
+  padding: 18px 30px 14px 24px;
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.95);
 }
 
 .logo-emblem-row {
@@ -2143,27 +2356,33 @@ body.hero-wheel-active #crosshair {
   gap: 20px;
 }
 
+.official-crest-svg {
+  flex-shrink: 0;
+  filter: drop-shadow(4px 4px 0 #000000);
+}
+
 .logo-top-pill {
   display: inline-block;
-  background: var(--idv-crimson);
+  background: #7f1d1d;
+  border-left: 3px solid var(--idv-alert);
   color: var(--idv-white);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   padding: 2px 10px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .logo-main-title {
   font-family: var(--font-display);
-  font-size: 3.9rem;
+  font-size: clamp(3.1rem, 5vw, 4.35rem);
   font-weight: 700;
-  line-height: 0.92;
-  letter-spacing: 0.04em;
+  line-height: 0.88;
+  letter-spacing: 0.05em;
   color: var(--idv-white);
   text-transform: uppercase;
-  text-shadow: 4px 4px 0 #000;
+  text-shadow: 5px 5px 0 #000000;
 }
 
 .logo-main-title span {
@@ -2172,61 +2391,114 @@ body.hero-wheel-active #crosshair {
 
 .logo-sub-banner {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: 800;
-  color: #38bdf8;
-  letter-spacing: 0.14em;
-  margin-top: 4px;
+  color: #8ea0b8;
+  letter-spacing: 0.15em;
+  margin-top: 5px;
+}
+
+.title-telemetry-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid #222938;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  color: #7c8798;
+}
+
+.title-telemetry-strip b {
+  color: var(--idv-alert);
 }
 
 .title-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
 }
 
 .title-action-btn {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 15px;
   width: 100%;
-  padding: 13px 20px;
-  background: var(--idv-black);
-  border: 2px solid var(--idv-steel);
-  border-left: 6px solid var(--idv-alert);
+  padding: 12px 20px;
+  background: linear-gradient(90deg, rgba(8, 10, 16, 0.96) 0%, rgba(16, 20, 30, 0.9) 100%);
+  border: 1.5px solid #242c3d;
+  border-left: 5px solid #475569;
   color: var(--idv-white);
+  text-align: left;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.94);
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.title-action-btn.primary-btn {
+  border-color: #364156;
+  border-left-color: var(--idv-alert);
+  background: linear-gradient(90deg, rgba(18, 22, 33, 0.98) 0%, rgba(26, 20, 14, 0.92) 100%);
+}
+
+.title-action-btn:hover {
+  transform: translateX(6px);
+  border-color: var(--idv-alert);
+  border-left-color: #dc2626;
+  background: linear-gradient(90deg, rgba(24, 16, 20, 0.98) 0%, rgba(28, 34, 48, 0.95) 100%);
+}
+
+.btn-tag {
+  background: #1a2130;
+  color: var(--idv-alert);
+  border: 1px solid #303b52;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.title-action-btn.primary-btn .btn-tag,
+.title-action-btn:hover .btn-tag {
+  background: var(--idv-alert);
+  color: #050609;
+  border-color: var(--idv-alert);
+}
+
+.btn-label-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.btn-main-txt {
   font-family: var(--font-tactical);
   font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  cursor: pointer;
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
-  box-shadow: 6px 6px 0 #000;
-  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+  color: var(--idv-white);
+  line-height: 1.05;
 }
 
-.title-action-btn.primary-btn {
-  border-color: var(--idv-alert);
-  background: #141821;
-}
-
-.title-action-btn:hover {
-  transform: translate(-2px, -2px);
-  border-color: var(--idv-alert);
-  background: #1b2130;
+.title-action-btn:hover .btn-main-txt {
   color: var(--idv-alert);
 }
 
-.btn-tag {
-  background: var(--idv-alert);
-  color: var(--idv-black);
+.btn-sub-txt {
   font-family: var(--font-mono);
-  font-size: 0.76rem;
-  font-weight: 800;
-  padding: 3px 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7c8798;
+  text-transform: none;
 }
 
 /* Painel de Slots de Save e Painel de Escolha das 3 Facções */
@@ -2235,11 +2507,12 @@ body.hero-wheel-active #crosshair {
   width: 100%;
   max-height: 70vh;
   overflow-y: auto;
-  background: rgba(9, 10, 13, 0.96);
-  border: 2px solid var(--idv-alert);
+  background: rgba(7, 9, 14, 0.97);
+  border: 1.5px solid #2b3448;
+  border-left: 6px solid var(--idv-alert);
   padding: 18px 22px;
   clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
-  box-shadow: 10px 10px 0 #000;
+  box-shadow: 12px 12px 0 #000;
   display: flex;
   flex-direction: column;
   gap: 16px;
