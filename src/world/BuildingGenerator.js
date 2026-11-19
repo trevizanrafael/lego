@@ -77,8 +77,16 @@ export function mergeBufferGeometries(geometries) {
 
   let totalVerts = 0;
   let totalIndices = 0;
+  let hasAnyIndexed = false;
   let anyUv = false;
   let anyColor = false;
+  for (let i = 0; i < geometries.length; i++) {
+    const g = geometries[i];
+    if (g.isRawBox || g.index) {
+      hasAnyIndexed = true;
+      break;
+    }
+  }
   for (let i = 0; i < geometries.length; i++) {
     const g = geometries[i];
     if (g.isRawBox) {
@@ -86,8 +94,10 @@ export function mergeBufferGeometries(geometries) {
       totalIndices += 36;
       anyUv = true;
     } else {
-      totalVerts += g.attributes.position.count;
+      const c = g.attributes.position.count;
+      totalVerts += c;
       if (g.index) totalIndices += g.index.count;
+      else if (hasAnyIndexed) totalIndices += c;
       if (g.attributes.uv) anyUv = true;
       if (g.attributes.color) anyColor = true;
     }
@@ -136,12 +146,19 @@ export function mergeBufferGeometries(geometries) {
       }
     }
 
-    if (indices && g.index) {
-      const idxArray = g.index.array;
-      for (let i = 0; i < idxArray.length; i++) {
-        indices[iOffset + i] = idxArray[i] + vOffset;
+    if (indices) {
+      if (g.index) {
+        const idxArray = g.index.array;
+        for (let i = 0; i < idxArray.length; i++) {
+          indices[iOffset + i] = idxArray[i] + vOffset;
+        }
+        iOffset += idxArray.length;
+      } else {
+        for (let i = 0; i < count; i++) {
+          indices[iOffset + i] = vOffset + i;
+        }
+        iOffset += count;
       }
-      iOffset += idxArray.length;
     }
 
     vOffset += count;
@@ -168,7 +185,15 @@ export function mergeColoredGeometries(coloredGeos) {
 
   let totalVerts = 0;
   let totalIndices = 0;
+  let hasAnyIndexed = false;
   let anyUv = false;
+  for (let i = 0; i < coloredGeos.length; i++) {
+    const g = coloredGeos[i].geo;
+    if (g.isRawBox || g.index) {
+      hasAnyIndexed = true;
+      break;
+    }
+  }
   for (let i = 0; i < coloredGeos.length; i++) {
     const g = coloredGeos[i].geo;
     if (g.isRawBox) {
@@ -176,8 +201,10 @@ export function mergeColoredGeometries(coloredGeos) {
       totalIndices += 36;
       anyUv = true;
     } else {
-      totalVerts += g.attributes.position.count;
+      const c = g.attributes.position.count;
+      totalVerts += c;
       if (g.index) totalIndices += g.index.count;
+      else if (hasAnyIndexed) totalIndices += c;
       if (g.attributes.uv) anyUv = true;
     }
   }
@@ -240,12 +267,19 @@ export function mergeColoredGeometries(coloredGeos) {
       }
     }
 
-    if (indices && g.index) {
-      const idxArray = g.index.array;
-      for (let i = 0; i < idxArray.length; i++) {
-        indices[iOffset + i] = idxArray[i] + vOffset;
+    if (indices) {
+      if (g.index) {
+        const idxArray = g.index.array;
+        for (let i = 0; i < idxArray.length; i++) {
+          indices[iOffset + i] = idxArray[i] + vOffset;
+        }
+        iOffset += idxArray.length;
+      } else {
+        for (let i = 0; i < count; i++) {
+          indices[iOffset + i] = vOffset + i;
+        }
+        iOffset += count;
       }
-      iOffset += idxArray.length;
     }
 
     vOffset += count;
@@ -594,140 +628,140 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
  */
 export const BUILDING_STYLES = {
   sapphire_glass: {
-    name: 'Vidro Azul-Safira Espelhado',
-    wallHex: 0x0f294a,
-    bgColor: '#0c213d',
-    spandrelColor: '#1e3a8a',
-    mullionColor: '#94a3b8',
-    pillarHex: 0xcbd5e1,
-    corniceHex: 0x64748b,
-    baseHex: 0x0f172a,
-    parapetHex: 0x334155,
-    mapColor: '#1d4ed8',
-    litColors: ['#fef08a', '#7dd3fc', '#bae6fd'],
-    darkWinColor: '#081426',
-    roughness: 0.16,
-    metalness: 0.28,
-    awningHex: 0x0284c7
+    name: 'Vidro Azul-Abissal Gotham',
+    wallHex: 0x09192e,
+    bgColor: '#071324',
+    spandrelColor: '#10243e',
+    mullionColor: '#475569',
+    pillarHex: 0x334155,
+    corniceHex: 0x1e293b,
+    baseHex: 0x090d16,
+    parapetHex: 0x1e293b,
+    mapColor: '#1e3a5f',
+    litColors: ['#fde68a', '#f59e0b', '#7dd3fc'],
+    darkWinColor: '#040a14',
+    roughness: 0.22,
+    metalness: 0.36,
+    awningHex: 0x1e3a5f
   },
   cyan_modern: {
-    name: 'Vidro Ciano-Moderno',
-    wallHex: 0x083344,
-    bgColor: '#082f40',
-    spandrelColor: '#0e7490',
-    mullionColor: '#67e8f9',
-    pillarHex: 0x1e293b,
-    corniceHex: 0x06b6d4,
-    baseHex: 0x090d16,
-    parapetHex: 0x155e75,
-    mapColor: '#06b6d4',
-    litColors: ['#cffafe', '#fef08a', '#38bdf8'],
-    darkWinColor: '#041b26',
-    roughness: 0.14,
-    metalness: 0.3,
-    awningHex: 0x06b6d4
+    name: 'Vidro Noturno Petróleo',
+    wallHex: 0x06202b,
+    bgColor: '#051922',
+    spandrelColor: '#0b3b49',
+    mullionColor: '#386675',
+    pillarHex: 0x182230,
+    corniceHex: 0x155e75,
+    baseHex: 0x070a11,
+    parapetHex: 0x0f3b4c,
+    mapColor: '#0e7490',
+    litColors: ['#a5f3fc', '#fde68a', '#38bdf8'],
+    darkWinColor: '#031017',
+    roughness: 0.2,
+    metalness: 0.38,
+    awningHex: 0x155e75
   },
   white_concrete: {
-    name: 'Concreto Branco / Cinza Claro',
-    wallHex: 0xe2e8f0,
-    bgColor: '#cbd5e1',
-    spandrelColor: '#94a3b8',
-    mullionColor: '#f8fafc',
-    pillarHex: 0xf8fafc,
-    corniceHex: 0x64748b,
-    baseHex: 0x334155,
-    parapetHex: 0xcbd5e1,
-    mapColor: '#94a3b8',
-    litColors: ['#fef08a', '#fde047', '#e0f2fe'],
-    darkWinColor: '#1e293b',
-    roughness: 0.3,
-    metalness: 0.08,
-    awningHex: 0xdc2626
+    name: 'Calcário Cinza-Fuligem Brutalista',
+    wallHex: 0x646e7d,
+    bgColor: '#56606e',
+    spandrelColor: '#3b434f',
+    mullionColor: '#7c8798',
+    pillarHex: 0x5b6472,
+    corniceHex: 0x323946,
+    baseHex: 0x1b202b,
+    parapetHex: 0x4b5463,
+    mapColor: '#64748b',
+    litColors: ['#fbbf24', '#f59e0b', '#fef3c7'],
+    darkWinColor: '#0e131b',
+    roughness: 0.56,
+    metalness: 0.1,
+    awningHex: 0x7f1d1d
   },
   ny_brick: {
-    name: 'Tijolo Nova-Iorquino Marrom / Terracota',
-    wallHex: 0x7c2d12,
-    bgColor: '#6b2710',
-    spandrelColor: '#451a03',
-    mullionColor: '#d6d3d1',
-    pillarHex: 0x9a3412,
-    corniceHex: 0xd6d3d1,
-    baseHex: 0x292524,
-    parapetHex: 0x78350f,
-    mapColor: '#b45309',
-    litColors: ['#fef08a', '#fde68a', '#fed7aa'],
-    darkWinColor: '#1c1917',
-    roughness: 0.36,
-    metalness: 0.05,
-    awningHex: 0x15803d
+    name: 'Tijolo Escuro Fuligem Gotham',
+    wallHex: 0x4a1d12,
+    bgColor: '#3d170e',
+    spandrelColor: '#260e08',
+    mullionColor: '#78716c',
+    pillarHex: 0x572215,
+    corniceHex: 0x44403c,
+    baseHex: 0x171412,
+    parapetHex: 0x3b160e,
+    mapColor: '#7c2d12',
+    litColors: ['#f59e0b', '#fbbf24', '#fed7aa'],
+    darkWinColor: '#110d0c',
+    roughness: 0.62,
+    metalness: 0.06,
+    awningHex: 0x143828
   },
   black_granite_gold: {
-    name: 'Granito Preto / Chumbo com Frisos Dourados',
-    wallHex: 0x111827,
-    bgColor: '#0b0f19',
-    spandrelColor: '#1f2937',
-    mullionColor: '#eab308',
-    pillarHex: 0x1f2937,
-    corniceHex: 0xfacc15,
-    baseHex: 0x090a0d,
-    parapetHex: 0x1f2937,
-    mapColor: '#374151',
-    litColors: ['#fef08a', '#facc15', '#fde68a'],
-    darkWinColor: '#05070c',
-    roughness: 0.18,
-    metalness: 0.28,
-    awningHex: 0xeab308
+    name: 'Obsidiana Art-Deco & Latão Velho',
+    wallHex: 0x0b0e15,
+    bgColor: '#080b11',
+    spandrelColor: '#141923',
+    mullionColor: '#b47b12',
+    pillarHex: 0x151922,
+    corniceHex: 0xb47b12,
+    baseHex: 0x05070b,
+    parapetHex: 0x151922,
+    mapColor: '#1f2937',
+    litColors: ['#fbbf24', '#d97706', '#fde68a'],
+    darkWinColor: '#030408',
+    roughness: 0.24,
+    metalness: 0.36,
+    awningHex: 0x92600a
   },
   classic_sandstone: {
-    name: 'Arenito Clássico Bege',
-    wallHex: 0xd6c7b2,
-    bgColor: '#c7b299',
-    spandrelColor: '#a89076',
-    mullionColor: '#f5ebe0',
-    pillarHex: 0xe7dccb,
-    corniceHex: 0x78716c,
-    baseHex: 0x44403c,
-    parapetHex: 0xd6c7b2,
-    mapColor: '#a8a29e',
-    litColors: ['#fef08a', '#fde68a', '#fffbeb'],
-    darkWinColor: '#292524',
-    roughness: 0.34,
-    metalness: 0.06,
-    awningHex: 0xb91c1c
+    name: 'Brownstone Envelhecido Sombrio',
+    wallHex: 0x5c4f42,
+    bgColor: '#4f4338',
+    spandrelColor: '#382f27',
+    mullionColor: '#8c7d6e',
+    pillarHex: 0x695a4c,
+    corniceHex: 0x2e2722,
+    baseHex: 0x1c1815,
+    parapetHex: 0x4f4338,
+    mapColor: '#57534e',
+    litColors: ['#fbbf24', '#f59e0b', '#fde68a'],
+    darkWinColor: '#14110f',
+    roughness: 0.58,
+    metalness: 0.08,
+    awningHex: 0x7f1d1d
   },
   emerald_steel: {
-    name: 'Aço Verde-Esmeralda',
-    wallHex: 0x064e3b,
-    bgColor: '#053b2c',
-    spandrelColor: '#047857',
-    mullionColor: '#6ee7b7',
-    pillarHex: 0x334155,
-    corniceHex: 0x10b981,
-    baseHex: 0x0f172a,
-    parapetHex: 0x065f46,
-    mapColor: '#059669',
-    litColors: ['#d1fae5', '#fef08a', '#6ee7b7'],
-    darkWinColor: '#022c22',
-    roughness: 0.16,
-    metalness: 0.28,
-    awningHex: 0x10b981
+    name: 'Aço Oxidado Verde-Abissal',
+    wallHex: 0x052e24,
+    bgColor: '#04221b',
+    spandrelColor: '#064032',
+    mullionColor: '#367563',
+    pillarHex: 0x1f2937,
+    corniceHex: 0x0f5241,
+    baseHex: 0x090f17,
+    parapetHex: 0x063b2e,
+    mapColor: '#065f46',
+    litColors: ['#a7f3d0', '#fde68a', '#6ee7b7'],
+    darkWinColor: '#021510',
+    roughness: 0.24,
+    metalness: 0.34,
+    awningHex: 0x065f46
   },
   silver_corporate: {
-    name: 'Edifício Corporativo Prateado',
-    wallHex: 0x94a3b8,
-    bgColor: '#64748b',
-    spandrelColor: '#334155',
-    mullionColor: '#e2e8f0',
-    pillarHex: 0xe2e8f0,
-    corniceHex: 0x1e293b,
-    baseHex: 0x1e293b,
-    parapetHex: 0x94a3b8,
-    mapColor: '#64748b',
-    litColors: ['#f8fafc', '#fef08a', '#bae6fd'],
-    darkWinColor: '#0f172a',
-    roughness: 0.2,
-    metalness: 0.34,
-    awningHex: 0x2563eb
+    name: 'Titânio Escovado & Chumbo',
+    wallHex: 0x475569,
+    bgColor: '#374354',
+    spandrelColor: '#1e2633',
+    mullionColor: '#7c8b9e',
+    pillarHex: 0x4b596e,
+    corniceHex: 0x151b26,
+    baseHex: 0x0d121a,
+    parapetHex: 0x3b4759,
+    mapColor: '#475569',
+    litColors: ['#e2e8f0', '#fbbf24', '#93c5fd'],
+    darkWinColor: '#080c14',
+    roughness: 0.32,
+    metalness: 0.4,
+    awningHex: 0x1e3a5f
   }
 };
 
@@ -810,22 +844,49 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
 
       if (isLit) {
         const litColor = style.litColors[hash % style.litColors.length];
+        ctx.fillStyle = '#05070c';
+        ctx.fillRect(winX - 2, winY - 2, winW + 4, winH + 4);
         ctx.fillStyle = litColor;
         ctx.fillRect(winX, winY, winW, winH);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(winX + 2, winY + 2, winW - 4, 6);
+        ctx.fillStyle = 'rgba(255, 251, 235, 0.72)';
+        ctx.fillRect(winX + 2, winY + 2, winW - 4, 5);
+        // Sombra interna de persiana / caixilho Art-Deco
+        ctx.fillStyle = 'rgba(8, 10, 16, 0.38)';
+        ctx.fillRect(winX, winY + (winH >> 1), winW, 2);
 
         ectx.fillStyle = litColor;
         ectx.fillRect(winX, winY, winW, winH);
-        ectx.fillStyle = '#ffffff';
-        ectx.fillRect(winX + 2, winY + 2, winW - 4, 6);
+        ectx.fillStyle = '#fffbeb';
+        ectx.fillRect(winX + 2, winY + 2, winW - 4, 5);
       } else {
+        ctx.fillStyle = '#04060a';
+        ctx.fillRect(winX - 2, winY - 2, winW + 4, winH + 4);
         ctx.fillStyle = style.darkWinColor;
         ctx.fillRect(winX, winY, winW, winH);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.13)';
-        ctx.fillRect(winX + 3, winY + 3, 10, winH - 6);
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.09)';
+        ctx.fillRect(winX + 3, winY + 3, 8, winH - 6);
       }
     }
+  }
+
+  // Fuligem urbana / escorrido de chuva ácido sutil nas fachadas Gotham (sem afetar emissiveMap)
+  if (typeof ctx.createLinearGradient === 'function') {
+    const sootTop = ctx.createLinearGradient(0, 0, 0, 96);
+    sootTop.addColorStop(0, 'rgba(4, 6, 10, 0.42)');
+    sootTop.addColorStop(1, 'rgba(4, 6, 10, 0)');
+    ctx.fillStyle = sootTop;
+    ctx.fillRect(0, 0, 256, 96);
+
+    const sootBot = ctx.createLinearGradient(0, 400, 0, 512);
+    sootBot.addColorStop(0, 'rgba(4, 6, 10, 0)');
+    sootBot.addColorStop(1, 'rgba(4, 6, 10, 0.46)');
+    ctx.fillStyle = sootBot;
+    ctx.fillRect(0, 400, 256, 112);
+  }
+  ctx.fillStyle = 'rgba(5, 7, 12, 0.16)';
+  for (let sx = 12; sx < 256; sx += 29) {
+    const streakLen = 70 + ((sx * 37 + seedVariant * 19) % 190);
+    ctx.fillRect(sx, 0, 2, streakLen);
   }
 
   const tex = new THREE.CanvasTexture(canvas);
@@ -837,7 +898,6 @@ export function getFacadeMaterial(styleKey, seedVariant = 0) {
   tex.magFilter = THREE.LinearFilter;
   tex.anisotropy = 8;
   tex.needsUpdate = true;
-  tex.anisotropy = 4;
   markAsSharedAsset(tex);
 
   const emissiveTex = new THREE.CanvasTexture(emissiveCanvas);
@@ -882,15 +942,43 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   group.position.set(x, yBase, z);
   group.userData = { isDetailedBuilding: true, styleKey, height: h, width: w, depth: d };
 
-  // 1. Corpo Principal com Textura Procedural de Janelas (Único mesh do prédio que projeta sombra!)
+  // 1. Corpo Principal com Silhueta Art-Deco / Brutalista Escalonada (Setbacks sem faces coplanares — 1 único Draw Call!)
   const facadeMat = getFacadeMaterial(styleKey, seed);
-  const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), facadeMat);
-  bodyMesh.position.y = h * 0.5;
+  const useArtDecoSetbacks =
+    opts.rooftop !== false && h >= 44 && w >= 15 && d >= 15 && (seed % 4 !== 3);
+  let bodyGeo;
+  let topCrownW = w;
+  let topCrownD = d;
+  let tier1H = h;
+  let tier2TopY = h;
+
+  if (useArtDecoSetbacks) {
+    tier1H = Math.round(h * 0.74 * 10) / 10;
+    const tier2H = Math.round(h * 0.16 * 10) / 10;
+    const tier3H = Math.max(2.5, h - tier1H - tier2H);
+    tier2TopY = tier1H + tier2H;
+    const w2 = w * 0.82;
+    const d2 = d * 0.82;
+    topCrownW = w * 0.64;
+    topCrownD = d * 0.64;
+
+    const g1 = makeTranslatedBox(w, tier1H, d, 0, tier1H * 0.5, 0);
+    const g2 = makeTranslatedBox(w2, tier2H, d2, 0, tier1H + tier2H * 0.5, 0);
+    const g3 = makeTranslatedBox(topCrownW, tier3H, topCrownD, 0, tier2TopY + tier3H * 0.5, 0);
+    bodyGeo = mergeBufferGeometries([g1, g2, g3]);
+    g1.dispose();
+    g2.dispose();
+    g3.dispose();
+  } else {
+    bodyGeo = makeTranslatedBox(w, h, d, 0, h * 0.5, 0);
+  }
+
+  const bodyMesh = new THREE.Mesh(bodyGeo, facadeMat);
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
   group.add(bodyMesh);
 
-  // 2. Geometria Mesclada de Acabamento Arquitetônico + Alicerce/Saia de Concreto (Zero canto flutuando e Zero invasão do Metrô Subsolo!)
+  // 2. Geometria Mesclada de Acabamento Arquitetônico Art-Deco / Brutalista (Contrafortes chanfrados 45°, cornijas e reservatório cônico!)
   const overUndergroundZone =
     (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
     (x >= -375 && x <= -260 && z >= -235 && z <= -125);
@@ -899,43 +987,83 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   if (opts.groundFloor !== false && opts.foundation !== false) {
     trimGeos.push(makeTranslatedBox(w + 0.65, skirtDepth, d + 0.65, 0, -skirtDepth * 0.5 + 0.08, 0));
   }
-  const pSize = 1.35;
+
+  // Pilares de Quina Chanfrados em 45° (quebra a quina 90° de caixa de sapato!)
+  const pSize = 1.48;
+  const shaftH = useArtDecoSetbacks ? tier1H : h;
   const cornerOffsets = [
-    [-w * 0.5 + 0.3, -d * 0.5 + 0.3],
-    [w * 0.5 - 0.3, -d * 0.5 + 0.3],
-    [-w * 0.5 + 0.3, d * 0.5 - 0.3],
-    [w * 0.5 - 0.3, d * 0.5 - 0.3]
+    [-w * 0.5 + 0.22, -d * 0.5 + 0.22],
+    [w * 0.5 - 0.22, -d * 0.5 + 0.22],
+    [-w * 0.5 + 0.22, d * 0.5 - 0.22],
+    [w * 0.5 - 0.22, d * 0.5 - 0.22]
   ];
   for (const [cx, cz] of cornerOffsets) {
-    trimGeos.push(makeTranslatedBox(pSize, h, pSize, cx, h * 0.5, cz));
+    const chamferCol = new THREE.BoxGeometry(pSize, shaftH, pSize);
+    chamferCol.rotateY(Math.PI / 4);
+    chamferCol.translate(cx, shaftH * 0.5, cz);
+    trimGeos.push(chamferCol);
   }
 
-  // Cornijas horizontais a cada 28m
-  for (let cy = 22; cy < h - 4; cy += 28) {
-    trimGeos.push(makeTranslatedBox(w + 0.9, 0.85, d + 0.9, 0, cy, 0));
-  }
-
-  // Topo do Prédio (Mureta nas 4 bordas + Casa de Máquinas + Caixa d'Água + HVAC + Antena fundidos!)
-  if (opts.rooftop !== false) {
-    const parapetH = 1.45;
-    const parapetThick = 1.25;
+  // Aletas Verticais Brutalistas nas Fachadas (Fins)
+  if (w >= 18 && d >= 18) {
     trimGeos.push(
-      makeTranslatedBox(w, parapetH, parapetThick, 0, h + parapetH * 0.5, -d * 0.5 + parapetThick * 0.5),
-      makeTranslatedBox(w, parapetH, parapetThick, 0, h + parapetH * 0.5, d * 0.5 - parapetThick * 0.5),
-      makeTranslatedBox(parapetThick, parapetH, Math.max(1, d - parapetThick * 2), -w * 0.5 + parapetThick * 0.5, h + parapetH * 0.5, 0),
-      makeTranslatedBox(parapetThick, parapetH, Math.max(1, d - parapetThick * 2), w * 0.5 - parapetThick * 0.5, h + parapetH * 0.5, 0)
+      makeTranslatedBox(0.75, shaftH, d + 0.72, 0, shaftH * 0.5, 0),
+      makeTranslatedBox(w + 0.72, shaftH, 0.75, 0, shaftH * 0.5, 0)
+    );
+  }
+
+  // Cornijas horizontais pesadas no fuste principal + cornijas nos degraus Art-Deco
+  for (let cy = 22; cy < shaftH - 4; cy += 28) {
+    trimGeos.push(makeTranslatedBox(w + 1.05, 0.95, d + 1.05, 0, cy, 0));
+  }
+  if (useArtDecoSetbacks) {
+    trimGeos.push(
+      makeTranslatedBox(w + 1.25, 1.15, d + 1.25, 0, tier1H, 0),
+      makeTranslatedBox(w * 0.82 + 1.05, 0.95, d * 0.82 + 1.05, 0, tier2TopY, 0)
+    );
+  }
+
+  // Topo do Prédio (Mureta na coroa + Casa de Máquinas + Caixa d'Água Cônica estilo Gotham/NY + Pináculo Gótico-Industrial!)
+  if (opts.rooftop !== false) {
+    const parapetH = 1.55;
+    const parapetThick = 1.15;
+    const cw = topCrownW;
+    const cd = topCrownD;
+    trimGeos.push(
+      makeTranslatedBox(cw, parapetH, parapetThick, 0, h + parapetH * 0.5, -cd * 0.5 + parapetThick * 0.5),
+      makeTranslatedBox(cw, parapetH, parapetThick, 0, h + parapetH * 0.5, cd * 0.5 - parapetThick * 0.5),
+      makeTranslatedBox(parapetThick, parapetH, Math.max(0.8, cd - parapetThick * 2), -cw * 0.5 + parapetThick * 0.5, h + parapetH * 0.5, 0),
+      makeTranslatedBox(parapetThick, parapetH, Math.max(0.8, cd - parapetThick * 2), cw * 0.5 - parapetThick * 0.5, h + parapetH * 0.5, 0)
     );
 
     if (w >= 14 && d >= 14) {
       trimGeos.push(
-        makeTranslatedBox(4.2, 3.6, 4.8, -w * 0.22, h + 1.8, -d * 0.2),
-        makeTranslatedBox(3.8, 2.0, 3.2, w * 0.2, h + 1.0, -d * 0.22),
-        makeTranslatedBox(3.8, 4.2, 3.8, w * 0.22, h + 2.6, d * 0.2)
+        makeTranslatedBox(Math.min(4.2, cw * 0.34), 3.4, Math.min(4.6, cd * 0.36), -cw * 0.2, h + 1.7, -cd * 0.18),
+        makeTranslatedBox(Math.min(3.6, cw * 0.3), 1.9, Math.min(3.0, cd * 0.28), cw * 0.18, h + 0.95, -cd * 0.2)
       );
 
-      if (h >= 82 || opts.spire) {
-        const spireH = opts.spireHeight || 16;
-        trimGeos.push(makeTranslatedBox(0.7, spireH, 0.7, 0, h + spireH * 0.5, 0));
+      // Reservatório Cilíndrico com Teto Cônico (Ícone Clássico de Gotham / Nova York!)
+      const wtX = cw * 0.2;
+      const wtZ = cd * 0.18;
+      const wtBarrel = new THREE.CylinderGeometry(1.65, 1.65, 3.1, 10);
+      wtBarrel.translate(wtX, h + 3.4, wtZ);
+      const wtCone = new THREE.ConeGeometry(1.88, 1.35, 10);
+      wtCone.translate(wtX, h + 5.6, wtZ);
+      trimGeos.push(
+        wtBarrel,
+        wtCone,
+        makeTranslatedBox(0.32, 2.0, 0.32, wtX - 1.0, h + 1.0, wtZ - 1.0),
+        makeTranslatedBox(0.32, 2.0, 0.32, wtX + 1.0, h + 1.0, wtZ + 1.0)
+      );
+
+      if (h >= 72 || opts.spire) {
+        const spireH = opts.spireHeight || 18;
+        const spireBase = new THREE.ConeGeometry(Math.min(2.4, cw * 0.18), spireH * 0.38, 4);
+        spireBase.rotateY(Math.PI / 4);
+        spireBase.translate(0, h + spireH * 0.19, 0);
+        const spireMast = new THREE.CylinderGeometry(0.14, 0.42, spireH, 6);
+        spireMast.translate(0, h + spireH * 0.5, 0);
+        trimGeos.push(spireBase, spireMast);
       }
     }
   }

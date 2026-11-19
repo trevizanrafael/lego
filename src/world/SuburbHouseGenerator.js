@@ -11,27 +11,27 @@ export const HOUSE_STYLE_KEYS = [
 ];
 
 export const HOUSE_WALL_PALETTE = [
-  { key: 'wall_cream', hex: 0xfef08a, mapColor: '#fef08a' },        // Amarelo-creme
-  { key: 'wall_sky_blue', hex: 0x60a5fa, mapColor: '#60a5fa' },     // Azul-céu vibrante
-  { key: 'wall_mint', hex: 0x4ade80, mapColor: '#4ade80' },         // Verde-menta vivo
-  { key: 'wall_brick', hex: 0xc2410c, mapColor: '#ea580c' },        // Tijolo à vista
-  { key: 'wall_white', hex: 0xf8fafc, mapColor: '#f8fafc' },        // Branco clássico
-  { key: 'wall_salmon', hex: 0xfb7185, mapColor: '#fb7185' },       // Salmão / Coral
-  { key: 'wall_tan', hex: 0xd6b88a, mapColor: '#d6b88a' },          // Bege / Areia
-  { key: 'wall_lightgrey', hex: 0xcbd5e1, mapColor: '#cbd5e1' },    // Cinza-claro
-  { key: 'wall_lavender', hex: 0xc084fc, mapColor: '#c084fc' },     // Lilás / Lavanda
-  { key: 'wall_amber', hex: 0xf59e0b, mapColor: '#f59e0b' },        // Amarelo-mostarda / Ocre
-  { key: 'wall_teal', hex: 0x2dd4bf, mapColor: '#2dd4bf' },         // Turquesa / Verde-água
-  { key: 'wall_colonial_red', hex: 0xdc2626, mapColor: '#dc2626' }  // Vermelho Colonial
+  { key: 'wall_cream', hex: 0x8a8275, mapColor: '#78716c' },        // Calcário envelhecido
+  { key: 'wall_sky_blue', hex: 0x2d3e52, mapColor: '#334155' },     // Siding Azul-Ardósia Sombrio
+  { key: 'wall_mint', hex: 0x34463c, mapColor: '#365314' },         // Verde-Musgo Urbano Escuro
+  { key: 'wall_brick', hex: 0x6b2417, mapColor: '#7c2d12' },        // Tijolo Escuro Envelhecido
+  { key: 'wall_white', hex: 0x8d96a3, mapColor: '#94a3b8' },        // Cinza-Pedra / Gesso Sujo
+  { key: 'wall_salmon', hex: 0x63322e, mapColor: '#7f1d1d' },       // Terracota Escuro / Tijolo Velho
+  { key: 'wall_tan', hex: 0x695a49, mapColor: '#57534e' },          // Brownstone Suburbano
+  { key: 'wall_lightgrey', hex: 0x525c6b, mapColor: '#475569' },    // Chumbo / Ardósia Clara
+  { key: 'wall_lavender', hex: 0x3b384a, mapColor: '#334155' },     // Grafite Violáceo Noturno
+  { key: 'wall_amber', hex: 0x6e4e27, mapColor: '#78350f' },        // Cedro / Ocre Escuro
+  { key: 'wall_teal', hex: 0x223d42, mapColor: '#155e75' },         // Petróleo / Pinho Escuro
+  { key: 'wall_colonial_red', hex: 0x5c1919, mapColor: '#7f1d1d' }  // Carmesim Colonial Sombrio
 ];
 
 export const HOUSE_ROOF_PALETTE = [
-  { key: 'roof_red', hex: 0xb91c1c },         // Vermelho-telha
-  { key: 'roof_brown', hex: 0x5c2d16 },       // Marrom-escuro
-  { key: 'roof_slate', hex: 0x1e3a8a },       // Ardósia azul
-  { key: 'roof_graphite', hex: 0x27272a },    // Grafite
-  { key: 'roof_green', hex: 0x14532d },       // Verde-musgo
-  { key: 'roof_terracotta', hex: 0x9a3412 }   // Terracota queimado
+  { key: 'roof_red', hex: 0x4c1616 },         // Telha Escura Queimada
+  { key: 'roof_brown', hex: 0x2e1a10 },       // Tabuinha Marrom-Café
+  { key: 'roof_slate', hex: 0x172030 },       // Ardósia Azul-Abissal
+  { key: 'roof_graphite', hex: 0x181a20 },    // Telha Asfáltica Carvão
+  { key: 'roof_green', hex: 0x132a1e },       // Cobre Oxidado Escuro
+  { key: 'roof_terracotta', hex: 0x522110 }   // Terracota Fuligem
 ];
 
 /**
@@ -71,40 +71,49 @@ export class SuburbBatcher {
 
   _initMaterials() {
     for (const w of HOUSE_WALL_PALETTE) {
-      this._registerMat(w.key, w.hex, { roughness: 0.28 });
+      this._registerMat(w.key, w.hex, { roughness: 0.58 });
     }
     for (const r of HOUSE_ROOF_PALETTE) {
-      this._registerMat(r.key, r.hex, { roughness: 0.34 });
+      this._registerMat(r.key, r.hex, { roughness: 0.66 });
     }
-    this._registerMat('trim_white', 0xffffff, { roughness: 0.25 });
-    this._registerMat('wood_warm', 0x92400e, { roughness: 0.38 });
-    this._registerMat('stone_grey', 0x64748b, { roughness: 0.48 });
-    this._registerMat('chimney_brick', 0x991b1b, { roughness: 0.42 });
-    this._registerMat('charcoal_metal', 0x1e293b, { roughness: 0.3, metalness: 0.35 });
-    this._registerMat('window_warm', 0xfef08a, { emissive: 0xfacc15, emissiveIntensity: 0.55, roughness: 0.15 });
-    this._registerMat('window_glass', 0x38bdf8, { emissive: 0x0284c7, emissiveIntensity: 0.25, roughness: 0.12 });
-    this._registerMat('shutter_blue', 0x1e40af, { roughness: 0.3 });
-    this._registerMat('shutter_green', 0x166534, { roughness: 0.3 });
-    this._registerMat('lawn_green', 0x22c55e, { roughness: 0.55 });
-    this._registerMat('hedge_green', 0x15803d, { roughness: 0.5 });
-    this._registerMat('driveway_concrete', 0x94a3b8, { roughness: 0.52 });
-    this._registerMat('walkway_stone', 0xd6d3d1, { roughness: 0.45 });
-    this._registerMat('asphalt_lot', 0x1e293b, { roughness: 0.72 });
-    this._registerMat('pool_water', 0x0ea5e9, { emissive: 0x0284c7, emissiveIntensity: 0.35, roughness: 0.1 });
-    this._registerMat('flower_red', 0xef4444, { roughness: 0.3 });
-    this._registerMat('flower_yellow', 0xfacc15, { roughness: 0.3 });
-    this._registerMat('flower_pink', 0xf472b6, { roughness: 0.3 });
-    this._registerMat('court_orange', 0xea580c, { roughness: 0.45 });
-    this._registerMat('court_blue', 0x2563eb, { roughness: 0.45 });
-    this._registerMat('neon_pink', 0xf43f5e, { emissive: 0xf43f5e, emissiveIntensity: 0.75 });
-    this._registerMat('neon_cyan', 0x06b6d4, { emissive: 0x06b6d4, emissiveIntensity: 0.75 });
-    this._registerMat('gold_accent', 0xfacc15, { emissive: 0xd97706, emissiveIntensity: 0.4, metalness: 0.4 });
+    this._registerMat('trim_white', 0x9aa4b2, { roughness: 0.52 });
+    this._registerMat('wood_warm', 0x4a2511, { roughness: 0.62 });
+    this._registerMat('stone_grey', 0x3b424f, { roughness: 0.68 });
+    this._registerMat('chimney_brick', 0x4c1814, { roughness: 0.68 });
+    this._registerMat('charcoal_metal', 0x141821, { roughness: 0.42, metalness: 0.45 });
+    this._registerMat('window_warm', 0xf5b942, { emissive: 0xd97706, emissiveIntensity: 0.62, roughness: 0.18 });
+    this._registerMat('window_glass', 0x0b1524, { emissive: 0x0c2438, emissiveIntensity: 0.15, roughness: 0.14 });
+    this._registerMat('shutter_blue', 0x17253b, { roughness: 0.56 });
+    this._registerMat('shutter_green', 0x142b1e, { roughness: 0.56 });
+    this._registerMat('lawn_green', 0x1b3624, { roughness: 0.78 });
+    this._registerMat('hedge_green', 0x12261a, { roughness: 0.72 });
+    this._registerMat('driveway_concrete', 0x383f4d, { roughness: 0.74 });
+    this._registerMat('walkway_stone', 0x4b5260, { roughness: 0.68 });
+    this._registerMat('asphalt_lot', 0x11151d, { roughness: 0.76 });
+    this._registerMat('pool_water', 0x0c4a6e, { emissive: 0x075985, emissiveIntensity: 0.28, roughness: 0.12 });
+    this._registerMat('flower_red', 0x7f1d1d, { roughness: 0.55 });
+    this._registerMat('flower_yellow', 0xb45309, { roughness: 0.55 });
+    this._registerMat('flower_pink', 0x6b2137, { roughness: 0.55 });
+    this._registerMat('court_orange', 0x7c2d12, { roughness: 0.62 });
+    this._registerMat('court_blue', 0x1e3a5f, { roughness: 0.62 });
+    this._registerMat('neon_pink', 0xbe123c, { emissive: 0xbe123c, emissiveIntensity: 0.72 });
+    this._registerMat('neon_cyan', 0x0891b2, { emissive: 0x0891b2, emissiveIntensity: 0.72 });
+    this._registerMat('gold_accent', 0xb47b12, { emissive: 0x92400e, emissiveIntensity: 0.35, metalness: 0.45 });
   }
 
   addBox(matKey, w, h, d, x, y, z) {
     const bucket = this.buckets.get(matKey);
     if (!bucket) return;
     bucket.push(makeFastBox(w, h, d, x, y, z));
+  }
+
+  addCustomGeo(matKey, geo) {
+    const bucket = this.buckets.get(matKey);
+    if (!bucket) {
+      geo.dispose();
+      return;
+    }
+    bucket.push(geo);
   }
 
   addFloweringTree(x, y, z, scale = 1.0, blossomKey = 'pink') {
@@ -137,8 +146,8 @@ export class SuburbBatcher {
       const pinkTrees = this.floweringTrees.filter((t) => t.blossomKey === 'pink');
       const yellowTrees = this.floweringTrees.filter((t) => t.blossomKey !== 'pink');
 
-      const canopyGeo = new THREE.BoxGeometry(3.2, 2.8, 3.2);
-      canopyGeo.translate(0, 3.4, 0);
+      const canopyGeo = new THREE.ConeGeometry(2.25, 3.6, 7);
+      canopyGeo.translate(0, 3.7, 0);
 
       const dummy = new THREE.Object3D();
       this.floweringTrees.forEach((t, i) => {
@@ -153,7 +162,7 @@ export class SuburbBatcher {
       if (pinkTrees.length > 0) {
         const pinkInst = new THREE.InstancedMesh(
           canopyGeo,
-          new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.32 }),
+          new THREE.MeshStandardMaterial({ color: 0x5c1d24, roughness: 0.72 }),
           pinkTrees.length
         );
         pinkInst.castShadow = true;
@@ -170,7 +179,7 @@ export class SuburbBatcher {
       if (yellowTrees.length > 0) {
         const yellowInst = new THREE.InstancedMesh(
           canopyGeo,
-          new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.32 }),
+          new THREE.MeshStandardMaterial({ color: 0x6b3e16, roughness: 0.72 }),
           yellowTrees.length
         );
         yellowInst.castShadow = true;
@@ -188,19 +197,34 @@ export class SuburbBatcher {
 }
 
 /**
- * Constrói telhado de duas águas LEGO (em degraus piramidais escalonados + cumeeira + beiral)
+ * Constrói telhado angular de duas águas / quatro águas real (Prisma / Mansarda chanfrada lisa — ZERO degraus de brinquedo!)
  */
 export function addPitchedGableRoof(batcher, roofKey, x, yTop, z, w, d, roofHeight = 3.2, ridgeAlongX = true) {
-  const steps = 4;
-  const stepH = roofHeight / steps;
-  for (let i = 0; i < steps; i++) {
-    const ratio = 1.0 - (i / steps) * 0.76;
-    const rw = ridgeAlongX ? w + 1.2 : (w + 1.4) * ratio;
-    const rd = ridgeAlongX ? (d + 1.4) * ratio : d + 1.2;
-    batcher.addBox(roofKey, rw, stepH, rd, x, yTop + i * stepH + stepH * 0.5, z);
+  const base = new THREE.BoxGeometry(1, 1, 1);
+  const pos = base.attributes.position;
+  const botW = w + 1.45;
+  const botD = d + 1.45;
+  // Cumeeira fina ao longo do eixo principal + leve inclinação nos oitões (hipped/gable híbrido limpo)
+  const topW = ridgeAlongX ? Math.max(0.4, w + 0.65) : 0.18;
+  const topD = ridgeAlongX ? 0.18 : Math.max(0.4, d + 0.65);
+
+  for (let i = 0; i < pos.count; i++) {
+    const sx = pos.getX(i);
+    const sy = pos.getY(i);
+    const sz = pos.getZ(i);
+    const isTop = sy > 0;
+    const vx = x + sx * (isTop ? topW : botW);
+    const vy = yTop + 0.22 + (sy + 0.5) * roofHeight;
+    const vz = z + sz * (isTop ? topD : botD);
+    pos.setXYZ(i, vx, vy, vz);
   }
-  // Cumeeira superior e beiral branco
-  batcher.addBox('trim_white', w + 1.5, 0.28, d + 1.5, x, yTop + 0.14, z);
+  const prismGeo = base.toNonIndexed();
+  base.dispose();
+  prismGeo.computeVertexNormals();
+  batcher.addCustomGeo(roofKey, prismGeo);
+
+  // Beiral / Cornija escura sob o telhado inclinado
+  batcher.addBox('charcoal_metal', w + 1.6, 0.24, d + 1.6, x, yTop + 0.12, z);
 }
 
 /**
@@ -430,9 +454,9 @@ export function buildDetailedHouse(world, batcher, cfg) {
       const uRoof = HOUSE_ROOF_PALETTE[Math.floor(Math.random() * HOUSE_ROOF_PALETTE.length)];
 
       batcher.addBox(uWall.key, unitW - 0.15, thH, thD, ux, yBase + thH * 0.5, houseZ);
-      // Cornija clássica no topo do sobrado
-      batcher.addBox('trim_white', unitW + 0.2, 0.7, thD + 0.6, ux, yBase + thH + 0.35, houseZ);
-      batcher.addBox(uRoof.key, unitW - 0.6, 0.5, thD - 0.6, ux, yBase + thH + 0.75, houseZ);
+      // Cornija pesada + Mansarda inclinada estilo Gotham Brownstone no topo do sobrado!
+      batcher.addBox('charcoal_metal', unitW + 0.24, 0.55, thD + 0.7, ux, yBase + thH + 0.28, houseZ);
+      addPitchedGableRoof(batcher, uRoof.key, ux, yBase + thH + 0.45, houseZ, unitW - 0.5, thD - 0.5, 1.85, true);
 
       // Escadinha frontal individual (Stoop estilo NY/Brooklyn) + Porta Clássica
       const fZ = houseZ + facingDirZ * (thD * 0.5);
@@ -517,12 +541,12 @@ export function buildDetailedHouse(world, batcher, cfg) {
   }
 }
 
-const SHARED_FENCE_MAT = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
+const SHARED_FENCE_MAT = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.62 });
 const SHARED_MAILBOX_MATS = [
-  new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.28 }),
-  new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.28 }),
-  new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.28 }),
-  new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.28 })
+  new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.52, metalness: 0.3 }),
+  new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.52, metalness: 0.25 }),
+  new THREE.MeshStandardMaterial({ color: 0x3f4756, roughness: 0.52, metalness: 0.3 }),
+  new THREE.MeshStandardMaterial({ color: 0x1f3a2c, roughness: 0.52, metalness: 0.25 })
 ];
 
 /**

@@ -164,71 +164,71 @@ class FavelaBatcher {
   }
 
   _initMaterials() {
-    // 1. Alicerces de Concreto, Becos, Ladeiras Tortas e Vegetação de Encosta
-    this._registerMat('retaining_concrete', 0x64748b, { roughness: 0.68 });
-    this._registerMat('alley_cement', 0x475569, { roughness: 0.75 });
-    this._registerMat('hill_bush', 0x15803d, { roughness: 0.55 });
+    // 1. Alicerces de Concreto Escuro Úmido, Becos, Ladeiras Tortas e Vegetação Sombria de Encosta
+    this._registerMat('retaining_concrete', 0x333a47, { roughness: 0.76 });
+    this._registerMat('alley_cement', 0x242a35, { roughness: 0.82 });
+    this._registerMat('hill_bush', 0x162e1d, { roughness: 0.72 });
 
-    // 2. Paredes dos Barracos e Sobrados Colados (60% Tijolo Baiano, 20% Cimento Cru, 20% Cores do CV)
-    this._registerMat('brick_baiano', 0xc2410c, { roughness: 0.62 });
-    this._registerMat('brick_baiano_light', 0xea580c, { roughness: 0.58 });
-    this._registerMat('brick_groove', 0x7c2d12, { roughness: 0.72 });
-    this._registerMat('cement_raw', 0x71717a, { roughness: 0.68 });
-    this._registerMat('cement_slab', 0x94a3b8, { roughness: 0.62 });
-    this._registerMat('zinc_roof', 0xcbd5e1, { roughness: 0.42, metalness: 0.35 });
-    this._registerMat('rebar_iron', 0x27272a, { roughness: 0.45, metalness: 0.55 });
+    // 2. Paredes dos Barracos e Sobrados Colados (Tijolo Queimado Escuro, Cimento Cru Úmido e Zinco Oxidado)
+    this._registerMat('brick_baiano', 0x7c2d12, { roughness: 0.72 });
+    this._registerMat('brick_baiano_light', 0x9a3412, { roughness: 0.68 });
+    this._registerMat('brick_groove', 0x3b1308, { roughness: 0.82 });
+    this._registerMat('cement_raw', 0x424854, { roughness: 0.76 });
+    this._registerMat('cement_slab', 0x525a69, { roughness: 0.7 });
+    this._registerMat('zinc_roof', 0x4b5563, { roughness: 0.54, metalness: 0.45 });
+    this._registerMat('rebar_iron', 0x1c1f26, { roughness: 0.52, metalness: 0.62 });
 
-    // 3. Identidade Visual do Comando Vermelho (CV) + Cores Comunitárias
-    this._registerMat('cv_red', 0xdc2626, { roughness: 0.32 });
-    this._registerMat('cv_dark_red', 0x991b1b, { roughness: 0.38 });
-    this._registerMat('cv_black', 0x090a0d, { roughness: 0.36 });
-    this._registerMat('cv_white', 0xf8fafc, { roughness: 0.32 });
-    this._registerMat('favela_blue_faded', 0x38bdf8, { roughness: 0.48 });
-    this._registerMat('favela_yellow_faded', 0xfacc15, { roughness: 0.45 });
+    // 3. Identidade Visual Sombria do Comando Vermelho (CV) + Reboco Envelhecido
+    this._registerMat('cv_red', 0x991b1b, { roughness: 0.52 });
+    this._registerMat('cv_dark_red', 0x5c1111, { roughness: 0.58 });
+    this._registerMat('cv_black', 0x080a0e, { roughness: 0.54 });
+    this._registerMat('cv_white', 0x8f98a6, { roughness: 0.64 });
+    this._registerMat('favela_blue_faded', 0x1e4761, { roughness: 0.64 });
+    this._registerMat('favela_yellow_faded', 0x8a5b14, { roughness: 0.64 });
 
-    // 4. Caixas d'Água Azuis, Janelas Emissivas ("Presépio Urbano" Noturno!), Sacos de Areia, Fiação e Neon do Baile
-    this._registerMat('water_tank_blue', 0x06b6d4, { roughness: 0.24 });
-    this._registerMat('water_tank_lid', 0x0284c7, { roughness: 0.28 });
-    this._registerMat('window_lit', 0x92400e, {
-      roughness: 0.22,
-      emissive: 0xfbbf24,
-      emissiveIntensity: 0.0
-    });
-    this._registerMat('window_orange', 0x7c2d12, {
-      roughness: 0.22,
+    // 4. Caixas d'Água Desbotadas, Janelas Emissivas Noturnas, Sacos de Areia, Fiação e Neon do Baile
+    this._registerMat('water_tank_blue', 0x0e5470, { roughness: 0.46 });
+    this._registerMat('water_tank_lid', 0x093b52, { roughness: 0.5 });
+    this._registerMat('window_lit', 0x78350f, {
+      roughness: 0.24,
       emissive: 0xf59e0b,
       emissiveIntensity: 0.0
     });
-    this._registerMat('window_tv_blue', 0x0c4a6e, {
-      roughness: 0.18,
-      emissive: 0xbae6fd,
+    this._registerMat('window_orange', 0x5c220e, {
+      roughness: 0.24,
+      emissive: 0xd97706,
       emissiveIntensity: 0.0
     });
-    this._registerMat('window_dark', 0x1e293b, { roughness: 0.25 });
-    this._registerMat('favela_bulb_warm', 0xfef3c7, {
+    this._registerMat('window_tv_blue', 0x0a344f, {
       roughness: 0.2,
-      emissive: 0xfbbf24,
+      emissive: 0x7dd3fc,
+      emissiveIntensity: 0.0
+    });
+    this._registerMat('window_dark', 0x0f141d, { roughness: 0.3 });
+    this._registerMat('favela_bulb_warm', 0xfde68a, {
+      roughness: 0.22,
+      emissive: 0xf59e0b,
       emissiveIntensity: 0.25
     });
-    this._registerMat('floodlight_panel', 0xf8fafc, {
-      roughness: 0.16,
-      emissive: 0xe0f2fe,
+    this._registerMat('floodlight_panel', 0xe2e8f0, {
+      roughness: 0.2,
+      emissive: 0xbae6fd,
       emissiveIntensity: 0.2
     });
-    this._registerMat('sandbag_tan', 0xd6d3d1, { roughness: 0.75 });
-    this._registerMat('wood_pole', 0x451a03, { roughness: 0.65 });
-    this._registerMat('wire_black', 0x090a0d, { basic: true });
-    this._registerMat('varzea_dirt', 0xb45309, { roughness: 0.78 });
-    this._registerMat('varzea_grass', 0x16a34a, { roughness: 0.62 });
-    this._registerMat('fence_mesh', 0x94a3b8, { roughness: 0.35, metalness: 0.45 });
-    this._registerMat('pool_water', 0x22d3ee, {
-      roughness: 0.12,
-      emissive: 0x0891b2,
-      emissiveIntensity: 0.35
+    this._registerMat('sandbag_tan', 0x78716c, { roughness: 0.82 });
+    this._registerMat('wood_pole', 0x2e1506, { roughness: 0.74 });
+    this._registerMat('wire_black', 0x06070a, { basic: true });
+    this._registerMat('varzea_dirt', 0x5c2d0e, { roughness: 0.84 });
+    this._registerMat('varzea_grass', 0x16331f, { roughness: 0.74 });
+    this._registerMat('fence_mesh', 0x4b5563, { roughness: 0.48, metalness: 0.52 });
+    this._registerMat('pool_water', 0x0e5a70, {
+      roughness: 0.14,
+      emissive: 0x084c61,
+      emissiveIntensity: 0.28
     });
-    this._registerMat('neon_red', 0xff1e42, { basic: true });
-    this._registerMat('neon_gold', 0xfacc15, { basic: true });
-    this._registerMat('neon_cyan', 0x00f0ff, { basic: true });
+    this._registerMat('neon_red', 0xe11d48, { basic: true });
+    this._registerMat('neon_gold', 0xd99b16, { basic: true });
+    this._registerMat('neon_cyan', 0x06b6d4, { basic: true });
   }
 
   addBox(key, w, h, d, x, y, z) {
@@ -236,6 +236,16 @@ class FavelaBatcher {
     if (list) {
       list.push(makeFastBox(w, h, d, x, y, z));
     }
+  }
+
+  addSlopedBox(key, w, h, d, x, y, z, rotX = 0, rotZ = 0) {
+    const list = this.buckets.get(key);
+    if (!list) return;
+    const g = new THREE.BoxGeometry(w, h, d);
+    if (rotX) g.rotateX(rotX);
+    if (rotZ) g.rotateZ(rotZ);
+    g.translate(x, y, z);
+    list.push(g);
   }
 
   addCylinder(key, rTop, rBot, h, x, y, z, segs = 12) {
@@ -394,10 +404,10 @@ function buildContinuousSmoothHillMesh(world) {
   const posAttr = geo.attributes.position;
   const colors = new Float32Array(posAttr.count * 3);
 
-  const cStreetBorder = new THREE.Color(0x475569); // Cimento/terra da borda em Y = 0
-  const cFavelaOchre = new THREE.Color(0x78350f);  // Terra batida ocre/marrom de encosta sob os becos
-  const cHillGreen = new THREE.Color(0x365314);    // Vegetação natural nas bordas íngremes do morro
-  const cSummitClay = new THREE.Color(0x9a3412);   // Terracota avermelhada no alto do morro
+  const cStreetBorder = new THREE.Color(0x222834); // Concreto úmido escuro da borda em Y = 0
+  const cFavelaOchre = new THREE.Color(0x3d1e0b);  // Terra batida escura/úmida sob os becos
+  const cHillGreen = new THREE.Color(0x182b18);    // Vegetação sombria nas encostas íngremes
+  const cSummitClay = new THREE.Color(0x541e0d);   // Barro queimado escuro no alto do morro
   const tmpColor = new THREE.Color();
 
   for (let i = 0; i < posAttr.count; i++) {
@@ -1083,11 +1093,35 @@ function createFavelaHouse(world, batcher, x, z, w, d, floors, seed, registerInd
       world.favelaCDDData.cvPaintedCount++;
     }
 
-    // Puxadinho: andares superiores projetam-se 0.5m sobre o beco estreito!
-    const overhangX = f > 0 && (seed + f) % 2 === 0 ? 0.5 : 0;
+    // Puxadinho: andares superiores projetam-se 0.55m sobre o beco estreito com mãos-francesas diagonais!
+    const overhangX = f > 0 && (seed + f) % 2 === 0 ? 0.55 : 0;
     const fx = x + overhangX;
 
     batcher.addBox(wallMat, w, floorH, d, fx, curY + floorH * 0.5, z);
+    if (overhangX > 0) {
+      batcher.addSlopedBox(
+        'rebar_iron',
+        0.14,
+        1.05,
+        0.14,
+        x + w * 0.5 + 0.14,
+        curY - 0.35,
+        z - d * 0.32,
+        0,
+        -0.55
+      );
+      batcher.addSlopedBox(
+        'rebar_iron',
+        0.14,
+        1.05,
+        0.14,
+        x + w * 0.5 + 0.14,
+        curY - 0.35,
+        z + d * 0.32,
+        0,
+        -0.55
+      );
+    }
 
     if (wallMat.startsWith('brick_')) {
       batcher.addBox('brick_groove', w + 0.12, 0.2, d + 0.12, fx, curY + 1.75, z);
@@ -1133,7 +1167,15 @@ function createFavelaHouse(world, batcher, x, z, w, d, floors, seed, registerInd
   }
 
   if (seed % 3 === 0) {
-    batcher.addBox('zinc_roof', w * 0.56, 0.24, d + 0.3, x + w * 0.2, curY + 1.35, z);
+    // Telhado de zinco corrugado inclinado (meia-água caída p/ o beco, quebrando o topo reto!)
+    const tiltZ = ((seed % 2 === 0 ? 1 : -1) * 0.17);
+    batcher.addBox('wood_pole', 0.16, 1.45, 0.16, x + w * 0.36, curY + 0.72, z - d * 0.38);
+    batcher.addBox('wood_pole', 0.16, 1.45, 0.16, x + w * 0.36, curY + 0.72, z + d * 0.38);
+    batcher.addSlopedBox('zinc_roof', w * 0.66, 0.14, d + 0.55, x + w * 0.18, curY + 1.42, z, 0, tiltZ);
+  } else if (seed % 3 === 1) {
+    // Cobertura completa de zinco oxidado inclinada sobre a laje
+    const tiltX = ((seed % 2 === 0 ? 1 : -1) * 0.13);
+    batcher.addSlopedBox('zinc_roof', w + 0.5, 0.14, d * 0.64, x, curY + 1.28, z + d * 0.14, tiltX, 0);
   } else if (seed % 2 === 0) {
     batcher.addBox('wire_black', 0.1, 0.1, d * 0.68, x + w * 0.25, curY + 1.3, z);
     batcher.addBox('cv_red', 0.14, 0.65, 1.0, x + w * 0.25, curY + 0.9, z - 0.6);
