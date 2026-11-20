@@ -1,16 +1,44 @@
 :root {
-  --idv-black: #07080b;
-  --idv-carbon: #10131a;
-  --idv-steel: #222733;
+  /* Fundos Abissais — Gotham Dark Theme */
+  --gotham-obsidian: #04060a;
+  --gotham-asphalt: #080b12;
+  --gotham-night-steel: #0d121d;
+  --gotham-gunmetal: #141b29;
+
+  /* Bordas Metálicas */
+  --gotham-border-steel: #1e283a;
+  --gotham-border-titanium: #2c3a52;
+
+  /* Acentos Cirúrgicos Sombrios */
+  --gotham-bronze: #c28e2b;
+  --gotham-amber: #d99b16;
+  --gotham-crimson-dark: #991b1b;
+  --gotham-crimson: #dc2626;
+  --gotham-ice: #7dd3fc;
+  --gotham-bat-cyan: #38bdf8;
+
+  /* Tokens Canônicos da IDV */
+  --idv-black: #04060a;
+  --idv-asphalt: #080b12;
+  --idv-carbon: #0d121d;
+  --idv-gunmetal: #141b29;
+  --idv-steel: #1e283a;
+  --idv-titanium: #2c3a52;
+  --idv-bronze: #c28e2b;
   --idv-alert: #d99b16;
-  --idv-amber: #c25115;
-  --idv-crimson: #b91c1c;
-  --idv-white: #dce2ec;
-  --idv-muted: #7c8798;
-  --hero-accent: #d99b16;
+  --idv-amber: #b45309;
+  --idv-crimson-deep: #991b1b;
+  --idv-crimson: #dc2626;
+  --idv-ice: #7dd3fc;
+  --idv-cyan: #38bdf8;
+  --idv-white: #dce3ee;
+  --idv-muted: #7a889e;
+  --hero-accent: #c28e2b;
 
   --font-display: 'Teko', 'Chakra Petch', sans-serif;
   --font-tactical: 'Chakra Petch', sans-serif;
+  --font-ui: 'Chakra Petch', sans-serif;
+  --font-body: 'Chakra Petch', 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
@@ -40,9 +68,103 @@ html, body {
   transition: filter 0.18s ease;
 }
 
-/* Filtro de Lente de Satélite Estilo GTA V durante a Viagem Rápida (Não-Jogável) */
+/* ===================================================
+   BOTÕES TÁTICOS BASE (CHASSI GUNMETAL / OBSIDIANA)
+   =================================================== */
+.tactical-btn,
+.tactical-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #080b12 0%, #101622 100%);
+  color: var(--idv-white);
+  border: 1.5px solid #243044;
+  border-left: 3px solid var(--gotham-bronze);
+  font-family: var(--font-tactical);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  cursor: pointer;
+  pointer-events: auto;
+  clip-path: polygon(
+    8px 0,
+    100% 0,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    0 100%,
+    0 8px
+  );
+  box-shadow: 4px 4px 0 #000000;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.12s ease;
+}
+
+.tactical-btn-sm {
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  border-left-width: 2px;
+  clip-path: polygon(
+    6px 0,
+    100% 0,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    0 100%,
+    0 6px
+  );
+  box-shadow: 3px 3px 0 #000000;
+}
+
+.tactical-btn:hover,
+.tactical-btn-sm:hover {
+  background: linear-gradient(135deg, #101622 0%, #182234 100%);
+  border-color: var(--gotham-amber);
+  border-left-color: var(--gotham-amber);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.tactical-btn:active,
+.tactical-btn-sm:active {
+  transform: translateY(1px);
+}
+
+.tactical-btn.pause-main-btn {
+  background: linear-gradient(135deg, #141b29 0%, #1e283a 100%);
+  border-color: var(--gotham-bronze);
+  border-left: 4px solid var(--gotham-amber);
+  color: #f8fafc;
+}
+
+.tactical-btn.pause-main-btn:hover {
+  background: linear-gradient(135deg, #c28e2b 0%, #d99b16 100%);
+  border-color: var(--gotham-amber);
+  color: #04060a;
+}
+
+.tactical-btn.danger-btn {
+  background: linear-gradient(135deg, #0d080b 0%, #190d12 100%);
+  border-color: #3f1d24;
+  border-left: 3px solid var(--gotham-crimson);
+  color: #fca5a5;
+}
+
+.tactical-btn.danger-btn:hover {
+  background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);
+  border-color: var(--gotham-crimson);
+  color: #ffffff;
+}
+
+/* Filtro de Lente de Satélite Noturno durante a Viagem Rápida (Não-Jogável) */
 body.satellite-transition #game-container {
-  filter: contrast(1.26) saturate(0.42) brightness(0.92) hue-rotate(-12deg);
+  filter: contrast(1.3) saturate(0.36) brightness(0.86) hue-rotate(-14deg);
 }
 
 body.satellite-transition #ui-overlay,
@@ -69,7 +191,7 @@ body.title-or-loading-active #vehicle-prompt {
   inset: 0;
   z-index: 25;
   pointer-events: none;
-  background: radial-gradient(circle at center, rgba(6, 18, 32, 0.08) 35%, rgba(6, 12, 22, 0.72) 100%);
+  background: radial-gradient(circle at center, rgba(8, 14, 24, 0.12) 32%, rgba(4, 6, 10, 0.84) 100%);
 }
 
 #satellite-fx-overlay.hidden {
@@ -81,17 +203,17 @@ body.title-or-loading-active #vehicle-prompt {
   inset: 0;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(0, 240, 255, 0.04) 0px,
-    rgba(0, 240, 255, 0.04) 2px,
-    rgba(0, 0, 0, 0.16) 2px,
-    rgba(0, 0, 0, 0.16) 4px
+    rgba(125, 211, 252, 0.032) 0px,
+    rgba(125, 211, 252, 0.032) 2px,
+    rgba(4, 6, 10, 0.22) 2px,
+    rgba(4, 6, 10, 0.22) 4px
   );
 }
 
 .sat-flash {
   position: absolute;
   inset: 0;
-  background: rgba(250, 204, 21, 0.28);
+  background: rgba(125, 211, 252, 0.22);
   opacity: 0;
   transition: opacity 0.14s ease-out;
 }
@@ -104,14 +226,14 @@ body.title-or-loading-active #vehicle-prompt {
 .sat-reticle {
   position: absolute;
   inset: 36px;
-  border: 1px solid rgba(250, 204, 21, 0.28);
+  border: 1px solid rgba(44, 58, 82, 0.72);
 }
 
 .sat-corner {
   position: absolute;
   width: 28px;
   height: 28px;
-  border-color: var(--idv-alert);
+  border-color: var(--gotham-bronze);
   border-style: solid;
 }
 
@@ -124,19 +246,20 @@ body.title-or-loading-active #vehicle-prompt {
   position: absolute;
   bottom: 18px;
   left: 24px;
-  background: var(--idv-black);
-  border-left: 4px solid var(--idv-alert);
-  padding: 5px 14px;
+  background: #04060a;
+  border: 1px solid #1e283a;
+  border-left: 4px solid var(--gotham-amber);
+  padding: 6px 14px;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.12em;
-  color: var(--idv-alert);
-  box-shadow: 4px 4px 0 #000;
+  color: var(--gotham-ice);
+  box-shadow: 5px 5px 0 #000000;
 }
 
 /* ===================================================
-   MIRA CENTRAL TÁTICA (ESTILO VALORANT / FORTNITE)
+   MIRA CENTRAL TÁTICA GOTHAM (LEITURA CRISTALINA)
    =================================================== */
 #crosshair {
   position: fixed;
@@ -147,6 +270,7 @@ body.title-or-loading-active #vehicle-prompt {
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 5;
+  filter: drop-shadow(1px 1px 0 #000000);
 }
 
 .ch-dot {
@@ -156,23 +280,33 @@ body.title-or-loading-active #vehicle-prompt {
   width: 4px;
   height: 4px;
   transform: translate(-50%, -50%);
-  background: var(--idv-alert);
-  outline: 1.5px solid var(--idv-black);
-}
-
-#crosshair[data-hero="solaris"] .ch-dot {
-  background: #fef08a;
-  box-shadow: 0 0 6px var(--idv-amber);
+  background: var(--gotham-amber);
+  outline: 1.5px solid #04060a;
 }
 
 .ch-line {
   position: absolute;
   background: var(--idv-white);
-  outline: 1px solid var(--idv-black);
+  outline: 1px solid #04060a;
+}
+
+#crosshair[data-hero="solaris"] .ch-dot {
+  background: #d99b16;
+  box-shadow: 0 0 5px rgba(220, 38, 38, 0.7);
 }
 
 #crosshair[data-hero="solaris"] .ch-line {
-  background: var(--idv-alert);
+  background: #e5b84b;
+}
+
+#crosshair[data-hero="vingador"] .ch-dot,
+#crosshair[data-hero="sombra"] .ch-dot {
+  background: var(--gotham-crimson);
+}
+
+#crosshair[data-hero="voltaico"] .ch-dot,
+#crosshair[data-hero="turbo"] .ch-dot {
+  background: var(--gotham-ice);
 }
 
 .ch-top {

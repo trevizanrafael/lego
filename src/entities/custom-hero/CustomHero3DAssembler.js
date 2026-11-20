@@ -310,77 +310,121 @@ export function createCustomTorsoTexture(cfg = getActiveCustomHero()) {
 }
 
 /**
- * Desenha o Retrato 2D LEGO exato do OP-09 (Cidadão Comum ou Herói Customizado)
+ * Desenha o Retrato 2D Gotham Noir do OP-09 (Silhueta Civil Noir ou Herói Customizado)
  */
 export function drawOp09Portrait2D(ctx, w, h, cfg = getActiveCustomHero()) {
   const isCreated = Boolean(cfg?.isCreated);
   const headCol = findHeadColor(isCreated ? cfg.headColorId : 'lego_yellow');
-  const torsoCol = findPaletteColor(isCreated ? cfg.torsoColorId : 'blue', 0);
-  const hairCol = findPaletteColor(isCreated ? cfg.hairColorId : 'brown', 12);
+  const headCss = isCreated ? headCol.css : '#b88b64';
+  const torsoCss = isCreated ? findPaletteColor(cfg.torsoColorId, 0).css : '#1e293b';
+  const hairCol = findPaletteColor(isCreated ? cfg.hairColorId : 'black', 12);
   const hairId = isCreated ? cfg.hairId : 'none';
   const faceId = isCreated ? cfg.faceId : 'classic_smile';
 
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#0d1017';
+
+  if (typeof ctx.createLinearGradient === 'function') {
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    bgGrad.addColorStop(0, '#04060a');
+    bgGrad.addColorStop(0.58, '#080c15');
+    bgGrad.addColorStop(1, '#0b101b');
+    ctx.fillStyle = bgGrad;
+  } else {
+    ctx.fillStyle = '#060911';
+  }
   ctx.fillRect(0, 0, w, h);
 
-  ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
-  ctx.lineWidth = Math.max(3, w * 0.07);
+  ctx.strokeStyle = isCreated ? 'rgba(56, 189, 248, 0.16)' : 'rgba(148, 163, 184, 0.12)';
+  ctx.lineWidth = Math.max(1, w * 0.022);
   ctx.beginPath();
-  ctx.moveTo(0, h * 0.75);
-  ctx.lineTo(w * 0.75, 0);
+  ctx.moveTo(0, h * 0.68);
+  ctx.lineTo(w * 0.68, 0);
+  ctx.moveTo(w * 0.2, h);
+  ctx.lineTo(w, h * 0.2);
   ctx.stroke();
 
   const scale = w / 76;
   ctx.save();
   ctx.scale(scale, scale);
 
-  // Pino LEGO superior
-  if (hairId === 'none' || hairId === 'dj_headphones') {
-    ctx.fillStyle = headCol.css;
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.roundRect(76 * 0.37, 9, 76 * 0.26, 9, 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
   // Cabelo comprido / capuz por trás
   if (hairId === 'long_hair' || hairId === 'urban_hoodie') {
     ctx.fillStyle = hairCol.css;
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = '#04060a';
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.roundRect(11, 11, 54, 46, 10);
     ctx.fill();
     ctx.stroke();
   }
 
-  // Cabeça LEGO
-  ctx.fillStyle = headCol.css;
-  ctx.strokeStyle = '#090a0d';
-  ctx.lineWidth = 2.5;
+  // Ombros / Torso Angular Noir (Studless)
+  ctx.fillStyle = torsoCss;
+  ctx.strokeStyle = '#04060a';
+  ctx.lineWidth = 2.2;
   ctx.beginPath();
-  ctx.roundRect(76 * 0.22, 17, 76 * 0.56, 38, 6);
+  ctx.moveTo(8, 76);
+  ctx.lineTo(10, 56);
+  ctx.lineTo(23, 51);
+  ctx.lineTo(53, 51);
+  ctx.lineTo(66, 56);
+  ctx.lineTo(68, 76);
+  ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
-  // Ombros / Torso
-  ctx.fillStyle = torsoCol.css;
+  if (!isCreated) {
+    // Gola urbana escura do Cidadão Noir
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(22, 51, 32, 4.5);
+  }
+
+  // Pescoço sombreado
+  ctx.fillStyle = '#04060a';
+  ctx.fillRect(27, 48, 22, 6);
+
+  // Cabeça Esculpida Studless (sem pino de plástico aparente!)
+  ctx.fillStyle = headCss;
+  ctx.strokeStyle = '#04060a';
+  ctx.lineWidth = 2.3;
   ctx.beginPath();
-  ctx.roundRect(76 * 0.14, 54, 76 * 0.72, 24, 4);
+  ctx.roundRect(17, 14, 42, 38, 8);
   ctx.fill();
   ctx.stroke();
 
   // Rosto 2D
-  drawCustomFaceDetails2D(ctx, 38, 37, 0.78, faceId);
+  if (isCreated) {
+    drawCustomFaceDetails2D(ctx, 38, 35, 0.78, faceId);
+  } else {
+    // Expressão urbana sóbria civil noir quando ainda não customizado
+    ctx.fillStyle = 'rgba(4, 6, 10, 0.45)';
+    ctx.fillRect(18, 23, 40, 8);
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(23, 24.5, 9.5, 2.2);
+    ctx.fillRect(43.5, 24.5, 9.5, 2.2);
+    ctx.beginPath();
+    ctx.arc(28, 30, 2.8, 0, Math.PI * 2);
+    ctx.arc(48, 30, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(31, 41.5);
+    ctx.lineTo(45, 41.5);
+    ctx.stroke();
+  }
 
   // Cabelo / Acessório Superior 2D
   ctx.fillStyle = hairCol.css;
-  ctx.strokeStyle = '#090a0d';
+  ctx.strokeStyle = '#04060a';
   ctx.lineWidth = 2.2;
-  if (hairId === 'classic_quiff') {
+  if (!isCreated) {
+    ctx.fillStyle = '#111827';
+    ctx.beginPath();
+    ctx.roundRect(16, 11, 44, 10, 5);
+    ctx.fill();
+    ctx.stroke();
+  } else if (hairId === 'classic_quiff') {
     ctx.beginPath();
     ctx.roundRect(15, 10, 46, 12, 5);
     ctx.fill();
@@ -418,7 +462,35 @@ export function drawOp09Portrait2D(ctx, w, h, cfg = getActiveCustomHero()) {
     ctx.fillRect(59, 25, 7, 16);
   }
 
+  // Rim-Light Angular Esquerdo
+  ctx.strokeStyle = isCreated ? 'rgba(56, 189, 248, 0.52)' : 'rgba(148, 163, 184, 0.42)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(22, 15);
+  ctx.lineTo(17.5, 19.5);
+  ctx.lineTo(17.5, 46);
+  ctx.moveTo(22, 51.5);
+  ctx.lineTo(10.5, 56.5);
+  ctx.lineTo(9, 73);
+  ctx.stroke();
+
   ctx.restore();
+
+  // Sombreamento Chiaroscuro Lateral + Vinheta na Base
+  if (typeof ctx.createLinearGradient === 'function') {
+    const chiaro = ctx.createLinearGradient(0, 0, w, 0);
+    chiaro.addColorStop(0, 'rgba(255, 255, 255, 0.03)');
+    chiaro.addColorStop(0.46, 'rgba(4, 6, 10, 0)');
+    chiaro.addColorStop(1, 'rgba(2, 4, 9, 0.56)');
+    ctx.fillStyle = chiaro;
+    ctx.fillRect(0, 0, w, h);
+
+    const vignette = ctx.createLinearGradient(0, h * 0.58, 0, h);
+    vignette.addColorStop(0, 'rgba(3, 5, 9, 0)');
+    vignette.addColorStop(1, 'rgba(2, 4, 8, 0.88)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, h * 0.58, w, h * 0.42);
+  }
 }
 
 // ============================================================================

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   LABORATÓRIO SUBTERRÂNEO DE CRIAÇÃO DE PERSONAGENS (OP-09) — IDV ANGULAR
+   LABORATÓRIO SUBTERRÂNEO DE CRIAÇÃO DE PERSONAGENS (OP-09) — GOTHAM DARK METAL
    ========================================================================== */
 #custom-hero-creator-modal {
   position: fixed;
@@ -11,7 +11,7 @@
   align-items: stretch;
   padding: 22px 26px;
   box-sizing: border-box;
-  background: linear-gradient(90deg, rgba(9, 10, 13, 0.08) 0%, rgba(9, 10, 13, 0.25) 48%, rgba(9, 10, 13, 0.88) 100%);
+  background: linear-gradient(90deg, rgba(4, 6, 10, 0.1) 0%, rgba(4, 6, 10, 0.34) 48%, rgba(4, 6, 10, 0.92) 100%);
 }
 
 #custom-hero-creator-modal.hidden {
@@ -25,8 +25,9 @@
   gap: 12px;
   margin-left: 4vw;
   margin-bottom: 18px;
-  background: #090a0d;
-  border: 2px solid #00f0ff;
+  background: linear-gradient(135deg, #04060a 0%, #0d121d 100%);
+  border: 1.5px solid #2c3a52;
+  border-left: 4px solid #38bdf8;
   padding: 10px 16px;
   box-shadow: 6px 6px 0 #000000;
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
@@ -36,7 +37,7 @@
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 800;
-  color: #00f0ff;
+  color: #7dd3fc;
   letter-spacing: 0.08em;
 }
 
@@ -44,9 +45,9 @@
   width: 510px;
   max-width: 48vw;
   height: 100%;
-  background: #090a0d;
-  border: 2px solid #facc15;
-  border-left: 6px solid #00f0ff;
+  background: linear-gradient(160deg, #04060a 0%, #0b101b 100%);
+  border: 1.5px solid #1e293b;
+  border-left: 5px solid #c28e2b;
   box-shadow: 10px 10px 0 #000000;
   clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
   display: flex;
@@ -60,7 +61,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #1e293b;
+  border-bottom: 1.5px solid #1e283a;
   padding-bottom: 10px;
 }
 
@@ -68,9 +69,10 @@
   font-family: var(--font-display);
   font-size: 2.05rem;
   font-weight: 700;
-  color: #facc15;
+  color: #dce3ee;
   line-height: 0.95;
   letter-spacing: 0.04em;
+  text-shadow: 2px 2px 0 #000000;
 }
 
 .creator-tabs-row {
@@ -80,21 +82,27 @@
 }
 
 .creator-tab-btn {
-  background: #11131a;
-  color: #94a3b8;
-  border: 2px solid #262b38;
+  background: #080b12;
+  color: #7a889e;
+  border: 1.5px solid #1e283a;
   font-family: var(--font-mono);
   font-size: 0.76rem;
   font-weight: 800;
   padding: 9px 10px;
   cursor: pointer;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.creator-tab-btn:hover {
+  background: #101622;
+  color: #dce3ee;
 }
 
 .creator-tab-btn.active {
-  background: #0f172a;
-  color: #00f0ff;
-  border-color: #00f0ff;
+  background: #141b29;
+  color: #7dd3fc;
+  border-color: #38bdf8;
 }
 
 .creator-panel-body {
@@ -107,8 +115,8 @@
 }
 
 .creator-sec {
-  background: #0e1118;
-  border: 1px solid #1e293b;
+  background: #080b12;
+  border: 1px solid #1e283a;
   padding: 10px 12px;
 }
 
@@ -117,7 +125,7 @@
   font-family: var(--font-mono);
   font-size: 0.69rem;
   font-weight: 800;
-  color: #facc15;
+  color: #d99b16;
   margin-bottom: 7px;
   letter-spacing: 0.08em;
 }
@@ -125,22 +133,26 @@
 .creator-mini-sub {
   font-family: var(--font-mono);
   font-size: 0.65rem;
-  color: #94a3b8;
+  color: #7a889e;
   margin: 6px 0 4px 0;
 }
 
 .creator-input {
   width: 100%;
   box-sizing: border-box;
-  background: #050608;
-  border: 2px solid #38bdf8;
-  color: #f8fafc;
+  background: #04060a;
+  border: 1.5px solid #2c3a52;
+  color: #dce3ee;
   font-family: var(--font-body);
   font-size: 1.05rem;
   font-weight: 700;
   padding: 7px 10px;
   text-transform: uppercase;
   outline: none;
+}
+
+.creator-input:focus {
+  border-color: #d99b16;
 }
 
 .creator-swatches-row {
@@ -152,13 +164,13 @@
 .creator-swatch {
   width: 26px;
   height: 26px;
-  border: 2px solid #090a0d;
-  outline: 1px solid #334155;
+  border: 2px solid #04060a;
+  outline: 1px solid #2c3a52;
   cursor: pointer;
 }
 
 .creator-swatch.active {
-  outline: 3px solid #facc15;
+  outline: 2.5px solid #d99b16;
   transform: scale(1.12);
 }
 
@@ -169,8 +181,8 @@
 }
 
 .creator-chip {
-  background: #131722;
-  border: 1.5px solid #262b38;
+  background: #0d121d;
+  border: 1.5px solid #1e283a;
   color: #cbd5e1;
   font-family: var(--font-body);
   font-size: 0.78rem;
@@ -178,12 +190,13 @@
   padding: 6px 8px;
   text-align: left;
   cursor: pointer;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
 }
 
 .creator-chip.active {
-  border-color: #00f0ff;
-  color: #00f0ff;
-  background: #0b192c;
+  border-color: #38bdf8;
+  color: #7dd3fc;
+  background: #102033;
 }
 
 .creator-pow-list {
@@ -193,34 +206,35 @@
 }
 
 .creator-power-card {
-  background: #131722;
-  border: 2px solid #262b38;
-  border-left-width: 5px;
+  background: #0d121d;
+  border: 1.5px solid #1e283a;
+  border-left: 4px solid #2c3a52;
   padding: 8px 10px;
   text-align: left;
   cursor: pointer;
 }
 
 .creator-power-card.active {
-  border-color: #facc15;
-  background: #18160c;
+  border-color: #c28e2b;
+  border-left-color: #d99b16;
+  background: #141820;
 }
 
 .creator-pow-title {
   font-family: var(--font-body);
   font-size: 0.88rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: #dce3ee;
 }
 
 .creator-power-card.active .creator-pow-title {
-  color: #facc15;
+  color: #d99b16;
 }
 
 .creator-pow-desc {
   font-family: var(--font-body);
   font-size: 0.74rem;
-  color: #94a3b8;
+  color: #7a889e;
   margin-top: 2px;
 }
 
@@ -228,12 +242,13 @@
   display: grid;
   grid-template-columns: 1fr 1.25fr;
   gap: 10px;
-  border-top: 2px solid #1e293b;
+  border-top: 1.5px solid #1e283a;
   padding-top: 10px;
 }
 
 /* =========================================================================
    OFICINA "LS CUSTOMS // PRO TUNER" (ECU DIAGNOSTIC & DYNO SHOWROOM 3D)
+   Gotham Dark Metal — Zero Glassmorphism / Cortes Chanfrados em 45°
    ========================================================================= */
 body.customs-studio-open,
 body.customs-studio-open #game-container,
@@ -263,12 +278,12 @@ body.customs-studio-open #tiktok-hud-pill {
   pointer-events: auto;
   cursor: grab;
   user-select: none;
-  font-family: 'Inter', 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Chakra Petch', 'Rajdhani', 'Inter', sans-serif;
   background: linear-gradient(
     90deg,
     rgba(0, 0, 0, 0) 0%,
     rgba(0, 0, 0, 0) 62%,
-    rgba(7, 9, 14, 0.78) 100%
+    rgba(4, 6, 10, 0.86) 100%
   );
 }
 
@@ -300,15 +315,21 @@ body.customs-studio-open #tiktok-hud-pill {
   right: 410px;
   max-width: 760px;
   z-index: 2;
-  background: rgba(11, 14, 20, 0.90);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(4, 6, 10, 0.96) 0%, rgba(13, 18, 29, 0.95) 100%);
+  border: 1.5px solid #1e283a;
+  border-left: 4px solid #c28e2b;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    12px 100%,
+    0 calc(100% - 12px)
+  );
   padding: 11px 15px 12px;
   pointer-events: auto;
   cursor: default;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48);
+  box-shadow: 6px 6px 0 #000000;
 }
 
 .customs-telemetry-top {
@@ -331,15 +352,15 @@ body.customs-studio-open #tiktok-hud-pill {
   align-items: center;
   justify-content: center;
   padding: 4px 9px;
-  border-radius: 6px;
-  background: rgba(255, 107, 0, 0.16);
-  border: 1px solid rgba(255, 107, 0, 0.55);
-  color: #ff8533;
-  font-family: 'Rajdhani', 'Inter', sans-serif;
+  background: #141b29;
+  border: 1px solid #c28e2b;
+  color: #d99b16;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
   flex-shrink: 0;
 }
 
@@ -348,11 +369,11 @@ body.customs-studio-open #tiktok-hud-pill {
 }
 
 .customs-car-title {
-  font-family: 'Rajdhani', 'Inter', sans-serif;
-  font-size: 1.18rem;
+  font-family: 'Teko', 'Rajdhani', sans-serif;
+  font-size: 1.42rem;
   font-weight: 700;
-  line-height: 1.05;
-  color: #f8fafc;
+  line-height: 0.95;
+  color: #dce3ee;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -361,10 +382,11 @@ body.customs-studio-open #tiktok-hud-pill {
 }
 
 .customs-ecu-subtitle {
-  font-size: 0.62rem;
-  font-weight: 600;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.58rem;
+  font-weight: 700;
   letter-spacing: 0.14em;
-  color: #00e5ff;
+  color: #7dd3fc;
   text-transform: uppercase;
   margin-top: 2px;
 }
@@ -373,27 +395,30 @@ body.customs-studio-open #tiktok-hud-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: #131824;
-  border: 1px solid rgba(250, 204, 21, 0.34);
-  color: #facc15;
+  padding: 5px 12px;
+  background: #080b12;
+  border: 1px solid #2c3a52;
+  border-left: 3px solid #c28e2b;
+  color: #d99b16;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
 
 .customs-studs-wallet b {
-  font-size: 0.88rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.84rem;
   font-weight: 800;
-  color: #facc15;
+  color: #dce3ee;
   letter-spacing: 0.03em;
 }
 
 .customs-studs-unit {
-  font-size: 0.62rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: rgba(250, 204, 21, 0.78);
+  color: #c28e2b;
 }
 
 .customs-stats-grid {
@@ -403,9 +428,8 @@ body.customs-studio-open #tiktok-hud-pill {
 }
 
 .customs-stat-box {
-  background: #131824;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 9px;
+  background: #080b12;
+  border: 1px solid #1e283a;
   padding: 7px 9px;
   display: flex;
   flex-direction: column;
@@ -420,59 +444,56 @@ body.customs-studio-open #tiktok-hud-pill {
 }
 
 .customs-stat-box span {
-  font-size: 0.58rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.56rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #94a3b8;
+  letter-spacing: 0.07em;
+  color: #7a889e;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .customs-stat-box b {
-  font-family: 'Rajdhani', 'Inter', sans-serif;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #f8fafc;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #dce3ee;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .customs-gauge-track {
   width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 999px;
+  height: 5px;
+  background: #04060a;
+  border: 1px solid #1e283a;
   overflow: hidden;
+  transform: skewX(-16deg);
 }
 
 .customs-gauge-fill {
   height: 100%;
-  border-radius: 999px;
   transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .customs-gauge-fill.fill-amber {
-  background: #ff6b00;
-  box-shadow: 0 0 8px rgba(255, 107, 0, 0.75);
+  background: linear-gradient(90deg, #92600a, #d99b16);
 }
 
 .customs-gauge-fill.fill-cyan {
-  background: #00e5ff;
-  box-shadow: 0 0 8px rgba(0, 229, 255, 0.75);
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
 }
 
 .customs-gauge-fill.fill-emerald {
-  background: #10b981;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.75);
+  background: linear-gradient(90deg, #065f46, #10b981);
 }
 
 .customs-gauge-fill.fill-violet {
-  background: #a855f7;
-  box-shadow: 0 0 8px rgba(168, 85, 247, 0.75);
+  background: linear-gradient(90deg, #581c87, #9333ea);
 }
 
 /* -------------------------------------------------------------------------
-   ZONA 2: Pílula Flutuante de Controles de Showroom (Rodapé Esquerdo/Central)
+   ZONA 2: Chassi Flutuante de Controles de Showroom (Rodapé Esquerdo/Central)
    ------------------------------------------------------------------------- */
 #lego-customs-modal .creator-studio-turntable-controls,
 .customs-showroom-controls {
@@ -485,22 +506,28 @@ body.customs-studio-open #tiktok-hud-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  background: rgba(11, 14, 20, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
+  padding: 7px 12px;
+  background: linear-gradient(135deg, rgba(4, 6, 10, 0.96) 0%, rgba(13, 18, 29, 0.95) 100%);
+  border: 1.5px solid #243044;
+  border-bottom: 2px solid #c28e2b;
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
   pointer-events: auto;
   cursor: default;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.52);
+  box-shadow: 6px 6px 0 #000000;
   white-space: nowrap;
 }
 
 .customs-pill-sep {
   width: 1px;
   height: 18px;
-  background: rgba(255, 255, 255, 0.12);
+  background: #243044;
   margin: 0 2px;
 }
 
@@ -511,49 +538,49 @@ body.customs-studio-open #tiktok-hud-pill {
   gap: 6px;
   height: 32px;
   padding: 0 11px;
-  border-radius: 999px;
-  background: #131824;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #080b12;
+  border: 1px solid #1e283a;
   color: #cbd5e1;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 
 .customs-pill-btn:hover {
-  background: #192030;
-  border-color: rgba(255, 255, 255, 0.22);
+  background: #141b29;
+  border-color: #2c3a52;
   color: #ffffff;
 }
 
 .customs-pill-btn.active {
-  background: rgba(255, 107, 0, 0.16);
-  border-color: #ff6b00;
-  color: #ff8533;
+  background: #141b29;
+  border-color: #c28e2b;
+  color: #d99b16;
 }
 
 .customs-pill-btn.accent-cyan {
-  border-color: rgba(0, 229, 255, 0.35);
-  color: #00e5ff;
+  border-color: #1e3a5f;
+  color: #7dd3fc;
 }
 
 .customs-pill-btn.accent-cyan:hover {
-  background: rgba(0, 229, 255, 0.14);
-  border-color: #00e5ff;
-  color: #e0fbff;
+  background: #102033;
+  border-color: #38bdf8;
+  color: #e0f2fe;
 }
 
 .customs-pill-btn.accent-amber {
-  border-color: rgba(255, 107, 0, 0.38);
-  color: #ff8533;
+  border-color: #4a3510;
+  color: #d99b16;
 }
 
 .customs-pill-btn.accent-amber:hover {
-  background: rgba(255, 107, 0, 0.16);
-  border-color: #ff6b00;
-  color: #fff7ed;
+  background: #1d170b;
+  border-color: #d99b16;
+  color: #fef3c7;
 }
 
 /* -------------------------------------------------------------------------
@@ -564,12 +591,18 @@ body.customs-studio-open #tiktok-hud-pill {
   max-width: 32vw;
   height: calc(100vh - 36px);
   margin: 18px 18px 18px auto;
-  border-radius: 16px;
-  background: rgba(11, 14, 20, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.62);
+  background: linear-gradient(160deg, rgba(4, 6, 10, 0.97) 0%, rgba(11, 15, 24, 0.96) 100%);
+  border: 1.5px solid #1e283a;
+  border-left: 3px solid #2c3a52;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 16px) 0,
+    100% 16px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+  box-shadow: 8px 8px 0 #000000;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -584,26 +617,27 @@ body.customs-studio-open #tiktok-hud-pill {
   justify-content: space-between;
   gap: 8px;
   padding: 13px 14px 11px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid #1e283a;
   flex-shrink: 0;
 }
 
 .customs-dock-kicker {
-  font-size: 0.58rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.56rem;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: #00e5ff;
+  color: #7dd3fc;
   text-transform: uppercase;
 }
 
 .customs-dock-title {
-  font-family: 'Rajdhani', 'Inter', sans-serif;
-  font-size: 1.06rem;
+  font-family: 'Teko', 'Rajdhani', sans-serif;
+  font-size: 1.32rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: #f8fafc;
+  color: #dce3ee;
   text-transform: uppercase;
-  line-height: 1.1;
+  line-height: 0.98;
   margin-top: 2px;
 }
 
@@ -620,27 +654,32 @@ body.customs-studio-open #tiktok-hud-pill {
   gap: 5px;
   height: 29px;
   padding: 0 9px;
-  border-radius: 8px;
-  background: #131824;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #080b12;
+  border: 1px solid #243044;
   color: #cbd5e1;
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .customs-icon-btn:hover {
-  background: #192030;
-  border-color: #ff6b00;
+  background: #141b29;
+  border-color: #d99b16;
   color: #ffffff;
 }
 
+.customs-icon-btn.danger {
+  border-color: #3f1d24;
+  color: #fca5a5;
+}
+
 .customs-icon-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.16);
-  border-color: #ef4444;
-  color: #fecaca;
+  background: #7f1d1d;
+  border-color: #dc2626;
+  color: #ffffff;
 }
 
 /* Abas de Navegação com Ícones SVG + Scrollbar Ultra-Fina */
@@ -649,11 +688,11 @@ body.customs-studio-open #tiktok-hud-pill {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 5px;
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid #1e283a;
   overflow-x: auto;
   flex-shrink: 0;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 107, 0, 0.4) transparent;
+  scrollbar-color: #c28e2b transparent;
 }
 
 .customs-tabs::-webkit-scrollbar {
@@ -662,12 +701,11 @@ body.customs-studio-open #tiktok-hud-pill {
 }
 
 .customs-tabs::-webkit-scrollbar-thumb {
-  background: rgba(255, 107, 0, 0.35);
-  border-radius: 999px;
+  background: #2c3a52;
 }
 
 .customs-tabs::-webkit-scrollbar-thumb:hover {
-  background: #ff6b00;
+  background: #c28e2b;
 }
 
 .customs-tab-btn {
@@ -677,38 +715,37 @@ body.customs-studio-open #tiktok-hud-pill {
   justify-content: center;
   gap: 4px;
   padding: 7px 4px;
-  border-radius: 9px;
-  background: #131824;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+  background: #080b12;
+  border: 1px solid #1e283a;
+  color: #7a889e;
   font-size: 0.56rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   white-space: nowrap;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .customs-tab-btn:hover {
-  background: #192030;
-  color: #e2e8f0;
+  background: #101622;
+  color: #dce3ee;
 }
 
 .customs-tab-btn.active {
-  background: rgba(255, 107, 0, 0.15);
-  border-color: #ff6b00;
-  color: #ff8533;
-  box-shadow: inset 0 0 12px rgba(255, 107, 0, 0.12);
+  background: #141b29;
+  border-color: #c28e2b;
+  border-bottom: 2px solid #d99b16;
+  color: #d99b16;
 }
 
 .customs-feedback-banner {
   margin: 8px 12px 0;
   padding: 7px 10px;
-  border-radius: 8px;
-  background: rgba(0, 229, 255, 0.09);
-  border: 1px solid rgba(0, 229, 255, 0.35);
-  border-left: 3px solid #ff6b00;
-  color: #e0fbff;
+  background: #080b12;
+  border: 1px solid #2c3a52;
+  border-left: 3px solid #d99b16;
+  color: #7dd3fc;
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -726,7 +763,7 @@ body.customs-studio-open #tiktok-hud-pill {
   flex-direction: column;
   gap: 9px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 107, 0, 0.4) transparent;
+  scrollbar-color: #c28e2b transparent;
 }
 
 .customs-body::-webkit-scrollbar {
@@ -739,25 +776,24 @@ body.customs-studio-open #tiktok-hud-pill {
 }
 
 .customs-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 107, 0, 0.35);
-  border-radius: 999px;
+  background: #2c3a52;
 }
 
 .customs-body::-webkit-scrollbar-thumb:hover {
-  background: #ff6b00;
+  background: #c28e2b;
 }
 
 /* Cards Internos e Controles Pro Tuner */
 #lego-customs-modal .customs-upgrade-card {
-  background: #131824;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 11px;
+  background: #080b12;
+  border: 1px solid #1e283a;
   padding: 10px 11px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 #lego-customs-modal .customs-upgrade-card:hover {
-  background: #192030;
+  background: #0d121d;
+  border-color: #2c3a52;
 }
 
 #lego-customs-modal .creator-lbl {
@@ -765,7 +801,7 @@ body.customs-studio-open #tiktok-hud-pill {
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.09em;
-  color: #cbd5e1;
+  color: #dce3ee;
   text-transform: uppercase;
   margin-bottom: 7px;
 }
@@ -773,7 +809,7 @@ body.customs-studio-open #tiktok-hud-pill {
 #lego-customs-modal .creator-pow-desc {
   font-size: 0.68rem;
   line-height: 1.35;
-  color: #94a3b8;
+  color: #7a889e;
   margin-bottom: 8px;
 }
 
@@ -782,10 +818,9 @@ body.customs-studio-open #tiktok-hud-pill {
   box-sizing: border-box;
   height: 34px;
   padding: 0 10px;
-  border-radius: 8px;
-  background: #0b0e14 !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  color: #f8fafc !important;
+  background: #04060a !important;
+  border: 1px solid #243044 !important;
+  color: #dce3ee !important;
   font-size: 0.78rem !important;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -794,8 +829,7 @@ body.customs-studio-open #tiktok-hud-pill {
 
 .customs-pro-input:focus {
   outline: none;
-  border-color: #ff6b00 !important;
-  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.2);
+  border-color: #d99b16 !important;
 }
 
 .customs-upg-header {
@@ -807,15 +841,14 @@ body.customs-studio-open #tiktok-hud-pill {
 }
 
 .customs-lv-badge {
-  font-family: 'Rajdhani', 'Inter', sans-serif;
-  font-size: 0.68rem;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
-  color: #00e5ff;
-  background: rgba(0, 229, 255, 0.1);
-  border: 1px solid rgba(0, 229, 255, 0.35);
-  border-radius: 6px;
+  color: #7dd3fc;
+  background: #0d1624;
+  border: 1px solid #2c3a52;
   padding: 2px 7px;
   white-space: nowrap;
 }
@@ -829,20 +862,19 @@ body.customs-studio-open #tiktok-hud-pill {
 
 .customs-lv-seg {
   height: 7px;
-  border-radius: 3px;
-  background: #0b0e14;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #04060a;
+  border: 1px solid #1e283a;
+  transform: skewX(-14deg);
 }
 
 .customs-lv-seg.unlocked {
-  background: rgba(0, 229, 255, 0.22);
-  border-color: rgba(0, 229, 255, 0.55);
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
 }
 
 .customs-lv-seg.active {
-  background: #ff6b00;
-  border-color: #ff8533;
-  box-shadow: 0 0 7px rgba(255, 107, 0, 0.55);
+  background: #c28e2b;
+  border-color: #d99b16;
 }
 
 .customs-upg-controls {
@@ -857,18 +889,18 @@ body.customs-studio-open #tiktok-hud-pill {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 7px;
-  background: #0b0e14;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e2e8f0;
+  background: #04060a;
+  border: 1px solid #243044;
+  color: #dce3ee;
   flex-shrink: 0;
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .customs-step-btn:hover:not(:disabled) {
-  background: rgba(255, 107, 0, 0.18);
-  border-color: #ff6b00;
-  color: #ff8533;
+  background: #141b29;
+  border-color: #d99b16;
+  color: #d99b16;
 }
 
 .customs-upg-controls button:disabled {
@@ -884,26 +916,26 @@ body.customs-studio-open #tiktok-hud-pill {
   gap: 5px;
   height: 30px;
   padding: 0 10px;
-  border-radius: 7px;
-  background: rgba(255, 107, 0, 0.16);
-  border: 1px solid #ff6b00;
-  color: #ff8533;
+  background: #141b29;
+  border: 1px solid #c28e2b;
+  color: #d99b16;
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
   text-transform: uppercase;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .customs-unlock-btn:hover {
-  background: #ff6b00;
-  color: #0b0e14;
+  background: #d99b16;
+  color: #04060a;
 }
 
 .customs-unlock-btn.locked-cost {
-  background: #0b0e14;
-  border-color: rgba(255, 255, 255, 0.12);
+  background: #04060a;
+  border-color: #1e283a;
   color: #64748b;
 }
 
@@ -929,19 +961,18 @@ body.customs-studio-open #tiktok-hud-pill {
 #lego-customs-modal .customs-swatch {
   width: 100%;
   height: 28px;
-  border-radius: 7px;
-  border: 2px solid rgba(255, 255, 255, 0.14);
+  border: 2px solid #1e283a;
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
 
 #lego-customs-modal .customs-swatch:hover {
   transform: scale(1.06);
-  border-color: #ffffff;
+  border-color: #dce3ee;
 }
 
 #lego-customs-modal .customs-swatch.active {
-  border-color: #ff6b00;
-  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.45);
+  border-color: #d99b16;
+  box-shadow: 0 0 0 2px #04060a, 2px 2px 0 #c28e2b;
 }
 
 .customs-chips-grid {
@@ -957,25 +988,25 @@ body.customs-studio-open #tiktok-hud-pill {
   justify-content: center;
   gap: 2px;
   padding: 8px 9px;
-  border-radius: 8px;
-  background: #0e131d;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #080b12;
+  border: 1px solid #1e283a;
   color: #cbd5e1;
   font-size: 0.68rem;
   font-weight: 600;
   text-align: left;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 #lego-customs-modal .customs-part-chip:hover {
-  background: #192030;
+  background: #141b29;
   color: #ffffff;
 }
 
 #lego-customs-modal .customs-part-chip.active {
-  background: rgba(255, 107, 0, 0.14);
-  border-color: #ff6b00;
-  color: #ff8533;
+  background: #141b29;
+  border-color: #c28e2b;
+  color: #d99b16;
 }
 
 #lego-customs-modal .customs-part-card {
@@ -985,41 +1016,41 @@ body.customs-studio-open #tiktok-hud-pill {
   gap: 8px;
   width: 100%;
   padding: 9px 11px;
-  border-radius: 9px;
-  background: #0e131d;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 3px solid rgba(255, 255, 255, 0.16);
+  background: #080b12;
+  border: 1px solid #1e283a;
+  border-left: 3px solid #2c3a52;
   transition: background 0.14s ease, border-color 0.14s ease;
 }
 
 #lego-customs-modal .customs-part-card:hover {
-  background: #192030;
+  background: #101622;
 }
 
 #lego-customs-modal .customs-part-card.active {
-  background: rgba(255, 107, 0, 0.13);
-  border-color: #ff6b00;
-  border-left-color: #ff6b00;
+  background: #141b29;
+  border-color: #c28e2b;
+  border-left-color: #d99b16;
 }
 
 #lego-customs-modal .customs-part-card .creator-pow-title {
   font-size: 0.74rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: #dce3ee;
 }
 
 #lego-customs-modal .customs-part-card.active .creator-pow-title {
-  color: #ffffff;
+  color: #d99b16;
 }
 
 .customs-part-cost {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 0.64rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #facc15;
+  color: #d99b16;
   white-space: nowrap;
 }
 
@@ -1049,15 +1080,14 @@ body.customs-studio-open #tiktok-hud-pill {
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-  border-radius: 10px;
-  background: #0e131d;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #080b12;
+  border: 1px solid #1e283a;
   padding: 10px 11px;
 }
 
 #lego-customs-modal .customs-garage-slot.active {
-  border-color: rgba(0, 229, 255, 0.45);
-  background: rgba(19, 24, 36, 0.95);
+  border-color: #38bdf8;
+  background: #0d1624;
 }
 
 .customs-slot-actions {
@@ -1072,38 +1102,38 @@ body.customs-studio-open #tiktok-hud-pill {
   gap: 5px;
   height: 29px;
   padding: 0 10px;
-  border-radius: 7px;
-  background: #131824;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0d121d;
+  border: 1px solid #243044;
   color: #cbd5e1;
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .customs-action-chip:hover {
-  background: #192030;
-  border-color: #ff6b00;
+  background: #141b29;
+  border-color: #d99b16;
   color: #ffffff;
 }
 
 .customs-action-chip.primary {
-  background: rgba(0, 229, 255, 0.12);
-  border-color: rgba(0, 229, 255, 0.45);
-  color: #00e5ff;
+  background: #102033;
+  border-color: #38bdf8;
+  color: #7dd3fc;
 }
 
 .customs-action-chip.primary:hover {
-  background: #00e5ff;
-  border-color: #00e5ff;
-  color: #090d16;
+  background: #38bdf8;
+  border-color: #7dd3fc;
+  color: #04060a;
 }
 
 .customs-dock-footer {
   padding: 10px 12px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #1e283a;
   flex-shrink: 0;
 }
 
@@ -1114,16 +1144,16 @@ body.customs-studio-open #tiktok-hud-pill {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #ff6b00 0%, #ff8533 100%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #090d16;
-  font-family: 'Rajdhani', 'Inter', sans-serif;
-  font-size: 0.86rem;
-  font-weight: 700;
+  background: linear-gradient(135deg, #c28e2b 0%, #d99b16 100%);
+  border: 1px solid #e5b84b;
+  color: #04060a;
+  font-family: 'Chakra Petch', 'Rajdhani', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow: 0 8px 22px rgba(255, 107, 0, 0.32);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  box-shadow: 4px 4px 0 #000000;
   transition: filter 0.15s ease, transform 0.12s ease;
 }
 

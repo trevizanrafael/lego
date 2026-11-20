@@ -133,6 +133,7 @@ export function renderHeroDossierModal(hud, heroKey) {
   if (!modalEl) return;
 
   const info = getHeroInfo(heroKey);
+  modalEl.style?.setProperty?.('--dossier-accent', info.accent);
 
   const codeEl = document.getElementById('dossier-op-code');
   const nameEl = document.getElementById('dossier-hero-name');
@@ -149,7 +150,7 @@ export function renderHeroDossierModal(hud, heroKey) {
   }
   if (nameEl) {
     nameEl.textContent = info.name;
-    nameEl.style.color = info.accent;
+    nameEl.style.color = '#f1f5f9';
   }
   if (roleEl) {
     roleEl.textContent = info.role;
@@ -169,8 +170,8 @@ export function renderHeroDossierModal(hud, heroKey) {
     tabsEl.innerHTML = HERO_CATALOG.map((h) => {
       const isActive = h.key === info.key;
       return `
-        <button class="dossier-tab-btn ${isActive ? 'active' : ''}" data-hero="${h.key}" style="${isActive ? `border-color:${h.accent}; color:${h.accent};` : ''}">
-          <span class="dossier-tab-op">${h.opCode}</span>
+        <button class="dossier-tab-btn ${isActive ? 'active' : ''}" data-hero="${h.key}" style="${isActive ? `border-color:${h.accent}; color:#f8fafc;` : ''}">
+          <span class="dossier-tab-op" style="${isActive ? `color:${h.accent};` : ''}">${h.opCode}</span>
           <span>${h.shortName}</span>
         </button>
       `;
@@ -194,7 +195,7 @@ export function renderHeroDossierModal(hud, heroKey) {
         (c) => `
         <div class="dossier-control-card" style="border-left-color: ${info.accent}">
           <div class="dossier-ctrl-top">
-            <kbd class="dossier-kbd" style="background: ${info.accent}">${c.key}</kbd>
+            <kbd class="dossier-kbd" style="border-color: ${info.accent}; color: ${info.accent}">${c.key}</kbd>
             <span class="dossier-ctrl-title">${c.title}</span>
           </div>
           <div class="dossier-ctrl-desc">${c.desc}</div>

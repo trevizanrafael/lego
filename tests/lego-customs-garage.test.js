@@ -291,7 +291,7 @@ describe('OFICINA DE RUA "LEGO CUSTOMS" (TUNING 0–10, PINTURA, DECALS, MONSTER
     const styleUrl = new URL('../style.css', import.meta.url);
     const cssText = fs.readFileSync(styleUrl, 'utf8').replace(
       /@import\s+url\(['"](\.\/styles\/[^'"]+)['"]\)\s*;/g,
-      (_, relPath) => fs.readFileSync(new URL(relPath, styleUrl), 'utf8')
+      (_, relPath) => fs.readFileSync(new URL(relPath.split('?')[0], styleUrl), 'utf8')
     );
     const htmlText = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 

@@ -12,8 +12,9 @@ export function installOperatorCombatAndVehicleHud(LegoHud) {
         heart.innerHTML = `
           <svg viewBox="0 0 32 30" width="23" height="22">
             <polygon points="16,28 3,15 3,7 8,2 13,2 16,6 19,2 24,2 29,7 29,15"
-              fill="#ef4444" stroke="#090a0d" stroke-width="2.6" stroke-linejoin="miter"/>
-            <polygon points="8,5 12,5 14,8 6,12 6,7" fill="rgba(255,255,255,0.45)"/>
+              fill="#b91c1c" stroke="#04060a" stroke-width="2.6" stroke-linejoin="miter"/>
+            <polygon points="16,25.5 16,7 19,3.5 23.5,3.5 27,7.5 27,14.2" fill="#7f1d1d" opacity="0.55"/>
+            <polygon points="8,5 12,5 14,8 6,12 6,7" fill="rgba(254,202,202,0.22)"/>
           </svg>
         `;
         this.heartsContainer.appendChild(heart);
@@ -359,7 +360,7 @@ export function installOperatorCombatAndVehicleHud(LegoHud) {
     /**
      * Desativado no Modo Livre para manter a tela limpa sem alertas de guerra.
      */
-    showTacticalAlertToast(_code, _title, _subtitle = '', _accentColor = '#facc15', _icon = 'emergency', _durationMs = 3800) {
+    showTacticalAlertToast(_code, _title, _subtitle = '', _accentColor = '#d99b16', _icon = 'emergency', _durationMs = 3800) {
       return;
     },
 

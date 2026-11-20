@@ -16,6 +16,7 @@ import {
 import {
   FACTION_DATA,
   UI_TEXTS,
+  getFreeRoamLogoSvg,
   getFactionLogoSvg,
   loadAllSaveSlots,
   writeSaveSlot,
@@ -124,15 +125,25 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       const slots = loadAllSaveSlots();
       if (!this.saveSlotsGridEl) return;
 
+      const standbyTag = lang === 'en-US' ? 'STANDBY' : 'INATIVO';
+      const activeTag = lang === 'en-US' ? 'ENCRYPTED' : 'GRAVADO';
+      const unregLabel = lang === 'en-US' ? 'UNREGISTERED' : 'NÃO REGISTRADO';
+
       this.saveSlotsGridEl.innerHTML = [0, 1, 2]
         .map((idx) => {
           const s = slots[idx];
           if (!s) {
             return `
-              <div class="save-slot-card">
-                <div class="dossier-tag">SLOT 0${idx + 1}</div>
-                <div class="slot-meta-list" style="padding: 18px 0; color: #94a3b8;">
-                  <span>${t.emptySlot}</span>
+              <div class="save-slot-card empty-slot-card">
+                <div class="slot-header-row">
+                  <div class="dossier-tag">DOSSIÊ // SLOT 0${idx + 1}</div>
+                  <span class="slot-status-tag">${standbyTag}</span>
+                </div>
+                <div class="slot-empty-body">
+                  ${getFreeRoamLogoSvg(54)}
+                  <div class="slot-meta-list slot-empty-copy">
+                    <span>${t.emptySlot}</span>
+                  </div>
                 </div>
                 <div class="slot-actions-row">
                   <button class="tactical-btn" data-slot-action="start-new" data-slot="${idx}">
@@ -143,7 +154,7 @@ export function installTitleAndSaveSlotsController(LegoHud) {
             `;
           }
 
-          const op09Label = s.customHero?.isCreated ? s.customHero.name : 'CIDADÃO COMUM';
+          const op09Label = s.customHero?.isCreated ? s.customHero.name : unregLabel;
           const heroDisplayName =
             s.heroKey === 'op09' ? op09Label : getHeroInfo(s.heroKey || 'caveira').name;
           const fKey = FACTION_DATA[s.faction] ? s.faction : 'cv';
@@ -152,19 +163,25 @@ export function installTitleAndSaveSlotsController(LegoHud) {
             ? new Set([fKey, ...s.conqueredTerritories]).size
             : 1;
           return `
-            <div class="save-slot-card" style="border-top-color:${fData.color}">
+            <div class="save-slot-card" data-faction="${fKey}" style="border-top-color:${fData.color}">
+              <div class="slot-header-row">
+                <div class="dossier-tag">SLOT 0${idx + 1} // ${s.updatedAt || ''}</div>
+                <span class="slot-status-tag active">${activeTag}</span>
+              </div>
               <div class="faction-card-top">
-                ${getFactionLogoSvg(fKey, 58)}
+                ${getFactionLogoSvg(fKey, 60)}
                 <div>
-                  <div class="dossier-tag">SLOT 0${idx + 1} // ${s.updatedAt || ''}</div>
-                  <div class="faction-card-name" style="color:${fData.color}; font-size:1.35rem;">
+                  <div class="faction-card-name" style="color:${fData.color}; font-size:1.38rem;">
                     ${fData.name[lang] || fData.name['pt-BR']}
+                  </div>
+                  <div class="faction-card-fortress">
+                    ${fData.shortName[lang] || fData.shortName['pt-BR']}
                   </div>
                 </div>
               </div>
               <div class="slot-meta-list">
                 <span><b>STUDS:</b> ${(s.studs || 0).toLocaleString('pt-BR')} • <b>BASES:</b> ${conqCount}/3</span>
-                <span><b>ATIVO:</b> ${heroDisplayName} • <b>OP-09:</b> ${op09Label}</span>
+                <span><b>OPERADOR:</b> ${heroDisplayName} • <b>OP-09:</b> ${op09Label}</span>
               </div>
               <div class="slot-actions-row">
                 <button class="tactical-btn" data-slot-action="${mode === 'new' ? 'start-new' : 'load'}" data-slot="${idx}">
@@ -213,6 +230,8 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       this._setTitleSubPanel('faction');
       if (!this.factionCardsGridEl) return;
 
+      const commanderLbl = lang === 'en-US' ? 'WAR COMMANDER' : 'COMANDANTE DE GUERRA';
+
       this.factionCardsGridEl.innerHTML = ['cv', 'pcc', 'ares']
         .map((fKey) => {
           const f = FACTION_DATA[fKey];
@@ -220,8 +239,9 @@ export function installTitleAndSaveSlotsController(LegoHud) {
             <div class="faction-choice-card" data-faction="${fKey}">
               <div>
                 <div class="faction-card-top">
-                  ${getFactionLogoSvg(fKey, 76)}
+                  ${getFactionLogoSvg(fKey, 78)}
                   <div>
+                    <div class="faction-card-code">PROTOCOLO // ${fKey.toUpperCase()}</div>
                     <div class="faction-card-name" style="color:${f.color}">
                       ${f.name[lang] || f.name['pt-BR']}
                     </div>
@@ -230,11 +250,15 @@ export function installTitleAndSaveSlotsController(LegoHud) {
                     </div>
                   </div>
                 </div>
-                <p class="faction-card-desc" style="margin-top:12px;">
+                <div class="faction-card-boss">
+                  <span>${commanderLbl}:</span>
+                  <b>${f.bossName[lang] || f.bossName['pt-BR']}</b>
+                </div>
+                <p class="faction-card-desc">
                   ${f.desc[lang] || f.desc['pt-BR']}
                 </p>
               </div>
-              <button class="tactical-btn" data-choose-faction="${fKey}" style="border-color:${f.color}; color:${f.color}; width:100%;">
+              <button class="tactical-btn faction-select-btn" data-choose-faction="${fKey}" style="border-color:${f.color}; color:${f.color}; width:100%;">
                 ${t.joinFactionBtn}
               </button>
             </div>
@@ -331,7 +355,7 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       const fInfo = FACTION_DATA[chosenFaction];
 
       if (this.loadingFactionLogoEl) {
-        this.loadingFactionLogoEl.innerHTML = getFactionLogoSvg(chosenFaction, 78);
+        this.loadingFactionLogoEl.innerHTML = getFactionLogoSvg(chosenFaction, 80);
       }
       if (this.loadingFactionTitleEl) {
         this.loadingFactionTitleEl.textContent = fInfo.name[lang] || fInfo.name['pt-BR'] || t.subtitle;
@@ -341,16 +365,18 @@ export function installTitleAndSaveSlotsController(LegoHud) {
         const tips =
           lang === 'en-US'
             ? [
-                'Press [E] near any Yellow Taxi, LEGO City Bus, Supercar or Beach Buggy to cruise freely across all 10 Regions!',
-                'Hold [TAB] at any time to open the Hero Wheel in slow-motion and switch between all 8 LEGO Operators!',
-                'With Solaris, double-jump with [SPACE] to hover and hold [SHIFT] for Supersonic Comet Flight across the skyline!',
-                'Open the Full Map with [M] to place 3D Sky Beacons or trigger GTA-style Satellite Fast Travel anywhere!'
+                'Press [E] near any Interceptor, Armored SUV, Tactical Bike or Street Coupe to commandeer vehicles across all 10 Metropolis Sectors.',
+                'Hold [TAB] at any moment to engage the Tactical Wheel in slow-motion and switch between all 8 Elite Operators on the fly.',
+                'With Solaris, double-tap [SPACE] for thermal hover and hold [SHIFT] to tear through the storm in Supersonic Comet Flight.',
+                'Open the Satellite Map with [M] to project 3D Tactical Beacons across the skyline or trigger Rapid Extraction to any sector.',
+                'Crossing into rival strongholds ignites 1v1 turf warfare and deploys War Commanders — use rooftops, alleys and armored convoys.'
               ]
             : [
-                'Aperte [E] perto de qualquer Táxi Amarelo, Ônibus LEGO, Supercarro ou Buggy de Praia para dirigir pelas 10 Regiões!',
-                'Segure [TAB] a qualquer momento para abrir a Roda de Heróis em Câmera Lenta e alternar entre os 8 Operadores LEGO!',
-                'Com o Solaris, aperte [ESPAÇO] duas vezes para pairar e segure [SHIFT] para ativar o Voo Supersônico de Cometa!',
-                'Abra o Mapa Completo com [M] para marcar Feixes de Luz 3D ou fazer Viagem Rápida por Satélite para qualquer bairro!'
+                'Pressione [E] próximo a qualquer Interceptor, SUV Blindado, Moto Tática ou Cupê Urbano para assumir a direção pelas 10 Regiões.',
+                'Segure [TAB] a qualquer instante para acionar o Seletor Tático em câmera lenta e alternar entre os 8 Operadores de Elite.',
+                'Com Solaris, pressione [ESPAÇO] duas vezes para levitação térmica e mantenha [SHIFT] para cortar a tempestade em Voo Supersônico.',
+                'Abra o Mapa Satelital em [M] para projetar Balizas Táticas no horizonte ou acionar Extração Rápida entre os bairros.',
+                'Invadir bastiões rivais deflagra guerra territorial 1x1 e convoca Comandantes de Guerra — domine terraços, becos e blindados.'
               ];
         this.loadingTipTextEl.textContent = tips[Math.floor(Math.random() * tips.length)];
       }
@@ -363,8 +389,8 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       this._setLoadingProgressUI(
         8,
         lang === 'en-US'
-          ? 'POSITIONING OPERATOR & SYNCING METROPOLIS...'
-          : 'POSICIONANDO OPERADOR & SINCRONIZANDO METRÓPOLE...'
+          ? 'DEPLOYING OPERATOR & SYNCING DARK METROPOLIS...'
+          : 'POSICIONANDO OPERADOR & SINCRONIZANDO METRÓPOLE SOMBRIA...'
       );
 
       const nextFrame = (fn, delay = 28) => setTimeout(() => requestAnimationFrame(fn), delay);
@@ -381,7 +407,7 @@ export function installTitleAndSaveSlotsController(LegoHud) {
         return true;
       };
 
-      // ETAPA 1 (0% -> 24%): Inicializa Motor WebGL + Cidade 3D sob demanda, Save, Herói, Corações e Matrizes
+      // ETAPA 1 (0% -> 24%): Inicializa Motor WebGL + Cidade 3D sob demanda, Save, Herói e Matrizes
       nextFrame(() => {
         const engineOk = safeWarmup('init_engine', 0);
         if (!engineOk) {
@@ -428,8 +454,8 @@ export function installTitleAndSaveSlotsController(LegoHud) {
         this._setLoadingProgressUI(
           24,
           lang === 'en-US'
-            ? 'POPULATING SIDEWALKS, TRAFFIC & CITY LIFE...'
-            : 'POPULANDO CALÇADAS, TRÂNSITO & VIDA URBANA...'
+            ? 'MOBILIZING NIGHT TRAFFIC, PATROLS & UNDERWORLD...'
+            : 'MOBILIZANDO TRÁFEGO NOTURNO, PATRULHAS & SUBMUNDO...'
         );
 
         // ETAPA 2 (24% -> 46%): Aquecimento da simulação das facções, carros e partículas
@@ -438,8 +464,8 @@ export function installTitleAndSaveSlotsController(LegoHud) {
           this._setLoadingProgressUI(
             48,
             lang === 'en-US'
-              ? 'COMPILING 3D WEBGL SHADERS & GPU TEXTURES...'
-              : 'COMPILANDO SHADERS 3D & TEXTURAS NA PLACA DE VÍDEO...'
+              ? 'COMPILING PBR NOIR SHADERS & GPU TEXTURES...'
+              : 'COMPILANDO SHADERS PBR SOMBRIOS & TEXTURAS NA GPU...'
           );
 
           // ETAPA 3 (48% -> 68%): Compilação explícita de Shaders WebGL na GPU
@@ -448,8 +474,8 @@ export function installTitleAndSaveSlotsController(LegoHud) {
             this._setLoadingProgressUI(
               68,
               lang === 'en-US'
-                ? 'RENDERING 360° ANTI-STUTTER WARM-UP FRAMES (1/8)...'
-                : 'RENDERIZANDO FRAMES DE AQUECIMENTO 360° ANTI-LAG (1/8)...'
+                ? 'STREAMING 360° URBAN GEOMETRY WARM-UP (1/8)...'
+                : 'AQUECENDO GEOMETRIA URBANA 360° ANTI-ENGASGO (1/8)...'
             );
 
             // ETAPA 4 (68% -> 96%): Renderiza 8 direções (0°..315°) para carregar toda a geometria na VRAM!
@@ -460,8 +486,8 @@ export function installTitleAndSaveSlotsController(LegoHud) {
                 this._setLoadingProgressUI(
                   pct,
                   lang === 'en-US'
-                    ? `RENDERING 360° ANTI-STUTTER WARM-UP FRAMES (${angleIdx + 1}/8)...`
-                    : `RENDERIZANDO FRAMES DE AQUECIMENTO 360° ANTI-LAG (${angleIdx + 1}/8)...`
+                    ? `STREAMING 360° URBAN GEOMETRY WARM-UP (${angleIdx + 1}/8)...`
+                    : `AQUECENDO GEOMETRIA URBANA 360° ANTI-ENGASGO (${angleIdx + 1}/8)...`
                 );
                 nextFrame(() => runAngleStep(angleIdx + 1), 22);
                 return;
@@ -472,8 +498,8 @@ export function installTitleAndSaveSlotsController(LegoHud) {
               this._setLoadingProgressUI(
                 100,
                 lang === 'en-US'
-                  ? 'ALL SYSTEMS READY! ENTERING METROPOLIS...'
-                  : 'TUDO PRONTO! ENTRANDO NA METRÓPOLE...'
+                  ? 'ALL TACTICAL SYSTEMS ONLINE. ENTERING METROPOLIS...'
+                  : 'SISTEMAS OPERACIONAIS. INICIANDO INFILTRAÇÃO...'
               );
 
               nextFrame(() => {

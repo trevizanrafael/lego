@@ -1,15 +1,17 @@
 :root {
-  --bg-asphalt: #090a0d;
-  --bg-panel: #10131a;
-  --bg-card: #151923;
-  --bg-elevated: #1c2230;
-  --border-dim: rgba(148, 163, 184, 0.22);
-  --amber: #facc15;
-  --cyan: #00f0ff;
-  --danger: #ef4444;
-  --success: #22c55e;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
+  --bg-asphalt: #04060a;
+  --bg-panel: #080b12;
+  --bg-card: #0d121d;
+  --bg-elevated: #141b29;
+  --border-dim: #1e283a;
+  --border-titanium: #2c3a52;
+  --amber: #d99b16;
+  --bronze: #c28e2b;
+  --cyan: #7dd3fc;
+  --danger: #dc2626;
+  --success: #10b981;
+  --text-main: #dce3ee;
+  --text-muted: #7a889e;
 }
 
 * {
@@ -21,7 +23,7 @@
 body {
   background: var(--bg-asphalt);
   color: var(--text-main);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Chakra Petch', 'Inter', sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -38,7 +40,7 @@ body {
 
 /* SIDEBAR */
 .configs-sidebar {
-  background: #06070a;
+  background: #05070c;
   border-right: 1px solid var(--border-dim);
   padding: 24px 18px;
   display: flex;
@@ -88,9 +90,9 @@ body {
 
 .nav-item.active {
   color: var(--amber);
-  border-color: rgba(250, 204, 21, 0.4);
+  border-color: var(--border-titanium);
   border-left: 3px solid var(--amber);
-  background: rgba(250, 204, 21, 0.08);
+  background: #101622;
 }
 
 .sidebar-status-box {
@@ -133,8 +135,8 @@ body {
   margin-top: 4px;
   text-align: center;
   padding: 8px 10px;
-  background: #141923;
-  border: 1px solid rgba(250, 204, 21, 0.45);
+  background: var(--bg-elevated);
+  border: 1px solid var(--bronze);
   color: var(--amber);
   text-decoration: none;
   font-family: 'JetBrains Mono', monospace;
@@ -144,7 +146,7 @@ body {
 
 .open-game-link:hover {
   background: var(--amber);
-  color: #090a0d;
+  color: #04060a;
 }
 
 /* ÁREA PRINCIPAL */
@@ -225,18 +227,18 @@ body {
 }
 
 .btn-primary {
-  background: var(--amber);
-  color: #090a0d;
+  background: linear-gradient(135deg, #c28e2b 0%, #d99b16 100%);
+  color: #04060a;
 }
 
 .btn-secondary {
   background: var(--bg-elevated);
-  border-color: rgba(250, 204, 21, 0.45);
+  border-color: var(--bronze);
   color: var(--amber);
 }
 
 .btn-yt-download {
-  background: #ef4444;
+  background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
   color: #ffffff;
   font-weight: 800;
 }
@@ -267,9 +269,9 @@ body {
 
 /* BARRA DO YOUTUBE */
 .youtube-importer-bar {
-  background: linear-gradient(90deg, rgba(239, 68, 68, 0.12) 0%, rgba(16, 19, 26, 0.96) 45%);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  border-left: 4px solid #ef4444;
+  background: linear-gradient(90deg, rgba(153, 27, 27, 0.18) 0%, rgba(8, 11, 18, 0.98) 45%);
+  border: 1px solid #3f1d24;
+  border-left: 4px solid var(--danger);
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -284,8 +286,8 @@ body {
 }
 
 .yt-badge {
-  background: #ef4444;
-  color: #fff;
+  background: var(--danger);
+  color: #ffffff;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.68rem;
   font-weight: 800;
@@ -308,7 +310,7 @@ body {
 .modal-card input,
 .bulk-move-bar select {
   height: 40px;
-  background: #080a0f;
+  background: #04060a;
   border: 1px solid var(--border-dim);
   color: var(--text-main);
   padding: 0 12px;
@@ -326,7 +328,7 @@ body {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.76rem;
   padding: 8px 12px;
-  background: rgba(9, 10, 13, 0.9);
+  background: #05070c;
   border-left: 3px solid var(--amber);
   color: var(--amber);
 }
@@ -349,7 +351,7 @@ body {
   gap: 12px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  background: rgba(16, 19, 26, 0.8);
+  background: var(--bg-panel);
   border: 1px solid var(--border-dim);
 }
 
@@ -380,7 +382,7 @@ body {
 }
 
 .station-column {
-  --st-color: #facc15;
+  --st-color: #d99b16;
   background: var(--bg-panel);
   border: 1px solid var(--border-dim);
   border-top: 4px solid var(--st-color);
@@ -388,14 +390,14 @@ body {
   flex-direction: column;
   min-height: 360px;
   max-height: 72vh;
-  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.65);
+  box-shadow: 6px 6px 0 #000000;
   transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
 }
 
 .station-column.drag-over {
   border-color: var(--st-color);
-  background: rgba(250, 204, 21, 0.07);
-  box-shadow: 0 0 0 2px var(--st-color), 8px 8px 0 rgba(0, 0, 0, 0.8);
+  background: rgba(217, 155, 22, 0.08);
+  box-shadow: 0 0 0 2px var(--st-color), 8px 8px 0 #000000;
 }
 
 .station-header {
@@ -423,7 +425,7 @@ body {
 .station-icon-box {
   width: 38px;
   height: 38px;
-  background: #080a0f;
+  background: #04060a;
   border: 1.5px solid var(--st-color);
   color: var(--st-color);
   display: flex;
@@ -463,7 +465,7 @@ body {
 .icon-btn {
   width: 30px;
   height: 30px;
-  background: #090b10;
+  background: #04060a;
   border: 1px solid var(--border-dim);
   color: var(--text-muted);
   display: inline-flex;
@@ -488,7 +490,7 @@ body {
   justify-content: space-between;
   gap: 8px;
   padding: 5px 8px;
-  background: #080a0f;
+  background: #04060a;
   border-left: 2px solid var(--st-color);
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
@@ -515,11 +517,11 @@ body {
 }
 
 .station-tracks-dropzone::-webkit-scrollbar-thumb {
-  background: #2b3448;
+  background: var(--border-titanium);
 }
 
 .empty-drop-placeholder {
-  border: 1.5px dashed rgba(148, 163, 184, 0.3);
+  border: 1.5px dashed var(--border-titanium);
   padding: 28px 16px;
   text-align: center;
   color: var(--text-muted);
@@ -535,15 +537,15 @@ body {
   gap: 10px;
   padding: 8px 10px;
   background: var(--bg-card);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid var(--border-dim);
   cursor: grab;
   user-select: none;
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
 .track-card:hover {
-  border-color: rgba(250, 204, 21, 0.5);
-  background: #1a202e;
+  border-color: var(--bronze);
+  background: var(--bg-elevated);
 }
 
 .track-card.dragging {
@@ -562,8 +564,8 @@ body {
   width: 48px;
   height: 48px;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: #06070a;
+  border: 1px solid var(--border-titanium);
+  background: #04060a;
 }
 
 .track-info {
@@ -577,7 +579,7 @@ body {
   font-family: 'Chakra Petch', sans-serif;
   font-size: 0.84rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -604,8 +606,8 @@ body {
   left: 260px;
   right: 0;
   height: 66px;
-  background: #06080c;
-  border-top: 2px solid var(--amber);
+  background: #05070c;
+  border-top: 2px solid var(--bronze);
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -617,7 +619,7 @@ body {
   width: 44px;
   height: 44px;
   object-fit: cover;
-  border: 1px solid var(--amber);
+  border: 1px solid var(--bronze);
 }
 
 .preview-meta {
@@ -648,7 +650,7 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 6, 9, 0.84);
+  background: rgba(4, 6, 10, 0.88);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -660,12 +662,13 @@ body {
   width: 100%;
   max-width: 460px;
   background: var(--bg-panel);
-  border: 1.5px solid rgba(250, 204, 21, 0.45);
+  border: 1.5px solid var(--border-titanium);
+  border-left: 4px solid var(--bronze);
   padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.85);
+  box-shadow: 10px 10px 0 #000000;
 }
 
 .modal-kicker {
@@ -710,7 +713,7 @@ body {
 }
 
 .color-swatch.active {
-  border-color: #ffffff;
+  border-color: #dce3ee;
   transform: scale(1.12);
 }
 
@@ -722,7 +725,7 @@ body {
 
 .icon-choice {
   height: 38px;
-  background: #080a0f;
+  background: #04060a;
   border: 1px solid var(--border-dim);
   color: var(--text-muted);
   display: flex;
@@ -739,7 +742,7 @@ body {
 .icon-choice.active {
   border-color: var(--amber);
   color: var(--amber);
-  background: rgba(250, 204, 21, 0.12);
+  background: var(--bg-elevated);
 }
 
 .track-edit-cover-row {
@@ -752,7 +755,7 @@ body {
   width: 72px;
   height: 72px;
   object-fit: cover;
-  border: 1.5px solid var(--amber);
+  border: 1.5px solid var(--bronze);
 }
 
 .small-muted {

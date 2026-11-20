@@ -1,75 +1,92 @@
-# 🎯 Manual de Identidade Visual (`IDV.md`) — LEGO: Cidade de Deus
+# 🦇 Manual de Identidade Visual (`IDV.md`) — Gotham Dark Theme (Arkham Tactical Noir)
 
-Este documento define o **Design System e Identidade Visual (IDV)** oficial de **LEGO: Cidade de Deus**. Todas as interfaces (HUD, Minimapa, Grade de Heróis, Alertas de Facções, Terminais de Veículos e Menus) dos Passos 1 a 10 **devem seguir rigorosamente estas regras**.
-
----
-
-## 🚫 1. O Que é PROIBIDO (Anti-Clichês de IA)
-
-Para garantir cara de **jogo AAA real (Valorant / GTA / Tropa de Elite + LEGO)** e eliminar qualquer aparência de "dashboard gerado por IA":
-1. **PROIBIDO `border-radius: 999px` (Pílulas redondas):** Nenhum elemento de UI pode ser uma pílula ovalada de site web.
-2. **PROIBIDO Glassmorphism genérico (`backdrop-filter: blur` com fundo azulado translúcido):** Use superfícies sólidas ou quase opacas em **Preto Asfalto (`#0a0b0e`)** e **Carbono Tático (`#13161f`)** com contraste seco.
-3. **PROIBIDO sombras esfumaçadas suaves (`box-shadow: 0 10px 30px rgba(...)`):** Use sombras duras geométricas (`4px 4px 0px #000000`) ou filetes técnicos de `1px` / `2px`.
-4. **PROIBIDO poluição visual na tela:** Durante o gameplay, a tela deve ser **limpa**. Atalhos de teclado extensos ficam ocultos por padrão e só aparecem ao pressionar **`[H]`**.
+Este documento define o **Design System e Identidade Visual (IDV)** oficial de **LEGO: Cidade de Deus — Guerra Urbana**. Todas as interfaces (Chassi da HUD, Radar/Minimapa, Mapa Satélite, Roda de Operadores, Alertas de Procurado, Oficinas, Hangar, Rádio e Menus) **devem seguir rigorosamente estas diretrizes**.
 
 ---
 
-## 🎨 2. Paleta de Cores Oficial (Dark Gotham / Syndicate Tech — Alto Contraste Sombrio)
+## 🚫 1. O Que é PROIBIDO (Anti-Clichês de IA & Anti-Visual Infantil)
 
-A direção visual combina **estética tática sombria estilo *Gotham Noir / LEGO DC Super-Villains / BOPE*** com metais escuros, concreto úmido, vermelho arterial e âmbar de vapor de sódio (evitando amarelos/azuis infantis saturados):
+Para garantir estética **AAA Sombria (Arkham Knight / LEGO DC Super-Villains / Valorant / BOPE Noir)** e eliminar qualquer aparência de dashboard genérico ou brinquedo infantil:
+1. **PROIBIDO `border-radius: 999px` (Pílulas redondas):** Nenhum botão, carteira, barra ou indicador pode ser uma pílula ovalada.
+2. **PROIBIDO Glassmorphism genérico (`backdrop-filter: blur` translúcido esbranquiçado):** Use placas blindadas sólidas ou quase opacas em **Obsidiana (`#04060a`)**, **Noite Asfalto (`#080b12`)** e **Aço Noturno (`#0d121d`)** com contraste metálico seco.
+3. **PROIBIDO amarelo brinquedo (`#facc15`) e pinos/studs de plástico infantil na UI:** Moedas, estrelas de procurado e destaques usam **Bronze/Âmbar de Sódio (`#c28e2b` / `#d99b16`)**, **Carmesim Arterial (`#991b1b` / `#dc2626`)** e **Aço Glacial Batcomputador (`#7dd3fc` / `#38bdf8`)**, com insígnias octogonais e rebites táticos escuros.
+4. **PROIBIDO sombras esfumaçadas suaves:** Priorize sombras geométricas pretas duras (`4px 4px 0 #000000`, `6px 6px 0 #000000`) e filetes metálicos cirúrgicos de `1px` a `4px`.
+5. **PROIBIDO poluição visual durante o gameplay:** A tela de combate permanece limpa e letal; fichas detalhadas de comandos abrem sob demanda em **`[H]`**.
 
-| Token CSS | Hex | Uso na Interface e Mundo |
+---
+
+## 🎨 2. Paleta de Cores Oficial (Gotham Dark Theme / Arkham Tactical Noir)
+
+A direção de arte combina **arquitetura gótica brutalista e equipamento tático noturno** — obsidiana profunda, gunmetal escovado, vapor de sódio oxidado, vermelho arterial e telemetria glacial:
+
+### 2.1 Fundos Abissais & Chassis
+| Token CSS | Hex | Função na Interface |
 | :--- | :---: | :--- |
-| `--idv-black` | `#07080b` | Preto Abissal / Asfalto Molhado (Fundos principais e contornos secos) |
-| `--idv-carbon` | `#10131a` | Aço Carbono Escuro (Superfícies internas de chassis e painéis) |
-| `--idv-steel` | `#222733` | Grafite Blindado (Divisórias técnicas, molduras de radar e rebites) |
-| `--idv-alert` | `#d99b16` | **Âmbar Tático / Ouro Velho** (Destaques operacionais sem cara de brinquedo) |
-| `--idv-amber` | `#c25115` | Vapor de Sódio / Ferrugem Quente (Energia, alertas secundários e luzes) |
-| `--idv-crimson` | `#b91c1c` | Vermelho Sangue / Operacional (Dano, ameaça crítica e facção CV) |
-| `--idv-white` | `#dce2ec` | Branco Frio Acinzentado (Tipografia principal sem estourar) |
-| `--idv-muted` | `#7c8798` | Cinza Chumbo (Rótulos secundários, telemetria e códigos `[OP-01]`) |
+| `--gotham-obsidian` / `--idv-black` | `#04060a` | **Obsidiana Abissal** — Fundo primário, cavidades de barras e recortes secos |
+| `--gotham-asphalt` / `--idv-asphalt` | `#080b12` | **Noite Asfalto** — Base de botões táticos, slots e subpainéis |
+| `--gotham-night-steel` / `--idv-carbon` | `#0d121d` | **Aço Noturno** — Superfícies internas de chassis, cards e mostradores |
+| `--gotham-gunmetal` / `--idv-gunmetal` | `#141b29` | **Gunmetal Blindado** — Estados ativos, hover metálico e cabeçalhos |
+
+### 2.2 Bordas Metálicas & Estrutura
+| Token CSS | Hex | Função na Interface |
+| :--- | :---: | :--- |
+| `--gotham-border-steel` / `--idv-steel` | `#1e283a` | **Aço Escovado** — Molduras estruturais, grades técnicas e divisórias |
+| `--gotham-border-titanium` / `--idv-titanium` | `#2c3a52` | **Titânio Escuro** — Bordas enfatizadas, foco tático e cantoneiras |
+
+### 2.3 Acentos Cirúrgicos Sombrios & Tipografia
+| Token CSS | Hex | Função na Interface |
+| :--- | :---: | :--- |
+| `--gotham-bronze` / `--idv-bronze` | `#c28e2b` | **Bronze Tático / Ouro-Velho** — Filetes nobres, insígnias e estrelas ativas |
+| `--gotham-amber` / `--idv-alert` | `#d99b16` | **Âmbar de Sódio** — Destaques operacionais, chaves de comando e alertas |
+| `--gotham-crimson-dark` / `--idv-crimson-deep` | `#991b1b` | **Sangue Escuro** — Base da barra de blindagem/HP e alertas severos |
+| `--gotham-crimson` / `--idv-crimson` | `#dc2626` | **Carmesim Arterial** — Dano crítico, mira letal, sirene policial e facção CV |
+| `--gotham-ice` / `--idv-ice` | `#7dd3fc` | **Aço Glacial** — Telemetria do Batcomputador, frequências e leitura fria |
+| `--gotham-bat-cyan` / `--idv-cyan` | `#38bdf8` | **Ciano Tático Frio** — Satélite, propulsão nitro, fuga policial e diagnósticos |
+| `--idv-white` | `#dce3ee` | **Branco Frio Metálico** — Títulos e leitura primária sem estourar o brilho |
+| `--idv-muted` | `#7a889e` | **Cinza Chumbo** — Subtítulos técnicos, unidades e códigos `[OP-01]` |
 
 ---
 
 ## 🔤 3. Tipografia Oficial
 
 Importada via Google Fonts em `index.html`:
-* **Títulos, Nomes de Heróis e Contador de Studs:** `'Teko'` / `'Chakra Petch'` (Caixa alta, condensada, forte, com `letter-spacing: 0.06em` e sombra dura `2px 2px 0 #000`).
-* **Dados Técnicos, Teclas, FPS e Coordenadas:** `'Chakra Petch'` / `'JetBrains Mono'` (`font-variant-numeric: tabular-nums`).
+* **Títulos, Operadores, Velocímetro e Contadores (`--font-display`):** `'Teko'` / `'Chakra Petch'` — Caixa alta condensada, peso `700`, `letter-spacing: 0.05em` e sombra geométrica seca `2px 2px 0 #000000`.
+* **Botões, Rótulos Operacionais e Menus (`--font-tactical`):** `'Chakra Petch'` — Peso `600`/`700`, leitura militar nítida.
+* **Telemetria, Teclas, Coordenadas e Relógios (`--font-mono`):** `'JetBrains Mono'` — Peso `700`/`800`, `font-variant-numeric: tabular-nums`.
 
 ---
 
 ## 📐 4. Geometria Angular & Chanfros em 45°
 
-Todos os contêineres da UI utilizam **cortes angulares em 45° (`clip-path`)** ou **paralelogramos inclinados (`skewX(-16deg)`)**:
+Todos os contêineres, botões, notificações e modais utilizam **cortes chanfrados secos em 45° (`clip-path`)** ou **segmentos inclinados (`skewX(-18deg)`)**:
 
-* **Corte Tático Padrão (Chanfro Diagonal):**
+* **Chassi Chanfrado Padrão:**
   ```css
   clip-path: polygon(
-    12px 0,
-    100% 0,
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%,
-    0 100%,
-    0 12px
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    12px 100%,
+    0 calc(100% - 12px)
   );
   ```
-* **Segmentos de Barra (Paralelogramos de Munição/Progresso):**
-  * Blocos inclinados em `transform: skewX(-18deg)` com espaçamento seco de `4px`.
+* **Segmentos de Barra (HP, RPM, Progresso e Objetivos):**
+  * Paralelogramos inclinados em `transform: skewX(-18deg)` sobre cavidade obsidiana `#04060a` com entalhes escuros secos.
 
 ---
 
-## 🖥️ 5. Arquitetura da HUD (Tela Limpa de Jogo Real)
+## 🖥️ 5. Arquitetura da HUD (Chassi Blindado Gotham)
 
-1. **Canto Superior Esquerdo — Bloco do Operador (HUD LEGO Tática):**
-   * **Retrato em Moldura Octogonal Chanfrada (`72x72px`)** com borda dupla Amarelo Alerta (`#facc15`) e tag tática (`OP-01 // BOPE` ou `OP-02 // SOLAR`).
-   * **4 Corações de LEGO Facetados** logo ao lado do retrato.
-   * **Contador de Studs Solto na Tela:** Moeda LEGO facetada + número grande em fonte tática com contorno preto sólido (sem caixa de fundo prendendo o número).
-2. **Topo Central — Régua Compacta *True Hero*:**
-   * 10 blocos paralelogramos finos (`skewX(-18deg)`) + percentual técnico ao lado.
-3. **Centro da Tela — Mira Tática (Estilo Valorant / Fortnite):**
-   * Ponto central de `4px` + 4 hastes finas de precisão com contorno preto seco de `1px` para leitura perfeita contra qualquer cor de prédio ou céu.
-4. **Canto Inferior Esquerdo/Direito — Micro-Indicadores & Menu `[H]`:**
-   * Apenas duas micro-etiquetas angulares discretas no canto inferior: `[TAB] TROCAR HERÓI` e `[H] COMANDOS`.
-   * Pressionar **`H`** abre/fecha o quadro tático de comandos.
-
+1. **Canto Superior Esquerdo — Chassi Blindado do Operador (`#lego-classic-hud`):**
+   * Placa chanfrada em obsidiana `#04060a` -> `#0a0e17` com borda gunmetal `#1d2638` e filete cirúrgico lateral `--hero-accent`.
+   * **Retrato Tático (`78x78px`)** com cantoneiras metálicas afiadas e código `OP-01`.
+   * **Barra Dupla de Blindagem/HP** inclinada com *ghost-damage* glacial, preenchimento carmesim arterial (`#991b1b` -> `#dc2626`) e entalhes táticos.
+   * **Faixa de Habilidades (`#hud-ability-strip`)** em chips de aço noturno `#0a0e17` + **Insígnia Octogonal Metálica (`#hud-stud-coin`)** em ouro-velho, platina, safira noturna ou ametista.
+2. **Canto Superior Direito — Caçada Policial, Arsenal, Rádio & Velocímetro:**
+   * **Alerta Policial de Gotham (`#hud-wanted-panel`):** Oculto em `0★`; chassi `#05070c` com barra lateral pulsante vermelho-policial `#dc2626` / azul-giroflex `#2563eb` e 5 estrelas táticas com núcleo metálico escuro.
+   * **Silhuetas de Arsenal (`#vingador-weapon-hud`), Rádio Ao Vivo (`#hud-tiktok-radio-pill`) e Velocímetro Digital (`#vehicle-speedometer`)** unificados em obsidiana, gunmetal e bronze/aço glacial.
+3. **Centro da Tela — Mira Tática de Precisão (`#crosshair`):**
+   * Ponto central em âmbar de sódio `#d99b16` + 4 hastes metálicas `#dce3ee` com contorno preto seco `#04060a`.
+4. **Rodapé Tático — Micro-Chips & Radar Sombrio (`#minimap-container`):**
+   * Micro-indicadores angulares discretos à esquerda (`[TAB] OPERADOR`, `[Z] RÁDIO`, `[M] MAPA`, `[H] DOSSIÊ`) e radar sombrio chanfrado à direita com coordenadas em tempo real.

@@ -1,8 +1,8 @@
-@import url('./styles/tokens-and-base.css');
-@import url('./styles/operator-hud.css');
-@import url('./styles/wheel-map-dossier.css');
-@import url('./styles/title-and-menus.css');
-@import url('./styles/garages-and-lab.css');
-@import url('./styles/wanted-and-objectives.css');
-@import url('./styles/aircraft-hangar.css');
-@import url('./styles/gta6-radio-hud.css');
+@import url('./styles/tokens-and-base.css?v=20261120c');
+@import url('./styles/operator-hud.css?v=20261120c');
+@import url('./styles/wheel-map-dossier.css?v=20261120c');
+@import url('./styles/title-and-menus.css?v=20261120c');
+@import url('./styles/garages-and-lab.css?v=20261120c');
+@import url('./styles/wanted-and-objectives.css?v=20261120c');
+@import url('./styles/aircraft-hangar.css?v=20261120c');
+@import url('./styles/gta6-radio-hud.css?v=20261120c');

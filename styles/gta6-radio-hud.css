@@ -1,20 +1,20 @@
 /* ============================================================================
    RODA RADIAL DE ESTAÇÕES & HUD CONTEXTUAL AO VIVO ESTILO GTA 6
-   (Estética Tático Urbano Angular — Zero controles de pular música)
+   (Gotham Dark Theme — Obsidiana #05070c, Bronze #d99b16 & Aço Glacial #7dd3fc)
    ============================================================================ */
 
 .hud-tiktok-radio-pill {
-  --radio-accent: #facc15;
+  --radio-accent: #d99b16;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-height: 34px;
   padding: 4px 10px;
-  background: rgba(9, 10, 13, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: linear-gradient(135deg, rgba(5, 7, 12, 0.95) 0%, rgba(13, 18, 29, 0.93) 100%);
+  border: 1px solid #1e283a;
   border-left: 3px solid var(--radio-accent);
   clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.72);
+  box-shadow: 4px 4px 0 #000000;
   pointer-events: auto;
   cursor: pointer;
   user-select: none;
@@ -22,27 +22,28 @@
 }
 
 .hud-tiktok-radio-pill:not(.playing) {
-  opacity: 0.72;
+  opacity: 0.78;
 }
 
 .hud-tiktok-radio-pill:hover {
   opacity: 1;
-  border-color: var(--radio-accent);
+  border-color: #2c3a52;
+  border-left-color: var(--radio-accent);
   transform: translateY(-1px);
 }
 
 .hud-tiktok-radio-pill.playing {
   padding: 5px 12px 5px 6px;
   max-width: 286px;
-  border-color: rgba(250, 204, 21, 0.45);
+  border-color: #2c3a52;
   border-left: 3px solid var(--radio-accent);
 }
 
 .tiktok-pill-key {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 800;
-  color: #cbd5e1;
+  color: #9aa7ba;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -56,8 +57,8 @@
   width: 36px;
   height: 36px;
   flex-shrink: 0;
-  background: #050608;
-  border: 1px solid var(--radio-accent);
+  background: #04060a;
+  border: 1px solid #2c3a52;
   overflow: hidden;
 }
 
@@ -87,7 +88,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.62rem;
   font-weight: 800;
-  color: var(--radio-accent);
+  color: #7dd3fc;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -99,7 +100,7 @@
   font-family: 'Chakra Petch', sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: #dce3ee;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -107,10 +108,10 @@
 }
 
 .hud-radio-artist-sub {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Chakra Petch', 'Inter', sans-serif;
   font-size: 0.66rem;
   font-weight: 600;
-  color: #94a3b8;
+  color: #7a889e;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -124,11 +125,11 @@
   gap: 10px;
   padding: 8px 14px 8px 8px;
   max-width: 330px;
-  background: rgba(9, 10, 13, 0.96);
-  border: 1px solid rgba(250, 204, 21, 0.45);
-  border-left: 4px solid #facc15;
+  background: linear-gradient(135deg, rgba(5, 7, 12, 0.97) 0%, rgba(13, 18, 29, 0.95) 100%);
+  border: 1.5px solid #1e283a;
+  border-left: 4px solid #d99b16;
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.8);
+  box-shadow: 6px 6px 0 #000000;
   pointer-events: none;
 }
 
@@ -136,7 +137,7 @@
   width: 44px;
   height: 44px;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid #2c3a52;
   flex-shrink: 0;
 }
 
@@ -149,9 +150,9 @@
 
 .tiktok-toast-station {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.66rem;
+  font-size: 0.65rem;
   font-weight: 800;
-  color: #facc15;
+  color: #7dd3fc;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -160,16 +161,16 @@
   font-family: 'Chakra Petch', sans-serif;
   font-size: 0.86rem;
   font-weight: 700;
-  color: #ffffff;
+  color: #dce3ee;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .tiktok-toast-artist {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Chakra Petch', 'Inter', sans-serif;
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: #7a889e;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -185,7 +186,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at center, rgba(9, 10, 13, 0.55) 0%, rgba(5, 6, 9, 0.86) 100%);
+  background: radial-gradient(circle at center, rgba(5, 7, 12, 0.66) 0%, rgba(3, 4, 8, 0.92) 100%);
   pointer-events: auto;
   user-select: none;
 }
@@ -208,8 +209,8 @@ body.gta6-radio-wheel-active #crosshair {
   width: 384px;
   height: 384px;
   border-radius: 50%;
-  border: 1.5px dashed rgba(148, 163, 184, 0.24);
-  box-shadow: inset 0 0 48px rgba(0, 0, 0, 0.65);
+  border: 1.5px dashed rgba(125, 211, 252, 0.2);
+  box-shadow: inset 0 0 52px rgba(0, 0, 0, 0.8);
   pointer-events: none;
 }
 
@@ -231,10 +232,11 @@ body.gta6-radio-wheel-active #crosshair {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  background: rgba(11, 14, 20, 0.94);
-  border: 2px solid rgba(148, 163, 184, 0.32);
+  background: linear-gradient(145deg, rgba(8, 11, 18, 0.96) 0%, rgba(16, 22, 34, 0.94) 100%);
+  border: 1.5px solid #1e283a;
   clip-path: polygon(14% 0, 86% 0, 100% 14%, 100% 86%, 86% 100%, 14% 100%, 0 86%, 0 14%);
-  color: #cbd5e1;
+  color: #9aa7ba;
+  box-shadow: 4px 4px 0 #000000;
   cursor: pointer;
   pointer-events: auto;
   transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
@@ -243,10 +245,10 @@ body.gta6-radio-wheel-active #crosshair {
 .gta6-wheel-node:hover,
 .gta6-wheel-node.is-active {
   transform: translate(calc(-50% + var(--node-x)), calc(-50% + var(--node-y))) scale(1.15);
-  background: #090a0d;
-  border-color: var(--station-color, #facc15);
-  color: var(--station-color, #facc15);
-  box-shadow: 0 0 22px rgba(250, 204, 21, 0.25);
+  background: #05070c;
+  border-color: var(--station-color, #d99b16);
+  color: var(--station-color, #d99b16);
+  box-shadow: 0 0 18px rgba(217, 155, 22, 0.22), 5px 5px 0 #000000;
   z-index: 4;
 }
 
@@ -279,10 +281,11 @@ body.gta6-radio-wheel-active #crosshair {
   z-index: 3;
   width: 256px;
   padding: 16px 18px;
-  background: rgba(9, 10, 13, 0.96);
-  border: 1.5px solid rgba(250, 204, 21, 0.42);
+  background: linear-gradient(145deg, rgba(5, 7, 12, 0.98) 0%, rgba(13, 18, 29, 0.96) 100%);
+  border: 1.5px solid #2c3a52;
+  border-top: 3px solid #c28e2b;
   clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
-  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.85);
+  box-shadow: 8px 8px 0 #000000;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -294,7 +297,7 @@ body.gta6-radio-wheel-active #crosshair {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.72rem;
   font-weight: 800;
-  color: #facc15;
+  color: #7dd3fc;
   letter-spacing: 0.1em;
 }
 
@@ -304,7 +307,7 @@ body.gta6-radio-wheel-active #crosshair {
   font-weight: 700;
   line-height: 0.95;
   letter-spacing: 0.04em;
-  color: #ffffff;
+  color: #dce3ee;
   text-transform: uppercase;
 }
 
@@ -312,7 +315,7 @@ body.gta6-radio-wheel-active #crosshair {
   font-family: 'Chakra Petch', sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: #7a889e;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -321,8 +324,8 @@ body.gta6-radio-wheel-active #crosshair {
   width: 88px;
   height: 88px;
   margin: 4px 0;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background: #050608;
+  border: 1.5px solid #2c3a52;
+  background: #04060a;
   overflow: hidden;
 }
 
@@ -337,7 +340,7 @@ body.gta6-radio-wheel-active #crosshair {
   font-family: 'Chakra Petch', sans-serif;
   font-size: 0.84rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: #dce3ee;
   max-width: 220px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -346,9 +349,9 @@ body.gta6-radio-wheel-active #crosshair {
 }
 
 .gta6-wheel-track-artist {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Chakra Petch', 'Inter', sans-serif;
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: #7a889e;
   max-width: 220px;
   white-space: nowrap;
   overflow: hidden;
@@ -358,7 +361,8 @@ body.gta6-radio-wheel-active #crosshair {
 .gta6-wheel-live-bar {
   width: 100%;
   height: 3px;
-  background: rgba(148, 163, 184, 0.2);
+  background: #080b12;
+  border: 1px solid #1e283a;
   margin-top: 4px;
   overflow: hidden;
 }
@@ -366,7 +370,7 @@ body.gta6-radio-wheel-active #crosshair {
 .gta6-wheel-live-fill {
   height: 100%;
   width: 0%;
-  background: #facc15;
+  background: linear-gradient(90deg, #c28e2b 0%, #7dd3fc 100%);
   transition: width 0.25s linear;
 }
 
@@ -384,14 +388,15 @@ body.gta6-radio-wheel-active #crosshair {
   transform: translateX(-50%);
   white-space: nowrap;
   padding: 5px 14px;
-  background: rgba(9, 10, 13, 0.92);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #05070c;
+  border: 1px solid #1e283a;
+  box-shadow: 4px 4px 0 #000000;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.68rem;
-  color: #cbd5e1;
+  color: #9aa7ba;
   letter-spacing: 0.05em;
 }
 
 .gta6-wheel-footer-hint b {
-  color: #facc15;
+  color: #d99b16;
 }

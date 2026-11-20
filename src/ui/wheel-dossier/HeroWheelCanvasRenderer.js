@@ -12,7 +12,7 @@ export const HERO_CATALOG = [
     shortName: 'CAVEIRA',
     name: 'COMANDANTE CAVEIRA',
     role: 'OPERAÇÕES ESPECIAIS // BOPE',
-    accent: '#facc15',
+    accent: '#d99b16',
     icon: 'shield',
     specialty: '',
     passive: '',
@@ -115,652 +115,866 @@ export function getHeroInfo(heroKey) {
   return HERO_CATALOG.find((h) => h.key === heroKey) || HERO_CATALOG[0];
 }
 
+const PORTRAIT_THEMES = {
+  caveira: {
+    rim: 'rgba(217, 155, 22, 0.58)',
+    diag: 'rgba(217, 155, 22, 0.13)',
+    aura: 'rgba(217, 155, 22, 0.16)',
+    head: '#b58863',
+    headShade: '#8c6240',
+    torso: '#0b0f17'
+  },
+  solaris: {
+    rim: 'rgba(249, 115, 22, 0.65)',
+    diag: 'rgba(234, 88, 12, 0.16)',
+    aura: 'rgba(234, 88, 12, 0.22)',
+    head: '#9a4818',
+    headShade: '#692c0c',
+    torso: '#450a0a'
+  },
+  tita: {
+    rim: 'rgba(239, 68, 68, 0.62)',
+    diag: 'rgba(220, 38, 38, 0.15)',
+    aura: 'rgba(220, 38, 38, 0.18)',
+    head: '#273244',
+    headShade: '#171f2c',
+    torso: '#1e293b'
+  },
+  vingador: {
+    rim: 'rgba(226, 232, 240, 0.54)',
+    diag: 'rgba(148, 163, 184, 0.13)',
+    aura: 'rgba(148, 163, 184, 0.15)',
+    head: '#bfa084',
+    headShade: '#8f735b',
+    torso: '#090c12'
+  },
+  sombra: {
+    rim: 'rgba(239, 68, 68, 0.64)',
+    diag: 'rgba(185, 28, 28, 0.16)',
+    aura: 'rgba(185, 28, 28, 0.2)',
+    head: '#07090e',
+    headShade: '#030407',
+    torso: '#13070b'
+  },
+  turbo: {
+    rim: 'rgba(34, 211, 238, 0.68)',
+    diag: 'rgba(6, 182, 212, 0.16)',
+    aura: 'rgba(6, 182, 212, 0.22)',
+    head: '#cbd5e1',
+    headShade: '#94a3b8',
+    torso: '#090d14'
+  },
+  voltaico: {
+    rim: 'rgba(56, 189, 248, 0.66)',
+    diag: 'rgba(56, 189, 248, 0.16)',
+    aura: 'rgba(14, 165, 233, 0.2)',
+    head: '#1e293b',
+    headShade: '#0f172a',
+    torso: '#0f172a'
+  },
+  vortex: {
+    rim: 'rgba(168, 85, 247, 0.64)',
+    diag: 'rgba(147, 51, 234, 0.16)',
+    aura: 'rgba(126, 34, 206, 0.22)',
+    head: '#05060a',
+    headShade: '#020305',
+    torso: '#05060a'
+  }
+};
+
+function traceChamferedBox(ctx, x, y, w, h, cut) {
+  ctx.beginPath();
+  ctx.moveTo(x + cut, y);
+  ctx.lineTo(x + w - cut, y);
+  ctx.lineTo(x + w, y + cut);
+  ctx.lineTo(x + w, y + h - cut);
+  ctx.lineTo(x + w - cut, y + h);
+  ctx.lineTo(x + cut, y + h);
+  ctx.lineTo(x, y + h - cut);
+  ctx.lineTo(x, y + cut);
+  ctx.closePath();
+}
+
 /**
- * Desenha o retrato 2D LEGO de qualquer herói em um contexto 2D de Canvas
+ * Desenha o retrato 2D Gotham Noir (studless, chiaroscuro e rim-light) de qualquer operador
  */
 export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
   if (presetKey === 'op09') {
     drawOp09Portrait2D(ctx, w, h);
     return;
   }
+
+  const theme = PORTRAIT_THEMES[presetKey] || PORTRAIT_THEMES.caveira;
   ctx.clearRect(0, 0, w, h);
 
-  ctx.fillStyle = '#0d1017';
+  // 1. Fundo Gotham Noir Cinematográfico (#04060a -> #0b101b)
+  if (typeof ctx.createLinearGradient === 'function') {
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    bgGrad.addColorStop(0, '#04060a');
+    bgGrad.addColorStop(0.58, '#080c15');
+    bgGrad.addColorStop(1, '#0b101b');
+    ctx.fillStyle = bgGrad;
+  } else {
+    ctx.fillStyle = '#060911';
+  }
   ctx.fillRect(0, 0, w, h);
 
-  const bgStroke =
-    presetKey === 'solaris' ? 'rgba(245, 158, 11, 0.25)' :
-    presetKey === 'tita' ? 'rgba(239, 68, 68, 0.28)' :
-    presetKey === 'sombra' ? 'rgba(239, 68, 68, 0.25)' :
-    presetKey === 'vingador' ? 'rgba(203, 213, 225, 0.22)' :
-    presetKey === 'turbo' ? 'rgba(34, 211, 238, 0.28)' :
-    presetKey === 'voltaico' ? 'rgba(56, 189, 248, 0.28)' :
-    presetKey === 'vortex' ? 'rgba(168, 85, 247, 0.28)' :
-    'rgba(250, 204, 21, 0.18)';
-  ctx.strokeStyle = bgStroke;
-  ctx.lineWidth = Math.max(3, w * 0.075);
+  if (typeof ctx.createRadialGradient === 'function') {
+    const auraGrad = ctx.createRadialGradient(w * 0.44, h * 0.42, w * 0.04, w * 0.5, h * 0.46, w * 0.62);
+    auraGrad.addColorStop(0, theme.aura);
+    auraGrad.addColorStop(1, 'rgba(4, 6, 10, 0)');
+    ctx.fillStyle = auraGrad;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  // Linhas táticas diagonais discretas em baixa opacidade
+  ctx.strokeStyle = theme.diag;
+  ctx.lineWidth = Math.max(1, w * 0.022);
   ctx.beginPath();
-  ctx.moveTo(0, h * 0.75);
-  ctx.lineTo(w * 0.75, 0);
-  ctx.moveTo(w * 0.25, h);
-  ctx.lineTo(w, h * 0.25);
+  ctx.moveTo(0, h * 0.68);
+  ctx.lineTo(w * 0.68, 0);
+  ctx.moveTo(w * 0.18, h);
+  ctx.lineTo(w, h * 0.18);
+  ctx.moveTo(w * 0.56, h);
+  ctx.lineTo(w, h * 0.56);
   ctx.stroke();
 
   const scale = w / 76;
   ctx.save();
   ctx.scale(scale, scale);
 
-  // Pino superior LEGO (Stud)
-  ctx.fillStyle =
-    presetKey === 'tita' ? '#dc2626' :
-    presetKey === 'sombra' || presetKey === 'vortex' ? '#090a0d' :
-    presetKey === 'turbo' ? '#22d3ee' :
-    presetKey === 'voltaico' ? '#38bdf8' :
-    '#eab308';
-  ctx.strokeStyle = '#090a0d';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.roundRect(76 * 0.37, 9, 76 * 0.26, 9, 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Cabeça cilíndrica LEGO
-  ctx.fillStyle =
-    presetKey === 'tita' ? '#334155' :
-    presetKey === 'sombra' || presetKey === 'vortex' ? '#090a0d' :
-    presetKey === 'turbo' ? '#e0f2fe' :
-    presetKey === 'voltaico' ? '#1e293b' :
-    '#facc15';
-  ctx.beginPath();
-  ctx.roundRect(76 * 0.22, 17, 76 * 0.56, 38, 6);
-  ctx.fill();
-  ctx.stroke();
-
-  // Ombros / Torso superior
-  ctx.fillStyle =
-    presetKey === 'solaris' ? '#7f1d1d' :
-    presetKey === 'tita' ? '#f8fafc' :
-    presetKey === 'sombra' ? '#991b1b' :
-    presetKey === 'voltaico' ? '#1d4ed8' :
-    '#171717';
-  ctx.beginPath();
-  ctx.roundRect(76 * 0.14, 54, 76 * 0.72, 24, 4);
-  ctx.fill();
-  ctx.stroke();
-
-  if (presetKey === 'caveira') {
-    // Boina Preta Oficial do BOPE inclinada + Insígnia Faca na Caveira Dourada
-    ctx.fillStyle = '#090a0d';
+  // Aura traseira específica antes da cabeça (Solaris / Turbo / Voltaico)
+  if (presetKey === 'solaris') {
+    ctx.fillStyle = '#7f1d1d';
     ctx.beginPath();
-    ctx.ellipse(76 * 0.46, 16, 24, 7.5, -0.14, 0, Math.PI * 2);
+    ctx.moveTo(13, 24);
+    ctx.lineTo(18, 4);
+    ctx.lineTo(29, 13);
+    ctx.lineTo(38, 1);
+    ctx.lineTo(47, 13);
+    ctx.lineTo(58, 4);
+    ctx.lineTo(63, 24);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ea580c';
+    ctx.beginPath();
+    ctx.moveTo(17, 22);
+    ctx.lineTo(22, 7);
+    ctx.lineTo(31, 15);
+    ctx.lineTo(38, 4);
+    ctx.lineTo(45, 15);
+    ctx.lineTo(54, 7);
+    ctx.lineTo(59, 22);
+    ctx.closePath();
+    ctx.fill();
+  } else if (presetKey === 'turbo') {
+    ctx.fillStyle = '#082f49';
+    ctx.beginPath();
+    ctx.moveTo(10, 26);
+    ctx.lineTo(16, 4);
+    ctx.lineTo(27, 14);
+    ctx.lineTo(38, 1);
+    ctx.lineTo(49, 14);
+    ctx.lineTo(60, 4);
+    ctx.lineTo(66, 26);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath();
+    ctx.moveTo(14, 24);
+    ctx.lineTo(20, 7);
+    ctx.lineTo(30, 15);
+    ctx.lineTo(38, 3);
+    ctx.lineTo(46, 15);
+    ctx.lineTo(56, 7);
+    ctx.lineTo(62, 24);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#22d3ee';
+    ctx.beginPath();
+    ctx.moveTo(19, 22);
+    ctx.lineTo(25, 10);
+    ctx.lineTo(33, 16);
+    ctx.lineTo(38, 6);
+    ctx.lineTo(43, 16);
+    ctx.lineTo(51, 10);
+    ctx.lineTo(57, 22);
+    ctx.closePath();
+    ctx.fill();
+  } else if (presetKey === 'voltaico') {
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath();
+    ctx.moveTo(16, 19);
+    ctx.lineTo(22, 5);
+    ctx.lineTo(31, 14);
+    ctx.lineTo(38, 2);
+    ctx.lineTo(45, 14);
+    ctx.lineTo(54, 5);
+    ctx.lineTo(60, 19);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 2. Ombros / Torso Blindado Angular (Studless)
+  ctx.fillStyle = theme.torso;
+  ctx.strokeStyle = '#04060a';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(8, 76);
+  ctx.lineTo(10, 56);
+  ctx.lineTo(23, 51);
+  ctx.lineTo(53, 51);
+  ctx.lineTo(66, 56);
+  ctx.lineTo(68, 76);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Pescoço sombreado
+  ctx.fillStyle = '#04060a';
+  ctx.fillRect(27, 48, 22, 6);
+
+  // 3. Cabeça Esculpida Studless (ZERO pino superior LEGO!)
+  ctx.fillStyle = theme.head;
+  ctx.strokeStyle = '#04060a';
+  ctx.lineWidth = 2.3;
+  ctx.beginPath();
+  ctx.roundRect(17, 14, 42, 38, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  // Relevo lateral da mandíbula/têmpora antes dos detalhes faciais
+  ctx.fillStyle = theme.headShade;
+  ctx.beginPath();
+  ctx.roundRect(42, 15, 16, 36, 6);
+  ctx.fill();
+
+  // 4. Detalhamento Noir Individual por Operador
+  if (presetKey === 'caveira') {
+    // Sombra pesada projetada sob a boina preta do BOPE
+    ctx.fillStyle = 'rgba(4, 6, 10, 0.74)';
+    ctx.fillRect(18, 16, 40, 11);
+
+    // Headset Tático ComTac BOPE
+    ctx.fillStyle = '#0b0f17';
+    ctx.fillRect(12, 25, 5.5, 16);
+    ctx.fillRect(58.5, 25, 5.5, 16);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(12, 25, 5.5, 16);
+    ctx.strokeRect(58.5, 25, 5.5, 16);
+
+    // Boina Preta Oficial do BOPE inclinada + Insígnia Faca na Caveira em Bronze/Osso
+    ctx.fillStyle = '#06080d';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(36, 14.5, 24.5, 7.8, -0.13, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#facc15';
+    ctx.fillStyle = '#d99b16';
     ctx.beginPath();
-    ctx.arc(76 * 0.58, 15.5, 3.2, 0, Math.PI * 2);
+    ctx.arc(46, 14, 3.3, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(45, 11.2, 1.8, 5.6);
 
-    // Abafadores Laterais 2D (Headset ComTac BOPE)
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(76 * 0.16, 26, 5, 16);
-    ctx.fillRect(76 * 0.78, 26, 5, 16);
-
-    // Cicatriz de combate no olho esquerdo + Pintura de Guerra nas bochechas
+    // Cicatriz carmesim + Pintura de guerra escura nas maçãs do rosto
     ctx.strokeStyle = '#991b1b';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.34, 21);
-    ctx.lineTo(76 * 0.36, 44);
+    ctx.moveTo(25.5, 20);
+    ctx.lineTo(27.5, 43);
     ctx.stroke();
 
-    ctx.fillStyle = '#1f2937';
-    ctx.fillRect(76 * 0.25, 36, 9, 3);
-    ctx.fillRect(76 * 0.63, 36, 9, 3);
+    ctx.fillStyle = '#0b0f17';
+    ctx.fillRect(19, 35.5, 9.5, 2.8);
+    ctx.fillRect(47.5, 35.5, 9.5, 2.8);
+    ctx.fillRect(20, 39, 7, 2);
+    ctx.fillRect(49, 39, 7, 2);
 
-    // Óculos Táticos Balísticos Angulares com reflexo Fogo/Ouro
-    ctx.fillStyle = '#090a0d';
+    // Óculos Balísticos Escuros com Reflexo Âmbar-Fogo
+    ctx.fillStyle = '#04060a';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.24, 26);
-    ctx.lineTo(76 * 0.47, 28);
-    ctx.lineTo(76 * 0.45, 35);
-    ctx.lineTo(76 * 0.26, 34);
+    ctx.moveTo(18.5, 25.5);
+    ctx.lineTo(36, 27.5);
+    ctx.lineTo(34.5, 34.5);
+    ctx.lineTo(20, 33.5);
     ctx.closePath();
     ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.76, 26);
-    ctx.lineTo(76 * 0.53, 28);
-    ctx.lineTo(76 * 0.55, 35);
-    ctx.lineTo(76 * 0.74, 34);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(76 * 0.28, 28, 8, 3);
-    ctx.fillRect(76 * 0.58, 28, 8, 3);
-
-    // Sobrancelhas grossas franzidas em V (Cara de Mau)
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 3.2;
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.24, 23);
-    ctx.lineTo(76 * 0.47, 27);
-    ctx.moveTo(76 * 0.76, 23);
-    ctx.lineTo(76 * 0.53, 27);
     ctx.stroke();
 
-    // Barba Cerrada / Cavanhaque + Dentes Trincados (Sem sorriso feliz!)
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(76 * 0.31, 39, 76 * 0.38, 12);
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(76 * 0.36, 42, 76 * 0.28, 4.5);
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 1.4;
-    ctx.strokeRect(76 * 0.36, 42, 76 * 0.28, 4.5);
-
-    // Emblema da Caveira do BOPE + Placa do Colete no peito
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(76 * 0.25, 56, 76 * 0.5, 2.5);
-    ctx.fillStyle = '#f8fafc';
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 65, 4.5, 0, Math.PI * 2);
+    ctx.moveTo(57.5, 25.5);
+    ctx.lineTo(40, 27.5);
+    ctx.lineTo(41.5, 34.5);
+    ctx.lineTo(56, 33.5);
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#d97706';
+    ctx.fillRect(21.5, 27.5, 8.5, 2.6);
+    ctx.fillRect(44.5, 27.5, 8.5, 2.6);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(22.5, 28, 4, 1.4);
+    ctx.fillRect(45.5, 28, 4, 1.4);
+
+    // Sobrancelhas cerradas
+    ctx.strokeStyle = '#05070b';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(18.5, 23);
+    ctx.lineTo(36, 26.8);
+    ctx.moveTo(57.5, 23);
+    ctx.lineTo(40, 26.8);
+    ctx.stroke();
+
+    // Barba cerrada pesada + Expressão severa trincada
+    ctx.fillStyle = '#0f141e';
+    ctx.beginPath();
+    ctx.roundRect(22, 39.5, 32, 12, 4);
+    ctx.fill();
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(29, 43, 18, 2.6);
+    ctx.strokeStyle = '#05070b';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(29, 43, 18, 2.6);
+
+    // Colete Tático BOPE com Filete Bronze e Caveira Pálida
+    ctx.fillStyle = '#d99b16';
+    ctx.fillRect(21, 54, 34, 2.2);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(16, 56, 6, 18);
+    ctx.fillRect(54, 56, 6, 18);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.arc(38, 64.5, 4.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#05070b';
+    ctx.fillRect(35.8, 63.5, 1.6, 1.6);
+    ctx.fillRect(38.6, 63.5, 1.6, 1.6);
   } else if (presetKey === 'solaris') {
-    // Crina de Fogo Vivo 2D + Coroa Imperial de 5 Pontas do Rei do Sol
-    ctx.fillStyle = '#f97316';
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.22, 18);
-    ctx.lineTo(76 * 0.28, 5);
-    ctx.lineTo(76 * 0.38, 13);
-    ctx.lineTo(76 * 0.5, 2);
-    ctx.lineTo(76 * 0.62, 13);
-    ctx.lineTo(76 * 0.72, 5);
-    ctx.lineTo(76 * 0.78, 18);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#facc15';
-    ctx.strokeStyle = '#090a0d';
+    // Coroa Metálica de Bronze/Ouro-Velho (#d99b16)
+    ctx.fillStyle = '#d99b16';
+    ctx.strokeStyle = '#451a03';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.2, 22);
-    ctx.lineTo(76 * 0.24, 11);
-    ctx.lineTo(76 * 0.35, 18);
-    ctx.lineTo(76 * 0.5, 8);
-    ctx.lineTo(76 * 0.65, 18);
-    ctx.lineTo(76 * 0.76, 11);
-    ctx.lineTo(76 * 0.8, 22);
+    ctx.moveTo(15, 22);
+    ctx.lineTo(18, 11);
+    ctx.lineTo(27, 17.5);
+    ctx.lineTo(38, 7.5);
+    ctx.lineTo(49, 17.5);
+    ctx.lineTo(58, 11);
+    ctx.lineTo(61, 22);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Olhos de Plasma Branco-Dourado Flamejantes + Sobrancelhas Franzidas
-    ctx.fillStyle = '#ea580c';
-    ctx.fillRect(76 * 0.25, 29, 14, 7);
-    ctx.fillRect(76 * 0.56, 29, 14, 7);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(76 * 0.28, 30.5, 9, 4);
-    ctx.fillRect(76 * 0.59, 30.5, 9, 4);
+    ctx.fillStyle = '#fed7aa';
+    ctx.beginPath();
+    ctx.moveTo(38, 11);
+    ctx.lineTo(40.5, 16);
+    ctx.lineTo(38, 19.5);
+    ctx.lineTo(35.5, 16);
+    ctx.closePath();
+    ctx.fill();
 
-    ctx.strokeStyle = '#7f1d1d';
+    // Sombra profunda nas órbitas + Olhos de Plasma Branco-Laranja
+    ctx.fillStyle = 'rgba(43, 12, 4, 0.72)';
+    ctx.fillRect(19, 25, 38, 11);
+
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(20.5, 28, 13, 6.2);
+    ctx.fillRect(42.5, 28, 13, 6.2);
+    ctx.fillStyle = '#fff7ed';
+    ctx.fillRect(23, 29.5, 8.5, 3.2);
+    ctx.fillRect(44.5, 29.5, 8.5, 3.2);
+
+    ctx.strokeStyle = '#431407';
     ctx.lineWidth = 2.8;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.25, 26);
-    ctx.lineTo(76 * 0.46, 29);
-    ctx.moveTo(76 * 0.75, 26);
-    ctx.lineTo(76 * 0.54, 29);
+    ctx.moveTo(19.5, 25.5);
+    ctx.lineTo(35, 28.5);
+    ctx.moveTo(56.5, 25.5);
+    ctx.lineTo(41, 28.5);
     ctx.stroke();
 
-    // Expressão fechada e soberana de Rei do Sol + Reator Solar no peito
-    ctx.strokeStyle = '#450a0a';
+    // Semblante soberano austero
+    ctx.strokeStyle = '#3b0d06';
     ctx.lineWidth = 2.4;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.36, 44);
-    ctx.lineTo(76 * 0.5, 41);
-    ctx.lineTo(76 * 0.64, 44);
+    ctx.moveTo(28, 43.5);
+    ctx.lineTo(38, 41);
+    ctx.lineTo(48, 43.5);
     ctx.stroke();
 
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(76 * 0.22, 55, 76 * 0.56, 3);
-    ctx.fillStyle = '#fef08a';
+    // Armadura Termonuclear Bronze/Carmesim Escuro + Núcleo Solar
+    ctx.fillStyle = '#d99b16';
+    ctx.fillRect(19, 53.5, 38, 2.5);
+    ctx.fillStyle = '#ea580c';
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 65, 5, 0, Math.PI * 2);
+    ctx.arc(38, 64.5, 5.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffedd5';
+    ctx.beginPath();
+    ctx.arc(38, 64.5, 3.1, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'tita') {
-    // Domo Branco/Cinza PMESP + Giroflex Vermelho + Visor Vermelho-Laser em V + Queixeira Industrial
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(76 * 0.22, 16, 76 * 0.56, 9);
+    // Domo Blindado Gunmetal PMESP + Giroflex Rubro Escuro
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(17, 14, 42, 9);
+    ctx.fillStyle = '#991b1b';
+    ctx.fillRect(17, 21.5, 42, 3.2);
     ctx.fillStyle = '#dc2626';
-    ctx.fillRect(76 * 0.22, 23, 76 * 0.56, 3.5);
-    ctx.fillRect(76 * 0.26, 10, 8, 5);
-    ctx.fillRect(76 * 0.62, 10, 8, 5);
+    ctx.fillRect(21, 10.5, 8, 4);
+    ctx.fillRect(47, 10.5, 8, 4);
 
-    // Visor Tático Vermelho-Laser em V
+    // Visor Laser Rubro em V
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(19, 26.5, 38, 12);
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.25, 28);
-    ctx.lineTo(76 * 0.5, 31);
-    ctx.lineTo(76 * 0.75, 28);
-    ctx.lineTo(76 * 0.72, 36);
-    ctx.lineTo(76 * 0.5, 39);
-    ctx.lineTo(76 * 0.28, 36);
+    ctx.moveTo(19.5, 27.5);
+    ctx.lineTo(38, 30.5);
+    ctx.lineTo(56.5, 27.5);
+    ctx.lineTo(54, 35.5);
+    ctx.lineTo(38, 38.5);
+    ctx.lineTo(22, 35.5);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(76 * 0.3, 30, 10, 3);
-    ctx.fillRect(76 * 0.56, 30, 10, 3);
+    ctx.fillStyle = '#fecaca';
+    ctx.fillRect(23, 29.8, 9.5, 2.4);
+    ctx.fillRect(43.5, 29.8, 9.5, 2.4);
 
-    // Respirador / Mandíbula de Aço com grelha vermelha
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.29, 41, 76 * 0.42, 11);
-    ctx.fillStyle = '#dc2626';
-    for (let gx = 76 * 0.33; gx <= 76 * 0.65; gx += 6.5) {
-      ctx.fillRect(gx, 43, 3.5, 7);
+    // Queixeira Industrial de Aço + Grelha Rubra
+    ctx.fillStyle = '#090d14';
+    ctx.fillRect(22, 40.5, 32, 10.5);
+    ctx.fillStyle = '#b91c1c';
+    for (let gx = 25; gx <= 49; gx += 6) {
+      ctx.fillRect(gx, 42.5, 3.2, 6.5);
     }
 
-    // Faixas Vermelhas da PMESP e Reator Rubro no Peitoral Branco
-    ctx.fillStyle = '#dc2626';
-    ctx.fillRect(76 * 0.16, 56, 14, 5);
-    ctx.fillRect(76 * 0.66, 56, 14, 5);
+    // Placas de Choque Cinza-Aço + Reator Rubro
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(14, 55, 13, 18);
+    ctx.fillRect(49, 55, 13, 18);
+    ctx.fillStyle = '#b91c1c';
+    ctx.fillRect(13, 55, 14, 4);
+    ctx.fillRect(49, 55, 14, 4);
+    ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 65, 5.5, 0, Math.PI * 2);
+    ctx.arc(38, 64.5, 5.2, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'vingador') {
-    // Cabelo Militar Preto Penteado para Trás (Frank Castle) + Faixa Tática Preta na Testa
-    ctx.fillStyle = '#090a0d';
+    // Cabelo Militar Negro Penteado para Trás + Bandana Tática Escura
+    ctx.fillStyle = '#06080d';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.2, 20);
-    ctx.lineTo(76 * 0.22, 10);
-    ctx.lineTo(76 * 0.35, 8);
-    ctx.lineTo(76 * 0.5, 7);
-    ctx.lineTo(76 * 0.65, 8);
-    ctx.lineTo(76 * 0.78, 10);
-    ctx.lineTo(76 * 0.8, 20);
+    ctx.moveTo(16, 19);
+    ctx.lineTo(17.5, 9.5);
+    ctx.lineTo(27, 7);
+    ctx.lineTo(38, 6);
+    ctx.lineTo(49, 7);
+    ctx.lineTo(58.5, 9.5);
+    ctx.lineTo(60, 19);
     ctx.closePath();
     ctx.fill();
 
-    // Faixa tática preta (Headband) na testa
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(76 * 0.21, 17, 76 * 0.58, 5.5);
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(76 * 0.21, 17, 76 * 0.58, 5.5);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(16.5, 16.5, 43, 5.5);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(16.5, 16.5, 43, 5.5);
 
-    // Sombreamento pesado nos olhos + Cicatriz no olho direito
-    ctx.fillStyle = 'rgba(9, 10, 13, 0.78)';
-    ctx.fillRect(76 * 0.24, 24, 76 * 0.52, 10);
+    // Sombra densa nos olhos estilo Frank Castle / Gotham + Cicatriz
+    ctx.fillStyle = 'rgba(4, 6, 10, 0.86)';
+    ctx.fillRect(18.5, 22.5, 39, 11.5);
     ctx.strokeStyle = '#991b1b';
-    ctx.lineWidth = 2.0;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.62, 22);
-    ctx.lineTo(76 * 0.58, 39);
+    ctx.moveTo(47, 21.5);
+    ctx.lineTo(44, 38.5);
     ctx.stroke();
 
-    // Sobrancelhas grossas arqueadas em fúria + Olhos brancos estreitos intimidadores
-    ctx.strokeStyle = '#090a0d';
+    ctx.strokeStyle = '#04060a';
     ctx.lineWidth = 2.8;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.26, 24);
-    ctx.lineTo(76 * 0.46, 28);
-    ctx.moveTo(76 * 0.74, 24);
-    ctx.lineTo(76 * 0.54, 28);
+    ctx.moveTo(20, 24);
+    ctx.lineTo(35, 27.5);
+    ctx.moveTo(56, 24);
+    ctx.lineTo(41, 27.5);
     ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(76 * 0.29, 28, 10, 3.8);
-    ctx.fillRect(76 * 0.57, 28, 10, 3.8);
-
-    // Barba por fazer escura (stubble) na mandíbula + Dentes cerrados de veterano
-    ctx.fillStyle = 'rgba(17, 24, 39, 0.58)';
-    ctx.fillRect(76 * 0.24, 37, 76 * 0.52, 16);
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(76 * 0.34, 41, 76 * 0.32, 5.5);
-    ctx.strokeStyle = '#090a0d';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(76 * 0.34, 41, 76 * 0.32, 5.5);
-
-    // Gola Alta Levantada do Sobretudo de Couro Preto + Grande Caveira Branca do Justiceiro no Peito
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.14, 50, 11, 12);
-    ctx.fillRect(76 * 0.72, 50, 11, 12);
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.beginPath();
-    ctx.arc(76 * 0.5, 62, 7.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(76 * 0.42, 66, 76 * 0.16, 9);
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.44, 60, 3.5, 3);
-    ctx.fillRect(76 * 0.52, 60, 3.5, 3);
-    ctx.fillRect(76 * 0.45, 68, 1.8, 6);
-    ctx.fillRect(76 * 0.49, 68, 1.8, 6);
-    ctx.fillRect(76 * 0.53, 68, 1.8, 6);
-  } else if (presetKey === 'sombra') {
-    // Capuz Shinobi com Chifres Oni Escarlates + Bandana com Placa Metálica + Olhos Carmesins + Máscara Oni
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.2, 13, 76 * 0.6, 8);
-
-    // Chifres curtos Oni em vermelho-escarlate na testa
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.31, 16);
-    ctx.lineTo(76 * 0.27, 7);
-    ctx.lineTo(76 * 0.37, 15);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.69, 16);
-    ctx.lineTo(76 * 0.73, 7);
-    ctx.lineTo(76 * 0.63, 15);
-    ctx.closePath();
-    ctx.fill();
-
-    // Bandana escarlate (Hachigane) + Placa metálica escura com símbolo vermelho
-    ctx.fillStyle = '#dc2626';
-    ctx.fillRect(76 * 0.21, 17, 76 * 0.58, 7.5);
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(76 * 0.37, 17.5, 76 * 0.26, 6.5);
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(76 * 0.37, 17.5, 76 * 0.26, 6.5);
-    ctx.fillStyle = '#ef4444';
-    ctx.fillRect(76 * 0.44, 19.8, 76 * 0.12, 2);
-
-    // Olhos Cyber-Shinobi Vermelho-Carmesim Brilhantes inclinados em V
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.26, 27);
-    ctx.lineTo(76 * 0.46, 30);
-    ctx.lineTo(76 * 0.44, 35);
-    ctx.lineTo(76 * 0.28, 33);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.74, 27);
-    ctx.lineTo(76 * 0.54, 30);
-    ctx.lineTo(76 * 0.56, 35);
-    ctx.lineTo(76 * 0.72, 33);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(76 * 0.32, 29.5, 6, 2.5);
-    ctx.fillRect(76 * 0.58, 29.5, 6, 2.5);
-
-    // Meia-Máscara Oni / Menpo Preta com borda vermelha e presas prateadas
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.23, 37, 76 * 0.54, 17);
-    ctx.strokeStyle = '#dc2626';
-    ctx.lineWidth = 1.8;
-    ctx.strokeRect(76 * 0.25, 38, 76 * 0.5, 14);
     ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(76 * 0.33, 40, 3.5, 8);
-    ctx.fillRect(76 * 0.61, 40, 3.5, 8);
-    ctx.fillStyle = '#ef4444';
-    ctx.fillRect(76 * 0.43, 41, 2.5, 8);
-    ctx.fillRect(76 * 0.52, 41, 2.5, 8);
+    ctx.fillRect(22.5, 27.8, 9.5, 3.2);
+    ctx.fillRect(44, 27.8, 9.5, 3.2);
 
-    // Cachecol Ninja Escarlate no pescoço + Amuleto Espiritual no peito
+    // Barba por fazer pesada (stubble) + Maxilar cerrado de vigilante noturno
+    ctx.fillStyle = 'rgba(11, 15, 23, 0.72)';
+    ctx.beginPath();
+    ctx.roundRect(18.5, 36.5, 39, 15, 5);
+    ctx.fill();
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(28, 42, 20, 3.2);
+    ctx.strokeStyle = '#05070b';
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(28, 42, 20, 3.2);
+
+    // Gola Alta do Sobretudo Noir + Grande Caveira Pálida no Peito
+    ctx.fillStyle = '#04060a';
+    ctx.fillRect(11, 48, 10, 14);
+    ctx.fillRect(55, 48, 10, 14);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.arc(38, 61.5, 7.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(32.2, 65.5, 11.6, 8.5);
+    ctx.fillStyle = '#05070b';
+    ctx.fillRect(33.5, 59.8, 3.4, 2.8);
+    ctx.fillRect(39.2, 59.8, 3.4, 2.8);
+    ctx.fillRect(34.5, 67.5, 1.6, 5.8);
+    ctx.fillRect(37.2, 67.5, 1.6, 5.8);
+    ctx.fillRect(40, 67.5, 1.6, 5.8);
+  } else if (presetKey === 'sombra') {
+    // Capuz Obsidiana + Chifres Oni Carmesim
+    ctx.fillStyle = '#05070b';
+    ctx.beginPath();
+    ctx.roundRect(15, 11, 46, 13, 5);
+    ctx.fill();
+
     ctx.fillStyle = '#dc2626';
-    ctx.fillRect(76 * 0.18, 53, 76 * 0.64, 5.5);
+    ctx.beginPath();
+    ctx.moveTo(23.5, 15.5);
+    ctx.lineTo(20, 6);
+    ctx.lineTo(28.5, 14.5);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(52.5, 15.5);
+    ctx.lineTo(56, 6);
+    ctx.lineTo(47.5, 14.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Bandana Hachigane Carmesim Escura + Placa Oni Gunmetal
+    ctx.fillStyle = '#991b1b';
+    ctx.fillRect(16, 17, 44, 7);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(28, 17.5, 20, 6);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.1;
+    ctx.strokeRect(28, 17.5, 20, 6);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(33.5, 19.8, 9, 1.8);
+
+    // Olhos Cyber-Shinobi Carmesim
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 65, 4.5, 0, Math.PI * 2);
+    ctx.moveTo(20, 27);
+    ctx.lineTo(35, 30);
+    ctx.lineTo(33.5, 34.5);
+    ctx.lineTo(21.5, 32.5);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(56, 27);
+    ctx.lineTo(41, 30);
+    ctx.lineTo(42.5, 34.5);
+    ctx.lineTo(54.5, 32.5);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#fee2e2';
+    ctx.fillRect(24.5, 29.5, 5.5, 2);
+    ctx.fillRect(45.5, 29.5, 5.5, 2);
+
+    // Máscara Oni Obsidiana + Presas de Aço Frio
+    ctx.fillStyle = '#04060a';
+    ctx.fillRect(17.5, 36.5, 41, 15.5);
+    ctx.strokeStyle = '#991b1b';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(19, 37.5, 38, 13);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(25, 39.5, 3.2, 7.5);
+    ctx.fillRect(47.8, 39.5, 3.2, 7.5);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(33, 40.5, 2.2, 7);
+    ctx.fillRect(40.8, 40.5, 2.2, 7);
+
+    // Cachecol Ninja Sangue-Escuro + Núcleo Espiritual
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(15, 51, 46, 5.5);
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(38, 64.5, 4.2, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'turbo') {
-    // Crânio 3D Osso Fantasma (#e2e8f0) + Chamas de Motoqueiro Fantasma em 3 Camadas (Azul-Elétrico / Ciano / Branco) + Costelas e Reator!
-    ctx.fillStyle = '#0284c7';
+    // Crânio Osso Sombreado (#cbd5e1 + cavidades temporais #94a3b8)
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(18, 33, 6, 12);
+    ctx.fillRect(52, 33, 6, 12);
+
+    // Órbitas Negras Abissais + Chamas Ciano-Abissais
+    ctx.fillStyle = '#030508';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.14, 22);
-    ctx.lineTo(76 * 0.2, 4);
-    ctx.lineTo(76 * 0.34, 13);
-    ctx.lineTo(76 * 0.5, 1);
-    ctx.lineTo(76 * 0.66, 13);
-    ctx.lineTo(76 * 0.8, 4);
-    ctx.lineTo(76 * 0.86, 22);
+    ctx.moveTo(19.5, 23.5);
+    ctx.lineTo(34.5, 27.5);
+    ctx.lineTo(33, 34.5);
+    ctx.lineTo(20.5, 32.5);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#00f5d4';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.2, 21);
-    ctx.lineTo(76 * 0.28, 7);
-    ctx.lineTo(76 * 0.4, 15);
-    ctx.lineTo(76 * 0.5, 4);
-    ctx.lineTo(76 * 0.6, 15);
-    ctx.lineTo(76 * 0.72, 7);
-    ctx.lineTo(76 * 0.8, 21);
+    ctx.moveTo(56.5, 23.5);
+    ctx.lineTo(41.5, 27.5);
+    ctx.lineTo(43, 34.5);
+    ctx.lineTo(55.5, 32.5);
     ctx.closePath();
     ctx.fill();
 
-    // Crânio Osso Fantasma esculpido sobre a cabeça
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(76 * 0.23, 18, 76 * 0.54, 33);
+    ctx.fillStyle = '#06b6d4';
+    ctx.fillRect(22.5, 27.5, 7.5, 4.2);
+    ctx.fillRect(46, 27.5, 7.5, 4.2);
+    ctx.fillStyle = '#ecfeff';
+    ctx.fillRect(24.5, 28.5, 3.8, 2.2);
+    ctx.fillRect(47.8, 28.5, 3.8, 2.2);
 
-    // Órbitas negras angulares + Chamas Ciano/Brancas nos olhos + Cavidade Nasal
-    ctx.fillStyle = '#090a0d';
+    // Cavidade Nasal + Dentes do Crânio
+    ctx.fillStyle = '#030508';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.25, 24);
-    ctx.lineTo(76 * 0.45, 28);
-    ctx.lineTo(76 * 0.43, 35);
-    ctx.lineTo(76 * 0.26, 33);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.75, 24);
-    ctx.lineTo(76 * 0.55, 28);
-    ctx.lineTo(76 * 0.57, 35);
-    ctx.lineTo(76 * 0.74, 33);
+    ctx.moveTo(38, 32.5);
+    ctx.lineTo(34, 38.5);
+    ctx.lineTo(42, 38.5);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#00f5d4';
-    ctx.fillRect(76 * 0.29, 28, 8, 4.5);
-    ctx.fillRect(76 * 0.59, 28, 8, 4.5);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(76 * 0.31, 29, 4, 2.5);
-    ctx.fillRect(76 * 0.61, 29, 4, 2.5);
-
-    ctx.fillStyle = '#090a0d';
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.5, 33);
-    ctx.lineTo(76 * 0.45, 39);
-    ctx.lineTo(76 * 0.55, 39);
-    ctx.closePath();
-    ctx.fill();
-
-    // Maxilar de Caveira com Dentes e Plasma Ciano + Jaqueta de Couro com Reator e Costelas Cromadas
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(76 * 0.29, 41, 76 * 0.42, 9);
-    ctx.fillStyle = '#f8fafc';
-    for (let tx = 76 * 0.31; tx <= 76 * 0.65; tx += 5.5) {
-      ctx.fillRect(tx, 42, 3.5, 7);
+    ctx.fillRect(22, 40.5, 32, 9);
+    ctx.fillStyle = '#cbd5e1';
+    for (let tx = 24; tx <= 49; tx += 5.2) {
+      ctx.fillRect(tx, 41.5, 3.2, 6.8);
     }
-    ctx.fillStyle = '#00f5d4';
+
+    // Jaqueta de Couro com Costelas Metálicas + Reator Ciano
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(19, 56, 9, 2.4);
+    ctx.fillRect(48, 56, 9, 2.4);
+    ctx.fillRect(21, 61, 8, 2.2);
+    ctx.fillRect(47, 61, 8, 2.2);
+    ctx.fillStyle = '#22d3ee';
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
+    ctx.arc(38, 64.5, 5.2, 0, Math.PI * 2);
     ctx.fill();
   } else if (presetKey === 'voltaico') {
-    // Coroa de Relâmpagos Ciano/Brancos no topo + Asas de Raio Douradas + Olhos de Trovão + Queixeira Angular em V
+    // Elmo de Titânio (#1e293b) + Diadema Angular Aço + Asas de Raio Bronze/Ciano
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.moveTo(14, 16.5);
+    ctx.lineTo(38, 22.5);
+    ctx.lineTo(62, 16.5);
+    ctx.lineTo(62, 21);
+    ctx.lineTo(38, 26.5);
+    ctx.lineTo(14, 21);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#d99b16';
+    ctx.beginPath();
+    ctx.moveTo(15, 21);
+    ctx.lineTo(4, 11);
+    ctx.lineTo(11, 27.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(61, 21);
+    ctx.lineTo(72, 11);
+    ctx.lineTo(65, 27.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Olhos Fulminantes (#38bdf8)
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.22, 18);
-    ctx.lineTo(76 * 0.28, 5);
-    ctx.lineTo(76 * 0.38, 14);
-    ctx.lineTo(76 * 0.5, 2);
-    ctx.lineTo(76 * 0.62, 14);
-    ctx.lineTo(76 * 0.72, 5);
-    ctx.lineTo(76 * 0.78, 18);
+    ctx.moveTo(19, 26.5);
+    ctx.lineTo(34.5, 29.5);
+    ctx.lineTo(33, 35);
+    ctx.lineTo(20.5, 33.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(57, 26.5);
+    ctx.lineTo(41.5, 29.5);
+    ctx.lineTo(43, 35);
+    ctx.lineTo(55.5, 33.5);
     ctx.closePath();
     ctx.fill();
 
-    // Diadema Prateado/Dourado Angular + Asas de Raio nas Têmporas
-    ctx.fillStyle = '#e2e8f0';
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.18, 17);
-    ctx.lineTo(76 * 0.5, 23);
-    ctx.lineTo(76 * 0.82, 17);
-    ctx.lineTo(76 * 0.82, 22);
-    ctx.lineTo(76 * 0.5, 27);
-    ctx.lineTo(76 * 0.18, 22);
-    ctx.closePath();
-    ctx.fill();
+    ctx.fillStyle = '#f0f9ff';
+    ctx.fillRect(22, 28.8, 9, 3.4);
+    ctx.fillRect(45, 28.8, 9, 3.4);
 
-    ctx.fillStyle = '#facc15';
+    // Queixeira Angular de Titânio + Bobina Tesla no Peito
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.18, 22);
-    ctx.lineTo(76 * 0.04, 11);
-    ctx.lineTo(76 * 0.12, 28);
+    ctx.moveTo(18, 38.5);
+    ctx.lineTo(38, 43);
+    ctx.lineTo(58, 38.5);
+    ctx.lineTo(53.5, 50.5);
+    ctx.lineTo(38, 54);
+    ctx.lineTo(22.5, 50.5);
     ctx.closePath();
     ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.82, 22);
-    ctx.lineTo(76 * 0.96, 11);
-    ctx.lineTo(76 * 0.88, 28);
-    ctx.closePath();
-    ctx.fill();
-
-    // Olhos Fulminantes Branco-Ciano Puro
-    ctx.fillStyle = '#38bdf8';
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.24, 27);
-    ctx.lineTo(76 * 0.45, 30);
-    ctx.lineTo(76 * 0.43, 36);
-    ctx.lineTo(76 * 0.26, 34);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.76, 27);
-    ctx.lineTo(76 * 0.55, 30);
-    ctx.lineTo(76 * 0.57, 36);
-    ctx.lineTo(76 * 0.74, 34);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(76 * 0.28, 29, 10, 4);
-    ctx.fillRect(76 * 0.59, 29, 10, 4);
-
-    // Queixeira Angular de Titânio Prateado e Azul-Cobalto em V + Reator de Trovão no Peito
-    ctx.fillStyle = '#1e293b';
-    ctx.beginPath();
-    ctx.moveTo(76 * 0.23, 39);
-    ctx.lineTo(76 * 0.5, 44);
-    ctx.lineTo(76 * 0.77, 39);
-    ctx.lineTo(76 * 0.71, 52);
-    ctx.lineTo(76 * 0.5, 56);
-    ctx.lineTo(76 * 0.29, 52);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1.6;
     ctx.stroke();
 
     ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.31, 44);
-    ctx.lineTo(76 * 0.45, 48);
-    ctx.moveTo(76 * 0.69, 44);
-    ctx.lineTo(76 * 0.55, 48);
+    ctx.moveTo(24, 43.5);
+    ctx.lineTo(34.5, 47.5);
+    ctx.moveTo(52, 43.5);
+    ctx.lineTo(41.5, 47.5);
     ctx.stroke();
 
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
-    ctx.arc(76 * 0.5, 64, 5.5, 0, Math.PI * 2);
+    ctx.arc(38, 64.5, 5.2, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#facc15';
-    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1.4;
     ctx.stroke();
   } else if (presetKey === 'vortex') {
-    // Olhos Brancos Rasgados/Serrilhados do Venom + Bocarra de Presas + Língua Longa Serpenteante + Aranha Branca no Peito!
-    ctx.fillStyle = '#ffffff';
+    // Veias Simbiontes Abissais sutis + Olhos Brancos Rasgados
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.28)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(76 * 0.46, 31);
-    ctx.lineTo(76 * 0.35, 25);
-    ctx.lineTo(76 * 0.23, 18);
-    ctx.lineTo(76 * 0.21, 27);
-    ctx.lineTo(76 * 0.31, 33);
+    ctx.moveTo(22, 16);
+    ctx.lineTo(28, 22);
+    ctx.moveTo(54, 16);
+    ctx.lineTo(48, 22);
+    ctx.stroke();
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.beginPath();
+    ctx.moveTo(35, 30.5);
+    ctx.lineTo(26.5, 24.5);
+    ctx.lineTo(18, 17.5);
+    ctx.lineTo(16.5, 26.5);
+    ctx.lineTo(24, 32.5);
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(76 * 0.54, 31);
-    ctx.lineTo(76 * 0.65, 25);
-    ctx.lineTo(76 * 0.77, 18);
-    ctx.lineTo(76 * 0.79, 27);
-    ctx.lineTo(76 * 0.69, 33);
+    ctx.moveTo(41, 30.5);
+    ctx.lineTo(49.5, 24.5);
+    ctx.lineTo(58, 17.5);
+    ctx.lineTo(59.5, 26.5);
+    ctx.lineTo(52, 32.5);
     ctx.closePath();
     ctx.fill();
 
-    // Bocarra rasgada com presas brancas pontiagudas
-    ctx.fillStyle = '#1e0536';
+    // Bocarra Abissal Rasgada com Presas + Língua Serpenteante
+    ctx.fillStyle = '#140326';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.24, 36);
-    ctx.quadraticCurveTo(76 * 0.5, 33, 76 * 0.76, 36);
-    ctx.quadraticCurveTo(76 * 0.68, 52, 76 * 0.5, 53);
-    ctx.quadraticCurveTo(76 * 0.32, 52, 76 * 0.24, 36);
+    ctx.moveTo(19, 35.5);
+    ctx.quadraticCurveTo(38, 32.5, 57, 35.5);
+    ctx.quadraticCurveTo(51, 50.5, 38, 51.5);
+    ctx.quadraticCurveTo(25, 50.5, 19, 35.5);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#f8fafc';
-    for (let fx = 76 * 0.28; fx <= 76 * 0.72; fx += 5.5) {
+    ctx.fillStyle = '#e2e8f0';
+    for (let fx = 22; fx <= 54; fx += 5.4) {
       ctx.beginPath();
-      ctx.moveTo(fx - 2, 35.5);
-      ctx.lineTo(fx + 2, 35.5);
-      ctx.lineTo(fx, 42);
+      ctx.moveTo(fx - 1.8, 35);
+      ctx.lineTo(fx + 1.8, 35);
+      ctx.lineTo(fx, 41.2);
       ctx.closePath();
       ctx.fill();
 
       ctx.beginPath();
-      ctx.moveTo(fx - 1.8, 50.5);
-      ctx.lineTo(fx + 1.8, 50.5);
-      ctx.lineTo(fx, 45);
+      ctx.moveTo(fx - 1.6, 49.5);
+      ctx.lineTo(fx + 1.6, 49.5);
+      ctx.lineTo(fx, 44.2);
       ctx.closePath();
       ctx.fill();
     }
 
-    // Língua Longa Serpenteante do Venom saindo da bocarra!
-    ctx.strokeStyle = '#db2777';
-    ctx.lineWidth = 3.6;
+    ctx.strokeStyle = '#be185d';
+    ctx.lineWidth = 3.2;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.5, 44);
-    ctx.bezierCurveTo(76 * 0.52, 54, 76 * 0.68, 52, 76 * 0.72, 43);
+    ctx.moveTo(38, 43.5);
+    ctx.bezierCurveTo(40, 52.5, 51, 50.5, 54, 42.5);
     ctx.stroke();
 
-    // Emblema da Aranha Simbionte Branca no Peito
-    ctx.fillStyle = '#ffffff';
+    // Aranha Simbionte Branca no Peito
+    ctx.fillStyle = '#f1f5f9';
     ctx.beginPath();
-    ctx.moveTo(76 * 0.5, 56);
-    ctx.lineTo(76 * 0.56, 64);
-    ctx.lineTo(76 * 0.5, 74);
-    ctx.lineTo(76 * 0.44, 64);
+    ctx.moveTo(38, 55.5);
+    ctx.lineTo(42.5, 63.5);
+    ctx.lineTo(38, 73.5);
+    ctx.lineTo(33.5, 63.5);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.lineWidth = 1.6;
     for (const s of [-1, 1]) {
       ctx.beginPath();
-      ctx.moveTo(76 * 0.5, 61);
-      ctx.lineTo(76 * (0.5 + s * 0.24), 57);
-      ctx.moveTo(76 * 0.5, 65);
-      ctx.lineTo(76 * (0.5 + s * 0.26), 66);
-      ctx.moveTo(76 * 0.5, 69);
-      ctx.lineTo(76 * (0.5 + s * 0.22), 75);
+      ctx.moveTo(38, 60.5);
+      ctx.lineTo(38 + s * 18, 56.5);
+      ctx.moveTo(38, 64.5);
+      ctx.lineTo(38 + s * 19.5, 65.5);
+      ctx.moveTo(38, 68.5);
+      ctx.lineTo(38 + s * 16.5, 74.5);
       ctx.stroke();
     }
   }
 
+  // 5. Rim-Light Angular no Contorno Esquerdo (Luz Recortada Noir)
+  ctx.strokeStyle = theme.rim;
+  ctx.lineWidth = 1.7;
+  ctx.beginPath();
+  ctx.moveTo(22, 15);
+  ctx.lineTo(17.5, 19.5);
+  ctx.lineTo(17.5, 46);
+  ctx.moveTo(22, 51.5);
+  ctx.lineTo(10.5, 56.5);
+  ctx.lineTo(9, 73);
+  ctx.stroke();
+
   ctx.restore();
+
+  // 6. Sombreamento Chiaroscuro Lateral + Vinheta Escura na Base
+  if (typeof ctx.createLinearGradient === 'function') {
+    const chiaro = ctx.createLinearGradient(0, 0, w, 0);
+    chiaro.addColorStop(0, 'rgba(255, 255, 255, 0.03)');
+    chiaro.addColorStop(0.45, 'rgba(4, 6, 10, 0)');
+    chiaro.addColorStop(1, 'rgba(2, 4, 9, 0.58)');
+    ctx.fillStyle = chiaro;
+    ctx.fillRect(0, 0, w, h);
+
+    const vignette = ctx.createLinearGradient(0, h * 0.58, 0, h);
+    vignette.addColorStop(0, 'rgba(3, 5, 9, 0)');
+    vignette.addColorStop(1, 'rgba(2, 4, 8, 0.88)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, h * 0.58, w, h * 0.42);
+  }
 }
 
 /**
- * Renderiza a Roda Radial Estilo GTA V [TAB] com Setores Chanfrados + Centro de Telemetria
+ * Renderiza o Seletor Radial Tático estilo Arkham / Batcomputador [TAB]
  */
 export function renderHeroWheelCanvas(canvas, selectedHeroKey, activeHeroKey) {
   if (!canvas) return;
@@ -775,20 +989,35 @@ export function renderHeroWheelCanvas(canvas, selectedHeroKey, activeHeroKey) {
 
   const count = HERO_CATALOG.length;
   const stepAngle = (Math.PI * 2) / count;
-  const startOffset = -Math.PI / 2; // Setor 0 (Caveira) exatamente no Topo (W)!
-  const gap = 0.045;
+  const startOffset = -Math.PI / 2; // Setor 0 (Caveira) exatamente no Topo (W)
+  const gap = 0.042;
 
   const outerR = 212;
   const innerR = 92;
 
-  // Anel técnico externo pontilhado
+  // Anel técnico externo em aço gunmetal com marcações angulares
   ctx.save();
-  ctx.strokeStyle = 'rgba(250, 204, 21, 0.25)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([8, 6]);
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.28)';
+  ctx.lineWidth = 1.4;
+  ctx.setLineDash?.([10, 6]);
   ctx.beginPath();
   ctx.arc(cx, cy, outerR + 12, 0, Math.PI * 2);
   ctx.stroke();
+  ctx.setLineDash?.([]);
+
+  const tickCount = count * 4;
+  for (let t = 0; t < tickCount; t++) {
+    const ta = startOffset + (t * Math.PI * 2) / tickCount;
+    const isMajor = t % 4 === 0;
+    const r0 = outerR + (isMajor ? 8 : 10);
+    const r1 = outerR + (isMajor ? 17 : 14);
+    ctx.strokeStyle = isMajor ? 'rgba(148, 163, 184, 0.42)' : 'rgba(100, 116, 139, 0.24)';
+    ctx.lineWidth = isMajor ? 1.6 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ta) * r0, cy + Math.sin(ta) * r0);
+    ctx.lineTo(cx + Math.cos(ta) * r1, cy + Math.sin(ta) * r1);
+    ctx.stroke();
+  }
   ctx.restore();
 
   for (let i = 0; i < count; i++) {
@@ -803,80 +1032,139 @@ export function renderHeroWheelCanvas(canvas, selectedHeroKey, activeHeroKey) {
     const segOuterR = isSelected ? outerR + 8 : outerR;
     const segInnerR = isSelected ? innerR - 4 : innerR;
 
-    // Fatia da Roda
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, segOuterR, a0, a1, false);
     ctx.arc(cx, cy, segInnerR, a1, a0, true);
     ctx.closePath();
 
-    ctx.fillStyle = isSelected
-      ? 'rgba(18, 23, 34, 0.96)'
-      : 'rgba(9, 10, 13, 0.86)';
+    if (isSelected && typeof ctx.createRadialGradient === 'function') {
+      const segGrad = ctx.createRadialGradient(cx, cy, segInnerR, cx, cy, segOuterR);
+      segGrad.addColorStop(0, '#111826');
+      segGrad.addColorStop(1, '#1a2436');
+      ctx.fillStyle = segGrad;
+    } else {
+      ctx.fillStyle = isSelected
+        ? '#161f30'
+        : isCurrent
+          ? 'rgba(9, 13, 22, 0.94)'
+          : 'rgba(5, 7, 12, 0.92)';
+    }
     ctx.fill();
 
-    ctx.lineWidth = isSelected ? 3.5 : 2.0;
+    ctx.lineWidth = isSelected ? 2.6 : isCurrent ? 2.0 : 1.5;
     ctx.strokeStyle = isSelected
       ? hero.accent
       : isCurrent
-        ? 'rgba(250, 204, 21, 0.55)'
-        : 'rgba(148, 163, 184, 0.28)';
+        ? '#c28e2b'
+        : 'rgba(51, 65, 85, 0.65)';
     ctx.stroke();
 
-    // Faixa externa luminosa na fatia selecionada
+    // Arco externo luminoso no setor selecionado
     if (isSelected) {
+      ctx.save();
+      ctx.shadowColor = hero.accent;
+      ctx.shadowBlur = 10;
       ctx.beginPath();
-      ctx.arc(cx, cy, segOuterR - 3, a0 + 0.02, a1 - 0.02, false);
-      ctx.lineWidth = 5;
+      ctx.arc(cx, cy, segOuterR - 2.5, a0 + 0.016, a1 - 0.016, false);
+      ctx.lineWidth = 4.5;
       ctx.strokeStyle = hero.accent;
+      ctx.stroke();
+      ctx.restore();
+    } else if (isCurrent) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, segOuterR - 2.5, a0 + 0.04, a1 - 0.04, false);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#c28e2b';
       ctx.stroke();
     }
 
-    // Posição do ícone/retrato dentro da fatia
+    // Posição do retrato e telemetria da fatia
     const midR = (segOuterR + segInnerR) * 0.5;
     const ix = cx + Math.cos(midA) * midR;
     const iy = cy + Math.sin(midA) * midR;
 
-    // Mini moldura chanfrada da cabeça LEGO dentro da fatia
+    // Moldura chanfrada octogonal/angular ao redor do retrato (Zero quadrado de plástico!)
     const boxSize = isSelected ? 46 : 40;
+    const cut = isSelected ? 7 : 6;
+    const bx = ix - boxSize * 0.5;
+    const by = iy - boxSize * 0.68;
+
     ctx.save();
-    ctx.translate(ix - boxSize * 0.5, iy - boxSize * 0.68);
+    ctx.translate(bx, by);
+    ctx.save();
+    traceChamferedBox(ctx, 0, 0, boxSize, boxSize, cut);
+    ctx.clip?.();
     drawHeroLegoPortrait(ctx, boxSize, boxSize, hero.key);
-    ctx.strokeStyle = isSelected ? hero.accent : '#262b38';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, boxSize, boxSize);
     ctx.restore();
 
-    // Código OP + Nome Curto da fatia
+    traceChamferedBox(ctx, 0, 0, boxSize, boxSize, cut);
+    ctx.strokeStyle = isSelected ? hero.accent : isCurrent ? '#c28e2b' : '#263244';
+    ctx.lineWidth = isSelected ? 2.2 : 1.5;
+    ctx.stroke();
+
+    if (isSelected) {
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, cut + 5);
+      ctx.lineTo(0, cut);
+      ctx.lineTo(cut, 0);
+      ctx.lineTo(cut + 5, 0);
+      ctx.moveTo(boxSize, boxSize - cut - 5);
+      ctx.lineTo(boxSize, boxSize - cut);
+      ctx.lineTo(boxSize - cut, boxSize);
+      ctx.lineTo(boxSize - cut - 5, boxSize);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Código OP + Nome Curto nítidos
     ctx.font = '800 10px "JetBrains Mono", monospace';
-    ctx.fillStyle = isSelected ? hero.accent : '#94a3b8';
+    ctx.fillStyle = isSelected ? hero.accent : isCurrent ? '#d99b16' : '#64748b';
     ctx.textAlign = 'center';
     ctx.fillText(hero.opCode, ix, iy + boxSize * 0.32 + 5);
 
     ctx.font = isSelected
-      ? '700 15px "Chakra Petch", sans-serif'
-      : '700 13px "Chakra Petch", sans-serif';
+      ? '700 14.5px "Chakra Petch", sans-serif'
+      : '700 12.5px "Chakra Petch", sans-serif';
     ctx.fillStyle = isSelected ? '#f8fafc' : '#cbd5e1';
-    ctx.fillText(hero.shortName, ix, iy + boxSize * 0.32 + 20);
+    ctx.fillText(hero.shortName, ix, iy + boxSize * 0.32 + 19.5);
 
     ctx.restore();
   }
 
-  // Hub Central Octogonal/Circular com dados do Herói Selecionado
+  // Hub Central em Obsidiana (#04060a) com Anel Duplo (#1e293b + selHero.accent)
   const selHero = getHeroInfo(selectedHeroKey);
   ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, innerR - 10, 0, Math.PI * 2);
-  ctx.fillStyle = '#090a0d';
+  ctx.arc(cx, cy, innerR - 8, 0, Math.PI * 2);
+  ctx.fillStyle = '#04060a';
   ctx.fill();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.6;
+  ctx.strokeStyle = '#1e293b';
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR - 14, 0, Math.PI * 2);
+  ctx.lineWidth = 1.8;
   ctx.strokeStyle = selHero.accent;
   ctx.stroke();
 
+  // Retículos cardeais no anel do hub
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+  ctx.lineWidth = 1.4;
+  for (const ca of [0, Math.PI * 0.5, Math.PI, Math.PI * 1.5]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ca) * (innerR - 17), cy + Math.sin(ca) * (innerR - 17));
+    ctx.lineTo(cx + Math.cos(ca) * (innerR - 9), cy + Math.sin(ca) * (innerR - 9));
+    ctx.stroke();
+  }
+
   ctx.textAlign = 'center';
-  ctx.font = '800 11px "JetBrains Mono", monospace';
+  ctx.font = '800 10.5px "JetBrains Mono", monospace';
   ctx.fillStyle = selHero.accent;
-  ctx.fillText(selHero.opCode, cx, cy - 28);
+  ctx.fillText(selHero.opCode, cx, cy - 27);
 
   ctx.font = '700 22px "Teko", sans-serif';
   ctx.fillStyle = '#f8fafc';
@@ -885,10 +1173,10 @@ export function renderHeroWheelCanvas(canvas, selectedHeroKey, activeHeroKey) {
   ctx.font = '700 9.5px "Chakra Petch", sans-serif';
   ctx.fillStyle = '#94a3b8';
   const shortRole = selHero.role.split('//')[0].trim();
-  ctx.fillText(shortRole, cx, cy + 14);
+  ctx.fillText(shortRole, cx, cy + 13);
 
-  ctx.font = '800 9px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#facc15';
-  ctx.fillText('[WASD] GIRAR • [TAB] CONFIRMAR', cx, cy + 34);
+  ctx.font = '800 8.5px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#d99b16';
+  ctx.fillText('[WASD] GIRAR • [TAB] CONFIRMAR', cx, cy + 32);
   ctx.restore();
 }
