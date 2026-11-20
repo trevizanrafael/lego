@@ -1,0 +1,358 @@
+import * as THREE from 'three';
+import {
+  LEGO_COLORS,
+  markAsSharedAsset
+} from '../../materials/LegoMaterials.js';
+import { optimizeStaticGroupMeshes } from '../BuildingGenerator.js';
+
+export const FIREBALL_GEO = markAsSharedAsset(new THREE.SphereGeometry(0.34, 14, 14));
+export const TRAIL_CUBE_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.24, 0.24, 0.24));
+export const SHARED_UNIT_CYL_6 = markAsSharedAsset(new THREE.CylinderGeometry(1, 1, 1, 6));
+export const SHARED_UNIT_SPHERE_10 = markAsSharedAsset(new THREE.SphereGeometry(1, 10, 10));
+export const SHARED_UNIT_SPHERE_20 = markAsSharedAsset(new THREE.SphereGeometry(1, 20, 20));
+export const _TMP_IMPACT_VEC = new THREE.Vector3();
+
+export function packGridCell(cx, cz) {
+  return ((cx & 0xffff) << 16) | (cz & 0xffff);
+}
+
+export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
+  registerDestructible({
+    mesh,
+    type,
+    hp = 30,
+    radius = 1.4,
+    height = 2.0,
+    colliders = [],
+    debrisColors = [LEGO_COLORS.red, LEGO_COLORS.lightGrey],
+    studDrops = { silver: 4, gold: 2, blue: 0, purple: 0 },
+    groundY = 0.26,
+    goldOnly = false,
+    crackedWallOnly = false,
+    silverOnly = false,
+    isStreetProp = false,
+    chaosValue = 0,
+    isPoliceUnit = false,
+    isFactionWarUnit = false,
+    noAutoRespawn = false
+  }) {
+    const basePos = mesh.position.clone();
+    const baseRot = mesh.rotation.clone();
+    if (
+      mesh &&
+      !mesh.userData?.isOptimizedGroup &&
+      !mesh.userData?.skipStaticMerge &&
+      type !== 'npc_fighter' &&
+      type !== 'npc_boss' &&
+      type !== 'pedestrian_civilian' &&
+      type !== 'police_helicopter' &&
+      type !== 'hunter_drone'
+    ) {
+      optimizeStaticGroupMeshes(mesh, []);
+    }
+    if (isStreetProp && mesh) {
+      mesh.traverse((c) => {
+        if (c.isMesh) c.castShadow = false;
+      });
+    }
+
+    const isDynamic =
+      type === 'car' ||
+      type === 'npc_fighter' ||
+      type === 'npc_boss' ||
+      type === 'pedestrian_civilian' ||
+      type === 'police_helicopter' ||
+      type === 'hunter_drone' ||
+      Boolean(isPoliceUnit) ||
+      Boolean(isFactionWarUnit);
+
+    const item = {
+      mesh,
+      type,
+      hp,
+      maxHp: hp,
+      radius,
+      height,
+      colliders,
+      debrisColors,
+      studDrops,
+      groundY,
+      goldOnly,
+      crackedWallOnly,
+      silverOnly,
+      isStreetProp: Boolean(isStreetProp),
+      chaosValue,
+      isPoliceUnit: Boolean(isPoliceUnit),
+      isFactionWarUnit: Boolean(isFactionWarUnit),
+      noAutoRespawn: Boolean(noAutoRespawn),
+      _isDynamicIndexed: isDynamic,
+      _spatialCellKey: null,
+      heatLevel: 0,
+      basePos,
+      baseRot,
+      destroyed: false,
+      shakeTimer: 0,
+      respawnTimer: 0
+    };
+
+    this.objects.push(item);
+
+    if (isDynamic) {
+      this._dynamicObjects.push(item);
+      if (Array.isArray(colliders) && this.world?.promoteDynamicCollider) {
+        for (let ci = 0; ci < colliders.length; ci++) {
+          this.world.promoteDynamicCollider(colliders[ci]);
+        }
+      }
+    } else {
+      const cx = Math.floor(basePos.x / this.spatialCellSize);
+      const cz = Math.floor(basePos.z / this.spatialCellSize);
+      const key = packGridCell(cx, cz);
+      item._spatialCellKey = key;
+      let bucket = this._spatialGrid.get(key);
+      if (!bucket) {
+        bucket = [];
+        this._spatialGrid.set(key, bucket);
+      }
+      bucket.push(item);
+    }
+
+    return item;
+  },
+
+  wakeObjectMatrix(mesh) {
+    if (!mesh) return;
+    let cur = mesh;
+    while (cur && cur !== this.scene) {
+      cur.matrixAutoUpdate = true;
+      cur.matrixWorldAutoUpdate = true;
+      cur.matrixWorldNeedsUpdate = true;
+      cur = cur.parent;
+    }
+  },
+
+  freezeObjectMatrix(mesh) {
+    if (!mesh || mesh.userData?._keepDynamicMatrix) return;
+    mesh.updateMatrix();
+    mesh.updateMatrixWorld(true);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrixWorldAutoUpdate = false;
+  },
+
+  _spawnFxParticle(geo, colorHex, opacity, px, py, pz, sx, sy, sz, vx, vy, vz, life, maxLife = life) {
+    let entry = this._fxPool.pop();
+    if (entry) {
+      entry.mesh.geometry = geo;
+      entry.mesh.material.color.setHex(colorHex);
+      entry.mesh.material.opacity = opacity;
+      entry.mesh.position.set(px, py, pz);
+      entry.mesh.rotation.set(0, 0, 0);
+      entry.mesh.scale.set(sx, sy, sz);
+      entry.vel.set(vx, vy, vz);
+      entry.life = life;
+      entry.maxLife = maxLife;
+    } else {
+      const mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(px, py, pz);
+      mesh.scale.set(sx, sy, sz);
+      entry = {
+        mesh,
+        vel: new THREE.Vector3(vx, vy, vz),
+        life,
+        maxLife,
+        _pooled: true
+      };
+    }
+    this.scene.add(entry.mesh);
+    this.fxParticles.push(entry);
+    return entry;
+  },
+
+  unregisterDestructible(item) {
+    if (!item) return;
+    item.destroyed = true;
+    item.noAutoRespawn = true;
+    if (Array.isArray(item.colliders)) {
+      for (const col of item.colliders) {
+        if (col) col.disabled = true;
+      }
+    }
+    if (item.mesh && item.mesh.parent) {
+      item.mesh.parent.remove(item.mesh);
+    }
+    if (item._isDynamicIndexed) {
+      const dynIdx = this._dynamicObjects.indexOf(item);
+      if (dynIdx !== -1) this._dynamicObjects.splice(dynIdx, 1);
+    } else if (item._spatialCellKey !== null && item._spatialCellKey !== undefined) {
+      const bucket = this._spatialGrid.get(item._spatialCellKey);
+      if (bucket) {
+        const bIdx = bucket.indexOf(item);
+        if (bIdx !== -1) bucket.splice(bIdx, 1);
+      }
+    }
+    const idx = this.objects.indexOf(item);
+    if (idx !== -1) {
+      this.objects.splice(idx, 1);
+    }
+  },
+
+  removeDestructible(item) {
+    return this.unregisterDestructible(item);
+  },
+
+  /**
+   * Consulta espacial O(1) nas células vizinhas de 36m + objetos móveis (60 FPS cravados com ~450+ props!)
+   */
+  getObjectsNear(x, z, range = 12, out = null) {
+    if (out) {
+      out.length = 0;
+    } else {
+      out = [];
+    }
+    const pad = range + 4.5;
+    const minCX = Math.floor((x - pad) / this.spatialCellSize);
+    const maxCX = Math.floor((x + pad) / this.spatialCellSize);
+    const minCZ = Math.floor((z - pad) / this.spatialCellSize);
+    const maxCZ = Math.floor((z + pad) / this.spatialCellSize);
+
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cz = minCZ; cz <= maxCZ; cz++) {
+        const bucket = this._spatialGrid.get(packGridCell(cx, cz));
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i++) {
+          const obj = bucket[i];
+          if (!obj.destroyed) out.push(obj);
+        }
+      }
+    }
+
+    const padSq = (pad + 6.0) * (pad + 6.0);
+    for (let i = 0; i < this._dynamicObjects.length; i++) {
+      const obj = this._dynamicObjects[i];
+      if (obj.destroyed) continue;
+      const ox = obj.mesh?.position?.x ?? obj.basePos.x;
+      const oz = obj.mesh?.position?.z ?? obj.basePos.z;
+      const dx = ox - x;
+      const dz = oz - z;
+      if (dx * dx + dz * dz <= padSq) {
+        out.push(obj);
+      }
+    }
+    return out;
+  },
+
+  _restoreObject(obj) {
+    obj.destroyed = false;
+    obj.hp = obj.maxHp;
+    obj.heatLevel = 0;
+    obj.shakeTimer = 0;
+    obj.mesh.visible = true;
+    obj.mesh.position.copy(obj.basePos);
+    obj.mesh.rotation.copy(obj.baseRot);
+    obj.mesh.scale.set(1, 1, 1);
+    if (obj._isDynamicIndexed) {
+      obj.mesh.matrixWorldAutoUpdate = true;
+    } else if (this.scene?.matrixAutoUpdate === false) {
+      this.freezeObjectMatrix(obj.mesh);
+    }
+    if (obj._syncInstancedVisual) {
+      obj._syncInstancedVisual(obj);
+      this._flushStreetPropInstancedBatches?.();
+    }
+    for (const col of obj.colliders) {
+      col.disabled = false;
+    }
+  },
+
+  _updateCullingShakeAndRespawn(dt, playerPosition, cameraForward = null) {
+    const totalObjs = this.objects.length;
+    const runFullStreetPropCull = dt >= 0.15;
+    const sliceStart = this._cullSliceCursor;
+    const sliceEnd = runFullStreetPropCull ? totalObjs : Math.min(totalObjs, sliceStart + 80);
+    this._cullSliceCursor = sliceEnd >= totalObjs ? 0 : sliceEnd;
+
+    // Tremor, distance culling em fatias de 80/frame (155m para StreetProps) e auto-reconstrução LEGO (45s)
+    for (let oi = 0; oi < totalObjs; oi++) {
+      const obj = this.objects[oi];
+      if (obj.destroyed) {
+        if (obj.noAutoRespawn) continue;
+        if (obj.isStreetProp && playerPosition) {
+          const dx = obj.basePos.x - playerPosition.x;
+          const dz = obj.basePos.z - playerPosition.z;
+          const distSq = dx * dx + dz * dz;
+          let outOfView = distSq >= 48 * 48;
+          if (!outOfView && cameraForward && distSq >= 18 * 18) {
+            const dot = dx * cameraForward.x + dz * cameraForward.z;
+            if (dot < -0.1) outOfView = true;
+          }
+          if (outOfView) {
+            obj.respawnTimer -= dt;
+            if (obj.respawnTimer <= 0) {
+              this._restoreObject(obj);
+            }
+          }
+          continue;
+        }
+        obj.respawnTimer -= dt;
+        if (obj.respawnTimer <= 0) {
+          this._restoreObject(obj);
+        }
+        continue;
+      }
+
+      if (obj.isDriven || obj.isGrabbed) {
+        obj.mesh.visible = true;
+        if (obj._isDynamicIndexed) obj.mesh.matrixWorldAutoUpdate = true;
+        continue;
+      }
+
+      const inCullSlice = runFullStreetPropCull || (oi >= sliceStart && oi < sliceEnd);
+      if (playerPosition && (!obj.isStreetProp || inCullSlice || obj.shakeTimer > 0)) {
+        const refX = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+        const refZ = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+        const dx = refX - playerPosition.x;
+        const dz = refZ - playerPosition.z;
+        const distSq = dx * dx + dz * dz;
+        const baseDist =
+          obj.type === 'car' || obj.type === 'police_helicopter'
+            ? 280
+            : obj.isStreetProp
+              ? 155
+              : 380;
+        const cullDist = obj.mesh.visible ? baseDist + 26 : baseDist;
+        const maxCullSq = cullDist * cullDist;
+        const shouldBeVisible = distSq <= maxCullSq;
+        if (obj.mesh.visible !== shouldBeVisible) {
+          obj.mesh.visible = shouldBeVisible;
+          if (obj._isDynamicIndexed) obj.mesh.matrixWorldAutoUpdate = shouldBeVisible;
+          if (obj._syncInstancedVisual) obj._syncInstancedVisual(obj);
+        }
+        if (!shouldBeVisible) continue;
+      } else if (!obj.mesh.visible) {
+        continue;
+      }
+
+      if (obj.shakeTimer > 0) {
+        obj.shakeTimer -= dt;
+        if (obj.shakeTimer <= 0) {
+          obj.shakeTimer = 0;
+          obj.mesh.position.copy(obj.basePos);
+          obj.mesh.rotation.copy(obj.baseRot);
+          if (obj._syncInstancedVisual) {
+            obj._syncInstancedVisual(obj);
+          } else if (!obj._isDynamicIndexed) {
+            this.freezeObjectMatrix(obj.mesh);
+          }
+        } else {
+          const intensity = obj.shakeTimer * 0.45;
+          obj.mesh.position.x = obj.basePos.x + (Math.random() - 0.5) * intensity;
+          obj.mesh.position.z = obj.basePos.z + (Math.random() - 0.5) * intensity;
+          obj.mesh.rotation.z = (Math.random() - 0.5) * intensity * 0.5;
+          if (obj._syncInstancedVisual) obj._syncInstancedVisual(obj);
+        }
+      }
+    }
+    this._flushStreetPropInstancedBatches?.();
+  }
+};
