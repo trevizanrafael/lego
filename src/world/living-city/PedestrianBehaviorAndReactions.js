@@ -1,0 +1,448 @@
+import * as THREE from 'three';
+import { soundFX } from '../../audio/SoundFX.js';
+import {
+  ARCHETYPE_PRESETS,
+  SHARED_CIV_PROP_GEOS
+} from './PedestrianSharedGeometriesAndArchetypes.js';
+
+export const pedestrianBehaviorAndReactionsMethods = {
+  _buildCivilianLegoMinifig(archetypeKey, variantIdx = 0) {
+    const list = ARCHETYPE_PRESETS[archetypeKey] || ARCHETYPE_PRESETS.casual;
+    const preset = list[variantIdx % list.length];
+
+    const root = new THREE.Group();
+    root.userData.skipStaticMerge = true;
+
+    const leftLeg = new THREE.Object3D();
+    leftLeg.position.set(-0.2, 0.62, 0);
+    const rightLeg = new THREE.Object3D();
+    rightLeg.position.set(0.2, 0.62, 0);
+
+    const torso = new THREE.Object3D();
+    torso.position.set(0, 1.04, 0);
+    const torsoDecal = new THREE.Object3D();
+    torsoDecal.position.set(0, 1.04, 0);
+
+    const head = new THREE.Object3D();
+    head.position.set(0, 1.66, 0);
+    const faceShell = new THREE.Object3D();
+    faceShell.position.set(0, 1.66, 0);
+
+    const leftArm = new THREE.Object3D();
+    leftArm.position.set(-0.52, 1.33, 0);
+    leftArm.rotation.z = 0.08;
+    const rightArm = new THREE.Object3D();
+    rightArm.position.set(0.52, 1.33, 0);
+    rightArm.rotation.z = -0.08;
+
+    const headPropMesh = new THREE.Object3D();
+    headPropMesh.visible = Boolean(preset.headProp && SHARED_CIV_PROP_GEOS[preset.headProp]);
+    headPropMesh.position.set(
+      0,
+      preset.headProp === 'headband' ? 1.78 : preset.headProp === 'headphones' ? 1.74 : 1.83,
+      0
+    );
+
+    const backPropMesh = new THREE.Object3D();
+    backPropMesh.visible = Boolean(preset.backProp && SHARED_CIV_PROP_GEOS[preset.backProp]);
+    backPropMesh.position.set(0, 1.05, -0.31);
+
+    const handPropMesh = new THREE.Object3D();
+    handPropMesh.visible = Boolean(preset.handProp && SHARED_CIV_PROP_GEOS[preset.handProp]);
+    handPropMesh.position.set(0, -0.55, 0.13);
+
+    const cameraFlashMesh = new THREE.Object3D();
+    cameraFlashMesh.visible = false;
+    cameraFlashMesh.position.set(0, -0.48, 0.34);
+
+    return {
+      root,
+      torso,
+      torsoDecal,
+      leftLeg,
+      rightLeg,
+      leftArm,
+      rightArm,
+      head,
+      faceShell,
+      headPropMesh,
+      backPropMesh,
+      handPropMesh,
+      cameraFlashMesh,
+      torsoHex: preset.torsoHex,
+      legHex: preset.legHex,
+      torsoKey: preset.torsoKey,
+      faceKey: preset.faceKey || 'civ_smile',
+      headPropKey: preset.headProp || null,
+      headColor: preset.headColor ?? 0x1e293b,
+      backPropKey: preset.backProp || null,
+      backPropColor: preset.backPropColor ?? 0xd97706,
+      handPropKey: preset.handProp || null,
+      handPropColor: preset.handPropColor ?? 0x1e293b,
+      preset
+    };
+  },
+
+  /**
+   * Atualiza instantaneamente o arquétipo visual de um civil reciclado para combinar 100% com o bairro atual do jogador!
+   */
+  _rethemePedestrianArchetype(ped, newArchetypeKey, seedIdx = 0) {
+    if (ped.archetype === newArchetypeKey) return;
+    const list = ARCHETYPE_PRESETS[newArchetypeKey] || ARCHETYPE_PRESETS.casual;
+    const preset = list[seedIdx % list.length];
+    const vis = ped.visual;
+
+    ped.archetype = newArchetypeKey;
+    ped.walkSpeed = preset.speed;
+    ped.normalFaceKey = preset.faceKey || 'civ_smile';
+    ped.currentFaceKey = ped.normalFaceKey;
+
+    vis.torsoHex = preset.torsoHex;
+    vis.legHex = preset.legHex;
+    vis.torsoKey = preset.torsoKey;
+    vis.faceKey = ped.normalFaceKey;
+    vis.headPropKey = preset.headProp || null;
+    vis.headColor = preset.headColor ?? 0x1e293b;
+    vis.backPropKey = preset.backProp || null;
+    vis.backPropColor = preset.backPropColor ?? 0xd97706;
+    vis.handPropKey = preset.handProp || null;
+    vis.handPropColor = preset.handPropColor ?? 0x1e293b;
+
+    vis.headPropMesh.visible = Boolean(preset.headProp && SHARED_CIV_PROP_GEOS[preset.headProp]);
+    vis.headPropMesh.position.y =
+      preset.headProp === 'headband' ? 1.78 : preset.headProp === 'headphones' ? 1.74 : 1.83;
+    vis.backPropMesh.visible = Boolean(preset.backProp && SHARED_CIV_PROP_GEOS[preset.backProp]);
+    vis.handPropMesh.visible = Boolean(preset.handProp && SHARED_CIV_PROP_GEOS[preset.handProp]);
+    vis.cameraFlashMesh.visible = false;
+  },
+
+  _setPedestrianFace(ped, faceKey) {
+    if (ped.currentFaceKey === faceKey) return;
+    ped.currentFaceKey = faceKey;
+    if (ped.visual) {
+      ped.visual.faceKey = faceKey;
+    }
+  },
+
+  /**
+   * COMÉDIA LEGO SEM PUNIÇÃO: Ao acertar soco/explosão ou esbarrar de carro em um civil,
+   * ele dá um salto acrobático cômico para trás/lado, solta 2 a 3 Studs Prateados/Azuis de susto e corre de mãos pro alto!
+   */
+  _triggerCivilianSlapstickHit(ped, hitOrigin) {
+    const root = ped.visual.root;
+    const ox = hitOrigin?.x ?? root.position.x + 1;
+    const oz = hitOrigin?.z ?? root.position.z + 1;
+    let dx = root.position.x - ox;
+    let dz = root.position.z - oz;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.05) {
+      dx = 1;
+      dz = 0;
+    } else {
+      dx /= len;
+      dz /= len;
+    }
+
+    ped.isChatGroup = false;
+    ped.slapstickTimer = 0.65;
+    ped.slapstickDuration = 0.65;
+    ped.knockVelX = dx * 9.5;
+    ped.knockVelZ = dz * 9.5;
+    ped.panicTimer = 5.0;
+    ped.panicDirX = dx;
+    ped.panicDirZ = dz;
+    ped.state = 'PANIC';
+    this._setPedestrianFace(ped, 'civ_panic');
+
+    if (ped.slapstickCooldown <= 0) {
+      ped.slapstickCooldown = 2.2;
+      soundFX.playPlasticHit();
+      if (this.destructibles) {
+        const groundY = this.world.getTerrainHeightAt
+          ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
+          : 0;
+        const dropSpec = ped.id % 2 === 0 ? { silver: 2, blue: 1 } : { silver: 2 };
+        this.destructibles.spawnRewardStudFountain(root.position, groundY, dropSpec);
+      }
+    }
+  },
+
+  /**
+   * Pânico Cômico LEGO (5.0s) num raio de 28m quando o jogador atira, explode ou soca perto dos civis!
+   */
+  triggerPedestrianPanicNear(origin, radius = 28.0) {
+    const clampR = Math.min(34.0, Math.max(18.0, radius));
+    this.triggerTrafficPanicNear(origin, 26.0);
+    for (const ped of this.pedestrians) {
+      const pos = ped.visual.root.position;
+      const dx = pos.x - origin.x;
+      const dz = pos.z - origin.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist <= clampR) {
+        ped.isChatGroup = false;
+        ped.panicTimer = 5.0;
+        ped.state = 'PANIC';
+        const len = Math.max(0.1, dist);
+        ped.panicDirX = dx / len;
+        ped.panicDirZ = dz / len;
+        this._setPedestrianFace(ped, 'civ_panic');
+      }
+    }
+  },
+
+  _updatePedestrians(dt, playerPos, controller) {
+    const heroKey = controller?.minifigure?.currentHeroKey || 'caveira';
+    const isVortexSymbiote = heroKey === 'vortex';
+    const playerSpeed = controller?.getHorizontalSpeed ? controller.getHorizontalSpeed() : 0;
+    const isDrivingCar = Boolean(controller?.currentVehicle);
+    const isAirborneNow = Boolean(controller && (controller.isFlying || !controller.isGrounded));
+
+    if (this._wasPlayerAirborne && !isAirborneNow && playerPos && !isVortexSymbiote) {
+      this._heroLandingCheerTimer = 4.2;
+      this._heroLandingPos.copy(playerPos);
+    }
+    this._wasPlayerAirborne = isAirborneNow;
+    if (this._heroLandingCheerTimer > 0) {
+      this._heroLandingCheerTimer = Math.max(0, this._heroLandingCheerTimer - dt);
+    }
+
+    const carSpeedingNearSidewalk = isDrivingCar && playerSpeed > 12.5;
+    const carFwdX = isDrivingCar ? Math.sin(controller.facingAngle || 0) : 0;
+    const carFwdZ = isDrivingCar ? Math.cos(controller.facingAngle || 0) : 0;
+
+    for (let i = 0; i < this.pedestrians.length; i++) {
+      const ped = this.pedestrians[i];
+      const vis = ped.visual;
+      const root = vis.root;
+
+      if (ped.slapstickCooldown > 0) ped.slapstickCooldown = Math.max(0, ped.slapstickCooldown - dt);
+      if (ped.photoFlashTimer > 0) {
+        ped.photoFlashTimer -= dt;
+        if (ped.photoFlashTimer <= 0 && vis.cameraFlashMesh) {
+          vis.cameraFlashMesh.visible = false;
+        }
+      }
+
+      let distToPlayer = 9999;
+      let dxFromPlayer = 0;
+      let dzFromPlayer = 0;
+      if (playerPos) {
+        dxFromPlayer = root.position.x - playerPos.x;
+        dzFromPlayer = root.position.z - playerPos.z;
+        const dSq = dxFromPlayer * dxFromPlayer + dzFromPlayer * dzFromPlayer;
+        const isCloseVisible = dSq <= 125 * 125;
+        if (root.visible !== isCloseVisible) {
+          root.visible = isCloseVisible;
+          root.matrixWorldAutoUpdate = isCloseVisible;
+        }
+        if (!isCloseVisible) continue;
+        distToPlayer = Math.sqrt(dSq);
+      }
+
+      if (isDrivingCar && playerSpeed > 3.5 && distToPlayer < 2.85 && ped.slapstickTimer <= 0) {
+        this._triggerCivilianSlapstickHit(ped, playerPos);
+      } else if (carSpeedingNearSidewalk && distToPlayer < 12.5 && ped.slapstickTimer <= 0) {
+        const relX = root.position.x - playerPos.x;
+        const relZ = root.position.z - playerPos.z;
+        const ahead = relX * carFwdX + relZ * carFwdZ;
+        const lat = relX * carFwdZ - relZ * carFwdX;
+        if (ahead > -1.0 && ahead < 11.5 && Math.abs(lat) < 4.5 && ped.diveTimer <= 0) {
+          const sideSign = lat >= 0 ? 1 : -1;
+          ped.diveTimer = 0.42;
+          ped.diveVelX = carFwdZ * sideSign * 11.5;
+          ped.diveVelZ = -carFwdX * sideSign * 11.5;
+        }
+        ped.isChatGroup = false;
+        ped.panicTimer = 5.0;
+        ped.panicDirX = dxFromPlayer / Math.max(0.1, distToPlayer);
+        ped.panicDirZ = dzFromPlayer / Math.max(0.1, distToPlayer);
+        this._setPedestrianFace(ped, 'civ_panic');
+      }
+
+      ped.animTime += dt;
+      let hopHeight = 0;
+      let moveX = 0;
+      let moveZ = 0;
+      let speed = 0;
+
+      if (ped.slapstickTimer > 0) {
+        ped.slapstickTimer = Math.max(0, ped.slapstickTimer - dt);
+        const u = 1.0 - ped.slapstickTimer / ped.slapstickDuration;
+        hopHeight = Math.sin(u * Math.PI) * 2.35;
+        root.position.x += ped.knockVelX * dt;
+        root.position.z += ped.knockVelZ * dt;
+        root.rotation.x = u * Math.PI * 2;
+        vis.leftArm.rotation.x = -2.8;
+        vis.rightArm.rotation.x = -2.8;
+        vis.leftLeg.rotation.x = 0.7;
+        vis.rightLeg.rotation.x = -0.7;
+        if (ped.slapstickTimer <= 0) {
+          root.rotation.x = 0;
+        }
+      } else if (ped.diveTimer > 0) {
+        ped.diveTimer = Math.max(0, ped.diveTimer - dt);
+        const u = 1.0 - ped.diveTimer / 0.42;
+        hopHeight = Math.sin(u * Math.PI) * 1.15;
+        root.position.x += ped.diveVelX * dt;
+        root.position.z += ped.diveVelZ * dt;
+        root.rotation.z = Math.sin(u * Math.PI) * 0.48;
+        vis.leftArm.rotation.x = -2.6;
+        vis.rightArm.rotation.x = -2.6;
+        if (ped.diveTimer <= 0) {
+          root.rotation.z = 0;
+        }
+      } else if (ped.panicTimer > 0) {
+        ped.state = 'PANIC';
+        ped.panicTimer -= dt;
+        speed = 8.2;
+        moveX = ped.panicDirX;
+        moveZ = ped.panicDirZ;
+        if (ped.panicTimer <= 0) {
+          ped.state = 'NORMAL';
+          this._setPedestrianFace(ped, ped.normalFaceKey);
+        }
+      } else if (controller?.minifigure?.activeEmote && distToPlayer <= 12.0 && !isDrivingCar) {
+        ped.state = 'DANCE_ALONG';
+        this._setPedestrianFace(ped, 'civ_smile');
+        root.rotation.y = Math.atan2(-dxFromPlayer, -dzFromPlayer);
+        const dancePhase = ped.animTime * 11.5 + (ped.id % 4) * 0.5;
+        hopHeight = Math.abs(Math.sin(dancePhase)) * 0.28;
+        vis.leftLeg.rotation.x = Math.sin(dancePhase) * 0.55;
+        vis.rightLeg.rotation.x = -Math.sin(dancePhase) * 0.55;
+        if (ped.id % 2 === 0) {
+          const clap = Math.sin(dancePhase * 1.4) * 0.25;
+          vis.leftArm.rotation.x = -1.4 + clap;
+          vis.rightArm.rotation.x = -1.4 - clap;
+        } else {
+          vis.leftArm.rotation.x = -2.25 + Math.sin(dancePhase) * 0.55;
+          vis.rightArm.rotation.x = -2.25 - Math.sin(dancePhase) * 0.55;
+        }
+      } else if (isVortexSymbiote && distToPlayer < 7.0 && !isDrivingCar) {
+        ped.state = 'VILLAIN_SPOOK';
+        this._setPedestrianFace(ped, 'civ_panic');
+        const inv = 1.0 / Math.max(0.1, distToPlayer);
+        root.rotation.y = Math.atan2(-dxFromPlayer, -dzFromPlayer);
+        root.position.x += dxFromPlayer * inv * 2.35 * dt;
+        root.position.z += dzFromPlayer * inv * 2.35 * dt;
+        const tremble = Math.sin(ped.animTime * 22.0) * 0.08;
+        vis.leftArm.rotation.x = -1.65 + tremble;
+        vis.rightArm.rotation.x = -1.65 - tremble;
+        vis.leftLeg.rotation.x = Math.sin(ped.animTime * 9.0) * 0.32;
+        vis.rightLeg.rotation.x = -Math.sin(ped.animTime * 9.0) * 0.32;
+      } else if (
+        !isVortexSymbiote &&
+        !isDrivingCar &&
+        ((this._heroLandingCheerTimer > 0 && distToPlayer < 15.0) ||
+          (ped.canCheerHero && distToPlayer < 10.0 && playerSpeed < 7.5))
+      ) {
+        ped.state = 'CHEER';
+        this._setPedestrianFace(ped, ped.normalFaceKey);
+        root.rotation.y = Math.atan2(-dxFromPlayer, -dzFromPlayer);
+        hopHeight = Math.max(0, Math.sin(ped.animTime * 8.5)) * 0.24;
+        vis.leftLeg.rotation.x = 0;
+        vis.rightLeg.rotation.x = 0;
+
+        if (ped.archetype === 'tourist') {
+          vis.rightArm.rotation.x = -1.48;
+          vis.leftArm.rotation.x = -1.25;
+          ped.photoCooldown -= dt;
+          if (ped.photoCooldown <= 0) {
+            ped.photoCooldown = 1.85 + (ped.id % 4) * 0.45;
+            ped.photoFlashTimer = 0.12;
+            if (vis.cameraFlashMesh) {
+              vis.cameraFlashMesh.visible = true;
+              vis.cameraFlashMesh.rotation.y = ped.animTime * 3.0;
+            }
+          }
+        } else if (ped.cheerStyle === 'clap') {
+          const clap = Math.sin(ped.animTime * 14.0) * 0.22;
+          vis.leftArm.rotation.x = -1.35 + clap;
+          vis.rightArm.rotation.x = -1.35 - clap;
+        } else {
+          vis.rightArm.rotation.x = -2.65 + Math.sin(ped.animTime * 12.0) * 0.32;
+          vis.leftArm.rotation.x = -0.25;
+        }
+      } else {
+        ped.state = 'NORMAL';
+        this._setPedestrianFace(ped, ped.normalFaceKey);
+
+        if (ped.isChatGroup) {
+          root.rotation.y = ped.chatPartnerAngle + Math.sin(ped.animTime * 1.1) * 0.08;
+          vis.leftLeg.rotation.x = 0;
+          vis.rightLeg.rotation.x = 0;
+          vis.leftArm.rotation.x = -0.45 + Math.sin(ped.animTime * 3.4) * 0.22;
+          vis.rightArm.rotation.x = -0.62 + Math.cos(ped.animTime * 2.9) * 0.28;
+        } else {
+          speed = ped.walkSpeed;
+          const targetX = ped.dir > 0 ? ped.x2 : ped.x1;
+          const targetZ = ped.dir > 0 ? ped.z2 : ped.z1;
+          const dx = targetX - root.position.x;
+          const dz = targetZ - root.position.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < 1.25) {
+            ped.dir *= -1;
+          } else {
+            moveX = dx / dist;
+            moveZ = dz / dist;
+          }
+        }
+      }
+
+      if (speed > 0 && (moveX !== 0 || moveZ !== 0)) {
+        const nextX = root.position.x + moveX * speed * dt;
+        const nextZ = root.position.z + moveZ * speed * dt;
+        if (this._isValidDryLandForPedestrian(nextX, nextZ)) {
+          root.position.x = nextX;
+          root.position.z = nextZ;
+        } else {
+          ped.dir *= -1;
+          ped.panicDirX *= -1;
+          ped.panicDirZ *= -1;
+        }
+
+        root.rotation.y = Math.atan2(moveX, moveZ);
+
+        const isJogging = ped.state === 'NORMAL' && ped.archetype === 'jogger';
+        const freq = ped.state === 'PANIC' ? 15.0 : isJogging ? 10.5 : 7.0;
+        const amp = ped.state === 'PANIC' ? 0.85 : isJogging ? 0.68 : 0.46;
+        const swing = Math.sin(ped.animTime * freq) * amp;
+
+        vis.leftLeg.rotation.x = swing;
+        vis.rightLeg.rotation.x = -swing;
+
+        if (ped.state === 'PANIC') {
+          vis.leftArm.rotation.x = -2.68 + swing * 0.32;
+          vis.rightArm.rotation.x = -2.68 - swing * 0.32;
+        } else if (isJogging) {
+          vis.leftArm.rotation.x = -1.05 - swing * 0.65;
+          vis.rightArm.rotation.x = -1.05 + swing * 0.65;
+        } else {
+          vis.leftArm.rotation.x = -swing * 0.75;
+          const holdingItem = vis.handPropMesh?.visible;
+          vis.rightArm.rotation.x = holdingItem ? -0.58 + swing * 0.2 : swing * 0.75;
+        }
+      }
+
+      const pedCol = this._resolveBuildingCollision(root.position.x, root.position.z, 1.05);
+      if (pedCol.collided) {
+        root.position.x = pedCol.x;
+        root.position.z = pedCol.z;
+        if (ped.state === 'NORMAL' && !ped.isChatGroup) {
+          ped.dir *= -1;
+        }
+      }
+
+      const terrainY = this.world.getTerrainHeightAt
+        ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
+        : 0;
+      const baseY = this._getPedestrianGroundY(root.position.x, root.position.z, terrainY);
+      root.position.y = baseY + hopHeight;
+
+      if (ped.destructible) {
+        ped.destructible.basePos.set(root.position.x, baseY, root.position.z);
+        ped.destructible.groundY = terrainY;
+      }
+    }
+    this._syncPedestrianInstances();
+  }
+};
