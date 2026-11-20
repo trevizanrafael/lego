@@ -92,3 +92,50 @@ O mundo é uma **Grande Ilha Metropolitana** cercada pelo oceano, mais a **Ilha 
 10. **Mestre do Cofre (Chefe do PCC)**
 11. **General Overlord (Chefe Mecha *Big-Fig* da A.R.E.S.)**
 
+---
+
+## 🧩 6. Arquitetura Modular & Protocolo de Trabalho Multi-Agente
+
+O código do projeto segue rigorosamente a **Arquitetura de Fachada Fina + Submódulos por Domínio ("Padrão Metro")** para manter arquivos pequenos, legíveis e permitir que **vários agentes trabalhem simultaneamente em paralelo sem conflito**.
+
+### 6.1 Regras de Modularização e Tamanho de Arquivo
+1. **Proibido Criar ou Recriar Monólitos:**
+   * Nunca concentre milhares de linhas em um único arquivo. A meta para cada submódulo é de **`150 a 450 linhas`** (evitando ultrapassar `~500–600` linhas; se crescer além disso, divida em submódulos menores na mesma pasta).
+2. **Padrão Fachada Fina (*Barrel / Orchestrator Facade*):**
+   * Arquivos raiz de sistemas (`Minifigure.js`, `ThirdPersonController.js`, `DestructibleManager.js`, `TestBlockWorld.js`, `LegoHud.js`, `LegoMaterials.js`, `VehicleFleetBuilder.js`, builders de regiões, etc.) devem ter apenas **`50 a 210 linhas`**, atuando como ponto de entrada que orquestra e reexporta os submódulos.
+   * Quando uma classe grande tiver métodos distribuídos em submódulos, instale-os em `Classe.prototype` preservando `enumerable: false` via `Object.defineProperties` (comportamento idêntico aos métodos nativos ES6) e mantenha um grafo de imports **100% acíclico (DAG)** sem referências circulares.
+3. **Regra Intocável do Rádio / Spotify:**
+   * **NUNCA modifique** `src/audio/TikTokRadioSystem.js`, a ponte de UI do rádio, os elementos `#hud-tiktok-radio-pill` / `#tiktok-radio-modal` em `index.html` nem o bloco CSS do Spotify em `style.css`, a menos que o usuário peça explicitamente.
+
+### 6.2 Mapa Oficial de Pastas por Domínio
+Sempre adicione ou edite funcionalidades diretamente no submódulo específico do assunto:
+* **Personagens, Soldados & OP-09 (`src/entities/`):**
+  * `minifigure/` + `minifigure/outfits/` — Esqueleto base, *Big-Figs*, armas 3D, animações procedurais e 1 arquivo de traje por herói (`CaveiraBopeOutfit.js`, `SolarisSunKingOutfit.js`, `VortexSymbioteOutfit.js`, etc.).
+  * `soldiers/` — Esqueleto compartilhado, kits visuais por facção/classe e chefes.
+  * `custom-hero/` — Catálogo OP-09, montador 3D, runtime dos 12 poderes e UI do laboratório subterrâneo.
+* **Controles, Câmera & Física do Jogador (`src/controls/player/`):**
+  * Submódulos independentes para input/eventos, câmera orbital, locomoção a pé/nado, voo/gancho/travessia, combate/poderes, direção de veículos terrestres e pilotagem naval/aérea/brinquedos.
+* **Mundo, Regiões, Veículos & Sistemas Urbanos (`src/world/`):**
+  * `core/`, `terrain/`, `buildings/`, `props/` — Grid espacial de colisores, consultas de relevo/água, malha da Pangeia, viadutos, gerador de prédios Art-Deco/Brutalistas e props quebráveis.
+  * `regions/<regiao>/` — Subpastas isoladas para cada região (`downtown/`, `north-suburb/`, `south-beach/`, `east-port/`, `favela-cdd/`, `west-airport/`, `prison-island/`, `helicarrier/`) + `PangaeaPeripheryBuilder.js`.
+  * `metro/` — Linha circular, estações subterrâneas/elevadas, trens e embarque.
+  * `vehicles/` & `garages/` — Catálogo e malhas da frota terrestre/naval/aérea + oficinas `street-customs/` e `aircraft-customs/`.
+  * `destructibles/` — Registro/culling com histerese, dano/explosões em cadeia, estilhaços/studs, balística e VFX de cada herói.
+  * `living-city/`, `factions/`, `police/`, `atmosphere/`, `attractions/` — Trânsito/pedestres instanciados, guerra territorial 1x1, perseguição policial 0★–5★, ciclo dia/noite e Baile/Parque de Diversões.
+* **Materiais, Áudio, UI & Estilos (`src/materials/modules/`, `src/audio/sfx/`, `src/ui/`, `styles/`):**
+  * `src/materials/modules/` — Paleta PBR sombria, shaders de água/superfície e texturas procedurais de rostos/torsos.
+  * `src/ui/hud/`, `src/ui/map/`, `src/ui/minimap/`, `src/ui/wheel-dossier/` — Módulos isolados da interface Dark-Tech.
+  * `styles/` — Folhas CSS separadas por domínio (`tokens-and-base.css`, `operator-hud.css`, `wheel-map-dossier.css`, `title-and-menus.css`, `garages-and-lab.css`, `wanted-and-objectives.css`, `aircraft-hangar.css`), importadas em cascata por `style.css` (lembrar de atualizar o cache-bust `?v=...` em `index.html` ao alterar CSS/JS).
+
+### 6.3 Protocolo de Execução com Múltiplos Agentes em Paralelo
+Sempre que uma tarefa envolver frentes independentes (ex.: mexer em mais de um herói, região, veículo ou tela ao mesmo tempo), divida o trabalho em **Ondas Paralelas de Subagentes**:
+1. **Propriedade Estrita e Disjunta de Arquivos (*Strict File Ownership*):**
+   * Cada subagente paralelo deve receber no prompt a **lista exata e exclusiva de arquivos/pastas** que pode ler e editar.
+   * **Dois agentes em paralelo NUNCA podem editar o mesmo arquivo.** Se precisarem expor algo na fachada pai, defina o contrato antes ou deixe a atualização da fachada para um único agente/coordenador.
+2. **Validação Rápida no Subagente (Sem `git` Concorrente):**
+   * Subagentes **são proibidos** de executar `git commit`, `git add`, `git reset` ou `git checkout` por conta própria.
+   * Cada subagente valida suas entregas com um **smoke test rápido** (`node --input-type=module -e "..."` ou `node --test tests/<suite-do-dominio>.test.js`, que leva `~0.5s–3s`) antes de reportar conclusão.
+3. **Integração, Suíte Completa e Commit Atômico no Coordenador:**
+   * Quando todos os subagentes de uma onda terminam, o **agente coordenador** executa `npm test` completo (`94+` testes nas 12 suítes), confere `git status --short` e realiza um **commit atômico da onda** listando caminhos explícitos no `git add` antes de iniciar a próxima onda.
+
+
