@@ -46,10 +46,12 @@ import { buildEastCanalIndustrialAndPort } from './regions/EastPortBuilder.js';
 import { buildWestHighwayAndAirport } from './regions/WestAirportBuilder.js';
 import { buildFavelaCidadeDeDeus, getFavelaElevation } from './regions/FavelaCDDBuilder.js';
 import { buildSoutheastPrisonIsland } from './regions/PrisonIslandBuilder.js';
+import { buildPangaeaPeripheryExtensions } from './regions/PangaeaPeripheryBuilder.js';
 import { buildSkyHelicarrier, buildLegoClouds } from './regions/HelicarrierBuilder.js';
 import {
   buildViaductsAndNaturalRelief,
-  getUrbanCityReliefY
+  getUrbanCityReliefY,
+  getSouthwestBeachReliefY
 } from './ViaductAndReliefBuilder.js';
 import {
   buildMetroSystem,
@@ -133,6 +135,9 @@ export class TestBlockWorld {
 
     // 6. SUDESTE: Ponte Blindada Longa + Ilha da Prisão de Segurança Máxima
     buildSoutheastPrisonIsland(this);
+
+    // 6.5 EXPANSÃO PERIFÉRICA DA PANGEIA: Continuação real do Aeroporto Oeste, Subúrbio Norte, Orla Sudoeste e Industrial Leste
+    buildPangaeaPeripheryExtensions(this);
 
     // 7. CÉU (Y = 410m): Aeroporta-Aviões Monumental de Casco Espesso nas Nuvens
     buildSkyHelicarrier(this);
@@ -226,7 +231,7 @@ export class TestBlockWorld {
         name: 'COMPLEXO DA CIDADE DE DEUS — DOMÍNIO DO CV',
         shortName: 'CIDADE DE DEUS (CV)',
         sub: 'Morro Contínuo, Vielas, Campinho, Baile do CV & Fortaleza do Barão Vermelho',
-        bounds: { minX: -1012, maxX: -530, minZ: -1320, maxZ: 580, minY: 0, maxY: 140 },
+        bounds: { minX: -1012, maxX: -530, minZ: -1820, maxZ: 580, minY: 0, maxY: 140 },
         spawn: { x: -702, y: 26.2, z: -135 },
         color: '#dc2626',
         icon: 'cdd'
@@ -864,6 +869,22 @@ export class TestBlockWorld {
     const isletSample = getIsletSampleAt(x, z);
     if (isletSample) return isletSample.height;
 
+    // Orla Sul construída (Calçadão Z=726..778 em Y=0.32m e Faixa de Areia Z=778..1056 em Y=0.12m) — zero flutuação!
+    if (x >= -1825 && x <= 538 && z >= 726 && z <= 1056 && !(x < -1530 && z > 1020)) {
+      const inSantosCanal =
+        (Math.abs(x - -384) < 9.5 || Math.abs(x - -120) < 9.5 || Math.abs(x - 252) < 9.5) &&
+        !((z >= 725 && z <= 778) || (z >= 902 && z <= 918));
+      if (!inSantosCanal) {
+        if (z < 778) {
+          return Math.max(0.32, getUrbanCityReliefY(x, z));
+        }
+        if (!(Math.abs(x) <= 48 && z >= 1020)) {
+          const wetSlope = z <= 1036 ? 0.12 : 0.12 - ((z - 1036) / 20.0) * 0.24;
+          return Math.max(wetSlope, getSouthwestBeachReliefY(x, z));
+        }
+      }
+    }
+
     return Math.max(
       getFavelaElevation(x, z),
       getUrbanCityReliefY(x, z),
@@ -1045,11 +1066,11 @@ export class TestBlockWorld {
       return this._subRegions.bankInterior;
     }
 
-    // Detecção do Complexo da Cidade de Deus (Morro contínuo do CV entre a Cidade e o Aeroporto, estendido até a borda Norte Z = -1320!)
+    // Detecção do Complexo da Cidade de Deus (Morro contínuo do CV estendido até a encosta Boreal Z = -1820!)
     if (
       x >= -1012 &&
       x <= -528 &&
-      z >= -1320 &&
+      z >= -1820 &&
       z <= 580 &&
       (x <= -658 || (z >= -508 && z <= 415))
     ) {
@@ -1073,15 +1094,15 @@ export class TestBlockWorld {
   }
 
   _setupSkyAndLights() {
-    this.scene.background = new THREE.Color(0x1d2d3c);
-    this.scene.fog = new THREE.FogExp2(0x1d2d3c, 0.00042);
+    this.scene.background = new THREE.Color(0x0a101a);
+    this.scene.fog = new THREE.FogExp2(0x0a101a, 0.00042);
 
-    const hemiLight = new THREE.HemisphereLight(0x384657, 0x090b10, 0.44);
+    const hemiLight = new THREE.HemisphereLight(0x1f2d42, 0x05070c, 0.24);
     hemiLight.position.set(0, 480, 0);
     this.scene.add(hemiLight);
     this.hemiLight = hemiLight;
 
-    const sunLight = new THREE.DirectionalLight(0xfffbeb, 2.25);
+    const sunLight = new THREE.DirectionalLight(0x6488a8, 0.48);
     sunLight.position.set(140, 260, 120);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;

@@ -288,7 +288,7 @@ class SouthBeachBatcher {
     this._registerMat('wood_pier', 0x7c2d12, { roughness: 0.48 });
     this._registerMat('wood_pilings', 0x451a03, { roughness: 0.62 });
     this._registerMat('wood_deck', 0xb45309, { roughness: 0.42 });
-    this._registerMat('sand_wet', 0xeab308, { roughness: 0.55 });
+    this._registerMat('sand_wet', 0x7d6a49, { roughness: 0.68 });
     this._registerMat('surf_foam', 0xf8fafc, { basic: true });
 
     this._registerMat('umb_red', 0xef4444, { roughness: 0.26 });
@@ -1046,13 +1046,13 @@ function buildGoldenBeachAndShorelineLife(world, batcher) {
   for (const [xStart, xEnd] of beachSegmentsX) {
     const segW = xEnd - xStart;
     const segCenterX = (xStart + xEnd) * 0.5;
-    const sandSeg = createLegoBrick(segW, 0.28, 258, 0xfde047, {
+    const sandSeg = createLegoBrick(segW, 0.28, 258, 0xb89f72, {
       studs: false,
-      roughness: 0.62
+      roughness: 0.74
     });
     sandSeg.position.set(segCenterX, -0.02, 907);
     world.scene.add(sandSeg);
-    world.mapBlocks.push({ x: segCenterX, z: 907, w: segW, d: 258, color: '#fde047' });
+    world.mapBlocks.push({ x: segCenterX, z: 907, w: segW, d: 258, color: '#b89f72' });
 
     batcher.addBox('sand_wet', segW, 0.22, 18, segCenterX, -0.12, 1044);
     batcher.addBox('surf_foam', segW, 0.14, 3.2, segCenterX, -0.16, 1054);

@@ -2023,10 +2023,11 @@ export class LivingCityManager {
         const terrainY = this.world.getTerrainHeightAt
           ? this.world.getTerrainHeightAt(safe.x, safe.z)
           : 0;
+        const pedGroundY = this._getPedestrianGroundY(safe.x, safe.z, terrainY);
         const newArch = this._pickArchetypeForCoords(safe.x, safe.z, ped.id + recycledCount);
         this._rethemePedestrianArchetype(ped, newArch, ped.id);
 
-        root.position.set(safe.x, Math.max(0.28, terrainY + 0.28), safe.z);
+        root.position.set(safe.x, pedGroundY, safe.z);
         root.rotation.set(0, 0, 0);
         root.visible = true;
         root.matrixWorldAutoUpdate = true;
@@ -2390,11 +2391,11 @@ export class LivingCityManager {
         }
       }
 
-      // Altura Y dinâmica acompanhando pontes, calçadas e o Morro da Cidade de Deus + pulinhos!
+      // Altura Y dinâmica acompanhando areia da praia (sem meio-fio fantasma!), pontes, calçadas e o Morro da CDD!
       const terrainY = this.world.getTerrainHeightAt
         ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
         : 0;
-      const baseY = Math.max(0.28, terrainY + 0.28);
+      const baseY = this._getPedestrianGroundY(root.position.x, root.position.z, terrainY);
       root.position.y = baseY + hopHeight;
 
       if (ped.destructible) {
@@ -2403,6 +2404,24 @@ export class LivingCityManager {
       }
     }
     this._syncPedestrianInstances();
+  }
+
+  _getPedestrianGroundY(x, z, precomputedTerrainY = null) {
+    const terrainY =
+      precomputedTerrainY !== null
+        ? precomputedTerrainY
+        : this.world.getTerrainHeightAt
+          ? this.world.getTerrainHeightAt(x, z)
+          : 0;
+
+    // Na Orla Sul (Calçadão Y=0.32m e Areia Y=0.12m), no Morro da CDD e nas Penínsulas externas, o piso já é a superfície real!
+    const onSouthBeachOrBoardwalk =
+      x >= -1825 && x <= 538 && z >= 726 && z <= 1058 && !(x < -1530 && z > 1020);
+    const onFavelaHill = x >= -1016 && x <= -528 && z >= -1820 && z <= 675 && terrainY > 0.35;
+    if (onSouthBeachOrBoardwalk || onFavelaHill || !isInsideBuiltUrbanCore(x, z)) {
+      return Math.max(0.06, terrainY);
+    }
+    return Math.max(0.28, terrainY + 0.28);
   }
 
   // ============================================================================

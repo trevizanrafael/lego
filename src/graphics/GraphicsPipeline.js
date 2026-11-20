@@ -183,10 +183,25 @@ export class GraphicsPipeline {
       const w = Math.max(1, this.width);
       const h = Math.max(1, this.height);
       const pr = this._computeEffectivePixelRatio();
+      const ew = Math.max(1, Math.floor(w * pr));
+      const eh = Math.max(1, Math.floor(h * pr));
       this.renderer.setPixelRatio(pr);
       this.renderer.setSize(w, h);
 
-      this.composer = new EffectComposer(this.renderer);
+      let hdrTarget = null;
+      try {
+        hdrTarget = new THREE.WebGLRenderTarget(ew, eh, {
+          type: THREE.HalfFloatType,
+          depthBuffer: true,
+          stencilBuffer: false
+        });
+      } catch (_rtErr) {
+        hdrTarget = null;
+      }
+
+      this.composer = hdrTarget
+        ? new EffectComposer(this.renderer, hdrTarget)
+        : new EffectComposer(this.renderer);
       this.composer.setPixelRatio(pr);
       this.composer.setSize(w, h);
 
@@ -401,7 +416,7 @@ export class GraphicsPipeline {
       if (this._drsScale < 1.0) {
         this._drsScale = Number(Math.min(1.0, this._drsScale + 0.1).toFixed(2));
         changed = true;
-      } else if (this._autoTier < 3 && emaMs < 11.2) {
+      } else if (this._autoTier < 2 && emaMs < 11.2) {
         this._autoTier += 1;
         changed = true;
       }

@@ -137,4 +137,26 @@ test('Limites da Pangeia, spawns em periferias, câmera longe da origem, Minimap
     hud.updateMinimap(ctrl.position, 0, 0, region, world, 0, 0.016);
     hud.renderFullMap(world, ctrl.position, 0);
   });
+
+  // Regressão: Praia Sul nivelada em Y ≈ 0.12m (sem colina fantasma da Pangeia nem pedestres voando)
+  const sandHeight = world.getTerrainHeightAt(150, 900);
+  assert.ok(
+    sandHeight >= 0.08 && sandHeight <= 0.2,
+    `Areia da Praia Sul nivelada em ~0.12m sem colina fantasma (${sandHeight})`
+  );
+  const beachPedY = world.livingCity._getPedestrianGroundY(150, 900);
+  assert.ok(
+    beachPedY >= 0.08 && beachPedY <= 0.2,
+    `Banhistas/pedestres na areia pisam direto em ~0.12m sem flutuar (${beachPedY})`
+  );
+
+  // Regressão: Continuação real das estruturas nas pontas da Pangeia + Favela CDD estendida ao Norte
+  assert.ok(
+    world.pangaeaPeripheryData && world.pangaeaPeripheryData.structuresBuilt >= 35,
+    `Estruturas periféricas construídas nas pontas da Pangeia (${world.pangaeaPeripheryData?.structuresBuilt})`
+  );
+  assert.ok(
+    world.getTerrainHeightAt(-840, -1550) > 8.0,
+    'Morro da Cidade de Deus continua além de Z = -1320 rumo ao Norte'
+  );
 });

@@ -195,17 +195,17 @@ const ATMOSPHERE_KEYFRAMES = [
     nightFactor: 0.06
   },
   {
-    // Crepúsculo Sangrento / Smog de Gotham (16:45 - 18:45): Céu rubro-violeta atrás do Morro da CDD!
+    // Crepúsculo Sangrento / Smog de Gotham (16:45 - 18:45): Céu rubro-violeta sem estourar exposição!
     hour: 17.75,
     zenith: 0x090714,
     mid: 0x3b122b,
-    horizon: 0x7f1d1d,
-    sunGlow: 0xdc2626,
-    dirColor: 0xea580c,
-    dirInt: 1.26,
-    hemiSky: 0x5c2418,
-    hemiGnd: 0x0c0812,
-    hemiInt: 0.34,
+    horizon: 0x6b1919,
+    sunGlow: 0xb91c1c,
+    dirColor: 0xc25115,
+    dirInt: 0.78,
+    hemiSky: 0x451c16,
+    hemiGnd: 0x09070f,
+    hemiInt: 0.30,
     nightFactor: 0.50
   },
   {
@@ -290,8 +290,8 @@ export class DayNightAtmosphereManager {
     this.sunLight = world.sunLight;
     this.hemiLight = world.hemiLight;
 
-    // Começa às 18:10 (crepúsculo sombrio mergulhando na noite de Gotham!)
-    this.timeHours = 18.15;
+    // Começa às 20:00 (Noite de Gotham já estabilizada desde o Frame 0 — zero clarão inicial!)
+    this.timeHours = 20.0;
     this.dayCycleDurationSec = 720.0; // 12 minutos reais = 24h no jogo
     this.timeMode = 'auto';
     this.nightFactor = 0.0;
@@ -474,9 +474,15 @@ export class DayNightAtmosphereManager {
     this.starPoints.visible = false;
     this.celestialRoot.add(this.starPoints);
 
-    // Disco Solar Brilhante + Halo Dourado Aditivo
+    // Disco Solar Brilhante + Halo Dourado Aditivo (com opacidade contínua sem apagar de repente!)
     this.sunDiscGroup = new THREE.Group();
-    this.sunCoreMat = new THREE.MeshBasicMaterial({ color: 0xfffbeb, fog: false, depthWrite: false });
+    this.sunCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xfffbeb,
+      transparent: true,
+      opacity: 1.0,
+      fog: false,
+      depthWrite: false
+    });
     this.sunHaloMat = new THREE.MeshBasicMaterial({
       color: 0xf97316,
       transparent: true,
@@ -784,7 +790,7 @@ export class DayNightAtmosphereManager {
     this.scene.add(heroCrownGlow);
 
     // 3.3 Fachada Dourada do Super Banco Central (X = 0, Z = -134) + Painéis Neon de Times Square (X = -60, Z = -10)
-    const bankGlowMat = makeNeonHaloMat(0xfacc15, 0.32);
+    const bankGlowMat = makeNeonHaloMat(0xd99b16, 0.14);
     const bankUplight = new THREE.Mesh(new THREE.BoxGeometry(88, 28, 6), bankGlowMat);
     bankUplight.position.set(0, 15, -133);
     this.scene.add(bankUplight);
@@ -997,7 +1003,9 @@ export class DayNightAtmosphereManager {
     this.skyUniforms.uSunDir.value.copy(this._sunDir);
     const isGoldenHour = this.timeHours >= 16.4 && this.timeHours <= 18.85;
     const isSunrise = this.timeHours >= 5.3 && this.timeHours <= 7.6;
-    this.skyUniforms.uGlowStrength.value = isGoldenHour ? 0.68 : isSunrise ? 0.52 : nf > 0.8 ? 0.08 : 0.26;
+    const horizonWarmth = Math.exp(-Math.pow((sunY - 0.06) / 0.22, 2));
+    const dayLift = THREE.MathUtils.smoothstep(sunY, -0.14, 0.35);
+    this.skyUniforms.uGlowStrength.value = 0.06 + dayLift * 0.14 + horizonWarmth * 0.12;
 
     if (this.scene.fog) {
       this.scene.fog.color.copy(s.horizon);
@@ -1006,15 +1014,17 @@ export class DayNightAtmosphereManager {
       this.scene.background.copy(s.horizon);
     }
 
-    // Disco Solar (cresce 1.48x e fica laranja-rubro no Pôr do Sol atrás do Morro da Cidade de Deus!)
-    this.sunDiscGroup.visible = sunY > -0.14;
+    // Disco Solar (transição suave de opacidade no horizonte — zero corte brusco de 1 frame!)
+    const sunVisFade = THREE.MathUtils.smoothstep(sunY, -0.14, 0.04);
+    this.sunDiscGroup.visible = sunVisFade > 0.005;
     if (this.sunDiscGroup.visible) {
       this.sunDiscGroup.position.copy(this._sunDir).multiplyScalar(5850);
       const sunScale = isGoldenHour || isSunrise ? 1.48 : 1.0;
       this.sunDiscGroup.scale.setScalar(sunScale);
       this.sunCoreMat.color.copy(isGoldenHour ? s.sunGlow : s.dirColor);
+      this.sunCoreMat.opacity = sunVisFade;
       this.sunHaloMat.color.copy(s.sunGlow);
-      this.sunHaloMat.opacity = isGoldenHour ? 0.62 : 0.36;
+      this.sunHaloMat.opacity = (isGoldenHour ? 0.38 : 0.24) * sunVisFade;
     }
 
     // Lua Cheia LEGO + 1.200 Estrelas Cintilantes
@@ -1136,27 +1146,28 @@ export class DayNightAtmosphereManager {
     }
 
     // 5) Postes Instanciados (Avenidas, Favela, Viadutos, Pontes, Píer, Metrô) + Marcos da CDD e Orla
+    const lampRamp = THREE.MathUtils.smoothstep(nf, 0.32, 1.0);
     const lampsOn = nf > 0.05;
     this.bulbInstMesh.visible = lampsOn;
     this.coneInstMesh.visible = lampsOn;
     this.poolInstMesh.visible = lampsOn;
     if (lampsOn) {
-      this.coneInstMat.opacity = nf * 0.28;
-      this.poolInstMat.opacity = nf * 0.42;
+      this.coneInstMat.opacity = lampRamp * 0.24;
+      this.poolInstMat.opacity = lampRamp * 0.36;
     }
 
     // Campinho da CDD (4 Refletores), Baile do Morro (3 Skytrackers giratórios) & Luzes Aeronáuticas no Topo!
     if (Array.isArray(this.world.favelaSoccerFloodCones)) {
       for (const fc of this.world.favelaSoccerFloodCones) {
         fc.mesh.visible = nf > 0.08;
-        fc.mat.opacity = nf * 0.24;
+        fc.mat.opacity = lampRamp * 0.22;
       }
     }
     if (Array.isArray(this.world.favelaBaileSkytrackers)) {
       for (const st of this.world.favelaBaileSkytrackers) {
         st.pivot.visible = nf > 0.08;
         if (st.pivot.visible) {
-          st.mat.opacity = nf * 0.28;
+          st.mat.opacity = lampRamp * 0.26;
           st.pivot.rotation.z = Math.sin(this._animTime * 0.9 + st.phase) * 0.38;
           st.pivot.rotation.x = Math.cos(this._animTime * 0.72 + st.phase) * 0.32;
         }
@@ -1171,7 +1182,7 @@ export class DayNightAtmosphereManager {
     }
 
     for (const mat of this.landmarkNeonMaterials) {
-      mat.opacity = nf * (mat.userData.maxOpacity || 0.38);
+      mat.opacity = lampRamp * (mat.userData.maxOpacity || 0.28);
     }
 
     const hcFx = this.world?.helicarrierNightFX;
@@ -1225,7 +1236,7 @@ export class DayNightAtmosphereManager {
     }
 
     this._updateAllVehicleHeadlights(playerPos, controller, vehicleLightsOn);
-    this._updateClosestFourPointLights(playerPos, nf);
+    this._updateClosestFourPointLights(playerPos, lampRamp);
   }
 
   _updateAllVehicleHeadlights(playerPos, controller, vehicleLightsOn) {

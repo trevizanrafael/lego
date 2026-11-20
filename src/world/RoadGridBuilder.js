@@ -439,8 +439,8 @@ function _buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat = null)
       const wBox = Math.max(24, Math.abs(dx) + Math.abs(radialDx) + 22);
       const dBox = Math.max(24, Math.abs(dz) + Math.abs(radialDz) + 22);
 
-      // Sempre areia dourada + recife raso na transição marítima
-      sandGeos.push(makeFastBox(wBox, 1.05, dBox, cx, -0.24, cz));
+      // Sempre areia costeira nivelada abaixo de sandSeg (+0.12m) + recife raso na transição marítima
+      sandGeos.push(makeFastBox(wBox, 0.96, dBox, cx, -0.42, cz));
       reefGeos.push(makeFastBox(wBox + 14, 0.35, dBox + 14, mx, -0.52, mz));
       if (isPrison && span > 44 && i % 3 === 0) {
         const cliffH = 2.8 + ((i * 19) % 6) * 0.8;

@@ -6,18 +6,21 @@ import {
 import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, flushSpatialChunkedBuckets } from '../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 import { buildTerritoryInfrastructureForZone } from '../FactionWarSystem.js';
+import { getHighwayDistanceAt } from '../CoastlineProfile.js';
 
 /**
  * FUNÇÃO MATEMÁTICA CONTÍNUA DE RELEVO DO MORRO DA CIDADE DE DEUS (`getFavelaElevation(x, z)`):
  * - PROIBIDO "blocão marrom" com paredão vertical!
- * - Nas bordas da Favela (onde encosta nas ruas da Cidade a Leste, Subúrbio ao Norte, Orla ao Sul e Aeroporto a Oeste),
+ * - Nas bordas da Favela (onde encosta nas ruas da Cidade a Leste, Subúrbio/Platô Boreal ao Norte, Orla ao Sul e Aeroporto a Oeste),
  *   a altura começa EXATAMENTE em Y = 0 (no nível da rua, sem degrau brusco!) e sobe suavemente em curva de sino/cosseno
  *   como uma ladeira real até chegar a Y ≈ 43m no cume do morro!
  */
 export function getFavelaEastBorderX(z) {
-  // Na faixa central (de frente para o Centro e Parque Central: Z = -490 a +400), a Favela começa na rua X = -516 (em X = -528).
-  // Nas pontas Norte (Z < -520) e Sul (Z > +430), começa após a primeira coluna do Subúrbio/Hotéis (em X = -658), com transição suave!
   if (z >= -490 && z <= 400) return -528;
+  if (z < -1318) {
+    const tNorth = THREE.MathUtils.clamp((-1318 - z) / 500, 0, 1);
+    return THREE.MathUtils.lerp(-658, -715, 0.5 * (1 - Math.cos(Math.PI * tNorth)));
+  }
   if (z < -525 || z > 435) return -658;
   if (z < -490) {
     const t = (-490 - z) / 35; // 0 em -490 -> 1 em -525
@@ -30,7 +33,7 @@ export function getFavelaEastBorderX(z) {
 }
 
 export function getFavelaElevation(x, z) {
-  const zNorth = -1318;
+  const zNorth = -1820;
   const zSouth = 675;
   if (z <= zNorth || z >= zSouth) return 0;
 
@@ -110,6 +113,9 @@ export function getFavelaElevation(x, z) {
  * a partir das Bocas de Entrada (onde terminam as ruas da cidade em Y = 0) até o cume!
  */
 const WINDING_LADEIRAS = [
+  { zStart: -1680, amp1: 20, freq1: 0.015, amp2: -12, freq2: 0.009, hasStairs: true },
+  { zStart: -1520, amp1: -22, freq1: 0.016, amp2: 14, freq2: 0.008, hasStairs: false },
+  { zStart: -1360, amp1: 24, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true },
   { zStart: -1190, amp1: 22, freq1: 0.015, amp2: -14, freq2: 0.009, hasStairs: true },
   { zStart: -1030, amp1: -25, freq1: 0.016, amp2: 15, freq2: 0.008, hasStairs: false },
   { zStart: -840, amp1: 26, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true },
@@ -388,15 +394,15 @@ export function buildFavelaCidadeDeDeus(world) {
 function buildContinuousSmoothHillMesh(world) {
   const minX = -1016;
   const maxX = -524;
-  const minZ = -1320;
+  const minZ = -1825;
   const maxZ = 680;
   const width = maxX - minX;   // 492m
-  const depth = maxZ - minZ;   // 2000m
+  const depth = maxZ - minZ;   // 2505m
   const centerX = (minX + maxX) * 0.5;
   const centerZ = (minZ + maxZ) * 0.5;
 
   const segsX = 88;
-  const segsZ = 250;
+  const segsZ = 314;
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(centerX, 0, centerZ);
@@ -1223,12 +1229,15 @@ function buildGluedFavelaHouseClusters(world, batcher) {
       if (Math.abs(x - vx) < 5.8) return true;
     }
 
+    // 6. Respeita qualquer Rodovia Regional da Pangeia no prolongamento Norte
+    if (z < -1300 && getHighwayDistanceAt(x, z) < 28) return true;
+
     return false;
   };
 
   // Percorre a encosta da Favela criando faixas duplas de barracos COLADOS PAREDE COM PAREDE (2 casas fundo-com-fundo em X
   // e 4 a 8 casas coladas parede-com-parede em Z), separadas apenas por Becos Estreitos de 3.8m a 4.6m!
-  const minZ = -1295;
+  const minZ = -1780;
   const maxZ = 645;
 
   // Cada faixa dupla tem ~21m de profundidade em X (duas casas de ~10.5m coladas fundo-com-fundo) + 4.2m de Beco estreito = passo de 25.2m!

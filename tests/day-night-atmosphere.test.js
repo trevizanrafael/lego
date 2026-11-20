@@ -119,5 +119,24 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
     hud.updateMinimap(controller.position, 0, 0, world.regions[0], world, 0, 0.016);
     assert.ok(hud.minimapSubEl.textContent.includes('🌙 22:00'), 'Minimapa exibe 🌙 22:00');
   });
+
+  it('4. Sem clarão inicial nem queda brusca de uGlowStrength ao atravessar 17:30 -> 20:00', () => {
+    atm.setTimeMode('auto');
+    atm.timeHours = 17.5;
+    world.update(0.016, controller.position, controller);
+    let prevGlow = atm.skyUniforms.uGlowStrength.value;
+    assert.ok(prevGlow <= 0.36, `uGlowStrength contido sem clarão (${prevGlow})`);
+
+    for (let h = 17.6; h <= 20.0; h += 0.1) {
+      atm.timeHours = h;
+      world.update(0.016, controller.position, controller);
+      const curGlow = atm.skyUniforms.uGlowStrength.value;
+      assert.ok(
+        Math.abs(curGlow - prevGlow) < 0.08,
+        `Transição suave de uGlowStrength em ${h.toFixed(1)}h (${prevGlow} -> ${curGlow})`
+      );
+      prevGlow = curGlow;
+    }
+  });
 });
 

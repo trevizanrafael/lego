@@ -358,8 +358,10 @@ export function getIsletSampleAt(x, z) {
 }
 
 export function isInsideBuiltUrbanCore(x, z) {
-  // Retângulos urbanos originais onde RoadGridBuilder/regions constróem as ruas e prédios
-  if (x >= -1824.5 && x <= 539.5 && z >= -1319.5 && z <= 779.5) return true;
+  // Retângulos urbanos originais + Orla de Areia Sul onde RoadGridBuilder/SouthBeachBuilder constroem o piso nivelado
+  if (x >= -1824.5 && x <= 539.5 && z >= -1319.5 && z <= 1056 && !(x < -1530 && z > 1020)) {
+    return true;
+  }
   if (x >= 580.5 && x <= 1627.5 && z >= -1319.5 && z <= 734.5) return true;
   if (x >= 954 && x <= 1796 && z >= 1117 && z <= 1981) return true;
   return false;
