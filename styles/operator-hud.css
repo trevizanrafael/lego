@@ -1,0 +1,591 @@
+/* ===================================================
+   CHASSI TÁTICO DARK-TECH DO OPERADOR (CANTO SUPERIOR ESQUERDO)
+   Estética Gotham Trevosa / Dark Syndicate (Zero Glassmorphism)
+   =================================================== */
+#lego-classic-hud,
+#lego-classic-hud.gotham-operator-chassis {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 3px,
+      transparent 3px,
+      transparent 8px
+    ),
+    linear-gradient(135deg, rgba(7, 9, 14, 0.96) 0%, rgba(15, 19, 28, 0.93) 100%);
+  border: 1.5px solid #242b3a;
+  border-left: 4px solid var(--hero-accent, var(--idv-alert));
+  padding: 9px 16px 9px 11px;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.92);
+}
+
+#world-war-hud-panel,
+#hud-faction-badge,
+#hud-medic-heal-tag,
+#hud-esc-hint-pill,
+#esc-pause-pill {
+  display: none !important;
+}
+
+.tactical-portrait-frame {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  background: #050609;
+  border: 2px solid var(--hero-accent, var(--idv-alert));
+  clip-path: polygon(
+    11px 0,
+    100% 0,
+    100% calc(100% - 11px),
+    calc(100% - 11px) 100%,
+    0 100%,
+    0 11px
+  );
+  box-shadow: 4px 4px 0 #000000;
+  flex-shrink: 0;
+}
+
+.frame-corner-tl {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 15px;
+  height: 15px;
+  background: var(--hero-accent, var(--idv-alert));
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  z-index: 2;
+}
+
+.frame-corner-br {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 13px;
+  height: 13px;
+  background: var(--hero-accent, var(--idv-alert));
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  z-index: 2;
+}
+
+#hud-portrait-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.op-code-tag {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  background: #06070a;
+  color: var(--hero-accent, var(--idv-alert));
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 0px 5px;
+  letter-spacing: 0.05em;
+  border-left: 2px solid var(--hero-accent, var(--idv-alert));
+  z-index: 3;
+}
+
+.hud-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 222px;
+}
+
+.hud-name-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 1.38rem;
+  font-weight: 700;
+  line-height: 0.94;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--idv-white);
+  text-shadow: 2px 2px 0 #000000;
+}
+
+.hud-hp-num {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #9aa6b8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barra Blindada Dupla de HP com Ghost-Damage + Segmentos Táticos */
+.hud-hp-bar-wrap {
+  position: relative;
+  width: 222px;
+  height: 11px;
+  background: #050609;
+  border: 1px solid #283142;
+  transform: skewX(-18deg);
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.85);
+}
+
+.hud-hp-ghost-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: rgba(220, 226, 236, 0.82);
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 1;
+}
+
+.hud-hp-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #7f1d1d 0%, #b91c1c 58%, var(--hero-accent, #d99b16) 100%);
+  transition: width 0.12s ease-out;
+  z-index: 2;
+}
+
+.hud-hp-notches {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 20px,
+    rgba(5, 6, 9, 0.72) 20px,
+    rgba(5, 6, 9, 0.72) 22px
+  );
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hud-hp-bar-wrap.critical-hp {
+  border-color: #ef4444;
+  animation: hudCriticalPulse 0.75s infinite alternate;
+}
+
+.hud-hp-bar-wrap.healing-hp .hud-hp-bar-fill {
+  background: linear-gradient(90deg, #065f46 0%, #10b981 100%);
+}
+
+@keyframes hudCriticalPulse {
+  from { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+  to   { box-shadow: 0 0 10px rgba(239, 68, 68, 0.65); }
+}
+
+/* Faixa Dinâmica de Kit / Poderes do Operador */
+.hud-ability-strip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.ability-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #0a0c12;
+  border: 1px solid #222938;
+  border-bottom: 2px solid var(--hero-accent, var(--idv-alert));
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #aeb8c7;
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  white-space: nowrap;
+}
+
+.ability-chip b {
+  color: var(--hero-accent, var(--idv-alert));
+  font-weight: 800;
+}
+
+.hearts-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 1px 0;
+}
+
+.hearts-row.hud-hearts-compact {
+  display: none;
+}
+
+.lego-heart {
+  filter: drop-shadow(2px 2px 0 var(--idv-black));
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.hearts-row.healing-pulse .lego-heart.active {
+  filter: drop-shadow(0 0 6px #22c55e) drop-shadow(2px 2px 0 var(--idv-black));
+  transform: scale(1.06);
+}
+
+/* Contador Sombrio de Espólios / Créditos */
+.stud-counter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 1px;
+}
+
+.hud-stud-3d {
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(145deg, #f5b935 0%, #9a6b0d 100%);
+  border: 1.5px solid #050609;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%);
+  box-shadow: 2px 2px 0 #000000;
+  position: relative;
+}
+
+.hud-stud-3d::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  clip-path: polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%);
+}
+
+.hud-stud-3d[data-tier="silver"] { background: linear-gradient(145deg, #cbd5e1, #64748b); }
+.hud-stud-3d[data-tier="gold"]   { background: linear-gradient(145deg, #e5a922, #92600a); }
+.hud-stud-3d[data-tier="blue"]   { background: linear-gradient(145deg, #38bdf8, #1d4ed8); }
+.hud-stud-3d[data-tier="purple"] { background: linear-gradient(145deg, #c084fc, #6b21a8); }
+
+.hud-stud-3d.pop {
+  animation: studPop 0.2s steps(3);
+}
+
+@keyframes studPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+#hud-stud-count {
+  font-family: var(--font-display);
+  font-size: 1.82rem;
+  font-weight: 700;
+  line-height: 0.85;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--idv-white);
+  text-shadow: 2px 2px 0 #000000;
+}
+
+#hud-stud-gain {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  background: #06070a;
+  border-left: 3px solid var(--idv-alert);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+#hud-stud-gain.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+#hud-stud-gain[data-tier="silver"] { color: #e2e8f0; border-color: #e2e8f0; }
+#hud-stud-gain[data-tier="gold"]   { color: var(--idv-alert); border-color: var(--idv-alert); }
+#hud-stud-gain[data-tier="blue"]   { color: #60a5fa; border-color: #3b82f6; }
+#hud-stud-gain[data-tier="purple"] { color: #c084fc; border-color: #a855f7; }
+
+/* ===================================================
+   SCROLL DE SILHUETAS ESTILO CS (CANTO SUPERIOR DIREITO)
+   Exibido para o Vingador de Chumbo (OP-04) a pé — ZERO TEXTO
+   =================================================== */
+#vingador-weapon-hud {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+#vingador-weapon-hud.hidden {
+  display: none;
+}
+
+.csgo-weapon-wheel {
+  position: relative;
+  width: 156px;
+  height: 154px;
+}
+
+.csgo-weapon-slot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 10px;
+  border-right: 3px solid transparent;
+  color: #94a3b8;
+  opacity: 0.28;
+  filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.85));
+  transform-origin: right center;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    filter 0.2s ease;
+}
+
+/* Arma Anterior (Topo do Scroll) */
+.csgo-weapon-slot.slot-prev {
+  transform: translate3d(0, 0px, 0) scale(0.72);
+  opacity: 0.28;
+  color: #94a3b8;
+  border-right-color: rgba(148, 163, 184, 0.25);
+  z-index: 1;
+}
+
+/* Arma Ativa (Centro do Scroll — Em Destaque) */
+.csgo-weapon-slot.slot-active {
+  transform: translate3d(-6px, 50px, 0) scale(1.08);
+  opacity: 1;
+  color: var(--idv-white);
+  border-right-width: 4px;
+  border-right-color: var(--idv-alert);
+  filter:
+    drop-shadow(3px 3px 0 #000000)
+    drop-shadow(-1px -1px 0 #000000);
+  z-index: 3;
+}
+
+/* Arma Seguinte (Base do Scroll) */
+.csgo-weapon-slot.slot-next {
+  transform: translate3d(0, 102px, 0) scale(0.72);
+  opacity: 0.28;
+  color: #94a3b8;
+  border-right-color: rgba(148, 163, 184, 0.25);
+  z-index: 1;
+}
+
+/* Quando [Q] Furor do Justiceiro está ativo, a silhueta central pulsa em Alerta/Carmesim */
+#vingador-weapon-hud.furor-active .csgo-weapon-slot.slot-active {
+  color: var(--idv-alert);
+  border-right-color: var(--idv-crimson);
+  filter:
+    drop-shadow(3px 3px 0 #000000)
+    drop-shadow(0 0 6px rgba(239, 68, 68, 0.75));
+}
+
+.csgo-silhouette-svg {
+  display: block;
+}
+
+/* ===================================================
+   VELOCÍMETRO DARK-TUNER DIGITAL (CANTO SUPERIOR DIREITO)
+   Exibido APENAS ao Dirigir/Pilotar Veículos
+   =================================================== */
+#vehicle-speedometer {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 232px;
+  background: linear-gradient(145deg, rgba(6, 8, 12, 0.96) 0%, rgba(14, 18, 27, 0.94) 100%);
+  border: 1.5px solid #262e3e;
+  border-right: 5px solid var(--idv-alert);
+  padding: 9px 15px 10px;
+  clip-path: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 14px
+  );
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.94);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+#vehicle-speedometer.hidden {
+  display: none;
+}
+
+#vehicle-speedometer.turbo-active {
+  border-color: #00f0ff;
+  border-right-color: #00f0ff;
+}
+
+#vehicle-speedometer.drift-active {
+  border-color: var(--idv-amber);
+  border-right-color: var(--idv-amber);
+}
+
+.speedo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #232a38;
+  padding-bottom: 4px;
+}
+
+.speedo-veh-name {
+  font-family: var(--font-tactical);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #aeb8c8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 162px;
+}
+
+#vehicle-speedometer.turbo-active .speedo-veh-name {
+  color: #00f0ff;
+}
+
+.speedo-gear {
+  background: var(--idv-alert);
+  color: #050609;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 1px 7px;
+  clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+}
+
+#vehicle-speedometer.turbo-active .speedo-gear {
+  background: #00f0ff;
+}
+
+.speedo-main-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0 1px;
+}
+
+.speedo-kmh-stack {
+  position: relative;
+  display: inline-grid;
+  align-items: baseline;
+}
+
+.speedo-kmh-ghost,
+.speedo-kmh-val {
+  grid-area: 1 / 1;
+  font-family: var(--font-display);
+  font-size: 3.05rem;
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.speedo-kmh-ghost {
+  color: rgba(148, 163, 184, 0.11);
+  pointer-events: none;
+  user-select: none;
+}
+
+.speedo-kmh-val {
+  color: var(--idv-white);
+  text-shadow: 3px 3px 0 #000000;
+}
+
+#vehicle-speedometer.turbo-active .speedo-kmh-val {
+  color: #00f0ff;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.45), 3px 3px 0 #000;
+}
+
+.speedo-unit-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.speedo-unit {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.08em;
+}
+
+.speedo-mode-tag {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: var(--idv-muted);
+  letter-spacing: 0.06em;
+}
+
+#vehicle-speedometer.turbo-active .speedo-mode-tag {
+  color: #00f0ff;
+}
+
+#vehicle-speedometer.drift-active .speedo-mode-tag {
+  color: var(--idv-amber);
+}
+
+.speedo-rpm-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 15px;
+  margin-top: 2px;
+}
+
+.speedo-bar-seg {
+  flex: 1;
+  height: 7px;
+  background: #1a202c;
+  transform: skewX(-24deg);
+  transition: background 0.08s ease;
+}
+
+.speedo-bar-seg:nth-child(n+4)  { height: 8.5px; }
+.speedo-bar-seg:nth-child(n+7)  { height: 10px; }
+.speedo-bar-seg:nth-child(n+10) { height: 12px; }
+.speedo-bar-seg:nth-child(n+12) { height: 14px; }
+
+.speedo-bar-seg.lit {
+  background: var(--idv-alert);
+}
+
+.speedo-bar-seg.lit.high {
+  background: var(--idv-amber);
+}
+
+.speedo-bar-seg.lit.redline {
+  background: var(--idv-crimson);
+  box-shadow: 0 0 6px rgba(185, 28, 28, 0.65);
+}
+
+#vehicle-speedometer.turbo-active .speedo-bar-seg.lit {
+  background: #00f0ff;
+}

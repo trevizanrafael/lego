@@ -1,0 +1,896 @@
+/* =========================================================================
+   BARRA DE VIDA NUMÉRICA 250 HP + BADGE DE FACÇÃO ALIADA + FEIXE MÉDICO
+   ========================================================================= */
+.hud-faction-pill {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  background: var(--idv-black);
+  border: 1.5px solid #ef4444;
+  color: #ef4444;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+  box-shadow: 3px 3px 0 #000;
+}
+
+.hud-faction-pill[data-faction="cv"] {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.hud-faction-pill[data-faction="pcc"] {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+.hud-faction-pill[data-faction="ares"] {
+  border-color: #d946ef;
+  color: #f5d0fe;
+}
+
+.hud-health-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hud-hp-bar-wrap {
+  position: relative;
+  width: 148px;
+  height: 20px;
+  background: var(--idv-black);
+  border: 2px solid var(--idv-steel);
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
+  box-shadow: 3px 3px 0 #000;
+  overflow: hidden;
+}
+
+.hud-hp-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%);
+  transition: width 0.14s ease-out, background 0.2s ease;
+}
+
+.hud-hp-bar-wrap.healing .hud-hp-bar-fill {
+  background: linear-gradient(90deg, #10b981 0%, #facc15 100%);
+}
+
+.hud-hp-bar-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--idv-white);
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
+  letter-spacing: 0.06em;
+}
+
+.hud-medic-heal-tag {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #10b981;
+  background: var(--idv-black);
+  border-left: 3px solid #10b981;
+  padding: 2px 8px;
+  box-shadow: 3px 3px 0 #000;
+}
+
+/* =========================================================================
+   PAINEL CENTRAL SUPERIOR DA GUERRA MUNDIAL (BACKYARD BATTLEGROUND + BOSSES)
+   ========================================================================= */
+.world-war-hud-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 360px;
+  max-width: 470px;
+  pointer-events: none;
+}
+
+.ww-factions-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  background: rgba(9, 10, 13, 0.9);
+  border: 1.5px solid var(--idv-steel);
+  padding: 2px 10px;
+  box-shadow: 3px 3px 0 #000;
+}
+
+.ww-fac-cv { color: #ef4444; }
+.ww-fac-pcc { color: #38bdf8; }
+.ww-fac-ares { color: #d946ef; }
+.ww-fac-sep { color: var(--idv-alert); letter-spacing: 0.06em; }
+
+.top-right-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.hud-esc-hint-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(9, 10, 13, 0.9);
+  border: 1.5px solid var(--idv-steel);
+  border-right: 4px solid var(--idv-alert);
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--idv-white);
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%);
+  box-shadow: 4px 4px 0 #000;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.esc-key-badge {
+  background: var(--idv-alert);
+  color: var(--idv-black);
+  padding: 1px 5px;
+  font-weight: 800;
+}
+
+.ww-front-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--idv-black);
+  border-left: 4px solid var(--idv-alert);
+  border-right: 4px solid var(--idv-crimson);
+  padding: 3px 10px;
+  box-shadow: 4px 4px 0 #000;
+}
+
+.ww-front-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  letter-spacing: 0.08em;
+}
+
+.ww-escalation-pct {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: var(--idv-white);
+}
+
+.ww-escalation-track {
+  width: 100%;
+  height: 8px;
+  background: var(--idv-black);
+  border: 1.5px solid var(--idv-steel);
+  box-shadow: 3px 3px 0 #000;
+  overflow: hidden;
+}
+
+.ww-escalation-fill {
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, #facc15 0%, #ef4444 100%);
+  transition: width 0.25s ease;
+}
+
+.ww-boss-bars-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ww-boss-bar-row {
+  background: var(--idv-black);
+  border: 1.5px solid var(--idv-steel);
+  border-left: 4px solid #ef4444;
+  padding: 3px 8px;
+  box-shadow: 4px 4px 0 #000;
+}
+
+.ww-boss-bar-row.allied-boss {
+  border-left-color: #22c55e;
+}
+
+.ww-boss-bar-top {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--idv-white);
+  margin-bottom: 2px;
+}
+
+.ww-boss-bar-track {
+  width: 100%;
+  height: 7px;
+  background: #141821;
+  overflow: hidden;
+}
+
+.ww-boss-bar-fill {
+  height: 100%;
+  background: #ef4444;
+  transition: width 0.15s ease;
+}
+
+.ww-boss-bar-row.allied-boss .ww-boss-bar-fill {
+  background: #22c55e;
+}
+
+/* =========================================================================
+   TELA INICIAL OFICIAL NA IDV DO JOGO + FUNDO PANORÂMICO DA FAVELA LEGO
+   ========================================================================= */
+.title-screen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: auto;
+  background: #070913;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+
+#title-favela-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
+}
+
+.title-screen-overlay.hidden {
+  display: none !important;
+}
+
+/* =========================================================================
+   TELA DE LOADING TÁTICA (0% -> 100%) COM WARM-UP 360° ANTI-LAG!
+   ========================================================================= */
+.tactical-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: auto;
+  background: radial-gradient(circle at 50% 35%, #16192b 0%, #070911 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  transition: opacity 0.28s ease;
+}
+
+.tactical-loading-screen.hidden {
+  display: none !important;
+}
+
+.loading-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 780px;
+  background: var(--idv-black);
+  border: 2.5px solid var(--idv-alert);
+  border-left: 8px solid var(--idv-alert);
+  padding: 26px 30px;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+  box-shadow: 12px 12px 0 #000;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.loading-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.loading-faction-logo {
+  flex-shrink: 0;
+}
+
+.loading-title-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.loading-faction-title {
+  font-family: var(--font-display);
+  font-size: 2.3rem;
+  font-weight: 700;
+  line-height: 0.96;
+  color: var(--idv-white);
+  letter-spacing: 0.04em;
+}
+
+.loading-stage-text {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.08em;
+}
+
+.loading-pct-text {
+  font-family: var(--font-display);
+  font-size: 3.6rem;
+  font-weight: 700;
+  line-height: 0.85;
+  color: var(--idv-alert);
+  text-shadow: 3px 3px 0 #000;
+  min-width: 90px;
+  text-align: right;
+}
+
+.loading-lego-bar {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 5px;
+  background: #12151e;
+  border: 2px solid var(--idv-steel);
+  padding: 6px;
+}
+
+.loading-lego-seg {
+  height: 18px;
+  background: #1e2433;
+  transform: skewX(-18deg);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.loading-lego-seg.lit {
+  background: var(--idv-alert);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.55);
+}
+
+.loading-tip-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--idv-carbon);
+  border: 1.5px solid var(--idv-steel);
+  border-left: 4px solid #22c55e;
+  padding: 10px 14px;
+}
+
+.loading-tip-badge {
+  background: #22c55e;
+  color: var(--idv-black);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
+.loading-tip-text {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #e2e8f0;
+  line-height: 1.38;
+}
+
+.title-noir-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 72% 44%, transparent 18%, rgba(4, 5, 9, 0.72) 82%),
+    linear-gradient(90deg, rgba(4, 5, 9, 0.94) 0%, rgba(5, 7, 12, 0.74) 44%, rgba(5, 7, 12, 0.14) 100%);
+}
+
+.title-scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.012) 0px,
+    rgba(255, 255, 255, 0.012) 2px,
+    rgba(0, 0, 0, 0.24) 2px,
+    rgba(0, 0, 0, 0.24) 4px
+  );
+}
+
+.title-content-wrap {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1280px;
+  max-height: 92vh;
+  padding: 0 clamp(18px, 5vw, 72px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 22px;
+}
+
+.official-logo-block {
+  background: linear-gradient(135deg, rgba(6, 8, 13, 0.96) 0%, rgba(15, 19, 28, 0.92) 100%);
+  border: 1.5px solid #283144;
+  border-left: 7px solid var(--idv-alert);
+  padding: 18px 30px 14px 24px;
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.95);
+}
+
+.logo-emblem-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.official-crest-svg {
+  flex-shrink: 0;
+  filter: drop-shadow(4px 4px 0 #000000);
+}
+
+.logo-top-pill {
+  display: inline-block;
+  background: #7f1d1d;
+  border-left: 3px solid var(--idv-alert);
+  color: var(--idv-white);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  padding: 2px 10px;
+  margin-bottom: 4px;
+}
+
+.logo-main-title {
+  font-family: var(--font-display);
+  font-size: clamp(3.1rem, 5vw, 4.35rem);
+  font-weight: 700;
+  line-height: 0.88;
+  letter-spacing: 0.05em;
+  color: var(--idv-white);
+  text-transform: uppercase;
+  text-shadow: 5px 5px 0 #000000;
+}
+
+.logo-main-title span {
+  color: var(--idv-alert);
+}
+
+.logo-sub-banner {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #8ea0b8;
+  letter-spacing: 0.15em;
+  margin-top: 5px;
+}
+
+.title-telemetry-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid #222938;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  color: #7c8798;
+}
+
+.title-telemetry-strip b {
+  color: var(--idv-alert);
+}
+
+.title-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.title-action-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+  padding: 12px 20px;
+  background: linear-gradient(90deg, rgba(8, 10, 16, 0.96) 0%, rgba(16, 20, 30, 0.9) 100%);
+  border: 1.5px solid #242c3d;
+  border-left: 5px solid #475569;
+  color: var(--idv-white);
+  text-align: left;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.94);
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.title-action-btn.primary-btn {
+  border-color: #364156;
+  border-left-color: var(--idv-alert);
+  background: linear-gradient(90deg, rgba(18, 22, 33, 0.98) 0%, rgba(26, 20, 14, 0.92) 100%);
+}
+
+.title-action-btn:hover {
+  transform: translateX(6px);
+  border-color: var(--idv-alert);
+  border-left-color: #dc2626;
+  background: linear-gradient(90deg, rgba(24, 16, 20, 0.98) 0%, rgba(28, 34, 48, 0.95) 100%);
+}
+
+.btn-tag {
+  background: #1a2130;
+  color: var(--idv-alert);
+  border: 1px solid #303b52;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.title-action-btn.primary-btn .btn-tag,
+.title-action-btn:hover .btn-tag {
+  background: var(--idv-alert);
+  color: #050609;
+  border-color: var(--idv-alert);
+}
+
+.btn-label-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.btn-main-txt {
+  font-family: var(--font-tactical);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--idv-white);
+  line-height: 1.05;
+}
+
+.title-action-btn:hover .btn-main-txt {
+  color: var(--idv-alert);
+}
+
+.btn-sub-txt {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7c8798;
+  text-transform: none;
+}
+
+/* Painel de Slots de Save e Painel de Escolha das 3 Facções */
+.title-slots-panel,
+.title-faction-panel {
+  width: 100%;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: rgba(7, 9, 14, 0.97);
+  border: 1.5px solid #2b3448;
+  border-left: 6px solid var(--idv-alert);
+  padding: 18px 22px;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+  box-shadow: 12px 12px 0 #000;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--idv-steel);
+  padding-bottom: 10px;
+}
+
+.panel-header-title {
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--idv-white);
+  letter-spacing: 0.05em;
+}
+
+.faction-panel-sub {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--idv-muted);
+}
+
+.save-slots-grid,
+.faction-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.save-slot-card,
+.faction-choice-card {
+  background: var(--idv-carbon);
+  border: 2px solid var(--idv-steel);
+  border-top: 5px solid var(--idv-alert);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  box-shadow: 6px 6px 0 #000;
+}
+
+.faction-choice-card[data-faction="cv"] {
+  border-top-color: #ef4444;
+}
+.faction-choice-card[data-faction="pcc"] {
+  border-top-color: #38bdf8;
+}
+.faction-choice-card[data-faction="ares"] {
+  border-top-color: #d946ef;
+}
+
+.faction-choice-card:hover,
+.save-slot-card:hover {
+  border-color: var(--idv-alert);
+}
+
+.faction-card-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.faction-card-name {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--idv-white);
+}
+
+.faction-card-fortress {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+  margin-top: 4px;
+}
+
+.faction-card-desc {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.42;
+  color: #cbd5e1;
+}
+
+.slot-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--idv-white);
+}
+
+.slot-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.slot-actions-row .tactical-btn {
+  flex: 1;
+  text-align: center;
+}
+
+/* =========================================================================
+   MODAL DE PAUSA & OPÇÕES COMPLETAS [ESC]
+   ========================================================================= */
+#pause-options-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: auto;
+  background: rgba(9, 10, 13, 0.84);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+#pause-options-modal.hidden {
+  display: none !important;
+}
+
+.pause-card {
+  width: 100%;
+  max-width: 620px;
+  background: var(--idv-black);
+  border: 2.5px solid var(--idv-alert);
+  padding: 22px 26px;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+  box-shadow: 10px 10px 0 #000;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pause-options-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.option-row {
+  background: var(--idv-carbon);
+  border: 1.5px solid var(--idv-steel);
+  border-left: 4px solid var(--idv-alert);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.option-row-inline {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.option-label-col {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.option-title {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--idv-white);
+  letter-spacing: 0.06em;
+}
+
+.option-val {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--idv-alert);
+}
+
+.tactical-slider {
+  width: 100%;
+  accent-color: var(--idv-alert);
+  cursor: pointer;
+}
+
+.tactical-toggle-btn {
+  background: var(--idv-black);
+  border: 2px solid var(--idv-steel);
+  color: var(--idv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.tactical-toggle-btn.active {
+  border-color: var(--idv-alert);
+  color: var(--idv-alert);
+}
+
+.option-row-quality {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tactical-quality-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tactical-quality-btn {
+  background: var(--idv-black);
+  border: 2px solid var(--idv-steel);
+  color: var(--idv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 6px 10px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.tactical-quality-btn:hover {
+  border-color: #f8fafc;
+  color: #f8fafc;
+}
+
+.tactical-quality-btn.active {
+  background: var(--idv-alert);
+  border-color: var(--idv-alert);
+  color: var(--idv-black);
+}
+
+.pause-save-feedback {
+  background: #052e16;
+  border: 1.5px solid #22c55e;
+  color: #4ade80;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.pause-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pause-main-btn {
+  grid-column: span 2;
+  background: var(--idv-alert) !important;
+  color: var(--idv-black) !important;
+  font-weight: 800;
+}
+
+.danger-btn {
+  border-color: #ef4444 !important;
+  color: #ef4444 !important;
+}
+
+.hidden,
+.title-panel.hidden,
+.title-slots-panel.hidden,
+.title-faction-panel.hidden {
+  display: none !important;
+}
+
+#world-war-hud-panel,
+#hud-hp-bar-wrap,
+#hud-faction-badge,
+#hud-medic-heal-tag,
+#hud-esc-hint-pill,
+#esc-pause-pill,
+#pointer-prompt {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

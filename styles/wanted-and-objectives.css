@@ -1,0 +1,345 @@
+/* ============================================================================
+   SISTEMA DE PROCURADO ESCALÁVEL ESTILO GTA (1 A 5 ESTRELAS LEGO — IDV ANGULAR)
+   ============================================================================ */
+.hud-wanted-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  background: #090a0d;
+  border: 2px solid #facc15;
+  border-right: 5px solid #ef4444;
+  padding: 7px 14px 8px 16px;
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+  box-shadow: 5px 5px 0 #000000;
+  pointer-events: none;
+  min-width: 205px;
+}
+
+.hud-wanted-panel.hidden {
+  display: none !important;
+}
+
+.hud-wanted-panel.escaping-mode {
+  border-color: #38bdf8;
+  border-right-color: #64748b;
+}
+
+.hud-wanted-panel.antihero-mode {
+  border-color: #00f0ff;
+  border-right-color: #ef4444;
+  animation: wantedAntiHeroBorder 0.7s infinite alternate;
+}
+
+@keyframes wantedAntiHeroBorder {
+  0% { border-color: #00f0ff; border-right-color: #ef4444; }
+  100% { border-color: #ef4444; border-right-color: #facc15; }
+}
+
+.wanted-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.wanted-status-tag {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #facc15;
+  text-transform: uppercase;
+}
+
+.hud-wanted-panel.escaping-mode .wanted-status-tag {
+  color: #38bdf8;
+}
+
+.hud-wanted-panel.antihero-mode .wanted-status-tag {
+  color: #00f0ff;
+}
+
+.wanted-stars-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wanted-lego-star svg polygon {
+  fill: #1e293b;
+  stroke: #334155;
+  stroke-width: 2.2;
+  transition: fill 0.14s ease, transform 0.14s ease;
+}
+
+.wanted-lego-star svg .star-lego-stud {
+  fill: #0f172a;
+  stroke: #334155;
+  stroke-width: 1.4;
+}
+
+/* Estrela Acesa em Perseguição Ativa (Dourado LEGO + Giroflex Piscante!) */
+.wanted-lego-star.active svg polygon {
+  fill: #facc15;
+  stroke: #090a0d;
+  stroke-width: 2.6;
+}
+
+.wanted-lego-star.active svg .star-lego-stud {
+  fill: #fef08a;
+  stroke: #b45309;
+}
+
+.hud-wanted-panel:not(.escaping-mode) .wanted-lego-star.active {
+  animation: wantedStarActivePulse 0.65s infinite alternate;
+}
+
+@keyframes wantedStarActivePulse {
+  0% { filter: drop-shadow(0 0 3px rgba(250, 204, 21, 0.85)); transform: scale(1); }
+  100% { filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.95)); transform: scale(1.06); }
+}
+
+/* Estrela Piscando em Azul / Cinza durante o Cooldown de Fuga (Sem Linha de Visão!) */
+.hud-wanted-panel.escaping-mode .wanted-lego-star.active {
+  animation: wantedEscapeBlink 0.52s infinite alternate;
+}
+
+.hud-wanted-panel.escaping-mode .wanted-lego-star.active svg polygon {
+  fill: #38bdf8;
+  stroke: #090a0d;
+}
+
+.hud-wanted-panel.escaping-mode .wanted-lego-star.active svg .star-lego-stud {
+  fill: #e0f2fe;
+  stroke: #0284c7;
+}
+
+@keyframes wantedEscapeBlink {
+  0% { opacity: 1; filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.9)); }
+  100% { opacity: 0.34; filter: grayscale(0.85); }
+}
+
+.wanted-escape-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.wanted-escape-bar-wrap.hidden {
+  display: none !important;
+}
+
+.wanted-escape-track {
+  flex: 1;
+  height: 7px;
+  background: #1e293b;
+  border: 1px solid #475569;
+  overflow: hidden;
+}
+
+.wanted-escape-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #38bdf8;
+  transition: width 0.1s linear;
+}
+
+.wanted-escape-sec {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #e0f2fe;
+  min-width: 26px;
+  text-align: right;
+}
+
+/* Banner Central Tático de Eventos Policiais ("DETIDO!", "FUGA PERFEITA!", "5★ ANTI-HERÓI") */
+.wanted-event-banner {
+  position: fixed;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 22;
+  background: #090a0d;
+  border: 2px solid #facc15;
+  border-left: 7px solid #ef4444;
+  padding: 10px 26px;
+  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  box-shadow: 6px 6px 0 #000000;
+  text-align: center;
+  pointer-events: none;
+}
+
+.wanted-event-banner.hidden {
+  display: none !important;
+}
+
+.wanted-event-banner[data-variant="escaped"] {
+  border-color: #38bdf8;
+  border-left-color: #22c55e;
+}
+
+.wanted-event-banner[data-variant="busted"] {
+  border-color: #ef4444;
+  border-left-color: #2563eb;
+}
+
+.wanted-event-banner[data-variant="antihero"] {
+  border-color: #00f0ff;
+  border-left-color: #ef4444;
+}
+
+.wanted-banner-title {
+  font-family: var(--font-display, 'Teko', sans-serif);
+  font-size: 2.05rem;
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.06em;
+  color: #facc15;
+  text-transform: uppercase;
+}
+
+.wanted-event-banner[data-variant="escaped"] .wanted-banner-title {
+  color: #38bdf8;
+}
+
+.wanted-event-banner[data-variant="busted"] .wanted-banner-title {
+  color: #ef4444;
+}
+
+.wanted-banner-sub {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+}
+
+/* ==========================================================================
+   PAINEL DE OBJETIVO (Invasão / Contra-Ataque / Mega Assalto) — Topo Central
+   ========================================================================== */
+.objective-hud {
+  --objective-accent: #facc15;
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 21;
+  width: min(560px, calc(100vw - 520px));
+  min-width: 340px;
+  background: #090a0d;
+  border: 2px solid var(--objective-accent);
+  border-left: 7px solid var(--objective-accent);
+  padding: 7px 14px 9px 14px;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  box-shadow: 5px 5px 0 #000000;
+  pointer-events: none;
+  font-family: var(--font-tactical);
+}
+.objective-hud.hidden { display: none !important; }
+.objective-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.objective-tag {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #090a0d;
+  background: var(--objective-accent);
+  padding: 1px 7px;
+  transform: skewX(-16deg);
+}
+.objective-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f8fafc;
+  text-shadow: 2px 2px 0 #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.objective-timer {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  color: #f8fafc;
+}
+.objective-timer[data-variant="danger"] { color: #ef4444; }
+.objective-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.objective-bar {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+}
+.objective-seg {
+  flex: 1;
+  height: 10px;
+  background: #262b38;
+  transform: skewX(-18deg);
+}
+.objective-bar .objective-seg.on { background: var(--objective-accent); }
+.objective-bar[data-variant="contested"] .objective-seg.on { background: #ef4444; }
+.objective-bar[data-variant="danger"] .objective-seg.on { background: #ef4444; }
+.objective-bar[data-variant="neutral"] .objective-seg.on { background: #94a3b8; }
+.objective-status {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  min-width: 112px;
+  text-align: right;
+}
+.objective-status[data-variant="contested"],
+.objective-status[data-variant="danger"] { color: #ef4444; }
+.objective-status[data-variant="capture"] { color: #facc15; }
+.objective-status[data-variant="ok"] { color: #4ade80; }
+.objective-wave {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+  color: var(--objective-accent);
+  text-shadow: 2px 2px 0 #000;
+}
+.objective-wave:empty { display: none; }
+.objective-roulette {
+  margin-top: 7px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.08em;
+  color: #090a0d;
+  background: #facc15;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+.objective-roulette.hidden { display: none; }
+.objective-roulette[data-variant="spin"] { background: #f59e0b; }
+
+@media (max-width: 1100px) {
+  .objective-hud { top: 122px; width: min(560px, calc(100vw - 32px)); min-width: 0; }
+}
+@media (max-width: 600px) {
+  .objective-title { font-size: 19px; }
+  .objective-status { min-width: 0; }
+}

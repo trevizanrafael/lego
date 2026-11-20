@@ -1,0 +1,226 @@
+:root {
+  --idv-black: #07080b;
+  --idv-carbon: #10131a;
+  --idv-steel: #222733;
+  --idv-alert: #d99b16;
+  --idv-amber: #c25115;
+  --idv-crimson: #b91c1c;
+  --idv-white: #dce2ec;
+  --idv-muted: #7c8798;
+  --hero-accent: #d99b16;
+
+  --font-display: 'Teko', 'Chakra Petch', sans-serif;
+  --font-tactical: 'Chakra Petch', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--idv-black);
+  font-family: var(--font-tactical);
+  color: var(--idv-white);
+}
+
+#game-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+  transition: filter 0.18s ease;
+}
+
+/* Filtro de Lente de Satélite Estilo GTA V durante a Viagem Rápida (Não-Jogável) */
+body.satellite-transition #game-container {
+  filter: contrast(1.26) saturate(0.42) brightness(0.92) hue-rotate(-12deg);
+}
+
+body.satellite-transition #ui-overlay,
+body.satellite-transition #crosshair {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Enquanto estiver na Tela Inicial ou na Tela de Loading, oculta 100% da HUD da partida! */
+body.title-or-loading-active #top-bar,
+body.title-or-loading-active #minimap-container,
+body.title-or-loading-active #crosshair,
+body.title-or-loading-active #pointer-prompt,
+body.title-or-loading-active #region-toast,
+body.title-or-loading-active #wanted-event-banner,
+body.title-or-loading-active #hero-wheel-overlay,
+body.title-or-loading-active #bottom-bar,
+body.title-or-loading-active #vehicle-prompt {
+  display: none !important;
+}
+
+#satellite-fx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(6, 18, 32, 0.08) 35%, rgba(6, 12, 22, 0.72) 100%);
+}
+
+#satellite-fx-overlay.hidden {
+  display: none;
+}
+
+.sat-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 240, 255, 0.04) 0px,
+    rgba(0, 240, 255, 0.04) 2px,
+    rgba(0, 0, 0, 0.16) 2px,
+    rgba(0, 0, 0, 0.16) 4px
+  );
+}
+
+.sat-flash {
+  position: absolute;
+  inset: 0;
+  background: rgba(250, 204, 21, 0.28);
+  opacity: 0;
+  transition: opacity 0.14s ease-out;
+}
+
+.sat-flash.pulse {
+  opacity: 1;
+  transition: none;
+}
+
+.sat-reticle {
+  position: absolute;
+  inset: 36px;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+}
+
+.sat-corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-color: var(--idv-alert);
+  border-style: solid;
+}
+
+.sat-tl { top: -2px; left: -2px; border-width: 4px 0 0 4px; }
+.sat-tr { top: -2px; right: -2px; border-width: 4px 4px 0 0; }
+.sat-bl { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; }
+.sat-br { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; }
+
+.sat-telemetry {
+  position: absolute;
+  bottom: 18px;
+  left: 24px;
+  background: var(--idv-black);
+  border-left: 4px solid var(--idv-alert);
+  padding: 5px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--idv-alert);
+  box-shadow: 4px 4px 0 #000;
+}
+
+/* ===================================================
+   MIRA CENTRAL TÁTICA (ESTILO VALORANT / FORTNITE)
+   =================================================== */
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.ch-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  background: var(--idv-alert);
+  outline: 1.5px solid var(--idv-black);
+}
+
+#crosshair[data-hero="solaris"] .ch-dot {
+  background: #fef08a;
+  box-shadow: 0 0 6px var(--idv-amber);
+}
+
+.ch-line {
+  position: absolute;
+  background: var(--idv-white);
+  outline: 1px solid var(--idv-black);
+}
+
+#crosshair[data-hero="solaris"] .ch-line {
+  background: var(--idv-alert);
+}
+
+.ch-top {
+  width: 2px;
+  height: 6px;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+.ch-bottom {
+  width: 2px;
+  height: 6px;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+.ch-left {
+  width: 6px;
+  height: 2px;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+.ch-right {
+  width: 6px;
+  height: 2px;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+/* ===================================================
+   ESTRUTURA GERAL DA OVERLAY (TELA LIMPA)
+   =================================================== */
+#ui-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 24px;
+}
+
+#top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
