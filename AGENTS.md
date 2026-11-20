@@ -104,8 +104,9 @@ O código do projeto segue rigorosamente a **Arquitetura de Fachada Fina + Subm�
 2. **Padrão Fachada Fina (*Barrel / Orchestrator Facade*):**
    * Arquivos raiz de sistemas (`Minifigure.js`, `ThirdPersonController.js`, `DestructibleManager.js`, `TestBlockWorld.js`, `LegoHud.js`, `LegoMaterials.js`, `VehicleFleetBuilder.js`, builders de regiões, etc.) devem ter apenas **`50 a 210 linhas`**, atuando como ponto de entrada que orquestra e reexporta os submódulos.
    * Quando uma classe grande tiver métodos distribuídos em submódulos, instale-os em `Classe.prototype` preservando `enumerable: false` via `Object.defineProperties` (comportamento idêntico aos métodos nativos ES6) e mantenha um grafo de imports **100% acíclico (DAG)** sem referências circulares.
-3. **Regra Intocável do Rádio / Spotify:**
-   * **NUNCA modifique** `src/audio/TikTokRadioSystem.js`, a ponte de UI do rádio, os elementos `#hud-tiktok-radio-pill` / `#tiktok-radio-modal` em `index.html` nem o bloco CSS do Spotify em `style.css`, a menos que o usuário peça explicitamente.
+3. **Sistema de Rádio Ao Vivo Estilo GTA 6 + Rota `/configs`:**
+   * No jogo, a rádio opera via **Roda Radial (`[Z]` / `[P]`)** e troca de estações (`[` / `]`), **sem pular músicas manualmente**, com todas as rádios avançando juntas num relógio global (`src/audio/radio/`).
+   * Toda a gestão de estações, Drag & Drop de músicas entre rádios e importação **YouTube -> MP3 + Thumbnail** (`yt-dlp` + `ffmpeg` em `server.py`) vive na rota independente **`http://localhost:5173/configs`** (`configs/`).
 
 ### 6.2 Mapa Oficial de Pastas por Domínio
 Sempre adicione ou edite funcionalidades diretamente no submódulo específico do assunto:

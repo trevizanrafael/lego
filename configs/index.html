@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
+  <title>Central de Configurações // Rádios FM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@500;600;700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/configs/configs.css?v=20261120b" />
+</head>
+<body>
+  <div class="configs-layout">
+    <!-- SIDEBAR DE MÓDULOS DO /configs -->
+    <aside class="configs-sidebar">
+      <div class="brand-box">
+        <div class="brand-kicker">PAINEL INDEPENDENTE // /CONFIGS</div>
+        <h1 class="brand-title">CENTRAL TÁTICA</h1>
+      </div>
+
+      <nav class="configs-nav">
+        <button type="button" class="nav-item active" data-section="radios">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/><line x1="12" y1="14" x2="12" y2="22"/></svg>
+          <span>ESTAÇÕES DE RÁDIO</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-status-box">
+        <div class="status-row">
+          <span id="ytdlp-dot" class="status-dot"></span>
+          <span id="ytdlp-status-text">Verificando Python / yt-dlp...</span>
+        </div>
+        <p class="status-hint">
+          Qualquer mudança feita aqui atualiza as rádios <b>ao vivo</b> no jogo aberto em outra aba.
+        </p>
+        <a href="/" target="_blank" rel="noopener" class="open-game-link">ABRIR JOGO (PORTA 5173) ↗</a>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL: GERENCIADOR DE RÁDIOS COM YOUTUBE->MP3 + DRAG & DROP -->
+    <main class="configs-main">
+      <header class="top-command-bar">
+        <div>
+          <div class="section-kicker">SISTEMA DE TRANSMISSÃO SINCRONIZADA ESTILO GTA 6</div>
+          <h2 class="section-title">GERENCIADOR DE RÁDIOS &amp; ACERVO MP3</h2>
+        </div>
+
+        <div class="top-actions">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="search-tracks-input" type="text" placeholder="Filtrar música ou artista..." />
+          </div>
+
+          <button id="btn-upload-local-mp3" type="button" class="btn-secondary">
+            + SUBIR MP3 DO PC
+          </button>
+          <input id="input-local-mp3" type="file" accept="audio/*" multiple class="hidden" />
+
+          <button id="btn-new-station" type="button" class="btn-primary">
+            + NOVA RÁDIO FM
+          </button>
+        </div>
+      </header>
+
+      <!-- BARRA DIRETA DE IMPORTAÇÃO DO YOUTUBE (LINK -> THUMBNAIL + MP3) -->
+      <section class="youtube-importer-bar">
+        <div class="yt-label-col">
+          <span class="yt-badge">YOUTUBE → MP3 + CAPA</span>
+          <span class="yt-desc">Cole o link do vídeo no YouTube para extrair automaticamente a foto (thumbnail) e o MP3:</span>
+        </div>
+
+        <form id="youtube-import-form" class="yt-form-row">
+          <input
+            id="yt-url-input"
+            type="url"
+            required
+            placeholder="https://www.youtube.com/watch?v=..."
+            class="yt-url-input"
+          />
+          <select id="yt-station-select" class="yt-station-select" title="Rádio de destino"></select>
+          <button id="btn-yt-submit" type="submit" class="btn-yt-download">
+            BAIXAR DO YOUTUBE
+          </button>
+        </form>
+
+        <div id="importer-feedback" class="importer-feedback hidden"></div>
+      </section>
+
+      <!-- DICA RÁPIDA DE DRAG & DROP + AÇÃO EM LOTE -->
+      <div class="board-toolbar">
+        <div class="drag-tip">
+          <b>DRAG &amp; DROP ATIVO:</b> Arraste qualquer música (ou selecione várias) de uma rádio e solte direto dentro de outra rádio!
+        </div>
+        <div id="bulk-move-bar" class="bulk-move-bar hidden">
+          <span id="bulk-count-label">0 selecionadas</span>
+          <select id="bulk-target-station"></select>
+          <button id="btn-bulk-move" type="button" class="btn-secondary btn-sm">MOVER SELECIONADAS</button>
+          <button id="btn-bulk-clear" type="button" class="btn-ghost btn-sm">LIMPAR</button>
+        </div>
+      </div>
+
+      <!-- QUADRO KANBAN DE ESTAÇÕES DE RÁDIO -->
+      <section id="stations-board" class="stations-board"></section>
+    </main>
+  </div>
+
+  <!-- MINI PLAYER DE PREVIEW RÁPIDO NO RODAPÉ (SÓ P/ CONFERIR A MÚSICA NO /CONFIGS) -->
+  <div id="preview-bar" class="preview-bar hidden">
+    <img id="preview-cover" class="preview-cover" alt="" />
+    <div class="preview-meta">
+      <div id="preview-title" class="preview-title"></div>
+      <div id="preview-artist" class="preview-artist"></div>
+    </div>
+    <audio id="preview-audio" controls class="preview-audio"></audio>
+    <button id="btn-close-preview" type="button" class="btn-ghost btn-sm">PARAR PREVIEW</button>
+  </div>
+
+  <!-- MODAL DE CRIAR / EDITAR ESTAÇÃO DE RÁDIO -->
+  <div id="station-modal" class="modal-backdrop hidden">
+    <form id="station-form" class="modal-card">
+      <div class="modal-kicker" id="station-modal-kicker">NOVA ESTAÇÃO DE RÁDIO</div>
+      <h3 class="modal-title" id="station-modal-title">CONFIGURAR RÁDIO FM</h3>
+
+      <input type="hidden" id="st-edit-id" />
+
+      <label class="field-label">
+        <span>NOME DA RÁDIO</span>
+        <input id="st-name" type="text" required maxlength="32" placeholder="Ex: RÁDIO BAILE CDD" />
+      </label>
+
+      <div class="field-row-2">
+        <label class="field-label">
+          <span>FREQUÊNCIA</span>
+          <input id="st-freq" type="text" required maxlength="14" placeholder="Ex: 98.5 FM" />
+        </label>
+        <label class="field-label">
+          <span>ESTILO / SLOGAN</span>
+          <input id="st-genre" type="text" maxlength="28" placeholder="Ex: FUNK & MANDELÃO" />
+        </label>
+      </div>
+
+      <label class="field-label">
+        <span>COR DE DESTAQUE NA RODA</span>
+        <div id="st-color-swatches" class="swatches-row"></div>
+      </label>
+
+      <label class="field-label">
+        <span>ÍCONE DA ESTAÇÃO NA RODA DO JOGO</span>
+        <div id="st-icon-picker" class="icons-grid"></div>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="btn-cancel-station" class="btn-ghost">CANCELAR</button>
+        <button type="submit" class="btn-primary">SALVAR RÁDIO</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- MODAL DE EDITAR MÚSICA (NOME / ARTISTA / FOTO DE CAPA) -->
+  <div id="track-modal" class="modal-backdrop hidden">
+    <form id="track-form" class="modal-card">
+      <div class="modal-kicker">EDITAR METADADOS DA FAIXA</div>
+      <h3 class="modal-title">MÚSICA &amp; THUMBNAIL</h3>
+
+      <input type="hidden" id="tr-edit-id" />
+
+      <div class="track-edit-cover-row">
+        <img id="tr-edit-preview" class="track-edit-preview" alt="Capa" />
+        <div>
+          <button type="button" id="btn-tr-pick-cover" class="btn-secondary btn-sm">TROCAR FOTO / THUMBNAIL</button>
+          <input type="file" id="input-tr-cover" accept="image/*" class="hidden" />
+          <p class="small-muted">Aceita JPG, PNG ou WebP.</p>
+        </div>
+      </div>
+
+      <label class="field-label">
+        <span>NOME DA MÚSICA</span>
+        <input id="tr-title" type="text" required maxlength="80" />
+      </label>
+
+      <label class="field-label">
+        <span>ARTISTA / CANAL</span>
+        <input id="tr-artist" type="text" required maxlength="60" />
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="btn-cancel-track" class="btn-ghost">CANCELAR</button>
+        <button type="submit" class="btn-primary">SALVAR ALTERAÇÕES</button>
+      </div>
+    </form>
+  </div>
+
+  <script type="module" src="/configs/configs.js?v=20261120b"></script>
+</body>
+</html>

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Inter:wght@500;600;700;800&family=JetBrains+Mono:wght@700;800&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=20261120a" />
+  <link rel="stylesheet" href="./style.css?v=20261120b" />
   <script type="importmap">
     {
       "imports": {
@@ -223,24 +223,26 @@
         </div>
       </div>
 
-      <!-- Canto Superior Direito: Botão Spotify [P] (Parado = só o P | Tocando = Capa Girando tipo Álbum + Nome Rodando) -->
-      <div id="hud-tiktok-radio-pill" class="hud-tiktok-radio-pill" title="Spotify [P] • [J] Anterior [K] Play/Pause [L] Próxima" aria-label="Spotify [P]">
-        <span class="tiktok-pill-key">P</span>
+      <!-- Canto Superior Direito: Indicador Contextual de Rádio Ao Vivo Estilo GTA 6 (Segure [Z] ou [P]) -->
+      <div id="hud-tiktok-radio-pill" class="hud-tiktok-radio-pill" title="Segure [Z] ou [P] para abrir a Roda de Rádios • [ e ] trocam estação" aria-label="Rádio FM [Z]">
+        <span class="tiktok-pill-key">[Z] RÁDIO OFF</span>
         <div class="hud-spotify-disc-wrap" aria-hidden="true">
           <img id="hud-spotify-disc-img" class="hud-spotify-disc-img" alt="" />
-          <span class="hud-spotify-disc-spindle"></span>
         </div>
-        <div class="hud-spotify-title-viewport" aria-hidden="true">
+        <div class="hud-radio-live-meta" aria-hidden="true">
+          <span id="hud-radio-station-tag" class="hud-radio-station-tag">101.5 FM • RÁDIO PADRÃO</span>
           <div id="hud-spotify-marquee-title" class="hud-spotify-marquee-title"></div>
+          <span id="hud-radio-artist-sub" class="hud-radio-artist-sub"></span>
         </div>
       </div>
 
       <div id="tiktok-radio-toast" class="tiktok-radio-toast hidden">
-        <span class="tiktok-toast-tag">
-          <svg class="spotify-inline-svg" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          <span>Spotify</span>
-        </span>
-        <span id="tiktok-toast-title" class="tiktok-toast-title">MTG AUTOMOTIVO BIBI / MANDELÃO VIRAL</span>
+        <img id="tiktok-toast-cover" class="tiktok-toast-cover hidden" alt="" />
+        <div class="tiktok-toast-body">
+          <span id="tiktok-toast-station" class="tiktok-toast-station">101.5 FM // RÁDIO PADRÃO</span>
+          <span id="tiktok-toast-title" class="tiktok-toast-title">SINTONIZADO</span>
+          <span id="tiktok-toast-artist" class="tiktok-toast-artist"></span>
+        </div>
       </div>
 
       <!-- Canto Superior Direito: Velocímetro Dark-Tuner Digital (Aparece APENAS ao Dirigir/Pilotar Veículo) -->
@@ -785,179 +787,33 @@
       </div>
     </div>
 
-    <!-- Modal Interativo Estilo Spotify Desktop da Rádio [P] -->
-    <div id="tiktok-radio-modal" class="hidden">
-      <div class="spotify-app-shell">
-        <div class="spotify-upper-workspace">
-          <!-- A) SIDEBAR ESQUERDA ESTILO SPOTIFY -->
-          <aside class="spotify-sidebar">
-            <div class="spotify-brand-header">
-              <span class="spotify-brand-dot" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
-                  <circle cx="12" cy="12" r="11" fill="#1ed760" />
-                  <path d="M6.8 9.4C10.4 8.3 14.5 8.6 17.6 10.4" stroke="#000000" stroke-width="2.1" stroke-linecap="round" />
-                  <path d="M7.6 12.6C10.6 11.7 14.0 12.0 16.5 13.5" stroke="#000000" stroke-width="1.85" stroke-linecap="round" />
-                  <path d="M8.4 15.6C10.8 14.9 13.4 15.1 15.4 16.3" stroke="#000000" stroke-width="1.6" stroke-linecap="round" />
-                </svg>
-              </span>
-              <span class="spotify-brand-title">Spotify // [P]</span>
-            </div>
+    <!-- Roda Radial de Estações de Rádio Ao Vivo Estilo GTA 6 (Segure [Z] ou [P]) -->
+    <div id="gta6-radio-wheel-overlay" class="gta6-radio-wheel-overlay hidden">
+      <div class="gta6-wheel-shell">
+        <div class="gta6-wheel-guide-ring" aria-hidden="true"></div>
+        <div id="gta6-wheel-nodes-ring" class="gta6-wheel-nodes-ring"></div>
 
-            <div class="spotify-nav-group">
-              <div class="spotify-nav-label">Sua Biblioteca</div>
-              <button id="btn-spotify-filter-all" type="button" class="spotify-nav-btn active" data-filter="all">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                <span>Todas as Músicas</span>
-              </button>
-              <button id="btn-spotify-filter-liked" type="button" class="spotify-nav-btn" data-filter="liked">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                <span>Músicas Curtidas</span>
-              </button>
-              <button id="btn-spotify-filter-custom" type="button" class="spotify-nav-btn" data-filter="custom">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                <span>Meus MP3 Importados</span>
-              </button>
-            </div>
+        <div class="gta6-wheel-center-hub">
+          <div id="gta6-wheel-station-freq" class="gta6-wheel-station-freq">FM OFF</div>
+          <div id="gta6-wheel-station-name" class="gta6-wheel-station-name">RÁDIO DESLIGADA</div>
+          <div id="gta6-wheel-station-genre" class="gta6-wheel-station-genre">SILÊNCIO TÁTICO</div>
 
-            <!-- Card de Capa em Destaque (136x136px) com Troca de Foto -->
-            <div class="spotify-sidebar-cover-card">
-              <div class="spotify-cover-frame">
-                <img id="spotify-featured-cover-img" class="spotify-featured-cover-img" alt="Capa da Música" />
-                <button id="btn-spotify-change-current-cover" type="button" class="spotify-cover-overlay-btn">
-                  <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                  <span>Trocar Foto</span>
-                </button>
-              </div>
-              <div class="spotify-cover-caption">Salvo automaticamente no Slot</div>
-            </div>
+          <div id="gta6-wheel-cover-wrap" class="gta6-wheel-cover-wrap hidden">
+            <img id="gta6-wheel-cover-img" alt="Capa da transmissão" />
+          </div>
 
-            <!-- Gerenciamento Total da Playlist -->
-            <div class="spotify-sidebar-actions">
-              <input id="input-tiktok-mp3-file" type="file" accept="audio/*" multiple class="hidden" />
-              <input id="input-spotify-cover-file" type="file" accept="image/*" class="hidden" />
+          <div id="gta6-wheel-track-title" class="gta6-wheel-track-title">SINTONIZE UMA ESTAÇÃO AO REDOR</div>
+          <div id="gta6-wheel-track-artist" class="gta6-wheel-track-artist">Gerencie suas rádios em localhost:5173/configs</div>
 
-              <button id="btn-tiktok-import-mp3" type="button" class="spotify-action-btn primary">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Adicionar Música (MP3)</span>
-              </button>
-              <button id="btn-spotify-restore-defaults" type="button" class="spotify-action-btn secondary">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                <span>Restaurar 8 Originais</span>
-              </button>
-              <button id="btn-spotify-clear-all" type="button" class="spotify-action-btn danger">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                <span>Remover Todas</span>
-              </button>
-            </div>
-          </aside>
-
-          <!-- B) ÁREA PRINCIPAL DIREITA ESTILO SPOTIFY -->
-          <main class="spotify-main-view">
-            <!-- Banner Superior com Degradê Dinâmico da Música Atual -->
-            <div id="spotify-playlist-hero" class="spotify-playlist-hero">
-              <div class="spotify-hero-left">
-                <img id="spotify-hero-cover-img" class="spotify-hero-cover-img" alt="Capa Principal" />
-                <div class="spotify-hero-info">
-                  <div class="spotify-hero-badges-row">
-                    <span id="tiktok-now-status-badge" class="tiktok-status-badge">
-                      <svg class="spotify-inline-svg" viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-                      <span>Pausado</span>
-                    </span>
-                    <span id="spotify-playlist-count-badge" class="spotify-count-badge">8 músicas na playlist</span>
-                  </div>
-                  <div id="tiktok-now-playing-title" class="tiktok-now-title">MTG AUTOMOTIVO BIBI / MANDELÃO VIRAL</div>
-                  <div id="tiktok-now-playing-meta" class="tiktok-now-meta">DJ LEGO MANDELÃO • 132 BPM • FUNK AUTOMOTIVO</div>
-                </div>
-              </div>
-
-              <div class="spotify-hero-right">
-                <button id="btn-tiktok-close" type="button" class="spotify-close-btn">
-                  <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  <span>Fechar [P]</span>
-                </button>
-                <div class="spotify-search-wrap">
-                  <svg class="spotify-search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input
-                    id="input-spotify-search"
-                    type="text"
-                    placeholder="Buscar música, artista ou estilo..."
-                    class="spotify-search-input"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- Cabeçalho da Tabela de Músicas -->
-            <div class="spotify-table-header">
-              <span class="col-idx">#</span>
-              <span class="col-title">Título</span>
-              <span class="col-style">Estilo &amp; BPM</span>
-              <span class="col-actions">Ações</span>
-            </div>
-
-            <!-- Lista / Tabela de Músicas -->
-            <div id="tiktok-track-list" class="spotify-track-list"></div>
-          </main>
+          <div class="gta6-wheel-live-bar">
+            <div id="gta6-wheel-live-fill" class="gta6-wheel-live-fill"></div>
+          </div>
+          <div id="gta6-wheel-live-time" class="gta6-wheel-live-time">TRANSMISSÃO SINCRONIZADA</div>
         </div>
 
-        <!-- C) BARRA INFERIOR FIXA DO PLAYER ESTILO SPOTIFY -->
-        <footer class="spotify-bottom-player">
-          <!-- Coluna Esquerda: Mini-Capa 56x56 + Nome + Artista + Curtir + Foto -->
-          <div class="spotify-player-left">
-            <img id="spotify-bottom-cover-img" class="spotify-bottom-cover-img" alt="Mini Capa" />
-            <div class="spotify-bottom-meta">
-              <div id="spotify-bottom-title" class="spotify-bottom-title">MTG AUTOMOTIVO BIBI</div>
-              <div id="spotify-bottom-artist" class="spotify-bottom-artist">DJ LEGO MANDELÃO</div>
-            </div>
-            <button id="btn-spotify-like-current" type="button" class="spotify-icon-btn" title="Curtir Música">
-              <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            </button>
-            <button id="btn-spotify-cover-current" type="button" class="spotify-icon-btn" title="Trocar Foto da Música">
-              <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </button>
-          </div>
-
-          <!-- Coluna Central: Controles de Reprodução + Barra de Progresso -->
-          <div class="spotify-player-center">
-            <div class="spotify-transport-row">
-              <button id="btn-tiktok-shuffle" type="button" class="spotify-transport-btn" title="Modo Aleatório (Shuffle)">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-              </button>
-              <button id="btn-tiktok-prev" type="button" class="spotify-transport-btn" title="Música Anterior">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2.4" height="16" rx="1"/></svg>
-              </button>
-              <button id="btn-tiktok-play-pause" type="button" class="spotify-play-circle-btn" title="Tocar / Pausar">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="7 4 20 12 7 20 7 4"/></svg>
-              </button>
-              <button id="btn-tiktok-next" type="button" class="spotify-transport-btn" title="Próxima Música">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="16.6" y="4" width="2.4" height="16" rx="1"/></svg>
-              </button>
-              <button id="btn-spotify-repeat" type="button" class="spotify-transport-btn" title="Repetir Música Atual">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-              </button>
-            </div>
-            <div class="spotify-seek-row">
-              <span id="spotify-time-cur" class="spotify-time-label">0:00</span>
-              <input id="spotify-seek-slider" type="range" min="0" max="1000" value="0" class="spotify-seek-slider" />
-              <span id="spotify-time-dur" class="spotify-time-label">1:30</span>
-            </div>
-          </div>
-
-          <!-- Coluna Direita: Bass Boost +6dB + Volume -->
-          <div class="spotify-player-right">
-            <button id="btn-tiktok-bass-boost" type="button" class="spotify-pill-btn active" title="Grave Estourado +6dB">
-              <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-              <span>Bass +6dB</span>
-            </button>
-            <div class="spotify-vol-wrap">
-              <span class="spotify-vol-icon" aria-hidden="true">
-                <svg class="spotify-svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-              </span>
-              <input id="slider-tiktok-vol" type="range" min="0" max="100" value="85" class="spotify-vol-slider" />
-              <b id="val-tiktok-vol" class="spotify-vol-val">85%</b>
-            </div>
-          </div>
-        </footer>
+        <div class="gta6-wheel-footer-hint">
+          <b>[ARRASTE O MOUSE]</b> SINTONIZAR • <b>[ / ]</b> TROCAR ESTAÇÃO • PAINEL: <b>localhost:5173/configs</b>
+        </div>
       </div>
     </div>
 
@@ -971,6 +827,7 @@
     <div id="bottom-bar">
       <div class="hud-bottom-left-shortcuts">
         <span class="tactical-micro-chip"><b>TAB</b> OPERADOR</span>
+        <span class="tactical-micro-chip"><b>Z</b> RÁDIO</span>
         <span class="tactical-micro-chip"><b>M</b> MAPA</span>
         <span class="tactical-micro-chip"><b>H</b> DOSSIÊ</span>
       </div>
@@ -1028,6 +885,6 @@
       <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
     </div>
 
-  <script type="module" src="./src/main.js?v=20261120a"></script>
+  <script type="module" src="./src/main.js?v=20261120b"></script>
 </body>
 </html>

@@ -95,7 +95,11 @@ export function setupTestEnvironment() {
       value: '',
       disabled: false,
       dataset: {},
-      style: {},
+      style: {
+        setProperty(k, v) {
+          this[k] = v;
+        }
+      },
       children: [],
       _parsedChildren: null,
       width: 256,

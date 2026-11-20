@@ -115,9 +115,12 @@ export const controllerInputAndEventsMethods = {
         this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen ||
         this.hud?.isFullMapOpen || this.hud?.isDossierOpen ||
         this.hud?.isCreatorOpen || this.hud?.isCustomsOpen ||
-        this.hud?.isAircraftStudioOpen || this.hud?.isTikTokRadioOpen ||
-        this.fastTravelState?.active
+        this.hud?.isAircraftStudioOpen || this.fastTravelState?.active
       ) {
+        return;
+      }
+      if (this.hud?.isRadioWheelOpen) {
+        this.hud.updateRadioWheelAim(e.movementX || 0, e.movementY || 0);
         return;
       }
       if (this.hud?.isHeroWheelOpen) {
@@ -138,8 +141,12 @@ export const controllerInputAndEventsMethods = {
         if (
           this.hud?.isFullMapOpen || this.hud?.isCreatorOpen ||
           this.hud?.isCustomsOpen || this.hud?.isAircraftStudioOpen ||
-          this.hud?.isTikTokRadioOpen || this.fastTravelState?.active
+          this.fastTravelState?.active
         ) {
+          return;
+        }
+        if (this.hud?.isRadioWheelOpen) {
+          this.hud.stepRadioWheelSelection(e.deltaY > 0 ? 1 : -1);
           return;
         }
         if (e.target && typeof e.target.closest === 'function' && e.target.closest('#fullmap-modal')) {
@@ -241,6 +248,12 @@ export const controllerInputAndEventsMethods = {
             this._triggerTurboOverdrive(false);
           }
           break;
+        case 'KeyZ':
+        case 'KeyP':
+          if (this.hud?.isRadioWheelOpen) {
+            this.hud.setRadioWheelOpen(false, this);
+          }
+          break;
       }
     }
 
@@ -263,22 +276,8 @@ export const controllerInputAndEventsMethods = {
       return;
     }
 
-    if (this.hud?.isTikTokRadioOpen) {
-      if (e.code === 'Escape' && isDown && !e.repeat) {
-        this.hud.setTikTokRadioOpen(false, this);
-        return;
-      }
-      if (!isTypingInInput && isDown && !e.repeat) {
-        if (e.code === 'KeyP') {
-          this.hud.setTikTokRadioOpen(false, this);
-        } else if (e.code === 'KeyK') {
-          this.hud.tiktokRadio?.togglePlayPause?.();
-        } else if (e.code === 'KeyL') {
-          this.hud.tiktokRadio?.nextTrack?.(false);
-        } else if (e.code === 'KeyJ') {
-          this.hud.tiktokRadio?.prevTrack?.(false);
-        }
-      }
+    if (this.hud?.isRadioWheelOpen && e.code === 'Escape' && isDown && !e.repeat) {
+      this.hud.setRadioWheelOpen(false, this);
       return;
     }
 
@@ -401,8 +400,8 @@ export const controllerInputAndEventsMethods = {
             const nearbyAir = this.currentVehicle || this.findNearbyVehicle?.();
             const initialType = nearbyAir?.mesh?.userData?.carType || null;
             this.hud.aircraftStudio.open(this.world, this, initialType);
-          } else if (this.hud?.tiktokRadio) {
-            this.hud.tiktokRadio.togglePlayPause();
+          } else {
+            this.hud?.tiktokRadio?.togglePower?.(true);
           }
         }
         break;
@@ -425,27 +424,17 @@ export const controllerInputAndEventsMethods = {
       case 'KeyM':
         if (isDown && !e.repeat && this.onToggleFullMap) this.onToggleFullMap();
         break;
+      case 'KeyZ':
       case 'KeyP':
         if (isDown && !e.repeat && this.hud) {
-          if (e.shiftKey) {
-            this.hud.tiktokRadio?.nextTrack?.(true);
-          } else {
-            this.resetHeldInputs();
-            this.hud.toggleTikTokRadioModal?.(this);
-          }
+          this.hud.setRadioWheelOpen(true, this);
         }
         break;
-      case 'KeyL':
-        if (isDown && !e.repeat && this.hud?.tiktokRadio) this.hud.tiktokRadio.nextTrack(true);
-        break;
-      case 'KeyJ':
-        if (isDown && !e.repeat && this.hud?.tiktokRadio) this.hud.tiktokRadio.prevTrack(true);
-        break;
       case 'BracketRight':
-        if (isDown && !e.repeat && this.hud?.tiktokRadio?.isPlaying) this.hud.tiktokRadio.nextTrack(true);
+        if (isDown && !e.repeat && this.hud) this.hud.stepRadioWheelSelection(1);
         break;
       case 'BracketLeft':
-        if (isDown && !e.repeat && this.hud?.tiktokRadio?.isPlaying) this.hud.tiktokRadio.prevTrack(true);
+        if (isDown && !e.repeat && this.hud) this.hud.stepRadioWheelSelection(-1);
         break;
       default:
         this._handleHeroAndCombatKeyShortcuts(e, isDown);

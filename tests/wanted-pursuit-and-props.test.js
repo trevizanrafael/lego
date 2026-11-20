@@ -340,198 +340,118 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
     assert.ok(tv1.respawnFadeTimer > 0, 'Fade-in suave ativado após auto-relocação');
   });
 
-  it('5. Rádio Estilo Spotify na Tecla [P] (Fotos de Capa, Adicionar/Remover Músicas, Persistência no Save Slot e Parada Total ao Salvar e Sair)', async () => {
+  it('5. Rádio Ao Vivo Estilo GTA 6 ([Z]/[P] Roda Radial, Zero Pular Música, Relógio Sincronizado entre Rádios, Migração e /configs)', async () => {
+    const fs = await import('node:fs');
     const { TIKTOK_RADIO_TRACKS } = await import('../src/audio/TikTokRadioSystem.js');
-    const { loadAllSaveSlots } = await import('../src/ui/FactionIconsAndSaveSystem.js');
+    const { collectMigratedLegacyTracksFromBrowser, LEGACY_SAVE_SLOTS_KEY } = await import(
+      '../src/audio/radio/RadioDefaultCatalogAndStorage.js'
+    );
     const { soundFX } = await import('../src/audio/SoundFX.js');
 
-    assert.equal(TIKTOK_RADIO_TRACKS.length, 8, '8 hits virais do TikTok configurados na rádio');
-    assert.ok(hud.tiktokRadio, 'TikTokRadioSystem instanciado na LegoHud');
+    assert.equal(TIKTOK_RADIO_TRACKS.length, 8, 'Catálogo base de fallback possui 8 faixas');
+    assert.ok(hud.tiktokRadio, 'Sistema de rádio instanciado na LegoHud');
+    assert.equal(hud.tiktokRadio.stations.length, 1, 'Inicia com exatamente 1 única Rádio Padrão');
+    assert.equal(hud.tiktokRadio.activeStationId, null, 'Inicia desligada (OFF) até sintonizar');
 
-    // Aperta [P] para abrir o modal estilo Spotify Desktop
-    controller._onKey({ code: 'KeyP', repeat: false, shiftKey: false, preventDefault() {} }, true);
-    assert.equal(hud.isTikTokRadioOpen, true, 'Tecla [P] abre o modal #tiktok-radio-modal');
-    assert.equal(hud.tiktokModalEl.classList.contains('hidden'), false);
+    // Proibição estrita de pular faixa manualmente (estilo GTA 6)
+    assert.equal(typeof hud.tiktokRadio.nextTrack, 'undefined', 'Sem método nextTrack manual');
+    assert.equal(typeof hud.tiktokRadio.prevTrack, 'undefined', 'Sem método prevTrack manual');
 
-    // Aperta [P] novamente para fechar o modal
-    controller._onKey({ code: 'KeyP', repeat: false, shiftKey: false, preventDefault() {} }, true);
-    assert.equal(hud.isTikTokRadioOpen, false, 'Tecla [P] fecha o modal #tiktok-radio-modal');
+    // Segurar [Z] abre a Roda Radial (#gta6-radio-wheel-overlay) e soltar [Z] fecha na hora!
+    controller._onKey({ code: 'KeyZ', repeat: false, preventDefault() {} }, true);
+    assert.equal(hud.isRadioWheelOpen, true, 'Segurar [Z] abre a Roda Radial de Rádios');
+    assert.equal(hud.radioWheelOverlayEl.classList.contains('hidden'), false);
+    controller._onKey({ code: 'KeyZ', repeat: false, preventDefault() {} }, false);
+    assert.equal(hud.isRadioWheelOpen, false, 'Soltar [Z] fecha a Roda Radial');
 
-    // Aperta Shift + [P] durante o jogo para pular de faixa rapidamente com Mini-Toast Neon
-    const prevIdx = hud.tiktokRadio.currentTrackIndex;
-    controller._onKey({ code: 'KeyP', repeat: false, shiftKey: true, preventDefault() {} }, true);
-    assert.equal(hud.tiktokRadio.isPlaying, true, 'Shift + [P] liga a rádio e avança para a próxima música');
-    assert.notEqual(hud.tiktokRadio.currentTrackIndex, prevIdx, 'Índice da faixa avançou no Shift + [P]');
-    assert.equal(hud.tiktokToastEl.classList.contains('hidden'), false, 'Mini-Toast Neon exibido ao trocar faixa');
+    // Segurar [P] também abre/fecha a Roda Radial
+    controller._onKey({ code: 'KeyP', repeat: false, preventDefault() {} }, true);
+    assert.equal(hud.isRadioWheelOpen, true, 'Segurar [P] também abre a Roda Radial');
+    controller._onKey({ code: 'KeyP', repeat: false, preventDefault() {} }, false);
+    assert.equal(hud.isRadioWheelOpen, false);
 
-    // 1) Adicionar Foto de Capa Customizada e Curtir Música (❤️)
-    const targetTrack = hud.tiktokRadio.tracks[0];
-    const customCover = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-    await hud.tiktokRadio.setTrackCoverFromFile(targetTrack.id, { name: 'minha_capa.png', dataUrl: customCover });
-    assert.equal(targetTrack.coverDataUrl, customCover, 'Foto de capa aplicada na música');
+    // Cria uma 2ª estação e move faixas via Drag & Drop lógico (moveTrackBetweenStations)
+    const stPadrao = hud.tiktokRadio.stations[0];
+    const stNova = hud.tiktokRadio.createStation({
+      name: 'RÁDIO BAILE CDD',
+      freq: '98.5 FM',
+      color: '#ef4444',
+      icon: 'flame'
+    });
+    const movedOk = hud.tiktokRadio.moveTrackBetweenStations('brazilian_phonk', stPadrao.id, stNova.id);
+    const movedOk2 = hud.tiktokRadio.moveTrackBetweenStations('tokyo_drift_phonk', stPadrao.id, stNova.id);
+    assert.equal(movedOk && movedOk2, true, 'Músicas movidas de uma rádio para outra com sucesso');
+    assert.equal(stPadrao.trackIds.includes('brazilian_phonk'), false, 'Saiu da Rádio Padrão');
+    assert.equal(stNova.trackIds.includes('brazilian_phonk'), true, 'Entrou na nova rádio');
 
-    const likedState = hud.tiktokRadio.toggleLikeTrack(targetTrack.id);
-    assert.equal(likedState, true, 'Música marcada como Curtida (❤️)');
+    // Tecla ] (BracketRight) sintoniza a 1ª estação (Rádio Padrão)
+    controller._onKey({ code: 'BracketRight', repeat: false, preventDefault() {} }, true);
+    assert.equal(hud.tiktokRadio.activeStationId, stPadrao.id, 'Tecla ] sintoniza a Rádio Padrão');
+    assert.equal(hud.tiktokRadio.isPlaying, true, 'Rádio tocando ao vivo');
+    assert.equal(hud.tiktokHudPillEl.classList.contains('playing'), true, 'Card ao vivo ativo na HUD');
 
-    // 2) Remover 1 Música Específica e Importar MP3 Local
-    const removedOne = hud.tiktokRadio.removeTrack('montagem_coral');
-    assert.equal(removedOne, true, 'Música específica removida da playlist');
-    assert.equal(hud.tiktokRadio.tracks.length, 7, 'Playlist agora tem 7 músicas');
+    // Verifica Relógio Sincronizado: todas as rádios avançam juntas enquanto você ouve outra!
+    const liveBefore = hud.tiktokRadio.getStationLiveNow(stPadrao.id);
+    assert.ok(liveBefore && liveBefore.track, 'Rádio Padrão transmitindo faixa ao vivo');
 
-    const imported = hud.tiktokRadio.importLocalAudioFiles([
-      { name: 'meu_funk_tiktok.mp3', mockUrl: 'blob:mock-funk-1' }
-    ]);
-    assert.equal(imported.length, 1, 'MP3 do jogador importado com sucesso');
-    assert.equal(hud.tiktokRadio.tracks.length, 8, 'Playlist agora tem 7 originais + 1 MP3 custom');
+    // Muda para a Rádio 2 (]), passa 35 segundos no relógio global e volta para a Rádio Padrão ([)
+    controller._onKey({ code: 'BracketRight', repeat: false, preventDefault() {} }, true);
+    assert.equal(hud.tiktokRadio.activeStationId, stNova.id, 'Mudou para a 2ª estação');
 
-    // 3) Persistência Completa no Slot de Save (músicas removidas, MP3 adicionados, curtidas e fotos de capa)
-    hud.activeSaveSlot = 0;
-    hud.saveCurrentProgress();
-    const savedSlot = loadAllSaveSlots()[0];
-    assert.ok(savedSlot?.radioState, 'radioState salvo dentro do Slot de Save');
-    assert.equal(savedSlot.radioState.tracks.length, 8);
-    assert.equal(
-      savedSlot.radioState.tracks.some((t) => t.id === 'montagem_coral'),
-      false,
-      'Música removida permanece removida no Save Slot'
+    hud.tiktokRadio.broadcastClock.advanceClockForTest(35);
+
+    controller._onKey({ code: 'BracketLeft', repeat: false, preventDefault() {} }, true);
+    assert.equal(hud.tiktokRadio.activeStationId, stPadrao.id, 'Voltou para a Rádio Padrão');
+    const liveAfter = hud.tiktokRadio.getStationLiveNow(stPadrao.id);
+    const progressed =
+      liveAfter.trackId !== liveBefore.trackId ||
+      Math.abs(liveAfter.offsetSec - (liveBefore.offsetSec + 35)) < 1.5;
+    assert.equal(progressed, true, 'Rádio Padrão avançou 35s em segundo plano junto com as demais estações!');
+    hud.tiktokRadio.broadcastClock.resetOffset();
+
+    // Verifica migração automática das músicas salvas hoje pelo jogador para 1 única Rádio Padrão
+    const customThumb = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    globalThis.localStorage.setItem(
+      LEGACY_SAVE_SLOTS_KEY,
+      JSON.stringify([
+        {
+          radioState: {
+            tracks: [
+              ...TIKTOK_RADIO_TRACKS.map((t) => ({ ...t, isCustomFile: false })),
+              {
+                id: 'custom_mp3_user_1',
+                title: 'MEU FUNK SALVO',
+                artist: 'MC LEGO',
+                isCustomFile: true,
+                coverDataUrl: customThumb
+              }
+            ]
+          }
+        },
+        null,
+        null
+      ])
     );
-    assert.equal(
-      savedSlot.radioState.tracks.find((t) => t.id === targetTrack.id)?.coverDataUrl,
-      customCover,
-      'Foto de capa customizada foi salva no Save Slot'
-    );
+    const migrated = await collectMigratedLegacyTracksFromBrowser();
+    assert.equal(migrated.length, 1, 'Migra exclusivamente as músicas colocadas pelo jogador quando existem MP3 custom');
+    assert.equal(migrated[0].id, 'custom_mp3_user_1');
+    assert.equal(migrated[0].coverDataUrl, customThumb, 'Preserva a capa salva pelo jogador');
 
-    // 4) Remover TODAS as músicas e depois Restaurar as 8 Originais (preservando o MP3 customizado)
-    hud.tiktokRadio.clearAllTracks();
-    assert.equal(hud.tiktokRadio.tracks.length, 0, 'Botão Remover Todas limpa 100% da playlist');
-    assert.equal(hud.tiktokRadio.isPlaying, false, 'Reprodução para ao remover todas as músicas');
-
-    // Restaura a partir do Save Slot salvo anteriormente
-    hud.tiktokRadio.importSaveState(savedSlot.radioState);
-    assert.equal(hud.tiktokRadio.tracks.length, 8, 'importSaveState restaura exatamente a playlist do Save Slot');
-    assert.equal(hud.tiktokRadio.tracks[0].coverDataUrl, customCover, 'Foto de capa restaurada do Save Slot');
-    assert.equal(hud.tiktokRadio.tracks[0].liked, true, 'Curtida ❤️ restaurada do Save Slot');
-
-    // Restaurar as 8 originais recoloca 'montagem_coral' sem apagar o MP3 customizado!
-    hud.tiktokRadio.restoreDefaultTracks();
-    assert.equal(
-      hud.tiktokRadio.tracks.length,
-      9,
-      'Restaurar 8 Originais recoloca a faixa faltante e preserva o MP3 customizado do jogador (8 + 1 = 9)'
-    );
-
-    // 5) Atalhos de Player [J] (Volta), [K] (Play/Pause) e [L] (Passa) + Álbum Girando no HUD + Marquee + Bugfix Tecla W Presa!
-    // Simula jogador segurando [W] andando pra frente e apertando [P] antes de soltar [W]:
-    hud.setTikTokRadioOpen(false, controller);
-    controller._onKey({ code: 'KeyW', repeat: false, preventDefault() {} }, true);
-    assert.equal(controller.keys.forward, true, 'Jogador está andando para frente (W pressionado)');
-    controller._onKey({ code: 'KeyP', repeat: false, shiftKey: false, preventDefault() {} }, true);
-    assert.equal(hud.isTikTokRadioOpen, true, 'Abriu o player Spotify [P]');
-    assert.equal(
-      controller.keys.forward,
-      false,
-      'BUGFIX: Ao abrir [P] enquanto segurava [W], keys.forward zera na hora e o boneco NÃO fica andando pra sempre!'
-    );
-    // Solta [W] com o modal ainda aberto e fecha o modal: continua 100% parado!
-    controller._onKey({ code: 'KeyW', repeat: false, preventDefault() {} }, false);
-    controller._onKey({ code: 'KeyP', repeat: false, shiftKey: false, preventDefault() {} }, true);
-    assert.equal(hud.isTikTokRadioOpen, false);
-    assert.equal(controller.keys.forward, false, 'Continua parado após fechar [P]');
-
-    // Testa [K] (Play/Pause), [L] (Próxima) e [J] (Anterior) durante o jogo!
-    hud.tiktokRadio.pause();
-    assert.equal(hud.tiktokRadio.isPlaying, false);
-    assert.equal(hud.tiktokHudPillEl.classList.contains('playing'), false, 'Parado: HUD mostra apenas o P');
-
-    controller._onKey({ code: 'KeyK', repeat: false, preventDefault() {} }, true);
-    assert.equal(hud.tiktokRadio.isPlaying, true, 'Tecla [K] dá Play na música');
-    assert.equal(
-      hud.tiktokHudPillEl.classList.contains('playing'),
-      true,
-      'Tocando: HUD ativa modo Álbum Girando + Nome Rodando (.playing)'
-    );
-    assert.ok(hud.hudSpotifyDiscImg.src.length > 10, 'Foto do álbum carregada no disco giratório do HUD');
-    assert.equal(
-      hud.hudSpotifyMarqueeTitleEl.classList.contains('is-scrolling'),
-      true,
-      'Nome da música está rodando em marquee ao lado do álbum no HUD'
-    );
-    assert.equal(
-      hud.spotifyBottomTitleEl.classList.contains('is-scrolling'),
-      true,
-      'Nome longo da música também roda em marquee dentro do player Spotify'
-    );
-
-    const idxBeforeL = hud.tiktokRadio.currentTrackIndex;
-    controller._onKey({ code: 'KeyL', repeat: false, preventDefault() {} }, true);
-    assert.notEqual(hud.tiktokRadio.currentTrackIndex, idxBeforeL, 'Tecla [L] avança para a próxima música');
-
-    controller._onKey({ code: 'KeyJ', repeat: false, preventDefault() {} }, true);
-    assert.equal(hud.tiktokRadio.currentTrackIndex, idxBeforeL, 'Tecla [J] volta para a música anterior');
-
-    // Tecla [K] pausa e volta o HUD para apenas o P, e outro [K] retoma a música!
-    controller._onKey({ code: 'KeyK', repeat: false, preventDefault() {} }, true);
-    assert.equal(hud.tiktokRadio.isPlaying, false, 'Tecla [K] pausa a música');
-    assert.equal(hud.tiktokHudPillEl.classList.contains('playing'), false, 'Pausado: HUD volta a exibir apenas o P');
-    controller._onKey({ code: 'KeyK', repeat: false, preventDefault() {} }, true);
-    assert.equal(hud.tiktokRadio.isPlaying, true, 'Tecla [K] retoma a música do ponto onde parou');
-
-    // 6) BUGFIX CRÍTICO: Clicar em "SALVAR E SAIR PARA O MENU INICIAL" (#btn-pause-save-quit) PARA TODA MÚSICA NA HORA!
+    // Clicar em "SALVAR E SAIR PARA O MENU INICIAL" (#btn-pause-save-quit) PARA TODA MÚSICA NA HORA!
     const btnSaveQuit = globalThis.document.getElementById('btn-pause-save-quit');
     assert.ok(btnSaveQuit, 'Botão #btn-pause-save-quit existe');
     btnSaveQuit.click();
 
     assert.equal(hud.isTitleScreenActive, true, 'Voltou para a Tela Inicial');
-    assert.equal(hud.tiktokRadio.isPlaying, false, 'Música da Rádio [P] parou IMEDIATAMENTE ao Salvar e Sair!');
+    assert.equal(hud.tiktokRadio.isPlaying, false, 'Rádio desligou imediatamente ao Salvar e Sair');
     assert.equal(soundFX.tiktokRadioActive, false, 'Flag tiktokRadioActive desligada ao sair para o menu');
-    assert.equal(soundFX.isMusicPlaying, false, 'Música ambiente da cidade também parou ao sair para o menu');
 
-    // Mesmo rodando hud.update() na tela inicial, a música permanece 100% parada
-    hud.update(0.2);
-    assert.equal(hud.tiktokRadio.isPlaying, false, 'Rádio permanece parada na tela inicial');
-    hud.isTitleScreenActive = false;
-
-    // 7) Validação estrita da Identidade Visual Spotify Desktop (Zero Emojis + Ícones SVG + Sidebar sem Scrollbar)
-    const fs = await import('node:fs');
-    const htmlSrc = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-    const cssSrc = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-    const modalMatch = htmlSrc.match(/<div id="tiktok-radio-modal"[\s\S]*?<\/footer>\s*<\/div>\s*<\/div>/);
-    assert.ok(modalMatch, 'Bloco #tiktok-radio-modal encontrado em index.html');
-    const bannedEmojiRegex = /[🎵❤️🤍📁📷➕🗑️🔄🔍🔊🔉⏸▶🔀⏮⏭🔁🕺]/u;
-    assert.equal(
-      bannedEmojiRegex.test(modalMatch[0]),
-      false,
-      'Zero emojis Unicode dentro de #tiktok-radio-modal em index.html (100% substituído por <svg>)'
-    );
-    assert.equal(
-      bannedEmojiRegex.test(hud.tiktokTrackListEl.innerHTML),
-      false,
-      'Zero emojis Unicode nas linhas renderizadas dinamicamente em refreshTikTokRadioUI()'
-    );
-    assert.ok(
-      hud.tiktokTrackListEl.innerHTML.includes('<svg'),
-      'Linhas de música renderizam ícones vetoriais <svg> minimalistas'
-    );
-    assert.ok(
-      cssSrc.includes('overflow: hidden !important;') && cssSrc.includes('.spotify-track-list::-webkit-scrollbar'),
-      'Sidebar sem scrollbar (overflow: hidden !important) e scrollbar customizada discreta na lista de faixas'
-    );
-    const pillMatch = htmlSrc.match(/<div id="hud-tiktok-radio-pill"[\s\S]*?(?=<div id="tiktok-radio-toast")/);
-    assert.ok(pillMatch, 'Botão #hud-tiktok-radio-pill encontrado em index.html');
-    assert.equal(
-      pillMatch[0].replace(/<[^>]+>/g, '').trim(),
-      'P',
-      'Botão #hud-tiktok-radio-pill em index.html exibe APENAS o P estilizado quando parado, sem mais textos'
-    );
-    assert.ok(
-      pillMatch[0].includes('id="hud-spotify-disc-img"') && pillMatch[0].includes('id="hud-spotify-marquee-title"'),
-      'Disco de capa giratório e marquee de título presentes no HUD para quando estiver tocando'
-    );
-    assert.ok(
-      cssSrc.includes('@keyframes spotify-vinyl-spin') && cssSrc.includes('@keyframes spotify-marquee-loop'),
-      'Animações CSS de vinil/álbum girando e letreiro marquee configuradas em style.css'
-    );
-    assert.equal(htmlSrc.includes('id="tiktok-eq-bars"'), false, 'Equalizador removido de index.html');
-    assert.equal(htmlSrc.includes('id="btn-tiktok-dance-now"'), false, 'Botão Passinho removido de index.html');
+    // Valida existência da rota /configs (Drag & Drop + YouTube -> MP3) e do server.py
+    const configsHtml = fs.readFileSync(new URL('../configs/index.html', import.meta.url), 'utf8');
+    const configsJs = fs.readFileSync(new URL('../configs/configs.js', import.meta.url), 'utf8');
+    const serverPy = fs.readFileSync(new URL('../server.py', import.meta.url), 'utf8');
+    assert.ok(configsHtml.includes('youtube-import-form') && configsHtml.includes('stations-board'));
+    assert.ok(configsJs.includes('draggable="true"') && configsJs.includes('/api/radio/youtube'));
+    assert.ok(serverPy.includes('yt-dlp') && serverPy.includes('"/configs"'));
   });
 });
