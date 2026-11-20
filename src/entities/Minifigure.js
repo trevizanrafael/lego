@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import {
   MINIFIG_PRESETS,
-  resolveHeroPreset,
+  resetMinifigBuildRefs,
   installMinifigMethods
 } from './minifigure/HeroProfilesCatalog.js';
-import { baseRigMethods } from './minifigure/MinifigBaseRigBuilder.js';
+import {
+  baseRigMethods,
+  applyCachedHeroPreset
+} from './minifigure/MinifigBaseRigBuilder.js';
 import { bigFigRigMethods } from './minifigure/BigFigRigBuilder.js';
 import { ballisticWeaponMethods } from './minifigure/WeaponAndGearBuilder.js';
 import { energyAndMeleeWeaponMethods } from './minifigure/EnergyAndMeleeWeaponsBuilder.js';
@@ -30,14 +33,16 @@ export { MINIFIG_PRESETS };
 
 /**
  * Fachada principal articulada 3D de Minifiguras e Big-Figs do jogo.
- * A construção anatômica, arsenais, trajes táticos/elementais e animadores procedurais
- * residem nos submódulos coesos em `./minifigure/*` e `./minifigure/outfits/*`.
+ * A construção anatômica, cache instantâneo de rigs (`_rigCache`), arsenais, trajes
+ * e animadores procedurais residem nos submódulos coesos em `./minifigure/*`.
  */
 export class Minifigure {
   constructor(presetKey = 'caveira') {
     this.root = new THREE.Group();
     this.visualRoot = new THREE.Group();
     this.root.add(this.visualRoot);
+    this._rigCache = new Map();
+    this._activeRigCacheKey = null;
 
     this.animTime = 0;
     this.walkPhase = 0;
@@ -53,33 +58,28 @@ export class Minifigure {
     this.muzzleFlashTimer = 0;
     this.rollTimer = 0;
     this.rollDuration = 0.42;
+    this.stompDuration = 0.42;
     this.isBeaming = false;
 
     this.currentHeroKey = presetKey;
-    this.flameParticles = [];
-    this.crownFlameMeshes = [];
-    this.solarMantleStrips = [];
-    this.solarMantleGroup = null;
-    this.titaMinigunBarrelGroup = null;
-    this.titaDashFlameMeshes = [];
-    this.titaSirenLights = [];
-    this.stompTimer = 0;
-    this.stompDuration = 0.42;
-    this.titaJumpChargeRatio = 0;
-    this.isDashing = false;
-    this.sombraScarfStrips = [];
-    this.katanaAuraFlames = [];
-    this.vingadorCoatTails = [];
-    this.vingadorSkullEyes = [];
-    this.vingadorBackShotgun = null;
-    this.vingadorBackRpg = null;
-    this.vingadorHolsteredPistols = [];
+    this.preset = null;
+    this.hipGroup = null;
+    this.leftLegPivot = null;
+    this.rightLegPivot = null;
+    this.upperBodyGroup = null;
+    this.torsoMesh = null;
+    this.capeMesh = null;
+    this.leftArmPivot = null;
+    this.leftHandGroup = null;
+    this.rightArmPivot = null;
+    this.rightHandGroup = null;
+    this.headGroup = null;
+    this.turboSwordGroup = null;
+    this.op09JetFlames = [];
+    this.op09Hoverboard = null;
+    resetMinifigBuildRefs(this);
+
     this.vingadorDualRecoilSide = 1;
-    this.vingadorFurorActive = false;
-    this.isDiveSliding = false;
-    this.muzzleFlashMesh = null;
-    this.leftMuzzleFlashMesh = null;
-    this.rifleGroup = null;
     this.vingadorWeapon = 'dual_smg'; // 'dual_smg' | 'shotgun' | 'rpg'
     this.isCarryingCar = false;
     this.isGrappling = false;
@@ -90,14 +90,7 @@ export class Minifigure {
   }
 
   setHero(presetKey) {
-    const preset = resolveHeroPreset(presetKey);
-    this.currentHeroKey = preset.key;
-    this.isBigFig = Boolean(preset.isBigFig);
-    this.isStealth = false;
-    this.vingadorFurorActive = false;
-    this.isDiveSliding = false;
-    this.buildModel(preset);
-    return preset;
+    return applyCachedHeroPreset(this, presetKey);
   }
 
   updateAnimation(

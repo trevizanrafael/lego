@@ -11,6 +11,7 @@ import {
   attachOp09CustomRigToMinifigure
 } from '../CustomHeroSystem.js';
 import {
+  MINIFIG_PRESETS,
   resolveHeroPreset,
   applyPresetVisualScale,
   resetMinifigBuildRefs
@@ -68,16 +69,227 @@ function attachHeroHeadgear(minifig, headgearKey) {
   }
 }
 
+const NON_RIG_INSTANCE_KEYS = new Set([
+  'root', 'visualRoot', '_rigCache', '_activeRigCacheKey',
+  'animTime', 'walkPhase', 'state', 'landingSquash', 'wasGrounded',
+  'punchTimer', 'punchDuration', 'punchComboStep', 'combatStanceTimer',
+  'shootTimer', 'muzzleFlashTimer', 'rollTimer', 'rollDuration',
+  'stompTimer', 'stompDuration', 'titaJumpChargeRatio',
+  'isBeaming', 'isDashing', 'isCarryingCar', 'isGrappling',
+  'isStealth', 'isDiveSliding', 'isBigFig', 'currentHeroKey', 'preset',
+  'vingadorWeapon', 'vingadorDualRecoilSide', 'vingadorFurorActive',
+  '_emoteIndex', 'activeEmote', 'emoteTimer',
+  '_emoteAuraGroup', '_emoteAuraMat', '_emoteAuraRing', '_emoteAuraSparks', '_baseUpperY'
+]);
+
+export function getHeroRigCacheKey(preset) {
+  const key = preset?.key || 'caveira';
+  const isBig = Boolean(preset?.isBigFig);
+  if (key === 'op09') {
+    return `op09|${isBig}|${JSON.stringify(preset.customCfg ?? null)}`;
+  }
+  if (preset === MINIFIG_PRESETS[key]) {
+    return `${key}|${isBig}`;
+  }
+  return `${key}|${isBig}|${preset.headColor ?? ''}|${preset.torsoColor ?? ''}|${preset.armColor ?? ''}|${preset.handColor ?? ''}|${preset.hipColor ?? ''}|${preset.legColor ?? ''}|${preset.facePreset ?? ''}|${preset.torsoPreset ?? ''}|${preset.headgear ?? ''}|${preset.capeColor ?? ''}|${preset.weapon ?? ''}|${Boolean(preset.fireAura)}`;
+}
+
+function captureRigSnapshot(minifig) {
+  const snapshot = Object.create(null);
+  const keys = Object.keys(minifig);
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (!NON_RIG_INSTANCE_KEYS.has(k)) snapshot[k] = minifig[k];
+  }
+  return snapshot;
+}
+
+function restoreRigSnapshot(minifig, snapshot) {
+  resetMinifigBuildRefs(minifig);
+  const currentKeys = Object.keys(minifig);
+  for (let i = 0; i < currentKeys.length; i++) {
+    const k = currentKeys[i];
+    if (!NON_RIG_INSTANCE_KEYS.has(k) && !(k in snapshot)) minifig[k] = null;
+  }
+  for (const k in snapshot) minifig[k] = snapshot[k];
+}
+
+function cleanupOutgoingRigEffects(minifig) {
+  if (minifig.isStealth && minifig.setStealthVisual) minifig.setStealthVisual(false);
+  if (minifig.vingadorFurorActive && minifig.setVingadorFurorVisual) {
+    minifig.setVingadorFurorVisual(false);
+  }
+  if (minifig.activeEmote && minifig.stopEmote) minifig.stopEmote();
+}
+
+function evictStaleOp09RigCache(minifig, keepCacheKey) {
+  if (!minifig._rigCache) return;
+  for (const [k, entry] of minifig._rigCache.entries()) {
+    if (k.startsWith('op09|') && k !== keepCacheKey) {
+      if (entry.visualRoot?.parent === minifig.root) minifig.root.remove(entry.visualRoot);
+      if (entry.visualRoot) disposeTransientObject3D(entry.visualRoot);
+      minifig._rigCache.delete(k);
+    }
+  }
+}
+
+export function resetActiveRigTransientState(minifig, preset) {
+  minifig.punchTimer = 0;
+  minifig.shootTimer = 0;
+  minifig.muzzleFlashTimer = 0;
+  minifig.rollTimer = 0;
+  minifig.stompTimer = 0;
+  minifig.combatStanceTimer = 0;
+  minifig.titaJumpChargeRatio = 0;
+  minifig.isBeaming = false;
+  minifig.isDashing = false;
+  minifig.isStealth = false;
+  minifig.vingadorFurorActive = false;
+  minifig.isDiveSliding = false;
+
+  minifig.visualRoot.position.set(0, 0, 0);
+  minifig.visualRoot.rotation.set(0, 0, 0);
+  applyPresetVisualScale(minifig.visualRoot, preset);
+
+  if (minifig.hipGroup) {
+    minifig.hipGroup.position.set(0, 0.72, 0);
+    minifig.hipGroup.rotation.set(0, 0, 0);
+  }
+  if (minifig.upperBodyGroup) {
+    minifig.upperBodyGroup.position.set(0, 0.86, 0);
+    minifig.upperBodyGroup.rotation.set(0, 0, 0);
+  }
+  if (minifig.headGroup) {
+    minifig.headGroup.position.set(0, 0.76, 0);
+    minifig.headGroup.rotation.set(0, 0, 0);
+  }
+
+  const shoulderX = minifig.isBigFig ? 0.62 : 0.49;
+  if (minifig.leftArmPivot) {
+    minifig.leftArmPivot.position.set(shoulderX, 0.66, 0);
+    minifig.leftArmPivot.rotation.set(0, 0, 0);
+  }
+  if (minifig.rightArmPivot) {
+    minifig.rightArmPivot.position.set(-shoulderX, 0.66, 0);
+    minifig.rightArmPivot.rotation.set(0, 0, 0);
+  }
+  if (minifig.leftHandGroup) {
+    minifig.leftHandGroup.position.set(0, -0.32, 0);
+    minifig.leftHandGroup.rotation.set(-0.22, 0, 0);
+  }
+  if (minifig.rightHandGroup) {
+    minifig.rightHandGroup.position.set(0, -0.32, 0);
+    minifig.rightHandGroup.rotation.set(-0.22, 0, 0);
+  }
+  if (minifig.leftLegPivot) {
+    minifig.leftLegPivot.position.set(0.21, 0, 0);
+    minifig.leftLegPivot.rotation.set(0, 0, 0);
+  }
+  if (minifig.rightLegPivot) {
+    minifig.rightLegPivot.position.set(-0.21, 0, 0);
+    minifig.rightLegPivot.rotation.set(0, 0, 0);
+  }
+
+  if (minifig.rifleGroup) minifig.rifleGroup.visible = true;
+  if (minifig.capeMesh) {
+    minifig.capeMesh.visible = true;
+    minifig.capeMesh.rotation.set(0.12, 0, 0);
+  }
+  if (minifig.solarMantleGroup) minifig.solarMantleGroup.visible = true;
+  if (minifig.muzzleFlashMesh) minifig.muzzleFlashMesh.visible = false;
+  if (minifig.leftMuzzleFlashMesh) minifig.leftMuzzleFlashMesh.visible = false;
+  if (minifig.titaDashFlameMeshes) {
+    for (let i = 0; i < minifig.titaDashFlameMeshes.length; i++) {
+      minifig.titaDashFlameMeshes[i].visible = false;
+    }
+  }
+  if (minifig.op09JetFlames) {
+    for (let i = 0; i < minifig.op09JetFlames.length; i++) minifig.op09JetFlames[i].visible = false;
+  }
+  if (minifig.op09Hoverboard) minifig.op09Hoverboard.visible = false;
+
+  if (preset.key === 'vingador') {
+    minifig.setVingadorWeapon?.(minifig.vingadorWeapon || 'dual_smg');
+    minifig.setVingadorFurorVisual?.(false);
+  } else if (preset.key === 'vortex') {
+    minifig.setVortexMonsterForm?.(Boolean(preset.isBigFig));
+  }
+}
+
+export function applyCachedHeroPreset(minifig, presetKey) {
+  const preset = resolveHeroPreset(presetKey);
+  const cacheKey = getHeroRigCacheKey(preset);
+
+  if (minifig._activeRigCacheKey === cacheKey && minifig._rigCache.has(cacheKey)) {
+    cleanupOutgoingRigEffects(minifig);
+    minifig.currentHeroKey = preset.key;
+    minifig.preset = preset;
+    minifig.isBigFig = Boolean(preset.isBigFig);
+    resetActiveRigTransientState(minifig, preset);
+    return preset;
+  }
+
+  cleanupOutgoingRigEffects(minifig);
+  minifig.currentHeroKey = preset.key;
+  minifig.preset = preset;
+  minifig.isBigFig = Boolean(preset.isBigFig);
+
+  const cached = minifig._rigCache.get(cacheKey);
+  if (cached) {
+    if (minifig.visualRoot && minifig.visualRoot !== cached.visualRoot) {
+      minifig.root.remove(minifig.visualRoot);
+    }
+    minifig.visualRoot = cached.visualRoot;
+    if (minifig.visualRoot.parent !== minifig.root) minifig.root.add(minifig.visualRoot);
+    restoreRigSnapshot(minifig, cached.snapshot);
+    minifig._activeRigCacheKey = cacheKey;
+    resetActiveRigTransientState(minifig, preset);
+    return preset;
+  }
+
+  if (preset.key === 'op09') evictStaleOp09RigCache(minifig, cacheKey);
+
+  if (minifig._activeRigCacheKey !== null || minifig.visualRoot.children.length > 0) {
+    if (minifig.visualRoot.parent === minifig.root) minifig.root.remove(minifig.visualRoot);
+    minifig.visualRoot = new THREE.Group();
+    minifig.root.add(minifig.visualRoot);
+  }
+
+  minifig.buildModel(preset);
+  minifig._rigCache.set(cacheKey, {
+    visualRoot: minifig.visualRoot,
+    snapshot: captureRigSnapshot(minifig)
+  });
+  minifig._activeRigCacheKey = cacheKey;
+  resetActiveRigTransientState(minifig, preset);
+  return preset;
+}
+
 export const baseRigMethods = {
   buildModel(presetInput) {
     const preset = resolveHeroPreset(presetInput);
     if (this.isStealth) {
       this.setStealthVisual(false);
     }
-    while (this.visualRoot.children.length > 0) {
-      const oldChild = this.visualRoot.children[0];
-      this.visualRoot.remove(oldChild);
-      disposeTransientObject3D(oldChild);
+    let isCachedVisualRoot = false;
+    if (this._rigCache) {
+      for (const entry of this._rigCache.values()) {
+        if (entry.visualRoot === this.visualRoot) {
+          isCachedVisualRoot = true;
+          break;
+        }
+      }
+    }
+    if (isCachedVisualRoot) {
+      this.root.remove(this.visualRoot);
+      this.visualRoot = new THREE.Group();
+      this.root.add(this.visualRoot);
+    } else {
+      while (this.visualRoot.children.length > 0) {
+        const oldChild = this.visualRoot.children[0];
+        this.visualRoot.remove(oldChild);
+        disposeTransientObject3D(oldChild);
+      }
     }
     resetMinifigBuildRefs(this);
     applyPresetVisualScale(this.visualRoot, preset);

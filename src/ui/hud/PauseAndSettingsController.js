@@ -69,6 +69,25 @@ export function installPauseAndSettingsController(LegoHud) {
     },
 
     _bindPauseAndSettingsEvents() {
+      const flushSaveSettings = () => {
+        if (this._saveSettingsTimer) {
+          clearTimeout(this._saveSettingsTimer);
+          this._saveSettingsTimer = null;
+          saveGameSettings(this.settings);
+        }
+      };
+
+      const scheduleSaveSettings = () => {
+        if (this._saveSettingsTimer) {
+          clearTimeout(this._saveSettingsTimer);
+        }
+        this._saveSettingsTimer = setTimeout(() => {
+          this._saveSettingsTimer = null;
+          saveGameSettings(this.settings);
+        }, 150);
+        this._saveSettingsTimer?.unref?.();
+      };
+
       const onVolumeChange = () => {
         const m = Number(this.sliderMasterEl?.value ?? 85) / 100;
         const mu = Number(this.sliderMusicEl?.value ?? 55) / 100;
@@ -80,12 +99,15 @@ export function installPauseAndSettingsController(LegoHud) {
         if (this.valMusicEl) this.valMusicEl.textContent = `${Math.round(mu * 100)}%`;
         if (this.valSfxEl) this.valSfxEl.textContent = `${Math.round(s * 100)}%`;
         soundFX.setVolumes({ masterVolume: m, musicVolume: mu, sfxVolume: s });
-        saveGameSettings(this.settings);
+        scheduleSaveSettings();
       };
 
       this.sliderMasterEl?.addEventListener('input', onVolumeChange);
       this.sliderMusicEl?.addEventListener('input', onVolumeChange);
       this.sliderSfxEl?.addEventListener('input', onVolumeChange);
+      this.sliderMasterEl?.addEventListener('change', flushSaveSettings);
+      this.sliderMusicEl?.addEventListener('change', flushSaveSettings);
+      this.sliderSfxEl?.addEventListener('change', flushSaveSettings);
 
       this.btnToggleRegionToastEl?.addEventListener('click', () => {
         this.settings.showRegionToast = !this.settings.showRegionToast;
@@ -283,13 +305,19 @@ export function installPauseAndSettingsController(LegoHud) {
           typeof this.getConqueredTerritories === 'function' ? this.getConqueredTerritories() : [],
         territoryMeta: typeof this.getTerritoryMeta === 'function' ? this.getTerritoryMeta() : {},
         customHero: { ...getActiveCustomHero() },
-        customGarage: JSON.parse(JSON.stringify(getActiveGarageSaveData())),
-        aircraftCustom: JSON.parse(JSON.stringify(getActiveAircraftSaveData())),
+        customGarage: getActiveGarageSaveData(),
+        aircraftCustom: getActiveAircraftSaveData(),
         radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
       });
     },
 
     setPauseMenuOpen(open, controller = null, keepTitleState = false) {
+      this._lastPauseToggleTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (this._saveSettingsTimer && !open) {
+        clearTimeout(this._saveSettingsTimer);
+        this._saveSettingsTimer = null;
+        saveGameSettings(this.settings);
+      }
       if (controller) {
         this._lastController = controller;
       }

@@ -58,10 +58,20 @@ export function getInteractiveRegionsList(world) {
 
 export function populateFullMapSidebar(hud, world, controller) {
   if (!hud.fullmapListEl || !world?.regions) return;
-  hud.fullmapListEl.innerHTML = '';
-  hud.fullmapListEl.scrollTop = 0;
 
   const allEntries = getInteractiveRegionsList(world);
+  if (
+    hud._sidebarRegionCount === allEntries.length &&
+    hud._sidebarWorldRef === world &&
+    hud.fullmapListEl.children?.length > 0
+  ) {
+    return;
+  }
+  hud._sidebarRegionCount = allEntries.length;
+  hud._sidebarWorldRef = world;
+
+  hud.fullmapListEl.innerHTML = '';
+  hud.fullmapListEl.scrollTop = 0;
 
   for (const r of allEntries) {
     const codeNum = r.num || String(r.number || 1).padStart(2, '0');
@@ -92,17 +102,20 @@ export function populateFullMapSidebar(hud, world, controller) {
     `;
 
     btn.addEventListener('mouseenter', () => {
+      const ctrl = hud._lastController || controller;
       hud.hoveredRegionId = r.id;
-      hud.renderFullMap(world, controller.position, controller.facingAngle, controller);
+      hud.renderFullMap(world, ctrl?.position, ctrl?.facingAngle, ctrl);
     });
     btn.addEventListener('mouseleave', () => {
+      const ctrl = hud._lastController || controller;
       if (hud.hoveredRegionId === r.id) {
         hud.hoveredRegionId = null;
       }
-      hud.renderFullMap(world, controller.position, controller.facingAngle, controller);
+      hud.renderFullMap(world, ctrl?.position, ctrl?.facingAngle, ctrl);
     });
     btn.addEventListener('click', () => {
-      hud._teleportPlayerTo(controller, r.spawn, r.shortName || r.name);
+      const ctrl = hud._lastController || controller;
+      hud._teleportPlayerTo(ctrl, r.spawn, r.shortName || r.name);
     });
 
     hud.fullmapListEl.appendChild(btn);

@@ -1,7 +1,7 @@
 /* =========================================================================
-   ESTÉTICA ARKHAM / GOTHAM DARK METAL — MENUS, SLOTS, FACÇÕES, LOADING & PAUSA
-   (Obsidiana #04060a/#080b12/#0d121d + Gunmetal #1c2536/#2b384e + Carmesim #991b1b
-    + Bronze Escuro #c28e2b + Aço Glacial #7dd3fc — Cortes 45° & Zero Bordas Amarelas)
+   AAA FRAMELESS UI — ARKHAM KNIGHT / MODERN WARFARE / VALORANT
+   (Zero Caixas SaaS: Menu Tipográfico Frameless, Pilares de Facção Full-Height,
+    Fitas Horizontais de Save, Loading Full-Bleed 3px e Pausa Split-Screen)
    ========================================================================= */
 
 .prompt-card {
@@ -10,12 +10,10 @@
   border-left: 5px solid #991b1b;
   color: #e2e8f0;
   padding: 16px 22px;
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
-  box-shadow: 10px 10px 0 #000000;
 }
 
 /* =========================================================================
-   BARRA DE VIDA NUMÉRICA 250 HP + BADGE DE FACÇÃO ALIADA + FEIXE MÉDICO
+   HUD COMPLEMENTAR LEGADA (MANTIDA PARA COMPATIBILIDADE DE DOM)
    ========================================================================= */
 .hud-faction-pill {
   font-family: var(--font-mono);
@@ -26,22 +24,10 @@
   background: #04060a;
   border: 1.5px solid #dc2626;
   color: #dc2626;
-  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
-  box-shadow: 3px 3px 0 #000;
 }
-
-.hud-faction-pill[data-faction="cv"] {
-  border-color: #dc2626;
-  color: #dc2626;
-}
-.hud-faction-pill[data-faction="pcc"] {
-  border-color: #3b82f6;
-  color: #60a5fa;
-}
-.hud-faction-pill[data-faction="ares"] {
-  border-color: #a855f7;
-  color: #c084fc;
-}
+.hud-faction-pill[data-faction="cv"] { border-color: #dc2626; color: #dc2626; }
+.hud-faction-pill[data-faction="pcc"] { border-color: #3b82f6; color: #60a5fa; }
+.hud-faction-pill[data-faction="ares"] { border-color: #a855f7; color: #c084fc; }
 
 .hud-health-cluster {
   display: flex;
@@ -55,8 +41,6 @@
   height: 20px;
   background: #04060a;
   border: 1.5px solid #1c2536;
-  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
-  box-shadow: 3px 3px 0 #000;
   overflow: hidden;
 }
 
@@ -81,7 +65,6 @@
   font-size: 0.68rem;
   font-weight: 800;
   color: #f1f5f9;
-  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
   letter-spacing: 0.06em;
 }
 
@@ -90,16 +73,9 @@
   font-size: 0.64rem;
   font-weight: 800;
   color: #7dd3fc;
-  background: #04060a;
-  border: 1px solid #1c2536;
-  border-left: 3px solid #7dd3fc;
   padding: 2px 8px;
-  box-shadow: 3px 3px 0 #000;
 }
 
-/* =========================================================================
-   PAINEL CENTRAL SUPERIOR DA GUERRA TERRITORIAL + BOSSES
-   ========================================================================= */
 .world-war-hud-panel {
   display: flex;
   flex-direction: column;
@@ -108,20 +84,6 @@
   min-width: 360px;
   max-width: 470px;
   pointer-events: none;
-}
-
-.ww-factions-strip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 800;
-  background: #04060a;
-  border: 1.5px solid #1c2536;
-  padding: 2px 10px;
-  box-shadow: 3px 3px 0 #000;
 }
 
 .ww-fac-cv { color: #dc2626; }
@@ -136,90 +98,17 @@
   gap: 8px;
 }
 
-.hud-esc-hint-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #04060a;
-  border: 1.5px solid #1c2536;
-  border-right: 4px solid #c28e2b;
-  padding: 4px 10px;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: #e2e8f0;
-  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%);
-  box-shadow: 4px 4px 0 #000;
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-.esc-key-badge {
-  background: #1c2536;
-  border: 1px solid #2b384e;
-  color: #7dd3fc;
-  padding: 1px 5px;
-  font-weight: 800;
-}
-
-.ww-front-header {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #04060a;
-  border: 1px solid #1c2536;
-  border-left: 4px solid #c28e2b;
-  border-right: 4px solid #991b1b;
-  padding: 3px 10px;
-  box-shadow: 4px 4px 0 #000;
-}
-
-.ww-front-title {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 800;
-  color: #c28e2b;
-  letter-spacing: 0.08em;
-}
-
-.ww-escalation-pct {
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  font-weight: 800;
-  color: #e2e8f0;
-}
-
-.ww-escalation-track {
-  width: 100%;
-  height: 8px;
-  background: #04060a;
-  border: 1.5px solid #1c2536;
-  box-shadow: 3px 3px 0 #000;
-  overflow: hidden;
-}
-
-.ww-escalation-fill {
-  height: 100%;
-  width: 35%;
-  background: linear-gradient(90deg, #c28e2b 0%, #991b1b 60%, #dc2626 100%);
-  transition: width 0.25s ease;
-}
-
 .ww-boss-bars-container {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 2px;
 }
 
 .ww-boss-bar-row {
-  background: #04060a;
-  border: 1.5px solid #1c2536;
-  border-left: 4px solid #dc2626;
+  background: rgba(4, 6, 10, 0.86);
+  border-left: 3px solid #dc2626;
   padding: 3px 8px;
-  box-shadow: 4px 4px 0 #000;
 }
 
 .ww-boss-bar-row.allied-boss {
@@ -238,7 +127,7 @@
 
 .ww-boss-bar-track {
   width: 100%;
-  height: 7px;
+  height: 6px;
   background: #0d121d;
   overflow: hidden;
 }
@@ -254,18 +143,18 @@
 }
 
 /* =========================================================================
-   TELA INICIAL GOTHAM NOIR + SKYLINE TEMPESTUOSO EM CANVAS
+   1. TELA INICIAL 100% FRAMELESS (ARKHAM KNIGHT / MODERN WARFARE)
    ========================================================================= */
 .title-screen-overlay {
   position: fixed;
   inset: 0;
   z-index: 60;
   pointer-events: auto;
-  background: #020306;
+  background: #010103;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
+  justify-content: flex-start;
+  padding: 0;
   overflow: hidden;
 }
 
@@ -282,155 +171,18 @@
   display: none !important;
 }
 
-/* =========================================================================
-   TELA DE LOADING TÁTICA GOTHAM DARK METAL (0% -> 100%)
-   ========================================================================= */
-.tactical-loading-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  pointer-events: auto;
-  background: radial-gradient(circle at 50% 32%, #0d121d 0%, #04060a 68%, #020306 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  transition: opacity 0.28s ease;
-}
-
-.tactical-loading-screen.hidden {
-  display: none !important;
-}
-
-.loading-card {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  max-width: 790px;
-  background: linear-gradient(180deg, #080b12 0%, #04060a 100%);
-  border: 1.5px solid #1c2536;
-  border-top: 1.5px solid #2b384e;
-  border-left: 6px solid #991b1b;
-  padding: 26px 30px;
-  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
-  box-shadow: 14px 14px 0 #000000;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.loading-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.loading-faction-logo {
-  flex-shrink: 0;
-  filter: drop-shadow(4px 4px 0 #000);
-}
-
-.loading-title-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.loading-faction-title {
-  font-family: var(--font-display);
-  font-size: 2.3rem;
-  font-weight: 700;
-  line-height: 0.96;
-  color: #f1f5f9;
-  letter-spacing: 0.05em;
-  text-shadow: 3px 3px 0 #000;
-}
-
-.loading-stage-text {
-  font-family: var(--font-mono);
-  font-size: 0.74rem;
-  font-weight: 800;
-  color: #7dd3fc;
-  letter-spacing: 0.08em;
-}
-
-.loading-pct-text {
-  font-family: var(--font-display);
-  font-size: 3.6rem;
-  font-weight: 700;
-  line-height: 0.85;
-  color: #c28e2b;
-  text-shadow: 3px 3px 0 #000;
-  min-width: 90px;
-  text-align: right;
-}
-
-.loading-lego-bar {
-  display: grid;
-  grid-template-columns: repeat(20, 1fr);
-  gap: 5px;
-  background: #04060a;
-  border: 1.5px solid #1c2536;
-  padding: 6px;
-  box-shadow: inset 0 2px 0 #000;
-}
-
-.loading-lego-seg {
-  height: 18px;
-  background: #0d121d;
-  border: 1px solid #161f2e;
-  transform: skewX(-18deg);
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
-}
-
-.loading-lego-seg.lit {
-  background: linear-gradient(180deg, #7dd3fc 0%, #2563eb 100%);
-  border-color: #bae6fd;
-  box-shadow: 0 0 8px rgba(125, 211, 252, 0.35);
-}
-
-.loading-tip-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #04060a;
-  border: 1.5px solid #1c2536;
-  border-left: 4px solid #c28e2b;
-  padding: 10px 14px;
-}
-
-.loading-tip-badge {
-  background: #0d121d;
-  border: 1px solid #c28e2b;
-  color: #c28e2b;
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  padding: 3px 8px;
-  flex-shrink: 0;
-}
-
-.loading-tip-text {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  color: #cbd5e1;
-  line-height: 1.4;
-}
-
-/* =========================================================================
-   MOLDURA NOIR E PAINÉIS DO TERMINAL INICIAL
-   ========================================================================= */
 .title-noir-vignette {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 72% 44%, transparent 16%, rgba(2, 3, 6, 0.78) 84%),
-    linear-gradient(90deg, rgba(2, 3, 6, 0.95) 0%, rgba(4, 6, 10, 0.76) 44%, rgba(4, 6, 10, 0.16) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(1, 2, 4, 0.95) 0%,
+    rgba(2, 3, 6, 0.74) 36%,
+    rgba(2, 3, 6, 0.12) 68%,
+    transparent 100%
+  );
 }
 
 .title-scanlines {
@@ -438,12 +190,13 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
+  opacity: 0.25;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(125, 211, 252, 0.008) 0px,
-    rgba(125, 211, 252, 0.008) 2px,
-    rgba(0, 0, 0, 0.28) 2px,
-    rgba(0, 0, 0, 0.28) 4px
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.32) 2px,
+    rgba(0, 0, 0, 0.32) 4px
   );
 }
 
@@ -451,60 +204,62 @@
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 1280px;
-  max-height: 92vh;
-  padding: 0 clamp(18px, 5vw, 72px);
+  max-width: 1420px;
+  margin: 0 auto;
+  padding: 0 clamp(28px, 6vw, 96px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 22px;
+  gap: 34px;
+}
+
+/* Na seleção de facção Valorant, libera 100% da altura da tela para os 3 pilares */
+.title-content-wrap:has(#title-faction-panel:not(.hidden)) .official-logo-block {
+  display: none;
 }
 
 .official-logo-block {
-  background: linear-gradient(135deg, #04060a 0%, #080b12 64%, #0d121d 100%);
-  border: 1.5px solid #1c2536;
-  border-top: 1.5px solid #2b384e;
-  border-left: 6px solid #991b1b;
-  padding: 18px 30px 14px 24px;
-  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
-  box-shadow: 12px 12px 0 #000000;
+  background: none;
+  border: none;
+  box-shadow: none;
+  clip-path: none;
+  padding: 0;
 }
 
 .logo-emblem-row {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 22px;
 }
 
 .official-crest-svg {
   flex-shrink: 0;
-  filter: drop-shadow(4px 4px 0 #000000);
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.9));
 }
 
 .logo-top-pill {
-  display: inline-block;
-  background: #140608;
-  border: 1px solid #7f1d1d;
-  border-left: 3px solid #dc2626;
-  color: #e2e8f0;
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 6px;
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.64rem;
   font-weight: 800;
-  letter-spacing: 0.16em;
-  padding: 2px 10px;
-  margin-bottom: 4px;
+  letter-spacing: 0.28em;
+  color: #64748b;
 }
 
 .logo-main-title {
   font-family: var(--font-display);
-  font-size: clamp(3.1rem, 5vw, 4.35rem);
+  font-size: clamp(3.6rem, 5.8vw, 5.25rem);
   font-weight: 700;
-  line-height: 0.88;
-  letter-spacing: 0.05em;
-  color: #f1f5f9;
+  line-height: 0.86;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
   text-transform: uppercase;
-  text-shadow: 5px 5px 0 #000000;
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.95);
 }
 
 .logo-main-title span {
@@ -513,258 +268,437 @@
 
 .logo-sub-banner {
   font-family: var(--font-mono);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 800;
-  color: #7dd3fc;
-  letter-spacing: 0.14em;
-  margin-top: 5px;
+  color: rgba(148, 163, 184, 0.72);
+  letter-spacing: 0.22em;
+  margin-top: 8px;
 }
 
 .title-telemetry-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 12px;
-  padding-top: 9px;
-  border-top: 1px solid #1c2536;
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  letter-spacing: 0.08em;
-  color: #64748b;
+  display: none !important;
 }
 
-.title-telemetry-strip b {
-  color: #c28e2b;
-}
-
+/* Lista Vertical Puramente Tipográfica Sem Caixa */
 .title-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 4px;
   width: 100%;
-  max-width: 460px;
+  max-width: 480px;
 }
 
 .title-action-btn {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 15px;
   width: 100%;
-  padding: 12px 20px;
-  background: linear-gradient(90deg, #04060a 0%, #080b12 100%);
-  border: 1.5px solid #1c2536;
-  border-left: 5px solid #2b384e;
-  color: #e2e8f0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  clip-path: none;
+  padding: 6px 0;
   text-align: left;
   cursor: pointer;
-  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
-  box-shadow: 8px 8px 0 #000000;
-  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+  outline: none;
 }
 
-.title-action-btn.primary-btn {
-  border-color: #2b384e;
-  border-left-color: #991b1b;
-  background: linear-gradient(90deg, #080b12 0%, #14080b 100%);
-}
-
-.title-action-btn:hover {
-  transform: translateX(6px);
-  border-color: #2b384e;
-  border-left-color: #dc2626;
-  background: linear-gradient(90deg, #0d121d 0%, #19090d 100%);
-}
-
-.btn-tag {
-  background: #080b12;
-  color: #7dd3fc;
-  border: 1px solid #2b384e;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 4px 8px;
-  flex-shrink: 0;
-}
-
-.title-action-btn.primary-btn .btn-tag {
-  background: #19090d;
-  color: #f1f5f9;
-  border-color: #991b1b;
-}
-
-.title-action-btn:hover .btn-tag {
-  background: #991b1b;
-  color: #f8fafc;
-  border-color: #dc2626;
+.btn-tag,
+.btn-sub-txt {
+  display: none !important;
 }
 
 .btn-label-stack {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .btn-main-txt {
-  font-family: var(--font-tactical);
-  font-size: 1.15rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.1rem, 3.2vw, 2.85rem);
   font-weight: 700;
   letter-spacing: 0.08em;
+  line-height: 0.95;
   text-transform: uppercase;
-  color: #f1f5f9;
-  line-height: 1.05;
+  color: rgba(148, 163, 184, 0.56);
+  transition: transform 0.08s ease-out, color 0.08s ease-out, text-shadow 0.08s ease-out;
 }
 
-.title-action-btn:hover .btn-main-txt {
-  color: #7dd3fc;
+/* Lâmina vertical carmesim viva 3px à esquerda + filete horizontal 1px em gradiente */
+.title-action-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14%;
+  bottom: 14%;
+  width: 3px;
+  background: #dc2626;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.85);
+  opacity: 0;
+  transform: scaleY(0.3);
+  transition: opacity 0.08s ease-out, transform 0.08s ease-out;
 }
 
-.btn-sub-txt {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #64748b;
-  text-transform: none;
+.title-action-btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(220, 38, 38, 0.85), transparent);
+  opacity: 0;
+  transform: scaleX(0.25);
+  transform-origin: left center;
+  transition: opacity 0.08s ease-out, transform 0.08s ease-out;
+}
+
+/* Destaque sutil no botão primário quando nenhum outro está em hover */
+.title-panel:not(:hover) .title-action-btn.primary-btn .btn-main-txt {
+  transform: translateX(14px);
+  color: rgba(248, 250, 252, 0.9);
+}
+
+.title-panel:not(:hover) .title-action-btn.primary-btn::before {
+  opacity: 0.72;
+  transform: scaleY(0.85);
+}
+
+.title-panel:not(:hover) .title-action-btn.primary-btn::after {
+  opacity: 0.55;
+  transform: scaleX(0.75);
+}
+
+.title-action-btn:hover .btn-main-txt,
+.title-action-btn:focus-visible .btn-main-txt {
+  transform: translateX(14px);
+  color: #ffffff;
+  text-shadow: 0 0 24px rgba(220, 38, 38, 0.32);
+}
+
+.title-action-btn:hover::before,
+.title-action-btn:focus-visible::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.title-action-btn:hover::after,
+.title-action-btn:focus-visible::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 /* =========================================================================
-   PAINÉIS DE SLOTS DE SAVE & ESCOLHA DE FACÇÃO (OBSIDIANA & GUNMETAL)
+   2. SUBPAINÉIS FRAMELESS (CABEÇALHOS + BOTÕES SECUNDÁRIOS LIMPOS)
    ========================================================================= */
 .title-slots-panel,
 .title-faction-panel {
   width: 100%;
-  max-height: 72vh;
-  overflow-y: auto;
-  background: linear-gradient(180deg, #080b12 0%, #04060a 100%);
-  border: 1.5px solid #1c2536;
-  border-top: 1.5px solid #2b384e;
-  border-left: 6px solid #991b1b;
-  padding: 18px 22px;
-  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
-  box-shadow: 14px 14px 0 #000000;
+  max-height: none;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  clip-path: none;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+}
+
+.title-slots-panel {
+  max-width: 1080px;
 }
 
 .panel-header-bar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  border-bottom: 1.5px solid #1c2536;
-  padding-bottom: 10px;
+  align-items: flex-end;
+  gap: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
 }
 
 .panel-header-title {
   font-family: var(--font-display);
-  font-size: 1.9rem;
+  font-size: clamp(1.9rem, 2.8vw, 2.5rem);
   font-weight: 700;
-  color: #f1f5f9;
-  letter-spacing: 0.05em;
+  line-height: 0.95;
+  color: #f8fafc;
+  letter-spacing: 0.06em;
 }
 
 .faction-panel-sub {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
-  color: #94a3b8;
-  line-height: 1.42;
+  font-size: 0.68rem;
+  color: #64748b;
+  line-height: 1.45;
+  max-width: 840px;
+  margin-top: 4px;
 }
 
-.save-slots-grid,
-.faction-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+.title-slots-panel .tactical-btn,
+.title-faction-panel .tactical-btn,
+.pause-card .tactical-btn {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: none;
+  clip-path: none;
+  color: #cbd5e1;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease, color 0.1s ease, transform 0.1s ease;
 }
 
-.save-slot-card,
-.faction-choice-card {
-  background: linear-gradient(180deg, #0d121d 0%, #04060a 100%);
-  border: 1.5px solid #1c2536;
-  border-top: 4px solid #2b384e;
-  padding: 16px;
+.title-slots-panel .tactical-btn:hover,
+.title-faction-panel .tactical-btn:hover,
+.pause-card .tactical-btn:hover {
+  background: rgba(220, 38, 38, 0.18);
+  border-color: rgba(220, 38, 38, 0.75);
+  color: #ffffff;
+}
+
+/* =========================================================================
+   3. SLOTS DE SAVE — 3 FITAS HORIZONTAIS LARGAS FRAMELESS
+   ========================================================================= */
+.save-slots-grid {
   display: flex;
   flex-direction: column;
+  gap: 0;
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.save-slot-card {
+  --slot-accent: #c28e2b;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
-  box-shadow: 8px 8px 0 #000000;
-  transition: border-color 0.14s ease, transform 0.14s ease, background 0.14s ease;
+  gap: 22px;
+  padding: 16px 22px;
+  background: rgba(4, 6, 10, 0.65);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  clip-path: none;
+  cursor: pointer;
+  transition: background 0.12s ease, padding-left 0.12s ease;
 }
 
-.save-slot-card.empty-slot-card {
-  border-top-color: #c28e2b;
+.save-slot-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--slot-accent);
+  opacity: 0.35;
+  transition: opacity 0.12s ease, box-shadow 0.12s ease;
 }
 
-.faction-choice-card[data-faction="cv"],
-.save-slot-card[data-faction="cv"] {
-  border-top-color: #dc2626;
-}
-.faction-choice-card[data-faction="pcc"],
-.save-slot-card[data-faction="pcc"] {
-  border-top-color: #3b82f6;
-}
-.faction-choice-card[data-faction="ares"],
-.save-slot-card[data-faction="ares"] {
-  border-top-color: #a855f7;
-}
+.save-slot-card[data-faction="cv"] { --slot-accent: #dc2626; }
+.save-slot-card[data-faction="pcc"] { --slot-accent: #3b82f6; }
+.save-slot-card[data-faction="ares"] { --slot-accent: #a855f7; }
 
-.faction-choice-card:hover,
 .save-slot-card:hover {
-  border-color: #2b384e;
-  background: linear-gradient(180deg, #111827 0%, #080b12 100%);
-  transform: translateY(-2px);
+  background: rgba(10, 15, 26, 0.86);
+  padding-left: 28px;
 }
 
-.faction-choice-card[data-faction="cv"]:hover,
-.save-slot-card[data-faction="cv"]:hover {
-  border-color: #dc2626;
+.save-slot-card:hover::before {
+  opacity: 1;
+  box-shadow: 0 0 14px var(--slot-accent);
 }
-.faction-choice-card[data-faction="pcc"]:hover,
-.save-slot-card[data-faction="pcc"]:hover {
-  border-color: #3b82f6;
+
+.slot-ghost-num {
+  font-family: var(--font-display);
+  font-size: 3.4rem;
+  font-weight: 700;
+  line-height: 0.82;
+  color: rgba(255, 255, 255, 0.09);
+  min-width: 52px;
+  user-select: none;
+  transition: color 0.12s ease;
 }
-.faction-choice-card[data-faction="ares"]:hover,
-.save-slot-card[data-faction="ares"]:hover {
-  border-color: #a855f7;
+
+.save-slot-card:hover .slot-ghost-num {
+  color: rgba(255, 255, 255, 0.24);
+}
+
+.slot-crest-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.slot-identity-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 220px;
 }
 
 .slot-header-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #161f2e;
+  gap: 10px;
 }
 
 .slot-status-tag {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  padding: 2px 7px;
-  background: #080b12;
-  border: 1px solid #2b384e;
+  letter-spacing: 0.12em;
   color: #64748b;
 }
 
 .slot-status-tag.active {
-  border-color: #c28e2b;
   color: #c28e2b;
 }
 
-.slot-empty-body {
+.slot-meta-list {
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  color: #94a3b8;
+}
+
+.slot-meta-list b {
+  color: #e2e8f0;
 }
 
 .slot-empty-copy {
-  color: #94a3b8 !important;
-  line-height: 1.38;
+  color: #64748b;
+}
+
+.slot-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* =========================================================================
+   4. SELEÇÃO DE FACÇÃO ESTILO VALORANT — 3 ESTANDARTES VERTICAIS FULL-HEIGHT
+   ========================================================================= */
+.faction-cards-grid {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  height: min(68vh, 580px);
+}
+
+.faction-choice-card {
+  --fac-rgb: 220, 38, 38;
+  --fac-hex: #dc2626;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 26px 26px 22px;
+  background: linear-gradient(180deg, rgba(6, 8, 14, 0.86) 0%, rgba(3, 4, 8, 0.94) 100%);
+  border: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.12);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  clip-path: none;
+  transition:
+    flex 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-top-color 180ms ease,
+    background 180ms ease;
+}
+
+.faction-choice-card:last-child {
+  border-right: none;
+}
+
+.faction-choice-card[data-faction="cv"] {
+  --fac-rgb: 220, 38, 38;
+  --fac-hex: #dc2626;
+}
+.faction-choice-card[data-faction="pcc"] {
+  --fac-rgb: 59, 130, 246;
+  --fac-hex: #3b82f6;
+}
+.faction-choice-card[data-faction="ares"] {
+  --fac-rgb: 168, 85, 247;
+  --fac-hex: #a855f7;
+}
+
+/* Feixe atmosférico ascendente na cor sombria da facção */
+.faction-pillar-beam {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    0deg,
+    rgba(var(--fac-rgb), 0.22) 0%,
+    rgba(var(--fac-rgb), 0.06) 52%,
+    transparent 100%
+  );
+  transition: opacity 180ms ease;
+}
+
+/* Brasão gigante em marca-d'água (220px, opacity 0.05) */
+.faction-pillar-watermark {
+  position: absolute;
+  right: -26px;
+  top: 46%;
+  width: 220px;
+  height: 220px;
+  opacity: 0.05;
+  pointer-events: none;
+  transform: translateY(-50%) scale(1);
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faction-pillar-top,
+.faction-pillar-bottom {
+  position: relative;
+  z-index: 2;
+}
+
+.faction-pillar-acronym {
+  font-family: var(--font-display);
+  font-size: 5.5rem;
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  opacity: 0.12;
+  user-select: none;
+  transition: opacity 180ms ease, color 180ms ease, transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faction-card-code {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #64748b;
+  margin-top: 6px;
+}
+
+.faction-pillar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .faction-card-top {
@@ -773,116 +707,287 @@
   gap: 14px;
 }
 
-.faction-card-code {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: #7dd3fc;
-  margin-bottom: 2px;
-}
-
 .faction-card-name {
   font-family: var(--font-display);
-  font-size: 1.65rem;
+  font-size: 1.95rem;
   font-weight: 700;
-  line-height: 0.98;
-  color: #f1f5f9;
+  line-height: 0.94;
+  letter-spacing: 0.04em;
+  color: #f8fafc;
 }
 
 .faction-card-fortress {
   font-family: var(--font-mono);
-  font-size: 0.64rem;
+  font-size: 0.62rem;
   font-weight: 800;
   color: #c28e2b;
   margin-top: 4px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+  transition: opacity 160ms ease;
+}
+
+/* Detalhes táticos ocultos em repouso e revelados com fade-up no hover */
+.faction-pillar-reveal {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(12px);
+  transition:
+    max-height 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 160ms ease,
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .faction-card-boss {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
-  margin-top: 10px;
-  padding: 5px 8px;
-  background: #04060a;
-  border: 1px solid #1c2536;
-  border-left: 3px solid #991b1b;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.63rem;
   color: #94a3b8;
 }
 
 .faction-card-boss b {
-  color: #e2e8f0;
-  letter-spacing: 0.04em;
+  color: #f8fafc;
+  letter-spacing: 0.05em;
 }
 
 .faction-card-desc {
   font-family: var(--font-mono);
-  font-size: 0.69rem;
-  line-height: 1.44;
+  font-size: 0.68rem;
+  line-height: 1.46;
   color: #cbd5e1;
   margin-top: 10px;
 }
 
-.slot-meta-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+.title-faction-panel .faction-select-btn {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 12px 0 2px;
+  text-align: left;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: #cbd5e1;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: rgba(148, 163, 184, 0.5);
+  transition: color 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
-.slot-meta-list b {
-  color: #7dd3fc;
+/* Expansão Horizontal Estilo Valorant no Hover */
+.faction-choice-card:hover,
+.faction-choice-card:focus-within {
+  flex: 1.65;
+  border-top-color: var(--fac-hex);
 }
 
-.slot-actions-row {
-  display: flex;
-  gap: 8px;
+.faction-choice-card:hover .faction-pillar-beam,
+.faction-choice-card:focus-within .faction-pillar-beam {
+  opacity: 1;
 }
 
-.slot-actions-row .tactical-btn {
-  flex: 1;
-  text-align: center;
+.faction-choice-card:hover .faction-pillar-watermark,
+.faction-choice-card:focus-within .faction-pillar-watermark {
+  opacity: 0.12;
+  transform: translateY(-52%) scale(1.06);
 }
 
-.title-slots-panel .tactical-btn,
-.title-faction-panel .tactical-btn,
-.pause-card .tactical-btn {
-  background: #080b12;
-  border: 1.5px solid #2b384e;
-  color: #e2e8f0;
-  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-  box-shadow: 4px 4px 0 #000;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+.faction-choice-card:hover .faction-pillar-acronym,
+.faction-choice-card:focus-within .faction-pillar-acronym {
+  opacity: 0.32;
+  color: var(--fac-hex);
+  transform: translateX(4px);
 }
 
-.title-slots-panel .tactical-btn:hover,
-.title-faction-panel .tactical-btn:hover,
-.pause-card .tactical-btn:hover {
-  background: #131c2e;
-  border-color: #7dd3fc;
-  color: #f8fafc;
+.faction-choice-card:hover .faction-card-fortress,
+.faction-choice-card:focus-within .faction-card-fortress {
+  opacity: 1;
+}
+
+.faction-choice-card:hover .faction-pillar-reveal,
+.faction-choice-card:focus-within .faction-pillar-reveal {
+  max-height: 240px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.faction-choice-card:hover .faction-select-btn,
+.faction-choice-card:focus-within .faction-select-btn {
+  color: #ffffff;
+  border-top-color: var(--fac-hex);
+  background: transparent;
+  transform: translateX(4px);
 }
 
 /* =========================================================================
-   MODAL DE PAUSA & OPÇÕES TÁTICAS [ESC] — GOTHAM DARK METAL
+   5. TELA DE LOADING FULL-BLEED + LINHA CONTÍNUA 3PX 100VW NO RODAPÉ
+   ========================================================================= */
+.tactical-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: auto;
+  background: #020306;
+  display: block;
+  padding: 0;
+  transition: opacity 0.18s ease;
+}
+
+.tactical-loading-screen.hidden {
+  display: none !important;
+}
+
+.loading-card {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  background: none;
+  border: none;
+  box-shadow: none;
+  clip-path: none;
+  padding: clamp(32px, 5vw, 64px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.loading-top-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.loading-faction-logo {
+  flex-shrink: 0;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.9));
+}
+
+.loading-title-col {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.loading-faction-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 3.8vw, 3.4rem);
+  font-weight: 700;
+  line-height: 0.92;
+  color: #f8fafc;
+  letter-spacing: 0.06em;
+}
+
+.loading-stage-text {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #94a3b8;
+  letter-spacing: 0.14em;
+}
+
+.loading-pct-text {
+  position: fixed;
+  right: clamp(32px, 5vw, 64px);
+  bottom: 24px;
+  font-family: var(--font-display);
+  font-size: 5.2rem;
+  font-weight: 700;
+  line-height: 0.82;
+  color: #f8fafc;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
+.loading-tip-box {
+  position: fixed;
+  left: clamp(32px, 5vw, 64px);
+  bottom: 28px;
+  max-width: min(62vw, 760px);
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.loading-tip-badge {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #64748b;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+.loading-tip-text {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+#loading-lego-bar,
+.loading-lego-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 3px;
+  padding: 0;
+  gap: 0;
+  border: none;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+}
+
+.loading-lego-seg {
+  height: 3px;
+  background: transparent;
+  border: none;
+  transform: none;
+  transition: background 0.08s linear;
+}
+
+.loading-lego-seg.lit {
+  background: #dc2626;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.85);
+}
+
+/* =========================================================================
+   6. PAUSA [ESC] SPLIT-SCREEN FRAMELESS (SEM POPUP 630PX E SEM CAIXAS)
    ========================================================================= */
 #pause-options-modal {
   position: fixed;
   inset: 0;
   z-index: 70;
   pointer-events: auto;
-  background: rgba(2, 3, 6, 0.88);
+  background: linear-gradient(
+    90deg,
+    rgba(2, 3, 6, 0.97) 0%,
+    rgba(3, 5, 10, 0.9) 56%,
+    rgba(2, 3, 6, 0.55) 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: clamp(24px, 4vw, 56px);
 }
 
 #pause-options-modal.hidden {
@@ -891,33 +996,62 @@
 
 .pause-card {
   width: 100%;
-  max-width: 630px;
-  background: linear-gradient(180deg, #080b12 0%, #04060a 100%);
-  border: 1.5px solid #1c2536;
-  border-top: 1.5px solid #2b384e;
-  border-left: 6px solid #991b1b;
-  padding: 22px 26px;
-  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
-  box-shadow: 14px 14px 0 #000000;
+  max-width: 1180px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  clip-path: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-areas:
+    'header header'
+    'actions options';
+  column-gap: clamp(36px, 5vw, 76px);
+  row-gap: 26px;
+  align-items: start;
+}
+
+/* Quando aberto a partir do Menu Inicial (#pause-ingame-actions oculto), foca limpo nas opções */
+.pause-card:has(#pause-ingame-actions.hidden) {
+  grid-template-columns: minmax(0, 780px);
+  grid-template-areas:
+    'header'
+    'options';
+  justify-content: start;
+}
+
+.pause-card > .dossier-header {
+  grid-area: header;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 0 14px 0;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-end;
 }
 
 .pause-options-body {
+  grid-area: options;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .option-row {
-  background: #04060a;
-  border: 1.5px solid #1c2536;
-  border-left: 4px solid #2b384e;
-  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  clip-path: none;
+  padding: 13px 2px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
 }
 
 .option-row-inline {
@@ -927,84 +1061,95 @@
 }
 
 .option-label-col {
+  flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 .option-title {
   font-family: var(--font-mono);
-  font-size: 0.73rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  color: #e2e8f0;
-  letter-spacing: 0.06em;
+  color: #cbd5e1;
+  letter-spacing: 0.08em;
 }
 
 .option-val {
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 800;
-  color: #7dd3fc;
+  color: #f8fafc;
+  min-width: 42px;
+  text-align: right;
+}
+
+.option-row > .tactical-slider {
+  width: min(260px, 42%);
+  flex-shrink: 0;
 }
 
 .tactical-slider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 8px;
-  background: #0d121d;
-  border: 1px solid #2b384e;
-  accent-color: #7dd3fc;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  accent-color: #dc2626;
   cursor: pointer;
 }
 
 .tactical-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 18px;
-  background: #7dd3fc;
-  border: 1.5px solid #04060a;
-  box-shadow: 2px 2px 0 #000;
+  width: 12px;
+  height: 16px;
+  background: #f8fafc;
+  border: none;
   cursor: pointer;
 }
 
 .tactical-slider::-moz-range-thumb {
-  width: 14px;
-  height: 18px;
+  width: 12px;
+  height: 16px;
   border-radius: 0;
-  background: #7dd3fc;
-  border: 1.5px solid #04060a;
-  box-shadow: 2px 2px 0 #000;
+  background: #f8fafc;
+  border: none;
   cursor: pointer;
 }
 
-.tactical-toggle-btn {
-  background: #080b12;
-  border: 1.5px solid #1c2536;
+.tactical-toggle-btn,
+.tactical-quality-btn {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  clip-path: none;
   color: #64748b;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.69rem;
   font-weight: 800;
-  padding: 6px 14px;
+  letter-spacing: 0.06em;
+  padding: 6px 12px;
   cursor: pointer;
-  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
-  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+  transition: border-color 0.1s ease, color 0.1s ease, background 0.1s ease;
 }
 
-.tactical-toggle-btn:hover {
-  border-color: #2b384e;
-  color: #cbd5e1;
+.tactical-toggle-btn:hover,
+.tactical-quality-btn:hover {
+  border-color: rgba(248, 250, 252, 0.45);
+  color: #e2e8f0;
 }
 
-.tactical-toggle-btn.active {
-  background: #0d121d;
-  border-color: #7dd3fc;
-  color: #7dd3fc;
+.tactical-toggle-btn.active,
+.tactical-quality-btn.active {
+  background: rgba(220, 38, 38, 0.14);
+  border-color: #dc2626;
+  color: #f8fafc;
 }
 
 .option-row-quality {
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -1014,74 +1159,112 @@
   flex-wrap: wrap;
 }
 
-.tactical-quality-btn {
-  background: #080b12;
-  border: 1.5px solid #1c2536;
-  color: #64748b;
+.pause-save-feedback {
+  margin-top: 10px;
+  padding: 8px 0;
+  border-left: 3px solid #22c55e;
+  padding-left: 12px;
+  color: #86efac;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 800;
-  padding: 6px 10px;
-  cursor: pointer;
-  letter-spacing: 0.04em;
-  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
-  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 
-.tactical-quality-btn:hover {
-  border-color: #2b384e;
-  color: #e2e8f0;
-  background: #0d121d;
-}
-
-.tactical-quality-btn.active {
-  background: #131c2e;
-  border-color: #7dd3fc;
-  color: #7dd3fc;
-  box-shadow: inset 0 -2px 0 #7dd3fc;
-}
-
-.pause-save-feedback {
-  background: #071522;
-  border: 1.5px solid #2b384e;
-  border-left: 4px solid #7dd3fc;
-  color: #bae6fd;
-  font-family: var(--font-mono);
-  font-size: 0.73rem;
-  font-weight: 800;
-  padding: 8px 12px;
-  text-align: center;
-}
-
+/* Coluna Esquerda da Pausa: Lista Vertical Frameless de Ações de Partida */
 .pause-actions-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
 }
 
-.pause-main-btn {
-  grid-column: span 2;
-  background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 100%) !important;
-  border-color: #dc2626 !important;
+#pause-ingame-actions .tactical-btn {
+  position: relative;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+  padding: 11px 0;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 0.96;
+  color: rgba(148, 163, 184, 0.62) !important;
+  transition: transform 0.08s ease-out, color 0.08s ease-out;
+}
+
+#pause-ingame-actions .tactical-btn::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  background: #dc2626;
+  opacity: 0;
+  transition: opacity 0.08s ease-out;
+}
+
+#pause-ingame-actions .tactical-btn.pause-main-btn {
   color: #f8fafc !important;
-  font-weight: 800;
 }
 
-.pause-main-btn:hover {
-  background: linear-gradient(90deg, #991b1b 0%, #b91c1c 100%) !important;
-  border-color: #f87171 !important;
+#pause-ingame-actions .tactical-btn.danger-btn {
+  color: rgba(248, 113, 113, 0.78) !important;
 }
 
-.danger-btn {
-  background: #120608 !important;
-  border-color: #991b1b !important;
+#pause-ingame-actions .tactical-btn:hover,
+#pause-ingame-actions .tactical-btn:focus-visible {
+  transform: translateX(12px);
+  color: #ffffff !important;
+}
+
+#pause-ingame-actions .tactical-btn.danger-btn:hover {
   color: #ef4444 !important;
 }
 
+#pause-ingame-actions .tactical-btn:hover::before,
+#pause-ingame-actions .tactical-btn:focus-visible::before {
+  opacity: 1;
+}
+
+.pause-main-btn {
+  background: rgba(185, 28, 28, 0.25);
+  border-color: #dc2626;
+  color: #f8fafc;
+}
+
+.danger-btn {
+  background: rgba(127, 29, 29, 0.22);
+  border-color: rgba(220, 38, 38, 0.55);
+  color: #f87171;
+}
+
 .danger-btn:hover {
-  background: #7f1d1d !important;
-  border-color: #dc2626 !important;
-  color: #fecaca !important;
+  background: rgba(185, 28, 28, 0.38);
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+@media (max-width: 920px) {
+  .faction-cards-grid {
+    flex-direction: column;
+    height: auto;
+  }
+  .save-slot-card {
+    flex-wrap: wrap;
+  }
+  .pause-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'header'
+      'actions'
+      'options';
+  }
 }
 
 .hidden,

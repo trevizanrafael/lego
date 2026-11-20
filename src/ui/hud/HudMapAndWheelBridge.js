@@ -42,7 +42,14 @@ export function installHudMapAndWheelBridge(LegoHud) {
         this._refreshHeroWheelDisplay();
         soundFX.playTacticalRoll();
       } else {
-        if (confirmSelection && this._lastController && this.wheelSelectedHeroKey) {
+        const currentActiveKey =
+          this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey;
+        if (
+          confirmSelection &&
+          this._lastController &&
+          this.wheelSelectedHeroKey &&
+          this.wheelSelectedHeroKey !== currentActiveKey
+        ) {
           this._lastController.switchToHero(this.wheelSelectedHeroKey);
         }
         if (this._lastController && typeof this._lastController.relockPointer === 'function') {
@@ -62,9 +69,6 @@ export function installHudMapAndWheelBridge(LegoHud) {
       const nextHero = HERO_CATALOG[nextIdx];
       if (nextHero && nextHero.key !== this.wheelSelectedHeroKey) {
         this.wheelSelectedHeroKey = nextHero.key;
-        if (this._lastController) {
-          this._lastController.switchToHero(this.wheelSelectedHeroKey);
-        }
         soundFX.playHeroSwap();
         this._refreshHeroWheelDisplay();
       }
@@ -85,9 +89,6 @@ export function installHudMapAndWheelBridge(LegoHud) {
       const targetHero = HERO_CATALOG[idx];
       if (targetHero && targetHero.key !== this.wheelSelectedHeroKey) {
         this.wheelSelectedHeroKey = targetHero.key;
-        if (this._lastController) {
-          this._lastController.switchToHero(this.wheelSelectedHeroKey);
-        }
         soundFX.playHeroSwap();
         this._refreshHeroWheelDisplay();
       }

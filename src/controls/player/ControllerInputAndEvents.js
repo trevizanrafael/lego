@@ -14,8 +14,10 @@ export const controllerInputAndEventsMethods = {
       ) {
         return;
       }
+      const wasEnteredGame = Boolean(this.hasEnteredGame);
       this.hasEnteredGame = true;
       const promptEl = document.getElementById('pointer-prompt');
+      const promptWasVisible = Boolean(promptEl?.classList?.contains?.('visible'));
       if (promptEl) promptEl.classList.remove('visible');
 
       if (this.hud?.isHeroWheelOpen) {
@@ -25,7 +27,7 @@ export const controllerInputAndEventsMethods = {
 
       if (!document.pointerLockElement && this.domElement.requestPointerLock) {
         this.relockPointer();
-        if (e.button === 0) {
+        if (!wasEnteredGame && promptWasVisible && e.button === 0) {
           this.isDraggingMouse = true;
           return;
         }
@@ -85,9 +87,14 @@ export const controllerInputAndEventsMethods = {
     document.addEventListener('pointerlockchange', () => {
       this.isPointerLocked = document.pointerLockElement === this.domElement;
       if (!this.isPointerLocked) this.resetHeldInputs();
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const recentPauseToggle =
+        this.hud?._lastPauseToggleTime !== undefined &&
+        nowMs - this.hud._lastPauseToggleTime < 250;
       if (this.isPointerLocked) {
         this.hasEnteredGame = true;
       } else if (
+        !recentPauseToggle &&
         this.hasEnteredGame && !this.hud?.isTitleScreenActive &&
         !this.hud?.isPauseMenuOpen && !this.hud?.isFullMapOpen &&
         !this.hud?.isDossierOpen && !this.hud?.isHeroWheelOpen &&
@@ -263,20 +270,35 @@ export const controllerInputAndEventsMethods = {
       targetTag === 'TEXTAREA' ||
       Boolean(e.target?.isContentEditable);
 
+    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const pauseToggleReady =
+      this.hud?._lastPauseToggleTime === undefined ||
+      nowMs - this.hud._lastPauseToggleTime >= 120;
+
     if (this.hud?.isCreatorOpen) {
-      if (e.code === 'Escape' && isDown && !e.repeat) this.hud.creatorStudio?.close(false);
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud._lastPauseToggleTime = nowMs;
+        this.hud.creatorStudio?.close(false);
+      }
       return;
     }
     if (this.hud?.isCustomsOpen) {
-      if (e.code === 'Escape' && isDown && !e.repeat) this.hud.customsStudio?.close(false);
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud._lastPauseToggleTime = nowMs;
+        this.hud.customsStudio?.close(false);
+      }
       return;
     }
     if (this.hud?.isAircraftStudioOpen) {
-      if (e.code === 'Escape' && isDown && !e.repeat) this.hud.aircraftStudio?.close(true);
+      if (e.code === 'Escape' && isDown && !e.repeat) {
+        this.hud._lastPauseToggleTime = nowMs;
+        this.hud.aircraftStudio?.close(true);
+      }
       return;
     }
 
     if (this.hud?.isRadioWheelOpen && e.code === 'Escape' && isDown && !e.repeat) {
+      this.hud._lastPauseToggleTime = nowMs;
       this.hud.setRadioWheelOpen(false, this);
       return;
     }
@@ -284,13 +306,15 @@ export const controllerInputAndEventsMethods = {
     if (isTypingInInput) return;
 
     if (this.hud?.isTitleScreenActive) {
-      if (e.code === 'Escape' && isDown && !e.repeat && this.hud?.isPauseMenuOpen) {
+      if (e.code === 'Escape' && isDown && !e.repeat && this.hud?.isPauseMenuOpen && pauseToggleReady) {
         this.hud.setPauseMenuOpen(false, this);
       }
       return;
     }
     if (this.hud?.isPauseMenuOpen) {
-      if (e.code === 'Escape' && isDown && !e.repeat) this.hud.setPauseMenuOpen(false, this);
+      if (e.code === 'Escape' && isDown && !e.repeat && pauseToggleReady) {
+        this.hud.setPauseMenuOpen(false, this);
+      }
       return;
     }
 
@@ -300,7 +324,7 @@ export const controllerInputAndEventsMethods = {
         if (isDown && !e.repeat) {
           this.hud.setHeroWheelOpen(false, this, true);
         } else if (!isDown) {
-          const heldMs = performance.now() - (this._tabOpenTimestamp || 0);
+          const heldMs = nowMs - (this._tabOpenTimestamp || 0);
           if (heldMs > 220) this.hud.setHeroWheelOpen(false, this, true);
         }
         return;
@@ -315,6 +339,7 @@ export const controllerInputAndEventsMethods = {
           return;
         }
         if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+          if (e.code === 'Escape') this.hud._lastPauseToggleTime = nowMs;
           this.hud.setHeroWheelOpen(false, this, true);
           return;
         }
@@ -325,12 +350,15 @@ export const controllerInputAndEventsMethods = {
       case 'Escape':
         if (isDown && !e.repeat) {
           if (this.hud?.isDossierOpen) {
+            this.hud._lastPauseToggleTime = nowMs;
             this.hud.setHeroDossierOpen(false, this);
           } else if (this.hud?.isFullMapOpen) {
+            this.hud._lastPauseToggleTime = nowMs;
             this.hud.setFullMapOpen(false, this.world, this);
           } else if (this.hud?.isHeroWheelOpen) {
+            this.hud._lastPauseToggleTime = nowMs;
             this.hud.setHeroWheelOpen(false, this, true);
-          } else if (this.hud) {
+          } else if (this.hud && pauseToggleReady) {
             this.hud.setPauseMenuOpen(!this.hud.isPauseMenuOpen, this);
           }
         }

@@ -21,6 +21,12 @@ import {
   getInteractiveRegionsList,
   getLandmarkPinWorldCoords
 } from './TacticalMapInteractionController.js';
+import {
+  getStaticMinimapCache,
+  STATIC_MAP_MIN_WX,
+  STATIC_MAP_MIN_WZ,
+  STATIC_MAP_SPAN
+} from '../minimap/MinimapTerrainAndRoadsPainter.js';
 
 function drawChamferedPlaque(ctx, x, y, w, h, cut, fillStyle, strokeStyle, lineWidth = 1.2) {
   const c = Math.min(cut, w * 0.25, h * 0.45);
@@ -158,208 +164,220 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
     ctx.stroke();
   }
 
-  const drawPolyPath = (poly) => {
-    if (!poly || poly.length < 3) return;
-    ctx.beginPath();
-    ctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
-    for (let i = 1; i < poly.length; i++) {
-      ctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
-    }
-    ctx.closePath();
-  };
-
-  // 2. Linhas Batimetricas Costeiras de Sonar (ZERO ciano brilhante e ZERO praia amarela)
-  ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
-    drawPolyPath(poly);
-    ctx.lineWidth = Math.max(5, 46 * scale);
-    ctx.strokeStyle = 'rgba(71, 85, 105, 0.14)';
-    ctx.stroke();
-    ctx.lineWidth = Math.max(2.6, 22 * scale);
-    ctx.strokeStyle = 'rgba(71, 85, 105, 0.28)';
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // Massa Continental (#090c13) + Contorno Costeiro em Aco Escuro (#243044)
-  ctx.fillStyle = '#090c13';
-  ctx.strokeStyle = '#243044';
-  ctx.lineWidth = 1.8;
-  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
-    drawPolyPath(poly);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  // Ilhotas do Arquipelago em Tons Sombrios (ZERO borda amarela)
-  for (const isl of ARCHIPELAGO_ISLETS) {
-    ctx.beginPath();
-    if (typeof ctx.ellipse === 'function') {
-      ctx.ellipse(toX(isl.x), toY(isl.z), isl.rx * scale, isl.rz * scale, 0, 0, Math.PI * 2);
-    } else {
-      ctx.arc(toX(isl.x), toY(isl.z), Math.max(isl.rx, isl.rz) * scale, 0, Math.PI * 2);
-    }
-    ctx.fillStyle =
-      isl.biome === 'sand' ? '#161513' : isl.biome === 'forest' ? '#0b1613' : '#0f141e';
-    ctx.fill();
-    ctx.strokeStyle = '#243044';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-  }
-
-  // Biomas Noturnos Dessaturados (globalAlpha = 0.09) & Fronteiras Tracejadas em Aco/Bronze/Carmesim
-  ctx.save();
-  ctx.beginPath();
-  for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
-    if (!poly || poly.length < 3) continue;
-    ctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
-    for (let i = 1; i < poly.length; i++) {
-      ctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
-    }
-    ctx.closePath();
-  }
-  ctx.clip();
-  for (const reg of REGION_BIOME_MAP) {
-    ctx.fillStyle = remapBiomeTintToGothamNoir(reg.tint);
-    ctx.globalAlpha = 0.09;
-    ctx.fillRect(
-      toX(reg.minX),
-      toY(reg.minZ),
-      (reg.maxX - reg.minX) * scale,
-      (reg.maxZ - reg.minZ) * scale
+  // Camada Estática Pré-Renderizada (costa, ilhotas, biomas, canais, quarteirões, ruas, pontes, pista e prédios) em ~0.1ms via GPU drawImage!
+  const staticCache = getStaticMinimapCache(world);
+  if (staticCache?.canvas && typeof ctx.drawImage === 'function') {
+    ctx.drawImage(
+      staticCache.canvas,
+      toX(STATIC_MAP_MIN_WX),
+      toY(STATIC_MAP_MIN_WZ),
+      STATIC_MAP_SPAN * scale,
+      STATIC_MAP_SPAN * scale
     );
-  }
-  ctx.globalAlpha = 0.68;
-  if (typeof ctx.setLineDash === 'function') {
-    ctx.setLineDash([6, 4]);
-  }
-  ctx.lineWidth = Math.max(1.2, 2.2 * scale);
-  for (const brd of REGION_BORDER_LINES) {
-    ctx.strokeStyle = remapRegionBorderToGothamNoir(brd.color);
-    ctx.beginPath();
-    ctx.moveTo(toX(brd.from[0]), toY(brd.from[1]));
-    ctx.lineTo(toX(brd.to[0]), toY(brd.to[1]));
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // Rodovias Inter-Regionais da Pangeia (Meio-Fio #2e3d56 + Asfalto Grafite #1b2436)
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  for (const hwy of PANGAEA_HIGHWAYS) {
-    if (!hwy.points || hwy.points.length < 2) continue;
-    ctx.beginPath();
-    ctx.moveTo(toX(hwy.points[0][0]), toY(hwy.points[0][1]));
-    for (let i = 1; i < hwy.points.length; i++) {
-      ctx.lineTo(toX(hwy.points[i][0]), toY(hwy.points[i][1]));
-    }
-    ctx.strokeStyle = '#2e3d56';
-    ctx.lineWidth = Math.max(3.2, 27 * scale);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#1b2436';
-    ctx.lineWidth = Math.max(2.2, 23 * scale);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // 3. Quarteiroes, Orla Vulcanica, Morro da CDD, Patios do Porto e Parques em Gotham Noir
-  const mapBlocks = world.mapBlocks || [];
-  ctx.strokeStyle = 'rgba(30, 41, 59, 0.55)';
-  ctx.lineWidth = 0.7;
-  for (const blk of mapBlocks) {
-    const bx = toX(blk.x - blk.w * 0.5);
-    const by = toY(blk.z - blk.d * 0.5);
-    const bw = blk.w * scale;
-    const bd = blk.d * scale;
-    ctx.fillStyle = remapBlockColorToGothamNoir(blk.color, blk.type);
-    ctx.fillRect(bx, by, bw, bd);
-    if (scale >= 0.11) ctx.strokeRect(bx, by, bw, bd);
-  }
-
-  // 4. Lago Central e Canais Urbanos (#050912 Abissal + Borda Aco)
-  ctx.fillStyle = '#050912';
-  ctx.strokeStyle = '#172234';
-  ctx.lineWidth = 0.9;
-  for (const wt of world.mapWater || []) {
-    const wx = toX(wt.x - wt.w * 0.5);
-    const wy = toY(wt.z - wt.d * 0.5);
-    const ww = wt.w * scale;
-    const wd = wt.d * scale;
-    ctx.fillRect(wx, wy, ww, wd);
-    ctx.strokeRect(wx, wy, ww, wd);
-  }
-
-  // 5. Malha Viaria em 2 Passes (Avenidas #1b2436 + Meio-Fio #2e3d56, Locais #131a27, Pontes #222d42, Pista #161e2e)
-  const mapRoads = world.mapRoads || [];
-  for (const rd of mapRoads) {
-    const kind = classifyGothamRoadKind(rd);
-    const pad = kind === 'bridge' ? 1.2 : kind === 'main' || kind === 'runway' ? 0.9 : 0.5;
-    ctx.fillStyle =
-      kind === 'bridge' ? '#475569' : kind === 'main' || kind === 'runway' ? '#2e3d56' : '#1e293b';
-    ctx.fillRect(
-      toX(rd.x - rd.w * 0.5) - pad,
-      toY(rd.z - rd.d * 0.5) - pad,
-      rd.w * scale + pad * 2,
-      rd.d * scale + pad * 2
-    );
-  }
-  for (const rd of mapRoads) {
-    const kind = classifyGothamRoadKind(rd);
-    const rx = toX(rd.x - rd.w * 0.5);
-    const ry = toY(rd.z - rd.d * 0.5);
-    const rw = rd.w * scale;
-    const rh = rd.d * scale;
-    ctx.fillStyle =
-      kind === 'bridge'
-        ? '#222d42'
-        : kind === 'runway'
-          ? '#161e2e'
-          : kind === 'main'
-            ? '#1b2436'
-            : '#131a27';
-    ctx.fillRect(rx, ry, rw, rh);
-
-    if (kind === 'runway' && Math.max(rw, rh) >= 14) {
-      const horiz = rw >= rh;
-      ctx.save();
-      if (typeof ctx.setLineDash === 'function') ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = 'rgba(226, 232, 240, 0.48)';
-      ctx.lineWidth = 0.95;
+  } else {
+    const drawPolyPath = (poly) => {
+      if (!poly || poly.length < 3) return;
       ctx.beginPath();
-      if (horiz) {
-        ctx.moveTo(rx + 4, ry + rh * 0.5);
-        ctx.lineTo(rx + rw - 4, ry + rh * 0.5);
-      } else {
-        ctx.moveTo(rx + rw * 0.5, ry + 4);
-        ctx.lineTo(rx + rw * 0.5, ry + rh - 4);
+      ctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
+      for (let i = 1; i < poly.length; i++) {
+        ctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
       }
+      ctx.closePath();
+    };
+
+    // 2. Linhas Batimetricas Costeiras de Sonar (ZERO ciano brilhante e ZERO praia amarela)
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+      drawPolyPath(poly);
+      ctx.lineWidth = Math.max(5, 46 * scale);
+      ctx.strokeStyle = 'rgba(71, 85, 105, 0.14)';
       ctx.stroke();
-      ctx.restore();
+      ctx.lineWidth = Math.max(2.6, 22 * scale);
+      ctx.strokeStyle = 'rgba(71, 85, 105, 0.28)';
+      ctx.stroke();
     }
-  }
+    ctx.restore();
 
-  // 6. Predios, Barracos, Silos, Conteineres e Landmarks em Sonar 3D
-  for (const bld of world.mapBuildings || []) {
-    const isLm = Boolean(bld.isLandmark || bld.landmark);
-    const bx = toX(bld.x - bld.w * 0.5);
-    const by = toY(bld.z - bld.d * 0.5);
-    const bw = bld.w * scale;
-    const bd = bld.d * scale;
+    // Massa Continental (#090c13) + Contorno Costeiro em Aco Escuro (#243044)
+    ctx.fillStyle = '#090c13';
+    ctx.strokeStyle = '#243044';
+    ctx.lineWidth = 1.8;
+    for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+      drawPolyPath(poly);
+      ctx.fill();
+      ctx.stroke();
+    }
 
-    ctx.fillStyle = '#020306';
-    ctx.fillRect(bx + 1.1, by + 1.3, bw, bd);
+    // Ilhotas do Arquipelago em Tons Sombrios (ZERO borda amarela)
+    for (const isl of ARCHIPELAGO_ISLETS) {
+      ctx.beginPath();
+      if (typeof ctx.ellipse === 'function') {
+        ctx.ellipse(toX(isl.x), toY(isl.z), isl.rx * scale, isl.rz * scale, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(toX(isl.x), toY(isl.z), Math.max(isl.rx, isl.rz) * scale, 0, Math.PI * 2);
+      }
+      ctx.fillStyle =
+        isl.biome === 'sand' ? '#161513' : isl.biome === 'forest' ? '#0b1613' : '#0f141e';
+      ctx.fill();
+      ctx.strokeStyle = '#243044';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
 
-    ctx.fillStyle = remapBuildingColorToGothamNoir(bld.color, isLm);
-    ctx.fillRect(bx, by, bw, bd);
+    // Biomas Noturnos Dessaturados (globalAlpha = 0.09) & Fronteiras Tracejadas em Aco/Bronze/Carmesim
+    ctx.save();
+    ctx.beginPath();
+    for (const poly of [MAIN_WEST_POLYGON, EAST_PENINSULA_POLYGON, PRISON_ISLAND_POLYGON]) {
+      if (!poly || poly.length < 3) continue;
+      ctx.moveTo(toX(poly[0][0]), toY(poly[0][1]));
+      for (let i = 1; i < poly.length; i++) {
+        ctx.lineTo(toX(poly[i][0]), toY(poly[i][1]));
+      }
+      ctx.closePath();
+    }
+    ctx.clip();
+    for (const reg of REGION_BIOME_MAP) {
+      ctx.fillStyle = remapBiomeTintToGothamNoir(reg.tint);
+      ctx.globalAlpha = 0.09;
+      ctx.fillRect(
+        toX(reg.minX),
+        toY(reg.minZ),
+        (reg.maxX - reg.minX) * scale,
+        (reg.maxZ - reg.minZ) * scale
+      );
+    }
+    ctx.globalAlpha = 0.68;
+    if (typeof ctx.setLineDash === 'function') {
+      ctx.setLineDash([6, 4]);
+    }
+    ctx.lineWidth = Math.max(1.2, 2.2 * scale);
+    for (const brd of REGION_BORDER_LINES) {
+      ctx.strokeStyle = remapRegionBorderToGothamNoir(brd.color);
+      ctx.beginPath();
+      ctx.moveTo(toX(brd.from[0]), toY(brd.from[1]));
+      ctx.lineTo(toX(brd.to[0]), toY(brd.to[1]));
+      ctx.stroke();
+    }
+    ctx.restore();
 
-    if (isLm || Math.max(bw, bd) >= 3.2) {
-      ctx.strokeStyle = getGothamBuildingStrokeColor(bld.color, isLm);
-      ctx.lineWidth = isLm ? 1.35 : 0.75;
-      ctx.strokeRect(bx, by, bw, bd);
+    // Rodovias Inter-Regionais da Pangeia (Meio-Fio #2e3d56 + Asfalto Grafite #1b2436)
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const hwy of PANGAEA_HIGHWAYS) {
+      if (!hwy.points || hwy.points.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(toX(hwy.points[0][0]), toY(hwy.points[0][1]));
+      for (let i = 1; i < hwy.points.length; i++) {
+        ctx.lineTo(toX(hwy.points[i][0]), toY(hwy.points[i][1]));
+      }
+      ctx.strokeStyle = '#2e3d56';
+      ctx.lineWidth = Math.max(3.2, 27 * scale);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#1b2436';
+      ctx.lineWidth = Math.max(2.2, 23 * scale);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 3. Quarteiroes, Orla Vulcanica, Morro da CDD, Patios do Porto e Parques em Gotham Noir
+    const mapBlocks = world.mapBlocks || [];
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.55)';
+    ctx.lineWidth = 0.7;
+    for (const blk of mapBlocks) {
+      const bx = toX(blk.x - blk.w * 0.5);
+      const by = toY(blk.z - blk.d * 0.5);
+      const bw = blk.w * scale;
+      const bd = blk.d * scale;
+      ctx.fillStyle = remapBlockColorToGothamNoir(blk.color, blk.type);
+      ctx.fillRect(bx, by, bw, bd);
+      if (scale >= 0.11) ctx.strokeRect(bx, by, bw, bd);
+    }
+
+    // 4. Lago Central e Canais Urbanos (#050912 Abissal + Borda Aco)
+    ctx.fillStyle = '#050912';
+    ctx.strokeStyle = '#172234';
+    ctx.lineWidth = 0.9;
+    for (const wt of world.mapWater || []) {
+      const wx = toX(wt.x - wt.w * 0.5);
+      const wy = toY(wt.z - wt.d * 0.5);
+      const ww = wt.w * scale;
+      const wd = wt.d * scale;
+      ctx.fillRect(wx, wy, ww, wd);
+      ctx.strokeRect(wx, wy, ww, wd);
+    }
+
+    // 5. Malha Viaria em 2 Passes (Avenidas #1b2436 + Meio-Fio #2e3d56, Locais #131a27, Pontes #222d42, Pista #161e2e)
+    const mapRoads = world.mapRoads || [];
+    for (const rd of mapRoads) {
+      const kind = classifyGothamRoadKind(rd);
+      const pad = kind === 'bridge' ? 1.2 : kind === 'main' || kind === 'runway' ? 0.9 : 0.5;
+      ctx.fillStyle =
+        kind === 'bridge' ? '#475569' : kind === 'main' || kind === 'runway' ? '#2e3d56' : '#1e293b';
+      ctx.fillRect(
+        toX(rd.x - rd.w * 0.5) - pad,
+        toY(rd.z - rd.d * 0.5) - pad,
+        rd.w * scale + pad * 2,
+        rd.d * scale + pad * 2
+      );
+    }
+    for (const rd of mapRoads) {
+      const kind = classifyGothamRoadKind(rd);
+      const rx = toX(rd.x - rd.w * 0.5);
+      const ry = toY(rd.z - rd.d * 0.5);
+      const rw = rd.w * scale;
+      const rh = rd.d * scale;
+      ctx.fillStyle =
+        kind === 'bridge'
+          ? '#222d42'
+          : kind === 'runway'
+            ? '#161e2e'
+            : kind === 'main'
+              ? '#1b2436'
+              : '#131a27';
+      ctx.fillRect(rx, ry, rw, rh);
+
+      if (kind === 'runway' && Math.max(rw, rh) >= 14) {
+        const horiz = rw >= rh;
+        ctx.save();
+        if (typeof ctx.setLineDash === 'function') ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(226, 232, 240, 0.48)';
+        ctx.lineWidth = 0.95;
+        ctx.beginPath();
+        if (horiz) {
+          ctx.moveTo(rx + 4, ry + rh * 0.5);
+          ctx.lineTo(rx + rw - 4, ry + rh * 0.5);
+        } else {
+          ctx.moveTo(rx + rw * 0.5, ry + 4);
+          ctx.lineTo(rx + rw * 0.5, ry + rh - 4);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // 6. Predios, Barracos, Silos, Conteineres e Landmarks em Sonar 3D
+    for (const bld of world.mapBuildings || []) {
+      const isLm = Boolean(bld.isLandmark || bld.landmark);
+      const bx = toX(bld.x - bld.w * 0.5);
+      const by = toY(bld.z - bld.d * 0.5);
+      const bw = bld.w * scale;
+      const bd = bld.d * scale;
+
+      ctx.fillStyle = '#020306';
+      ctx.fillRect(bx + 1.1, by + 1.3, bw, bd);
+
+      ctx.fillStyle = remapBuildingColorToGothamNoir(bld.color, isLm);
+      ctx.fillRect(bx, by, bw, bd);
+
+      if (isLm || Math.max(bw, bd) >= 3.2) {
+        ctx.strokeStyle = getGothamBuildingStrokeColor(bld.color, isLm);
+        ctx.lineWidth = isLm ? 1.35 : 0.75;
+        ctx.strokeRect(bx, by, bw, bd);
+      }
     }
   }
 
@@ -597,10 +615,24 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
   }
 
   // 8. Pins Vetoriais + Plaquetas Chanfradas Anti-Colisao (#05070c + #1e293b / #c28e2b)
-  const labelLayouts = computeNonOverlappingLandmarkLabels(ctx, world.landmarks || [], toX, toY);
+  const landmarks = world.landmarks || [];
+  const labelCacheKey = `${w}x${h}:${scale.toFixed(4)}:${landmarks.length}`;
+  let relLabelLayouts =
+    world._cachedMapLabels?.key === labelCacheKey ? world._cachedMapLabels.items : null;
+  if (!relLabelLayouts) {
+    relLabelLayouts = computeNonOverlappingLandmarkLabels(
+      ctx,
+      landmarks,
+      (wx) => wx * scale,
+      (wz) => wz * scale
+    );
+    world._cachedMapLabels = { key: labelCacheKey, items: relLabelLayouts };
+  }
 
-  for (const item of labelLayouts) {
-    const { lm, lx, ly } = item;
+  for (const item of relLabelLayouts) {
+    const { lm } = item;
+    const lx = cx + item.lx;
+    const ly = cy + item.ly;
     if (lm.displayX !== undefined || lm.displayZ !== undefined) {
       const gx = toX(lm.x);
       const gy = toY(lm.z);
@@ -627,8 +659,12 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
     }
   }
 
-  for (const item of labelLayouts) {
-    const { lm, lx, ly, bx, by, boxW, boxH, titleText, subText } = item;
+  for (const item of relLabelLayouts) {
+    const { lm, boxW, boxH, titleText, subText } = item;
+    const lx = cx + item.lx;
+    const ly = cy + item.ly;
+    const bx = cx + item.bx;
+    const by = cy + item.by;
     const isHoveredLm = hud.hoveredLandmark?.id === lm.id;
     const pinR = isHoveredLm ? 12 : 10;
     const pinAccent = lm.color || '#c28e2b';

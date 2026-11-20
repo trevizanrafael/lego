@@ -20,7 +20,7 @@ import {
 export const STATIC_MAP_MIN_WX = -3700;
 export const STATIC_MAP_MIN_WZ = -3250;
 export const STATIC_MAP_SPAN = 7400;
-export const STATIC_MAP_PX = 2960; // 0.40 px/m cobrindo toda a Pangeia com nitidez
+export const STATIC_MAP_PX = 2048; // ~0.277 px/m cobrindo toda a Pangeia com nitidez e metade da RAM
 
 export function getStaticMinimapCache(world) {
   if (!world) return null;
@@ -56,9 +56,8 @@ export function getStaticMinimapCache(world) {
   const toX = (wx) => (wx - STATIC_MAP_MIN_WX) * pxPerMeter;
   const toY = (wz) => (wz - STATIC_MAP_MIN_WZ) * pxPerMeter;
 
-  // 0. Fundo Oceano Abissal Gotham Sonar
-  cctx.fillStyle = '#030509';
-  cctx.fillRect(0, 0, STATIC_MAP_PX, STATIC_MAP_PX);
+  // 0. Oceano transparente para preservar a grade militar no Mapa [M] (o fundo #030509 é pintado no canvas de destino)
+  cctx.clearRect(0, 0, STATIC_MAP_PX, STATIC_MAP_PX);
 
   // 1. Linhas Batimetricas Costeiras Sutis (ZERO ciano brilhante e ZERO orla amarela)
   cctx.save();

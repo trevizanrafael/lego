@@ -24,6 +24,12 @@ import {
 } from '../FactionIconsAndSaveSystem.js';
 import { definePrototypeMethods } from './HudConstantsAndPortraits.js';
 
+const FACTION_ACRONYMS = {
+  cv: 'CV',
+  pcc: 'PCC',
+  ares: 'A.R.E.S.'
+};
+
 export function installTitleAndSaveSlotsController(LegoHud) {
   definePrototypeMethods(LegoHud, {
     _initTitleAndLoadingDom() {
@@ -94,10 +100,6 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       });
     },
 
-    /**
-     * Máquina de estados exclusiva para os 3 subpainéis da Tela Inicial ('main' | 'slots' | 'faction')
-     * Garante que APENAS UM painel fique visível por vez abaixo da Logo Oficial!
-     */
     _setTitleSubPanel(panelName = 'main') {
       if (this.titleMainPanelEl) {
         this.titleMainPanelEl.classList.toggle('hidden', panelName !== 'main');
@@ -131,16 +133,18 @@ export function installTitleAndSaveSlotsController(LegoHud) {
 
       this.saveSlotsGridEl.innerHTML = [0, 1, 2]
         .map((idx) => {
+          const slotNum = `0${idx + 1}`;
           const s = slots[idx];
           if (!s) {
             return `
-              <div class="save-slot-card empty-slot-card">
-                <div class="slot-header-row">
-                  <div class="dossier-tag">DOSSIÊ // SLOT 0${idx + 1}</div>
-                  <span class="slot-status-tag">${standbyTag}</span>
-                </div>
-                <div class="slot-empty-body">
-                  ${getFreeRoamLogoSvg(54)}
+              <div class="save-slot-card empty-slot-card" data-slot-index="${idx}">
+                <span class="slot-ghost-num" aria-hidden="true">${slotNum}</span>
+                <div class="slot-crest-wrap">${getFreeRoamLogoSvg(46)}</div>
+                <div class="slot-identity-col">
+                  <div class="slot-header-row">
+                    <span class="dossier-tag">DOSSIÊ // SLOT ${slotNum}</span>
+                    <span class="slot-status-tag">${standbyTag}</span>
+                  </div>
                   <div class="slot-meta-list slot-empty-copy">
                     <span>${t.emptySlot}</span>
                   </div>
@@ -163,20 +167,16 @@ export function installTitleAndSaveSlotsController(LegoHud) {
             ? new Set([fKey, ...s.conqueredTerritories]).size
             : 1;
           return `
-            <div class="save-slot-card" data-faction="${fKey}" style="border-top-color:${fData.color}">
-              <div class="slot-header-row">
-                <div class="dossier-tag">SLOT 0${idx + 1} // ${s.updatedAt || ''}</div>
-                <span class="slot-status-tag active">${activeTag}</span>
-              </div>
-              <div class="faction-card-top">
-                ${getFactionLogoSvg(fKey, 60)}
-                <div>
-                  <div class="faction-card-name" style="color:${fData.color}; font-size:1.38rem;">
-                    ${fData.name[lang] || fData.name['pt-BR']}
-                  </div>
-                  <div class="faction-card-fortress">
-                    ${fData.shortName[lang] || fData.shortName['pt-BR']}
-                  </div>
+            <div class="save-slot-card" data-faction="${fKey}" data-slot-index="${idx}" style="--slot-accent:${fData.color}">
+              <span class="slot-ghost-num" aria-hidden="true">${slotNum}</span>
+              <div class="slot-crest-wrap">${getFactionLogoSvg(fKey, 48)}</div>
+              <div class="slot-identity-col">
+                <div class="slot-header-row">
+                  <span class="dossier-tag">SLOT ${slotNum} // ${s.updatedAt || ''}</span>
+                  <span class="slot-status-tag active">${activeTag}</span>
+                </div>
+                <div class="faction-card-name" style="color:${fData.color}">
+                  ${fData.name[lang] || fData.name['pt-BR']}
                 </div>
               </div>
               <div class="slot-meta-list">
@@ -196,29 +196,42 @@ export function installTitleAndSaveSlotsController(LegoHud) {
         })
         .join('');
 
+      const triggerSlotAction = (idx, action) => {
+        if (action === 'delete') {
+          deleteSaveSlot(idx);
+          soundFX.playPlasticHit();
+          this._openSaveSlotsPanel(mode);
+        } else if (action === 'load') {
+          const currentSlots = loadAllSaveSlots();
+          const saved = currentSlots[idx];
+          if (saved) {
+            this.activeSaveSlot = idx;
+            this.startLoadingSequence(saved, false);
+          }
+        } else {
+          this.pendingSlotIndex = idx;
+          this.activeSaveSlot = idx;
+          soundFX.playHeroSwap();
+          this._openFactionSelectionPanel();
+        }
+      };
+
       if (typeof this.saveSlotsGridEl?.querySelectorAll === 'function') {
         this.saveSlotsGridEl.querySelectorAll('button[data-slot-action]').forEach((btn) => {
-          btn.addEventListener('click', () => {
+          btn.addEventListener('click', (e) => {
+            e?.stopPropagation?.();
             const idx = Number(btn.dataset.slot || 0);
-            const action = btn.dataset.slotAction;
-            if (action === 'delete') {
-              deleteSaveSlot(idx);
-              soundFX.playPlasticHit();
-              this._openSaveSlotsPanel(mode);
-            } else if (action === 'load') {
-              const currentSlots = loadAllSaveSlots();
-              const saved = currentSlots[idx];
-              if (saved) {
-                this.activeSaveSlot = idx;
-                this.startLoadingSequence(saved, false);
-              }
-            } else {
-              // Novo Jogo: abre o Painel de Escolha das 3 Facções (CV / PCC / A.R.E.S.)!
-              this.pendingSlotIndex = idx;
-              this.activeSaveSlot = idx;
-              soundFX.playHeroSwap();
-              this._openFactionSelectionPanel();
-            }
+            triggerSlotAction(idx, btn.dataset.slotAction);
+          });
+        });
+
+        this.saveSlotsGridEl.querySelectorAll('.save-slot-card').forEach((rowEl) => {
+          rowEl.addEventListener('click', (e) => {
+            if (e?.target?.closest?.('button[data-slot-action]')) return;
+            const idx = Number(rowEl.dataset?.slotIndex || 0);
+            const hasSave = Boolean(slots[idx]);
+            const defaultAction = !hasSave || mode === 'new' ? 'start-new' : 'load';
+            triggerSlotAction(idx, defaultAction);
           });
         });
       }
@@ -226,22 +239,30 @@ export function installTitleAndSaveSlotsController(LegoHud) {
 
     _openFactionSelectionPanel() {
       const lang = this.settings?.language || 'pt-BR';
-      const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
       this._setTitleSubPanel('faction');
       if (!this.factionCardsGridEl) return;
 
-      const commanderLbl = lang === 'en-US' ? 'WAR COMMANDER' : 'COMANDANTE DE GUERRA';
+      const commanderLbl = lang === 'en-US' ? 'WAR COMMANDER' : 'COMANDANTE';
+      const ctaText = lang === 'en-US' ? '[ TAKE COMMAND ▸ ]' : '[ ASSUMIR COMANDO ▸ ]';
 
       this.factionCardsGridEl.innerHTML = ['cv', 'pcc', 'ares']
         .map((fKey) => {
           const f = FACTION_DATA[fKey];
+          const acronym = FACTION_ACRONYMS[fKey] || fKey.toUpperCase();
           return `
             <div class="faction-choice-card" data-faction="${fKey}">
-              <div>
+              <div class="faction-pillar-beam" aria-hidden="true"></div>
+              <div class="faction-pillar-watermark" aria-hidden="true">
+                ${getFactionLogoSvg(fKey, 220)}
+              </div>
+              <div class="faction-pillar-top">
+                <div class="faction-pillar-acronym" aria-hidden="true">${acronym}</div>
+                <div class="faction-card-code">PROTOCOLO // ${fKey.toUpperCase()}</div>
+              </div>
+              <div class="faction-pillar-bottom">
                 <div class="faction-card-top">
-                  ${getFactionLogoSvg(fKey, 78)}
+                  ${getFactionLogoSvg(fKey, 72)}
                   <div>
-                    <div class="faction-card-code">PROTOCOLO // ${fKey.toUpperCase()}</div>
                     <div class="faction-card-name" style="color:${f.color}">
                       ${f.name[lang] || f.name['pt-BR']}
                     </div>
@@ -250,62 +271,74 @@ export function installTitleAndSaveSlotsController(LegoHud) {
                     </div>
                   </div>
                 </div>
-                <div class="faction-card-boss">
-                  <span>${commanderLbl}:</span>
-                  <b>${f.bossName[lang] || f.bossName['pt-BR']}</b>
+                <div class="faction-pillar-reveal">
+                  <div class="faction-card-boss">
+                    <span>${commanderLbl}:</span>
+                    <b>${f.bossName[lang] || f.bossName['pt-BR']}</b>
+                  </div>
+                  <p class="faction-card-desc">
+                    ${f.desc[lang] || f.desc['pt-BR']}
+                  </p>
                 </div>
-                <p class="faction-card-desc">
-                  ${f.desc[lang] || f.desc['pt-BR']}
-                </p>
+                <button class="tactical-btn faction-select-btn" data-choose-faction="${fKey}">
+                  ${ctaText}
+                </button>
               </div>
-              <button class="tactical-btn faction-select-btn" data-choose-faction="${fKey}" style="border-color:${f.color}; color:${f.color}; width:100%;">
-                ${t.joinFactionBtn}
-              </button>
             </div>
           `;
         })
         .join('');
 
+      const commitFactionChoice = (chosenFaction = 'cv') => {
+        this.activeSaveSlot = this.pendingSlotIndex ?? this.activeSaveSlot ?? 0;
+
+        if (!this.isTitleScreenActive) {
+          this.setPlayerFaction(chosenFaction, true);
+          this.saveCurrentProgress();
+          this.titleOverlayEl?.classList.add('hidden');
+          document.body?.classList.remove('title-or-loading-active');
+          soundFX.playTrueHeroFanfare();
+          if (this._lastController && typeof this._lastController.relockPointer === 'function') {
+            this._lastController.relockPointer();
+          }
+          return;
+        }
+
+        const defaultCustom = createDefaultCustomHeroState();
+        const defaultGarage = createDefaultGarageSaveData();
+        const defaultAircraft = createDefaultAircraftSaveData();
+        setActiveCustomHero(defaultCustom);
+        setActiveGarageSaveData(defaultGarage);
+        setActiveAircraftSaveData(defaultAircraft);
+        syncOp09CatalogSlot();
+        if (this.tiktokRadio) {
+          this.tiktokRadio.importSaveState(null);
+        }
+        const slotData = writeSaveSlot(this.activeSaveSlot, {
+          faction: chosenFaction,
+          studs: 0,
+          heroKey: 'caveira',
+          conqueredTerritories: [],
+          customHero: defaultCustom,
+          customGarage: defaultGarage,
+          aircraftCustom: defaultAircraft,
+          radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
+        });
+        this.startLoadingSequence(slotData, true);
+      };
+
       if (typeof this.factionCardsGridEl?.querySelectorAll === 'function') {
         this.factionCardsGridEl.querySelectorAll('button[data-choose-faction]').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            const chosenFaction = btn.dataset.chooseFaction || 'cv';
-            this.activeSaveSlot = this.pendingSlotIndex ?? this.activeSaveSlot ?? 0;
+          btn.addEventListener('click', (e) => {
+            e?.stopPropagation?.();
+            commitFactionChoice(btn.dataset.chooseFaction || 'cv');
+          });
+        });
 
-            if (!this.isTitleScreenActive) {
-              // Troca instantânea de Facção durante a partida via [ESC] sem recarregar o motor 3D!
-              this.setPlayerFaction(chosenFaction, true);
-              this.saveCurrentProgress();
-              this.titleOverlayEl?.classList.add('hidden');
-              document.body?.classList.remove('title-or-loading-active');
-              soundFX.playTrueHeroFanfare();
-              if (this._lastController && typeof this._lastController.relockPointer === 'function') {
-                this._lastController.relockPointer();
-              }
-              return;
-            }
-
-            const defaultCustom = createDefaultCustomHeroState();
-            const defaultGarage = createDefaultGarageSaveData();
-            const defaultAircraft = createDefaultAircraftSaveData();
-            setActiveCustomHero(defaultCustom);
-            setActiveGarageSaveData(defaultGarage);
-            setActiveAircraftSaveData(defaultAircraft);
-            syncOp09CatalogSlot();
-            if (this.tiktokRadio) {
-              this.tiktokRadio.importSaveState(null);
-            }
-            const slotData = writeSaveSlot(this.activeSaveSlot, {
-              faction: chosenFaction,
-              studs: 0,
-              heroKey: 'caveira',
-              conqueredTerritories: [],
-              customHero: defaultCustom,
-              customGarage: defaultGarage,
-              aircraftCustom: defaultAircraft,
-              radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
-            });
-            this.startLoadingSequence(slotData, true);
+        this.factionCardsGridEl.querySelectorAll('.faction-choice-card').forEach((card) => {
+          card.addEventListener('click', (e) => {
+            if (e?.target?.closest?.('button[data-choose-faction]')) return;
+            commitFactionChoice(card.dataset?.faction || 'cv');
           });
         });
       }
@@ -327,9 +360,6 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       }
     },
 
-    /**
-     * Executa a Tela de Loading Real (0% -> 100%) com Compilação de Shaders WebGL e Warm-Up 360° Anti-Lag!
-     */
     startLoadingSequence(slotData, isNewOrSwitch = false) {
       this.isTitleScreenActive = false;
       this.isLoadingActive = true;
@@ -355,7 +385,7 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       const fInfo = FACTION_DATA[chosenFaction];
 
       if (this.loadingFactionLogoEl) {
-        this.loadingFactionLogoEl.innerHTML = getFactionLogoSvg(chosenFaction, 80);
+        this.loadingFactionLogoEl.innerHTML = getFactionLogoSvg(chosenFaction, 76);
       }
       if (this.loadingFactionTitleEl) {
         this.loadingFactionTitleEl.textContent = fInfo.name[lang] || fInfo.name['pt-BR'] || t.subtitle;
@@ -387,13 +417,16 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       }
 
       this._setLoadingProgressUI(
-        8,
+        10,
         lang === 'en-US'
           ? 'DEPLOYING OPERATOR & SYNCING DARK METROPOLIS...'
           : 'POSICIONANDO OPERADOR & SINCRONIZANDO METRÓPOLE SOMBRIA...'
       );
 
-      const nextFrame = (fn, delay = 28) => setTimeout(() => requestAnimationFrame(fn), delay);
+      const nextFrame = (fn) =>
+        typeof requestAnimationFrame === 'function'
+          ? requestAnimationFrame(fn)
+          : setTimeout(fn, 0);
 
       const safeWarmup = (stage, idx = 0) => {
         if (typeof this.onWarmupStep === 'function') {
@@ -407,7 +440,6 @@ export function installTitleAndSaveSlotsController(LegoHud) {
         return true;
       };
 
-      // ETAPA 1 (0% -> 24%): Inicializa Motor WebGL + Cidade 3D sob demanda, Save, Herói e Matrizes
       nextFrame(() => {
         const engineOk = safeWarmup('init_engine', 0);
         if (!engineOk) {
@@ -452,48 +484,44 @@ export function installTitleAndSaveSlotsController(LegoHud) {
 
         safeWarmup('matrices', 0);
         this._setLoadingProgressUI(
-          24,
+          28,
           lang === 'en-US'
             ? 'MOBILIZING NIGHT TRAFFIC, PATROLS & UNDERWORLD...'
             : 'MOBILIZANDO TRÁFEGO NOTURNO, PATRULHAS & SUBMUNDO...'
         );
 
-        // ETAPA 2 (24% -> 46%): Aquecimento da simulação das facções, carros e partículas
         nextFrame(() => {
           safeWarmup('simulate_entities', 0);
           this._setLoadingProgressUI(
-            48,
+            52,
             lang === 'en-US'
               ? 'COMPILING PBR NOIR SHADERS & GPU TEXTURES...'
               : 'COMPILANDO SHADERS PBR SOMBRIOS & TEXTURAS NA GPU...'
           );
 
-          // ETAPA 3 (48% -> 68%): Compilação explícita de Shaders WebGL na GPU
           nextFrame(() => {
             safeWarmup('compile_shaders', 0);
             this._setLoadingProgressUI(
               68,
               lang === 'en-US'
-                ? 'STREAMING 360° URBAN GEOMETRY WARM-UP (1/8)...'
-                : 'AQUECENDO GEOMETRIA URBANA 360° ANTI-ENGASGO (1/8)...'
+                ? 'STREAMING 360° URBAN GEOMETRY WARM-UP (1/4)...'
+                : 'AQUECENDO GEOMETRIA URBANA 360° ANTI-ENGASGO (1/4)...'
             );
 
-            // ETAPA 4 (68% -> 96%): Renderiza 8 direções (0°..315°) para carregar toda a geometria na VRAM!
             const runAngleStep = (angleIdx) => {
-              if (angleIdx < 8) {
+              if (angleIdx < 4) {
                 safeWarmup('render_360', angleIdx);
-                const pct = 68 + Math.round(((angleIdx + 1) / 8) * 28);
+                const pct = 68 + Math.round(((angleIdx + 1) / 4) * 28);
                 this._setLoadingProgressUI(
                   pct,
                   lang === 'en-US'
-                    ? `STREAMING 360° URBAN GEOMETRY WARM-UP (${angleIdx + 1}/8)...`
-                    : `AQUECENDO GEOMETRIA URBANA 360° ANTI-ENGASGO (${angleIdx + 1}/8)...`
+                    ? `STREAMING 360° URBAN GEOMETRY WARM-UP (${angleIdx + 1}/4)...`
+                    : `AQUECENDO GEOMETRIA URBANA 360° ANTI-ENGASGO (${angleIdx + 1}/4)...`
                 );
-                nextFrame(() => runAngleStep(angleIdx + 1), 22);
+                nextFrame(() => runAngleStep(angleIdx + 1));
                 return;
               }
 
-              // ETAPA 5 (100%): Restaura câmera, zera dt e libera o jogo a 60 FPS!
               safeWarmup('finish', 0);
               this._setLoadingProgressUI(
                 100,
@@ -515,10 +543,10 @@ export function installTitleAndSaveSlotsController(LegoHud) {
                 if (this._lastController && typeof this._lastController.relockPointer === 'function') {
                   this._lastController.relockPointer();
                 }
-              }, 140);
+              });
             };
 
-            nextFrame(() => runAngleStep(0), 25);
+            nextFrame(() => runAngleStep(0));
           });
         });
       });

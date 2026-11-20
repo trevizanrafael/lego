@@ -1,34 +1,18 @@
-/* ===================================================
-   CHASSI BLINDADO GOTHAM DO OPERADOR (CANTO SUPERIOR ESQUERDO)
-   Estética Gotham Dark Theme / Arkham Tactical Noir (Zero Glassmorphism)
-   =================================================== */
+/* =========================================================================
+   HUD DO OPERADOR 100% FRAMELESS (ESTILO GTA V / ARKHAM KNIGHT / NFS)
+   Zero caixotes fechados — elementos flutuando limpos sobre o mundo 3D
+   ========================================================================= */
 #lego-classic-hud,
 #lego-classic-hud.gotham-operator-chassis {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 13px;
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      rgba(125, 211, 252, 0.014) 0px,
-      rgba(125, 211, 252, 0.014) 2px,
-      transparent 2px,
-      transparent 7px
-    ),
-    linear-gradient(135deg, rgba(4, 6, 10, 0.96) 0%, rgba(10, 14, 23, 0.94) 100%);
-  border: 1.5px solid #1d2638;
-  border-left: 4px solid var(--hero-accent, #c28e2b);
-  padding: 10px 16px 10px 11px;
-  clip-path: polygon(
-    0 0,
-    calc(100% - 14px) 0,
-    100% 14px,
-    100% 100%,
-    10px 100%,
-    0 calc(100% - 10px)
-  );
-  box-shadow: 6px 6px 0 #000000;
+  gap: 12px;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  clip-path: none !important;
+  box-shadow: none !important;
 }
 
 #world-war-hud-panel,
@@ -41,42 +25,25 @@
 
 .tactical-portrait-frame {
   position: relative;
-  width: 78px;
-  height: 78px;
-  background: radial-gradient(circle at 50% 38%, #101622 0%, #04060a 78%);
-  border: 1.5px solid #2c3a52;
+  width: 58px;
+  height: 58px;
+  background: radial-gradient(circle at 50% 38%, rgba(16, 22, 34, 0.88) 0%, rgba(4, 6, 10, 0.94) 82%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   clip-path: polygon(
-    11px 0,
+    10px 0,
     100% 0,
-    100% calc(100% - 11px),
-    calc(100% - 11px) 100%,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
     0 100%,
-    0 11px
+    0 10px
   );
-  box-shadow: 4px 4px 0 #000000;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.9));
   flex-shrink: 0;
 }
 
-.frame-corner-tl {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 15px;
-  height: 15px;
-  background: var(--hero-accent, #c28e2b);
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-  z-index: 2;
-}
-
+.frame-corner-tl,
 .frame-corner-br {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 13px;
-  height: 13px;
-  background: var(--hero-accent, #c28e2b);
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  z-index: 2;
+  display: none;
 }
 
 #hud-portrait-canvas {
@@ -88,24 +55,24 @@
 .op-code-tag {
   position: absolute;
   bottom: 2px;
-  left: 4px;
-  background: #04060a;
-  color: var(--hero-accent, #d99b16);
+  right: 4px;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.78);
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: 0.52rem;
   font-weight: 800;
-  padding: 1px 5px;
+  padding: 0;
   letter-spacing: 0.06em;
-  border: 1px solid #1e283a;
-  border-left: 2px solid var(--hero-accent, #c28e2b);
+  border: none;
+  text-shadow: 0 1px 4px #000000, 0 0 2px #000000;
   z-index: 3;
 }
 
 .hud-right-col {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 226px;
+  gap: 4px;
+  min-width: 196px;
 }
 
 .hud-name-row {
@@ -114,34 +81,34 @@
   justify-content: space-between;
   gap: 10px;
   font-family: var(--font-display);
-  font-size: 1.4rem;
+  font-size: 1.42rem;
   font-weight: 700;
-  line-height: 0.92;
+  line-height: 0.88;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--idv-white);
-  text-shadow: 2px 2px 0 #000000;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95), 0 1px 2px #000000;
 }
 
 .hud-hp-num {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.06em;
-  color: #7dd3fc;
+  color: rgba(203, 213, 225, 0.76);
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px #000000;
 }
 
-/* Barra Blindada Dupla de HP com Ghost-Damage + Entalhes Táticos */
+/* Barra Fina Frameless Estilo GTA V (6px de altura, zero moldura grossa) */
 .hud-hp-bar-wrap {
   position: relative;
-  width: 226px;
-  height: 11px;
-  background: #04060a;
-  border: 1px solid #1e283a;
-  transform: skewX(-18deg);
+  width: 196px;
+  height: 6px;
+  background: rgba(4, 6, 10, 0.68);
+  border: none;
   overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.92);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
 }
 
 .hud-hp-ghost-fill {
@@ -149,8 +116,8 @@
   top: 0;
   left: 0;
   bottom: 0;
-  background: rgba(125, 211, 252, 0.42);
-  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  background: rgba(248, 250, 252, 0.45);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 1;
 }
 
@@ -159,68 +126,56 @@
   top: 0;
   left: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #691111 0%, #991b1b 52%, #dc2626 100%);
-  border-right: 2px solid #f87171;
-  transition: width 0.12s ease-out;
+  background: linear-gradient(90deg, #991b1b 0%, #dc2626 70%, #ef4444 100%);
+  transition: width 0.1s ease-out;
   z-index: 2;
 }
 
 .hud-hp-notches {
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0px,
-    transparent 20px,
-    rgba(4, 6, 10, 0.85) 20px,
-    rgba(4, 6, 10, 0.85) 22px
-  );
-  z-index: 3;
-  pointer-events: none;
+  display: none;
 }
 
 .hud-hp-bar-wrap.critical-hp {
-  border-color: #dc2626;
-  animation: hudCriticalPulse 0.72s infinite alternate;
+  animation: hudCriticalPulse 0.65s infinite alternate;
 }
 
 .hud-hp-bar-wrap.healing-hp .hud-hp-bar-fill {
-  background: linear-gradient(90deg, #064e3b 0%, #059669 100%);
-  border-right-color: #6ee7b7;
+  background: linear-gradient(90deg, #059669 0%, #34d399 100%);
 }
 
 @keyframes hudCriticalPulse {
-  from { box-shadow: 0 0 0 rgba(220, 38, 38, 0); }
-  to   { box-shadow: 0 0 10px rgba(220, 38, 38, 0.65); }
+  from { filter: drop-shadow(0 0 0 rgba(220, 38, 38, 0)); }
+  to   { filter: drop-shadow(0 0 8px rgba(220, 38, 38, 0.85)); }
 }
 
-/* Faixa Dinâmica de Kit / Poderes do Operador (Aço Noturno #0a0e17) */
+/* Atalhos de Poderes Sem Caixas (Texto Puro Flutuante Discreto) */
 .hud-ability-strip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   flex-wrap: nowrap;
+  margin-top: 1px;
 }
 
 .ability-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: #0a0e17;
-  border: 1px solid #1e283a;
-  border-bottom: 2px solid var(--hero-accent, #c28e2b);
-  padding: 2px 6px;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  padding: 0;
   font-family: var(--font-mono);
   font-size: 0.56rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #9aa7ba;
-  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(203, 213, 225, 0.64);
+  clip-path: none;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.98), 0 0 2px #000000;
   white-space: nowrap;
 }
 
 .ability-chip b {
-  color: var(--hero-accent, #d99b16);
+  color: var(--hero-accent, #e2e8f0);
   font-weight: 800;
 }
 
@@ -236,97 +191,92 @@
 }
 
 .lego-heart {
-  filter: drop-shadow(2px 2px 0 #04060a);
-  transition: transform 0.15s ease, filter 0.15s ease;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.9));
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
 
 .lego-heart:not(.active) {
   opacity: 0.24;
-  filter: grayscale(0.85) drop-shadow(1px 1px 0 #04060a);
+  filter: grayscale(0.85) drop-shadow(0 1px 3px #000000);
 }
 
 .hearts-row.healing-pulse .lego-heart.active {
-  filter: drop-shadow(0 0 6px #10b981) drop-shadow(2px 2px 0 #04060a);
+  filter: drop-shadow(0 0 6px #10b981) drop-shadow(0 2px 4px #000000);
   transform: scale(1.06);
 }
 
-/* Insígnia Octogonal Metálica Sombria de Espólios / Créditos */
+/* Contador de Créditos / Espólios Estilo GTA ($ Limpo Flutuante Sem Caixa) */
 .stud-counter-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 1px;
+  gap: 7px;
+  margin-top: 2px;
 }
 
 .hud-stud-3d {
-  width: 20px;
-  height: 20px;
-  background: linear-gradient(145deg, #c28e2b 0%, #6b4c10 100%);
-  border: 1.5px solid #04060a;
-  outline: 1px solid #2c3a52;
-  clip-path: polygon(28% 0%, 72% 0%, 100% 28%, 100% 72%, 72% 100%, 28% 100%, 0% 72%, 0% 28%);
-  box-shadow: 2px 2px 0 #000000;
+  width: 13px;
+  height: 13px;
+  background: linear-gradient(145deg, #d99b16 0%, #78500d 100%);
+  border: none;
+  outline: none;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.95));
   position: relative;
   flex-shrink: 0;
 }
 
 .hud-stud-3d::after {
-  content: '';
-  position: absolute;
-  inset: 4px;
-  background: rgba(4, 6, 10, 0.36);
-  border: 1px solid rgba(220, 227, 238, 0.34);
-  clip-path: polygon(28% 0%, 72% 0%, 100% 28%, 100% 72%, 72% 100%, 28% 100%, 0% 72%, 0% 28%);
+  display: none;
 }
 
-.hud-stud-3d[data-tier="silver"] { background: linear-gradient(145deg, #94a3b8 0%, #334155 100%); }
-.hud-stud-3d[data-tier="gold"]   { background: linear-gradient(145deg, #c28e2b 0%, #6b4c10 100%); }
-.hud-stud-3d[data-tier="blue"]   { background: linear-gradient(145deg, #2563eb 0%, #0f296b 100%); }
-.hud-stud-3d[data-tier="purple"] { background: linear-gradient(145deg, #7e22ce 0%, #3b0764 100%); }
+.hud-stud-3d[data-tier="silver"] { background: linear-gradient(145deg, #cbd5e1 0%, #475569 100%); }
+.hud-stud-3d[data-tier="gold"]   { background: linear-gradient(145deg, #d99b16 0%, #78500d 100%); }
+.hud-stud-3d[data-tier="blue"]   { background: linear-gradient(145deg, #60a5fa 0%, #1d4ed8 100%); }
+.hud-stud-3d[data-tier="purple"] { background: linear-gradient(145deg, #c084fc 0%, #6b21a8 100%); }
 
 .hud-stud-3d.pop {
-  animation: studPop 0.2s steps(3);
+  animation: studPop 0.18s ease-out;
 }
 
 @keyframes studPop {
   0% { transform: scale(1); }
-  50% { transform: scale(1.26); }
+  50% { transform: scale(1.32); }
   100% { transform: scale(1); }
 }
 
 #hud-stud-count {
   font-family: var(--font-display);
-  font-size: 1.82rem;
+  font-size: 1.75rem;
   font-weight: 700;
-  line-height: 0.85;
+  line-height: 0.84;
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
-  color: var(--idv-white);
-  text-shadow: 2px 2px 0 #000000;
+  color: #f8fafc;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.96), 0 1px 2px #000000;
 }
 
 #hud-stud-gain {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  padding: 1px 6px;
-  background: #04060a;
-  border: 1px solid #1e283a;
-  border-left: 3px solid #c28e2b;
+  padding: 0;
+  background: transparent;
+  border: none;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.96), 0 0 2px #000000;
   opacity: 0;
-  transform: translateX(-6px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transform: translateY(3px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
 #hud-stud-gain.show {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateY(0);
 }
 
-#hud-stud-gain[data-tier="silver"] { color: #cbd5e1; border-left-color: #94a3b8; }
-#hud-stud-gain[data-tier="gold"]   { color: #d99b16; border-left-color: #c28e2b; }
-#hud-stud-gain[data-tier="blue"]   { color: #7dd3fc; border-left-color: #2563eb; }
-#hud-stud-gain[data-tier="purple"] { color: #c084fc; border-left-color: #7e22ce; }
+#hud-stud-gain[data-tier="silver"] { color: #e2e8f0; }
+#hud-stud-gain[data-tier="gold"]   { color: #f59e0b; }
+#hud-stud-gain[data-tier="blue"]   { color: #7dd3fc; }
+#hud-stud-gain[data-tier="purple"] { color: #d8b4fe; }
 
 /* ===================================================
    CLUSTER SUPERIOR DIREITO & SILHUETAS DE ARMAS (OP-04)
@@ -362,58 +312,46 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 10px;
-  border-right: 3px solid transparent;
+  padding-right: 8px;
+  border-right: 2px solid transparent;
   color: #64748b;
-  opacity: 0.26;
-  filter: drop-shadow(2px 2px 0 #000000);
+  opacity: 0.24;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.92));
   transform-origin: right center;
   transition:
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.2s ease,
-    color 0.2s ease,
-    border-color 0.2s ease,
-    filter 0.2s ease;
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
 }
 
-/* Arma Anterior (Topo do Scroll) */
 .csgo-weapon-slot.slot-prev {
   transform: translate3d(0, 0px, 0) scale(0.72);
-  opacity: 0.26;
-  color: #64748b;
-  border-right-color: #1e283a;
+  opacity: 0.22;
+  color: #94a3b8;
   z-index: 1;
 }
 
-/* Arma Ativa (Centro do Scroll — Aço & Bronze) */
 .csgo-weapon-slot.slot-active {
-  transform: translate3d(-6px, 50px, 0) scale(1.08);
+  transform: translate3d(-4px, 50px, 0) scale(1.06);
   opacity: 1;
-  color: #dce3ee;
-  border-right-width: 4px;
-  border-right-color: #c28e2b;
-  filter:
-    drop-shadow(3px 3px 0 #000000)
-    drop-shadow(-1px -1px 0 #04060a);
+  color: #f8fafc;
+  border-right-color: #dc2626;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.96));
   z-index: 3;
 }
 
-/* Arma Seguinte (Base do Scroll) */
 .csgo-weapon-slot.slot-next {
   transform: translate3d(0, 102px, 0) scale(0.72);
-  opacity: 0.26;
-  color: #64748b;
-  border-right-color: #1e283a;
+  opacity: 0.22;
+  color: #94a3b8;
   z-index: 1;
 }
 
-/* Quando [Q] Furor do Justiceiro está ativo, silhueta pulsa em Carmesim Arterial */
 #vingador-weapon-hud.furor-active .csgo-weapon-slot.slot-active {
-  color: #d99b16;
-  border-right-color: #dc2626;
-  filter:
-    drop-shadow(3px 3px 0 #000000)
-    drop-shadow(0 0 7px rgba(220, 38, 38, 0.78));
+  color: #f87171;
+  border-right-color: #ef4444;
+  filter: drop-shadow(0 0 10px rgba(220, 38, 38, 0.85));
 }
 
 .csgo-silhouette-svg {
@@ -421,63 +359,46 @@
 }
 
 /* ===================================================
-   VELOCÍMETRO DIGITAL GOTHAM DARK-TUNER
-   Exibido APENAS ao Dirigir/Pilotar Veículos
+   VELOCÍMETRO FRAMELESS ESTILO GTA / NEED FOR SPEED
+   Zero caixa — dígitos inclinados gigantes flutuando limpos
    =================================================== */
 #vehicle-speedometer {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 234px;
-  background: linear-gradient(145deg, rgba(4, 6, 10, 0.97) 0%, rgba(13, 18, 29, 0.95) 100%);
-  border: 1.5px solid #1e283a;
-  border-right: 5px solid #c28e2b;
-  padding: 9px 15px 10px;
-  clip-path: polygon(
-    14px 0,
-    100% 0,
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%,
-    0 100%,
-    0 14px
-  );
-  box-shadow: 6px 6px 0 #000000;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 186px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  clip-path: none;
+  box-shadow: none;
 }
 
 #vehicle-speedometer.hidden {
   display: none;
 }
 
-#vehicle-speedometer.turbo-active {
-  border-color: #2c3a52;
-  border-right-color: #38bdf8;
-}
-
-#vehicle-speedometer.drift-active {
-  border-color: #2c3a52;
-  border-right-color: #dc2626;
-}
-
 .speedo-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid #1e283a;
-  padding-bottom: 4px;
+  gap: 8px;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .speedo-veh-name {
   font-family: var(--font-tactical);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #9aa7ba;
+  letter-spacing: 0.12em;
+  color: rgba(203, 213, 225, 0.72);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 162px;
+  max-width: 170px;
 }
 
 #vehicle-speedometer.turbo-active .speedo-veh-name {
@@ -485,26 +406,28 @@
 }
 
 .speedo-gear {
-  background: #c28e2b;
-  color: #04060a;
+  background: transparent;
+  border-left: 2px solid #d99b16;
+  color: #f8fafc;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 800;
-  padding: 1px 7px;
-  clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+  padding: 0 0 0 6px;
+  clip-path: none;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
 }
 
 #vehicle-speedometer.turbo-active .speedo-gear {
-  background: #38bdf8;
-  color: #04060a;
+  border-left-color: #38bdf8;
+  color: #7dd3fc;
 }
 
 .speedo-main-row {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 2px 0 1px;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0;
 }
 
 .speedo-kmh-stack {
@@ -517,50 +440,53 @@
 .speedo-kmh-val {
   grid-area: 1 / 1;
   font-family: var(--font-display);
-  font-size: 3.05rem;
+  font-size: 4.1rem;
+  font-style: italic;
   font-weight: 700;
-  line-height: 0.82;
-  letter-spacing: 0.04em;
+  line-height: 0.78;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .speedo-kmh-ghost {
-  color: rgba(122, 136, 158, 0.12);
+  color: rgba(15, 23, 42, 0.22);
   pointer-events: none;
   user-select: none;
 }
 
 .speedo-kmh-val {
-  color: var(--idv-white);
-  text-shadow: 3px 3px 0 #000000;
+  color: #ffffff;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.96), 0 1px 3px #000000;
 }
 
 #vehicle-speedometer.turbo-active .speedo-kmh-val {
-  color: #7dd3fc;
-  text-shadow: 0 0 10px rgba(56, 189, 248, 0.4), 3px 3px 0 #000000;
+  color: #bae6fd;
+  text-shadow: 0 0 14px rgba(56, 189, 248, 0.55), 0 4px 12px rgba(0, 0, 0, 0.95);
 }
 
 .speedo-unit-col {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 1px;
+  gap: 0;
 }
 
 .speedo-unit {
   font-family: var(--font-mono);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  color: #d99b16;
-  letter-spacing: 0.08em;
+  color: rgba(226, 232, 240, 0.82);
+  letter-spacing: 0.1em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
 }
 
 .speedo-mode-tag {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: 0.54rem;
   font-weight: 800;
-  color: var(--idv-muted);
-  letter-spacing: 0.06em;
+  color: rgba(148, 163, 184, 0.68);
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 4px #000000;
 }
 
 #vehicle-speedometer.turbo-active .speedo-mode-tag {
@@ -568,58 +494,54 @@
 }
 
 #vehicle-speedometer.drift-active .speedo-mode-tag {
-  color: #dc2626;
+  color: #f87171;
 }
 
 .speedo-rpm-bars {
   display: flex;
   align-items: flex-end;
   gap: 3px;
-  height: 15px;
-  margin-top: 2px;
+  width: 176px;
+  height: 8px;
+  margin-top: 3px;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.9));
 }
 
 .speedo-bar-seg {
   flex: 1;
-  height: 7px;
-  background: #101622;
-  border: 1px solid rgba(30, 40, 58, 0.6);
+  height: 4px;
+  background: rgba(15, 23, 42, 0.56);
+  border: none;
   transform: skewX(-24deg);
-  transition: background 0.08s ease, border-color 0.08s ease;
+  transition: background 0.06s ease, height 0.06s ease;
 }
 
-.speedo-bar-seg:nth-child(n+4)  { height: 8.5px; }
-.speedo-bar-seg:nth-child(n+7)  { height: 10px; }
-.speedo-bar-seg:nth-child(n+10) { height: 12px; }
-.speedo-bar-seg:nth-child(n+12) { height: 14px; }
+.speedo-bar-seg:nth-child(n+6)  { height: 5px; }
+.speedo-bar-seg:nth-child(n+10) { height: 6.5px; }
+.speedo-bar-seg:nth-child(n+13) { height: 8px; }
 
 .speedo-bar-seg.lit {
-  background: #c28e2b;
-  border-color: #d99b16;
+  background: #f8fafc;
 }
 
 .speedo-bar-seg.lit.high {
-  background: #d97706;
-  border-color: #f59e0b;
+  background: #d99b16;
 }
 
 .speedo-bar-seg.lit.redline {
   background: #dc2626;
-  border-color: #ef4444;
-  box-shadow: 0 0 6px rgba(220, 38, 38, 0.65);
 }
 
 #vehicle-speedometer.turbo-active .speedo-bar-seg.lit {
   background: #38bdf8;
-  border-color: #7dd3fc;
 }
 
 /* ===================================================
-   TOAST DE TRANSIÇÃO DE REGIÃO & INDICADOR DE VEÍCULO [E]
+   REVELAÇÃO CINEMATOGRÁFICA DE BAIRRO & PROMPT [E] (ESTILO GTA)
    =================================================== */
 #region-toast {
   position: fixed;
-  top: 20px;
+  top: 28px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 19;
@@ -627,19 +549,11 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 9px 26px 10px;
-  background: linear-gradient(135deg, rgba(4, 6, 10, 0.96) 0%, rgba(13, 18, 29, 0.94) 100%);
-  border: 1.5px solid #1e283a;
-  border-top: 3px solid #c28e2b;
-  clip-path: polygon(
-    14px 0,
-    calc(100% - 14px) 0,
-    100% 14px,
-    100% 100%,
-    10px 100%,
-    0 calc(100% - 10px)
-  );
-  box-shadow: 6px 6px 0 #000000;
+  padding: 0;
+  background: transparent;
+  border: none;
+  clip-path: none;
+  box-shadow: none;
   text-align: center;
   pointer-events: none;
 }
@@ -650,55 +564,63 @@
 
 .toast-code {
   font-family: var(--font-mono);
-  font-size: 0.64rem;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
-  color: #7dd3fc;
+  letter-spacing: 0.26em;
+  color: rgba(203, 213, 225, 0.72);
   text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.96);
 }
 
 .toast-title {
+  position: relative;
   font-family: var(--font-display);
-  font-size: 1.65rem;
+  font-size: 2.55rem;
   font-weight: 700;
-  line-height: 0.95;
-  letter-spacing: 0.06em;
-  color: var(--idv-white);
+  line-height: 0.9;
+  letter-spacing: 0.08em;
+  color: #ffffff;
   text-transform: uppercase;
-  text-shadow: 2px 2px 0 #000000;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.96), 0 1px 3px #000000;
+  padding-bottom: 5px;
+}
+
+.toast-title::after {
+  content: '';
+  position: absolute;
+  left: -18%;
+  right: -18%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.48) 50%, transparent 100%);
 }
 
 .toast-sub {
   font-family: var(--font-tactical);
   font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--idv-muted);
+  letter-spacing: 0.1em;
+  color: rgba(203, 213, 225, 0.78);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.96);
+  margin-top: 2px;
 }
 
 #vehicle-prompt {
   position: fixed;
-  bottom: 92px;
+  bottom: 86px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 18;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 16px 7px 10px;
-  background: linear-gradient(135deg, rgba(4, 6, 10, 0.97) 0%, rgba(13, 18, 29, 0.95) 100%);
-  border: 1.5px solid #2c3a52;
-  border-left: 4px solid #d99b16;
-  clip-path: polygon(
-    0 0,
-    calc(100% - 10px) 0,
-    100% 10px,
-    100% 100%,
-    10px 100%,
-    0 calc(100% - 10px)
-  );
-  box-shadow: 5px 5px 0 #000000;
+  gap: 9px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  clip-path: none;
+  box-shadow: none;
   pointer-events: none;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.96));
 }
 
 #vehicle-prompt.hidden {
@@ -712,19 +634,19 @@
   min-width: 24px;
   height: 24px;
   padding: 0 6px;
-  background: #c28e2b;
+  background: rgba(248, 250, 252, 0.95);
   color: #04060a;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 800;
-  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
 }
 
 #vehicle-prompt-text {
   font-family: var(--font-tactical);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--idv-white);
+  letter-spacing: 0.12em;
+  color: #ffffff;
   text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.98);
 }

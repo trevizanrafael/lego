@@ -6,6 +6,7 @@ import { DestructibleManager } from './world/DestructibleManager.js';
 import { ThirdPersonController } from './controls/ThirdPersonController.js';
 import { LegoHud } from './ui/LegoHud.js';
 import { GraphicsPipeline } from './graphics/GraphicsPipeline.js';
+import { getStaticMinimapCache } from './ui/minimap/MinimapTerrainAndRoadsPainter.js';
 
 class LegoCityGame {
   constructor() {
@@ -80,12 +81,6 @@ class LegoCityGame {
    */
   _createResilientWebGLRenderer() {
     const attempts = [
-      () =>
-        new THREE.WebGLRenderer({
-          antialias: false,
-          powerPreference: 'high-performance',
-          failIfMajorPerformanceCaveat: true
-        }),
       () =>
         new THREE.WebGLRenderer({
           antialias: false,
@@ -336,21 +331,20 @@ class LegoCityGame {
           if (r) r.visible = true;
         }
       }
-      for (let i = 0; i < 3; i++) {
-        this.world.update(0.016, this.controller.position, this.controller);
-        this.destructibles.update(0.016, this.controller.position);
-      }
+      this.world.update(0.016, this.controller.position, this.controller);
+      this.destructibles.update(0.016, this.controller.position);
       this.scene.updateMatrixWorld(true);
     } else if (stage === 'compile_shaders') {
       this.renderer.compile(this.scene, this.camera);
     } else if (stage === 'render_360') {
       const p = this.controller.position;
-      const ang = (stepIdx / 8) * Math.PI * 2;
+      const ang = (stepIdx / 4) * Math.PI * 2;
       this.camera.position.set(p.x, p.y + 8, p.z);
       this.camera.lookAt(p.x + Math.sin(ang) * 90, p.y + 4, p.z + Math.cos(ang) * 90);
       this.camera.updateMatrixWorld(true);
       this._renderScene(0.016);
     } else if (stage === 'finish') {
+      getStaticMinimapCache(this.world);
       this.controller.update(0.001);
       const pos = this.controller.position;
       const currentRegion = this.world.getRegionAt(pos.x, pos.y, pos.z);

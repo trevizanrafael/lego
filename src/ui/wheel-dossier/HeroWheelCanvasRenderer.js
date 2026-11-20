@@ -195,6 +195,34 @@ function traceChamferedBox(ctx, x, y, w, h, cut) {
   ctx.closePath();
 }
 
+const PORTRAIT_TILE_PX = 92;
+const _portraitTileCache = new Map();
+
+function _getCachedPortraitTile(presetKey) {
+  if (!presetKey || presetKey === 'op09') return null;
+  const existing = _portraitTileCache.get(presetKey);
+  if (existing) return existing;
+
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+    return null;
+  }
+  const tileCanvas = document.createElement('canvas');
+  if (typeof HTMLCanvasElement !== 'undefined' && !(tileCanvas instanceof HTMLCanvasElement)) {
+    return null;
+  }
+  if (typeof HTMLCanvasElement === 'undefined' && typeof OffscreenCanvas === 'undefined') {
+    return null;
+  }
+  tileCanvas.width = PORTRAIT_TILE_PX;
+  tileCanvas.height = PORTRAIT_TILE_PX;
+  const tileCtx = tileCanvas?.getContext?.('2d');
+  if (!tileCtx) return null;
+
+  _renderHeroLegoPortraitDirect(tileCtx, PORTRAIT_TILE_PX, PORTRAIT_TILE_PX, presetKey);
+  _portraitTileCache.set(presetKey, tileCanvas);
+  return tileCanvas;
+}
+
 /**
  * Desenha o retrato 2D Gotham Noir (studless, chiaroscuro e rim-light) de qualquer operador
  */
@@ -204,6 +232,19 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     return;
   }
 
+  if (typeof ctx?.drawImage === 'function') {
+    const cachedTile = _getCachedPortraitTile(presetKey);
+    if (cachedTile) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(cachedTile, 0, 0, w, h);
+      return;
+    }
+  }
+
+  _renderHeroLegoPortraitDirect(ctx, w, h, presetKey);
+}
+
+function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
   const theme = PORTRAIT_THEMES[presetKey] || PORTRAIT_THEMES.caveira;
   ctx.clearRect(0, 0, w, h);
 
