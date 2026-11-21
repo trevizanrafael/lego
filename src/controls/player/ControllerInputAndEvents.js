@@ -137,9 +137,11 @@ export const controllerInputAndEventsMethods = {
         return;
       }
       if (!this.isPointerLocked && !this.isDraggingMouse) return;
-      const sensitivity = 0.0032;
+      const sensMult = THREE.MathUtils.clamp(Number(this.hud?.settings?.mouseSensitivity ?? 1.0), 0.2, 2.5);
+      const sensitivity = 0.0032 * sensMult;
+      const invertSign = this.hud?.settings?.invertY ? -1 : 1;
       this.yaw -= e.movementX * sensitivity;
-      this.pitch = THREE.MathUtils.clamp(this.pitch + e.movementY * sensitivity, -1.48, 1.48);
+      this.pitch = THREE.MathUtils.clamp(this.pitch + e.movementY * sensitivity * invertSign, -1.48, 1.48);
     });
 
     window.addEventListener(
@@ -305,14 +307,17 @@ export const controllerInputAndEventsMethods = {
 
     if (isTypingInInput) return;
 
+    if (this.hud?.isConfirmDialogOpen) {
+      return;
+    }
     if (this.hud?.isTitleScreenActive) {
-      if (e.code === 'Escape' && isDown && !e.repeat && this.hud?.isPauseMenuOpen && pauseToggleReady) {
+      if (!this.hud._menuNavBound && e.code === 'Escape' && isDown && !e.repeat && this.hud?.isPauseMenuOpen && pauseToggleReady) {
         this.hud.setPauseMenuOpen(false, this);
       }
       return;
     }
     if (this.hud?.isPauseMenuOpen) {
-      if (e.code === 'Escape' && isDown && !e.repeat && pauseToggleReady) {
+      if (!this.hud._menuNavBound && e.code === 'Escape' && isDown && !e.repeat && pauseToggleReady) {
         this.hud.setPauseMenuOpen(false, this);
       }
       return;

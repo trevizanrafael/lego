@@ -10,9 +10,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Inter:wght@500;600;700;800&family=JetBrains+Mono:wght@700;800&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=20261121b" />
+  <link rel="stylesheet" href="./style.css?v=20261121d" />
   <script type="importmap">
     {
       "imports": {
@@ -295,12 +295,9 @@
     <!-- Aviso de Clique para Travar Mira (Some assim que clica na tela!) -->
     <div id="pointer-prompt">
       <div class="prompt-card">
-        <div class="prompt-tag">SISTEMA DE COMBATE // LEGO: CIDADE DE DEUS</div>
-        <div class="prompt-title">CLIQUE NA TELA PARA TRAVAR A MIRA EM 3ª PESSOA</div>
-        <div class="prompt-sub">
-          <b>[TAB]</b> Roda de Heróis • <b>[E]</b> Veículo • <b>[M]</b> Mapa • <b>[H]</b> Ficha • <b>[ESC]</b>
-          Pausa/Opções
-        </div>
+        <div class="prompt-tag">CÂMERA EM 3ª PESSOA</div>
+        <div class="prompt-title">CLIQUE NA TELA PARA JOGAR</div>
+        <div class="prompt-sub"><b>[TAB]</b> Heróis • <b>[E]</b> Veículo • <b>[M]</b> Mapa • <b>[Z]</b> Rádio • <b>[ESC]</b> Pausa</div>
       </div>
     </div>
 
@@ -356,187 +353,294 @@
             </svg>
             <div class="logo-text-col">
               <h1 class="logo-main-title">CIDADE DE <span>DEUS</span></h1>
+              <div id="title-sub-banner" class="logo-sub-banner">MUNDO ABERTO E GUERRA URBANA</div>
             </div>
-          </div>
-          <div class="title-telemetry-strip">
-            <span>SETORES: <b>10 ATIVOS</b></span>
-            <span>CLIMA: <b>ALERTA NOTURNO</b></span>
-            <span>OPERADORES: <b>11</b></span>
           </div>
         </div>
 
-        <!-- PAINEL 1: Lâminas Metálicas Assimétricas do Menu Inicial -->
+        <!-- PAINEL 1: Lista Principal Limpa & Frameless -->
         <div id="title-main-panel" class="title-panel">
-          <button id="btn-title-new-game" class="title-action-btn primary-btn">
-            <span class="btn-tag">01</span>
-            <span class="btn-label-stack">
-              <span id="txt-new-game" class="btn-main-txt">NOVO JOGO</span>
-              <small class="btn-sub-txt">Iniciar nova operação no mundo aberto</small>
-            </span>
+          <button type="button" id="btn-title-continue" class="title-action-btn primary-btn hidden">
+            <span id="txt-continue-game" class="btn-main-txt">CONTINUAR</span>
           </button>
-          <button id="btn-title-load-game" class="title-action-btn">
-            <span class="btn-tag">02</span>
-            <span class="btn-label-stack">
-              <span id="txt-load-game" class="btn-main-txt">CARREGAR JOGO</span>
-              <small class="btn-sub-txt">Retomar progresso salvo nos dossiês</small>
-            </span>
+          <button type="button" id="btn-title-new-game" class="title-action-btn primary-btn">
+            <span id="txt-new-game" class="btn-main-txt">NOVO JOGO</span>
           </button>
-          <button id="btn-title-options" class="title-action-btn">
-            <span class="btn-tag">03</span>
-            <span class="btn-label-stack">
-              <span id="txt-options" class="btn-main-txt">OPÇÕES TÁTICAS</span>
-              <small class="btn-sub-txt">Qualidade gráfica, clima e áudio</small>
-            </span>
+          <button type="button" id="btn-title-load-game" class="title-action-btn is-disabled" disabled>
+            <span id="txt-load-game" class="btn-main-txt">CARREGAR JOGO</span>
           </button>
-          <button id="btn-title-language" class="title-action-btn">
-            <span class="btn-tag">04</span>
-            <span class="btn-label-stack">
-              <span id="txt-language-btn" class="btn-main-txt">IDIOMA: PT-BR</span>
-              <small class="btn-sub-txt">Alternar idioma da interface</small>
-            </span>
+          <button type="button" id="btn-title-options" class="title-action-btn">
+            <span id="txt-options" class="btn-main-txt">CONFIGURAÇÕES</span>
           </button>
+          <button type="button" id="btn-title-credits" class="title-action-btn">
+            <span id="txt-credits" class="btn-main-txt">CRÉDITOS</span>
+          </button>
+          <button type="button" id="btn-title-quit" class="title-action-btn">
+            <span id="txt-quit-game" class="btn-main-txt">SAIR</span>
+          </button>
+          <div id="title-quit-toast" class="pause-save-feedback hidden" role="status" aria-live="polite"></div>
         </div>
 
         <!-- PAINEL 2: Seleção de Slots de Save (3 Slots localStorage) -->
         <div id="title-slots-panel" class="title-slots-panel hidden">
           <div class="panel-header-bar">
-            <span id="slots-panel-title" class="panel-header-title">ESCOLHA UM SLOT DE MEMÓRIA</span>
-            <button id="btn-slots-back" class="tactical-btn">VOLTAR</button>
+            <h2 id="slots-panel-title" class="panel-header-title">NOVO JOGO — ESCOLHA UM SLOT</h2>
+            <button type="button" id="btn-slots-back" class="tactical-btn">VOLTAR</button>
           </div>
           <div id="save-slots-grid" class="save-slots-grid"></div>
         </div>
 
-        <!-- PAINEL 3: Escolha da Facção Aliada na Guerra Mundial (3 Cards Grandes com SVG) -->
+        <!-- PAINEL 3: Escolha da Facção Aliada (3 Estandartes Verticais) -->
         <div id="title-faction-panel" class="title-faction-panel hidden">
           <div class="panel-header-bar">
             <div>
-              <div id="faction-panel-tag" class="dossier-tag">SELEÇÃO DE ALIANÇA MILITAR // BACKYARD BATTLEGROUND</div>
-              <div id="faction-panel-title" class="panel-header-title">ESCOLHA SUA FACÇÃO ALIADA NA GUERRA MUNDIAL</div>
-              <div id="faction-panel-sub" class="faction-panel-sub">Sua facção lutará ao seu lado no Centro da
-                Metrópole, enviará Médicos de Combate para curar você e invocará Bosses Colossais aliados!</div>
+              <div id="faction-panel-tag" class="dossier-tag">ALIANÇA</div>
+              <h2 id="faction-panel-title" class="panel-header-title">ESCOLHA SUA FACÇÃO</h2>
+              <div id="faction-panel-sub" class="faction-panel-sub">Define sua base aliada, oficinas e reforços pela cidade.</div>
             </div>
-            <button id="btn-faction-back" class="tactical-btn">VOLTAR</button>
+            <button type="button" id="btn-faction-back" class="tactical-btn">VOLTAR</button>
           </div>
           <div id="faction-cards-grid" class="faction-cards-grid"></div>
         </div>
+
+        <!-- PAINEL 4: Créditos Tipográficos -->
+        <div id="title-credits-panel" class="title-credits-panel hidden">
+          <div class="panel-header-bar">
+            <h2 id="credits-panel-title" class="panel-header-title">CRÉDITOS</h2>
+            <button type="button" id="btn-credits-back" class="tactical-btn">VOLTAR</button>
+          </div>
+          <div id="credits-grid-body" class="credits-grid"></div>
+        </div>
       </div>
+      <div class="title-version-tag">v1.0 • CIDADE DE DEUS</div>
     </div>
 
     <!-- =======================================================================
-         TELA DE LOADING TÁTICA (0% -> 100%) COM WARM-UP 360° ANTI-LAG!
+         TELA DE CARREGAMENTO TÁTICA FULL-BLEED
          ======================================================================= -->
-    <div id="tactical-loading-screen" class="tactical-loading-screen hidden">
-      <div class="title-scanlines"></div>
+    <div id="tactical-loading-screen" class="tactical-loading-screen hidden" data-faction="cv">
+      <canvas id="loading-bg-canvas"></canvas>
+      <div id="loading-watermark-crest" class="loading-watermark-crest" aria-hidden="true"></div>
       <div class="loading-card">
         <div class="loading-top-row">
           <div id="loading-faction-logo" class="loading-faction-logo"></div>
           <div class="loading-title-col">
-            <div id="loading-op-tag" class="dossier-tag">SISTEMA DE PRÉ-COMPILAÇÃO GPU // ANTI-STUTTER 360°</div>
-            <div id="loading-faction-title" class="loading-faction-title">MUNDO ABERTO 3D // EXPLORAÇÃO LIVRE</div>
-            <div id="loading-stage-text" class="loading-stage-text">POSICIONANDO OPERADOR & SINCRONIZANDO SETORES...
-            </div>
+            <div id="loading-op-tag" class="loading-region-subtitle">Cidade de Deus • Oeste</div>
+            <div id="loading-faction-title" class="loading-faction-title">COMANDO VERMELHO (CV)</div>
+            <div id="loading-stage-text" class="loading-stage-text">Preparando a região...</div>
           </div>
-          <div id="loading-pct-text" class="loading-pct-text">0%</div>
         </div>
-
-        <!-- Barra de Progresso LEGO Segmentada (20 Blocos Chanfrados) -->
+        <div id="loading-pct-text" class="loading-pct-text">0%</div>
         <div id="loading-lego-bar" class="loading-lego-bar"></div>
-
-        <!-- Card de Dica de Exploração no Mundo Aberto -->
         <div class="loading-tip-box">
-          <span class="loading-tip-badge">DICA DE JOGO</span>
-          <span id="loading-tip-text" class="loading-tip-text">
-            Aperte [E] perto de qualquer Táxi, Ônibus LEGO, Supercarro ou Buggy de Praia para dirigir livremente pelas
-            10 Regiões!
-          </span>
+          <span id="loading-tip-badge" class="loading-tip-badge">DICA</span>
+          <p id="loading-tip-text" class="loading-tip-text">Pressione [E] perto de carros, motos, barcos ou aeronaves para assumir a direção.</p>
         </div>
       </div>
     </div>
 
     <!-- =======================================================================
-         MODAL TÁTICO DE PAUSA & OPÇÕES COMPLETAS [ESC]
+         PAUSA EM PARTIDA (2 COLUNAS) & SUBTELA DE CONFIGURAÇÕES EM 4 ABAS [ESC]
          ======================================================================= -->
     <div id="pause-options-modal" class="hidden">
       <div class="pause-card">
-        <div class="dossier-header">
-          <div>
-            <div id="pause-tag" class="dossier-tag">SISTEMA DE COMANDO // JOGO PAUSADO [ESC]</div>
-            <div id="pause-title" class="dossier-title">CENTRAL DE OPÇÕES & MUNDO ABERTO</div>
+        <!-- VIEW 1: Pausa Principal em Partida -->
+        <div id="pause-main-view" class="pause-main-view">
+          <div class="pause-left-col">
+            <div class="pause-header-block">
+              <span id="pause-tag" class="pause-subtitle">JOGO PAUSADO</span>
+              <h2 id="pause-title" class="pause-title">PAUSA</h2>
+            </div>
+
+            <div id="pause-ingame-actions" class="pause-actions-grid">
+              <button type="button" id="btn-pause-resume" class="tactical-btn pause-main-btn">CONTINUAR</button>
+              <button type="button" id="btn-pause-map" class="tactical-btn">MAPA</button>
+              <button type="button" id="btn-pause-open-settings" class="tactical-btn">CONFIGURAÇÕES</button>
+              <button type="button" id="btn-pause-save" class="tactical-btn">SALVAR</button>
+              <button type="button" id="btn-pause-save-quit" class="tactical-btn danger-btn">SAIR PARA O MENU</button>
+            </div>
           </div>
-          <button id="pause-close-btn" class="tactical-btn">[ESC] FECHAR</button>
+
+          <div id="pause-context-panel" class="pause-context-panel">
+            <div class="pause-ctx-hero-row">
+              <canvas id="pause-ctx-portrait" width="56" height="56"></canvas>
+              <div>
+                <div id="pause-ctx-hero">COMANDANTE CAVEIRA</div>
+                <div id="pause-ctx-faction">COMANDO VERMELHO (CV)</div>
+              </div>
+            </div>
+
+            <div class="pause-ctx-grid">
+              <div class="pause-ctx-item">
+                <span id="lbl-ctx-region" class="pause-ctx-label">Região</span>
+                <span id="pause-ctx-region" class="pause-ctx-val">—</span>
+              </div>
+              <div class="pause-ctx-item">
+                <span id="lbl-ctx-studs" class="pause-ctx-label">Studs</span>
+                <span id="pause-ctx-studs" class="pause-ctx-val">0</span>
+              </div>
+              <div class="pause-ctx-item">
+                <span id="lbl-ctx-bases" class="pause-ctx-label">Bases</span>
+                <span id="pause-ctx-bases" class="pause-ctx-val">1/3</span>
+              </div>
+              <div class="pause-ctx-item">
+                <span id="lbl-ctx-time" class="pause-ctx-label">Tempo de jogo</span>
+                <span id="pause-ctx-time" class="pause-ctx-val">00:00</span>
+              </div>
+            </div>
+
+            <div id="pause-save-feedback" class="pause-save-feedback hidden">Progresso salvo.</div>
+          </div>
         </div>
 
-        <div class="pause-options-body">
-          <!-- Sliders de Volume (Master, Música da Cidade, Efeitos Sonoros) -->
-          <div class="option-row">
-            <div class="option-label-col">
-              <span id="lbl-master-vol" class="option-title">VOLUME GERAL (MASTER)</span>
-              <span id="val-master-vol" class="option-val">85%</span>
+        <!-- VIEW 2: Subtela de Configurações em 4 Abas ([Q] / [E]) -->
+        <div id="settings-subview" class="settings-subview hidden">
+          <div class="settings-header-bar">
+            <h2 id="settings-title" class="settings-title">CONFIGURAÇÕES</h2>
+            <button type="button" id="pause-close-btn" class="tactical-btn">VOLTAR</button>
+          </div>
+
+          <div id="settings-tabs-bar" class="settings-tabs-bar" role="tablist">
+            <span class="tab-key-badge">Q</span>
+            <button type="button" id="tab-btn-audio" class="settings-tab-btn active" role="tab" aria-selected="true" data-settings-tab="audio">ÁUDIO</button>
+            <button type="button" id="tab-btn-video" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="video">VÍDEO</button>
+            <button type="button" id="tab-btn-controls" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="controls">CONTROLES</button>
+            <button type="button" id="tab-btn-game" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="game">JOGO</button>
+            <span class="tab-key-badge">E</span>
+          </div>
+
+          <!-- Aba 1: Áudio -->
+          <div id="settings-panel-audio" class="settings-tab-panel">
+            <div class="option-row" data-desc-key="masterVol">
+              <span id="lbl-master-vol" class="option-title">VOLUME GERAL</span>
+              <div class="option-slider-wrap">
+                <input id="slider-master-vol" type="range" min="0" max="100" step="5" value="85" class="tactical-slider" />
+                <span id="val-master-vol" class="option-val">85%</span>
+              </div>
             </div>
-            <input id="slider-master-vol" type="range" min="0" max="100" value="85" class="tactical-slider" />
-          </div>
-
-          <div class="option-row">
-            <div class="option-label-col">
-              <span id="lbl-music-vol" class="option-title">VOLUME DA MÚSICA DA CIDADE</span>
-              <span id="val-music-vol" class="option-val">55%</span>
+            <div class="option-row" data-desc-key="musicVol">
+              <span id="lbl-music-vol" class="option-title">MÚSICA E RÁDIO</span>
+              <div class="option-slider-wrap">
+                <input id="slider-music-vol" type="range" min="0" max="100" step="5" value="55" class="tactical-slider" />
+                <span id="val-music-vol" class="option-val">55%</span>
+              </div>
             </div>
-            <input id="slider-music-vol" type="range" min="0" max="100" value="55" class="tactical-slider" />
-          </div>
-
-          <div class="option-row">
-            <div class="option-label-col">
-              <span id="lbl-sfx-vol" class="option-title">VOLUME DE EFEITOS SONOROS (PODERES / VEÍCULOS)</span>
-              <span id="val-sfx-vol" class="option-val">90%</span>
-            </div>
-            <input id="slider-sfx-vol" type="range" min="0" max="100" value="90" class="tactical-slider" />
-          </div>
-
-          <!-- Toggle para Desligar o Aviso de Troca de Região (#region-toast) -->
-          <div class="option-row option-row-inline">
-            <span id="lbl-region-toast" class="option-title">AVISO DE TROCA DE REGIÃO NA TELA</span>
-            <button id="btn-toggle-region-toast" class="tactical-toggle-btn active">ON // ATIVADO</button>
-          </div>
-
-          <!-- Controle de Qualidade Gráfica & Pós-Processamento -->
-          <div class="option-row option-row-inline option-row-quality">
-            <span id="lbl-graphics-quality" class="option-title">QUALIDADE GRÁFICA</span>
-            <div id="grp-graphics-quality" class="tactical-quality-group" role="group" aria-label="Qualidade Gráfica">
-              <button id="btn-quality-auto" type="button" class="tactical-quality-btn active" data-quality="auto">AUTO
-                60</button>
-              <button id="btn-quality-low" type="button" class="tactical-quality-btn" data-quality="low">BAIXO</button>
-              <button id="btn-quality-medium" type="button" class="tactical-quality-btn"
-                data-quality="medium">MÉDIO</button>
-              <button id="btn-quality-ultra" type="button" class="tactical-quality-btn"
-                data-quality="ultra">ULTRA</button>
+            <div class="option-row" data-desc-key="sfxVol">
+              <span id="lbl-sfx-vol" class="option-title">EFEITOS</span>
+              <div class="option-slider-wrap">
+                <input id="slider-sfx-vol" type="range" min="0" max="100" step="5" value="90" class="tactical-slider" />
+                <span id="val-sfx-vol" class="option-val">90%</span>
+              </div>
             </div>
           </div>
 
-          <!-- Controle de Clima & Horário do Mundo (4 Modos Salvos nas Configurações) -->
-          <div class="option-row option-row-inline">
-            <span id="lbl-time-mode" class="option-title">CLIMA & HORÁRIO DO MUNDO</span>
-            <button id="btn-pause-time-mode" class="tactical-toggle-btn active">CICLO AUTOMÁTICO (12 MIN)</button>
+          <!-- Aba 2: Vídeo -->
+          <div id="settings-panel-video" class="settings-tab-panel hidden">
+            <div class="option-row" data-desc-key="graphicsQuality">
+              <span id="lbl-graphics-quality" class="option-title">QUALIDADE GRÁFICA</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="graphicsQuality" data-dir="-1">◂</button>
+                <span id="val-graphics-quality" class="stepper-value" data-stepper="graphicsQuality">AUTOMÁTICO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="graphicsQuality" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="fov">
+              <span id="lbl-fov" class="option-title">CAMPO DE VISÃO</span>
+              <div class="option-slider-wrap">
+                <input id="slider-fov" type="range" min="50" max="85" step="1" value="60" class="tactical-slider" />
+                <span id="val-fov" class="option-val">60°</span>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="fullscreen">
+              <span id="lbl-fullscreen" class="option-title">TELA CHEIA</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="fullscreen" data-dir="-1">◂</button>
+                <span id="val-fullscreen" class="stepper-value" data-stepper="fullscreen">DESLIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="fullscreen" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="timeMode">
+              <span id="lbl-time-mode" class="option-title">HORÁRIO</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="timeMode" data-dir="-1">◂</button>
+                <span id="btn-pause-time-mode" class="stepper-value" data-stepper="timeMode">DINÂMICO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="timeMode" data-dir="1">▸</button>
+              </div>
+            </div>
           </div>
 
-          <!-- Seletor de Idioma (PT-BR / EN-US) -->
-          <div class="option-row option-row-inline">
-            <span id="lbl-lang-select" class="option-title">IDIOMA DA INTERFACE (LANGUAGE)</span>
-            <button id="btn-pause-language" class="tactical-toggle-btn active">PT-BR // PORTUGUÊS</button>
+          <!-- Aba 3: Controles -->
+          <div id="settings-panel-controls" class="settings-tab-panel hidden">
+            <div class="option-row" data-desc-key="mouseSens">
+              <span id="lbl-mouse-sens" class="option-title">SENSIBILIDADE DO MOUSE</span>
+              <div class="option-slider-wrap">
+                <input id="slider-mouse-sens" type="range" min="20" max="250" step="5" value="100" class="tactical-slider" />
+                <span id="val-mouse-sens" class="option-val">100%</span>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="invertY">
+              <span id="lbl-invert-y" class="option-title">INVERTER EIXO Y</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="invertY" data-dir="-1">◂</button>
+                <span id="val-invert-y" class="stepper-value" data-stepper="invertY">DESLIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="invertY" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="controlsList" style="flex-direction: column; align-items: stretch; gap: 10px;">
+              <span id="lbl-controls-list" class="option-title">LISTA DE CONTROLES</span>
+              <div id="controls-keymap-grid" class="controls-keymap-grid"></div>
+            </div>
           </div>
 
-          <div id="pause-save-feedback" class="pause-save-feedback hidden">✔ PROGRESSO SALVO NO SLOT COM SUCESSO!</div>
-        </div>
+          <!-- Aba 4: Jogo -->
+          <div id="settings-panel-game" class="settings-tab-panel hidden">
+            <div class="option-row" data-desc-key="language">
+              <span id="lbl-lang-select" class="option-title">IDIOMA</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="language" data-dir="-1">◂</button>
+                <span id="btn-pause-language" class="stepper-value" data-stepper="language">PORTUGUÊS</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="language" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="regionToast">
+              <span id="lbl-region-toast" class="option-title">AVISO DE NOVA REGIÃO</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="regionToast" data-dir="-1">◂</button>
+                <span id="btn-toggle-region-toast" class="stepper-value" data-stepper="regionToast">LIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="regionToast" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div id="row-switch-faction" class="option-row ingame-only-setting" data-desc-key="switchFaction">
+              <span id="lbl-switch-faction" class="option-title">TROCAR FACÇÃO</span>
+              <button type="button" id="btn-pause-switch-faction" class="tactical-btn" data-setting-action="switchFaction">TROCAR FACÇÃO</button>
+            </div>
+            <div id="row-reset-territories" class="option-row ingame-only-setting" data-desc-key="resetTerritories">
+              <span id="lbl-reset-territories" class="option-title">REINICIAR TERRITÓRIOS</span>
+              <button type="button" id="btn-pause-reset-territories" class="tactical-btn danger-btn" data-setting-action="resetTerritories">REINICIAR TERRITÓRIOS</button>
+            </div>
+          </div>
 
-        <!-- Botões de Jogo quando aberto durante a partida [ESC] -->
-        <div id="pause-ingame-actions" class="pause-actions-grid">
-          <button id="btn-pause-resume" class="tactical-btn pause-main-btn">CONTINUAR PARTIDA [ESC]</button>
-          <button id="btn-pause-save" class="tactical-btn">SALVAR JOGO AGORA</button>
-          <button id="btn-pause-switch-faction" class="tactical-btn">TROCAR DE FACÇÃO ALIADA</button>
-          <button id="btn-pause-reset-territories" class="tactical-btn">RESETAR TERRITÓRIOS DE FACÇÃO</button>
-          <button id="btn-pause-save-quit" class="tactical-btn danger-btn">SALVAR E SAIR PARA O MENU INICIAL</button>
+          <div id="settings-footer-row">
+            <div id="settings-option-desc"></div>
+            <button type="button" id="btn-settings-restore-defaults" class="tactical-btn">RESTAURAR PADRÃO</button>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Modal de Confirmação Tático & Barra Contextual de Atalhos de Menu -->
+    <div id="menu-confirm-dialog" class="menu-confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+      <div class="confirm-dialog-panel">
+        <div id="confirm-dialog-title" class="confirm-dialog-title">CONFIRMAR</div>
+        <p id="confirm-dialog-msg" class="confirm-dialog-msg"></p>
+        <div class="confirm-dialog-actions">
+          <button type="button" id="btn-confirm-cancel" class="tactical-btn confirm-dialog-btn">CANCELAR</button>
+          <button type="button" id="btn-confirm-accept" class="tactical-btn confirm-dialog-btn">CONFIRMAR</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="menu-keyhints-bar" class="menu-keyhints-bar hidden" aria-live="polite"></div>
 
     <!-- Estúdio Interativo 3D do Porão da Torre dos Heróis: Criador de Personagem OP-09 -->
     <div id="custom-hero-creator-modal" class="hidden">
@@ -954,7 +1058,7 @@
     <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
   </div>
 
-  <script type="module" src="./src/main.js?v=20261121b"></script>
+  <script type="module" src="./src/main.js?v=20261121d"></script>
 </body>
 
 </html>

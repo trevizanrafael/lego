@@ -7,11 +7,14 @@ import { installHudConstantsAndPortraits } from './hud/HudConstantsAndPortraits.
 import { installOperatorCombatAndVehicleHud } from './hud/OperatorCombatAndVehicleHud.js';
 import { installHudMapAndWheelBridge } from './hud/HudMapAndWheelBridge.js';
 import { installHudRadioModalBridge } from './hud/HudRadioModalBridge.js';
+import { installConfirmDialog } from './hud/ConfirmDialog.js';
+import { installMenuNavigationController } from './hud/MenuNavigationController.js';
+import { installSettingsTabsController } from './hud/SettingsTabsController.js';
 import { installTitleAndSaveSlotsController } from './hud/TitleAndSaveSlotsController.js';
 import { installPauseAndSettingsController } from './hud/PauseAndSettingsController.js';
 
 /**
- * Orquestrador da HUD Tática Urbana Angular Limpa (IDV LEGO: Cidade de Deus).
+ * Orquestrador da HUD e Menus Frameless (IDV LEGO: Cidade de Deus).
  * Submódulos especializados em `src/ui/hud/` instalam seus métodos no protótipo de `LegoHud`.
  */
 export class LegoHud {
@@ -26,9 +29,11 @@ export class LegoHud {
     this.playerFaction = 'cv';
     this.activeSaveSlot = 0;
     this.pendingSlotIndex = 0;
+    this.sessionPlayTimeSec = 0;
     this.isTitleScreenActive = true;
     this.isLoadingActive = false;
     this.isPauseMenuOpen = false;
+    this.isConfirmDialogOpen = false;
     this.settings = loadGameSettings();
     document.body?.classList.add('title-or-loading-active');
 
@@ -49,13 +54,11 @@ export class LegoHud {
     this.medicHealTagEl = document.getElementById('hud-medic-heal-tag');
     this.crosshairEl = document.getElementById('crosshair');
 
-    // Painel Superior da Guerra Mundial de Facções & Bosses
     this.wwTitleEl = document.getElementById('ww-front-title');
     this.wwPctEl = document.getElementById('ww-escalation-pct');
     this.wwFillEl = document.getElementById('ww-escalation-fill');
     this.wwBossBarsContainerEl = document.getElementById('ww-boss-bars-container');
 
-    // Velocímetro Tático no Canto Superior Direito (Apenas em Veículos)
     this.speedoContainerEl = document.getElementById('vehicle-speedometer');
     this.speedoNameEl = document.getElementById('speedo-vehicle-name');
     this.speedoGearEl = document.getElementById('speedo-gear-badge');
@@ -64,7 +67,6 @@ export class LegoHud {
     this.speedoBarsEl = document.getElementById('speedo-rpm-bars');
     this._speedoBarNodes = [];
 
-    // Estrelas de Procurado LEGO Estilo GTA (1 a 5 Estrelas — 100% Ocultas em 0 Estrelas!)
     this.wantedPanelEl = document.getElementById('hud-wanted-panel');
     this.wantedStatusTagEl = document.getElementById('wanted-status-tag');
     this.wantedStarsRowEl = document.getElementById('wanted-stars-row');
@@ -82,7 +84,6 @@ export class LegoHud {
     this.wantedStars = 0;
     this.wantedIsEscaping = false;
 
-    // Visor de Arsenal Estilo CS:GO no Canto Superior Direito (Exclusivo do Vingador de Chumbo a pé)
     this.vingadorWeaponHudEl = document.getElementById('vingador-weapon-hud');
     this.vingadorKeyhintEl = document.getElementById('vingador-hud-keyhint');
     this.vingadorSlotEls =
@@ -93,7 +94,6 @@ export class LegoHud {
     this.isVingadorFuror = false;
     this._isDrivingVehicle = false;
 
-    // Ficha Tática Individual [H] e Roda de Seleção [TAB]
     this.dossierModalEl = document.getElementById('hero-dossier-modal');
     this.dossierCloseBtn = document.getElementById('dossier-close-btn');
     this.isDossierOpen = false;
@@ -105,7 +105,6 @@ export class LegoHud {
     this.isHeroWheelOpen = false;
     this.wheelSelectedHeroKey = 'caveira';
 
-    // Toast de Transição de Região, Minimapa e Mapa Completo [M]
     this.regionToastEl = document.getElementById('region-toast');
     this.regionToastCodeEl = document.getElementById('region-toast-code');
     this.regionToastTitleEl = document.getElementById('region-toast-title');
@@ -140,16 +139,8 @@ export class LegoHud {
     this._dragStartX = 0;
     this._dragStartY = 0;
 
-    if (this.fullmapCloseBtn) {
-      this.fullmapCloseBtn.addEventListener('click', () => {
-        this.setFullMapOpen(false);
-      });
-    }
-    if (this.dossierCloseBtn) {
-      this.dossierCloseBtn.addEventListener('click', () => {
-        this.setHeroDossierOpen(false);
-      });
-    }
+    this.fullmapCloseBtn?.addEventListener('click', () => this.setFullMapOpen(false));
+    this.dossierCloseBtn?.addEventListener('click', () => this.setHeroDossierOpen(false));
 
     this._gainTimeout = null;
     this.creatorStudio = new CustomHeroCreatorStudio(this);
@@ -167,39 +158,27 @@ export class LegoHud {
     this.setPlayerFaction(this.playerFaction);
   }
 
-  get isCreatorOpen() {
-    return Boolean(this.creatorStudio?.isOpen);
-  }
-
-  get isCustomsOpen() {
-    return Boolean(this.customsStudio?.isOpen);
-  }
-
-  get isAircraftStudioOpen() {
-    return Boolean(this.aircraftStudio?.isOpen);
-  }
+  get isCreatorOpen() { return Boolean(this.creatorStudio?.isOpen); }
+  get isCustomsOpen() { return Boolean(this.customsStudio?.isOpen); }
+  get isAircraftStudioOpen() { return Boolean(this.aircraftStudio?.isOpen); }
 
   update(dt) {
     if (this.isTitleScreenActive) {
       this._renderFavelaBackgroundCanvas(dt);
+    } else if (!this.isLoadingActive && !this.isPauseMenuOpen) {
+      this.sessionPlayTimeSec += Math.max(0, Math.min(0.25, Number(dt) || 0));
     }
     if (this.isTitleScreenActive || this.isLoadingActive) {
-      if (this.tiktokRadio?.isPlaying) {
-        this.tiktokRadio.stopAllPlayback();
-      }
+      if (this.tiktokRadio?.isPlaying) this.tiktokRadio.stopAllPlayback();
     } else if (this.tiktokRadio) {
       this.tiktokRadio.update(dt);
-      if (this.isTikTokRadioOpen) {
-        this._syncSpotifyTimeBar();
-      }
+      if (this.isTikTokRadioOpen) this._syncSpotifyTimeBar();
     }
     if (this.displayedStuds < this.totalStuds) {
       const diff = this.totalStuds - this.displayedStuds;
       const step = Math.max(1, Math.ceil(diff * Math.min(1, dt * 16)));
       this.displayedStuds = Math.min(this.totalStuds, this.displayedStuds + step);
-      if (this.studCountEl) {
-        this.studCountEl.textContent = this.displayedStuds.toLocaleString('pt-BR');
-      }
+      if (this.studCountEl) this.studCountEl.textContent = this.displayedStuds.toLocaleString('pt-BR');
     }
   }
 }
@@ -208,5 +187,8 @@ installHudConstantsAndPortraits(LegoHud);
 installOperatorCombatAndVehicleHud(LegoHud);
 installHudMapAndWheelBridge(LegoHud);
 installHudRadioModalBridge(LegoHud);
+installConfirmDialog(LegoHud);
+installMenuNavigationController(LegoHud);
+installSettingsTabsController(LegoHud);
 installTitleAndSaveSlotsController(LegoHud);
 installPauseAndSettingsController(LegoHud);

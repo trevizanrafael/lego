@@ -259,15 +259,25 @@ export const cameraOrbitAndRigMethods = {
         this.minifigure.currentHeroKey === 'vingador') &&
       (this.keys.sprint || this.stealthTimer > 0 || this.vingadorFurorTimer > 0) &&
       this.currentSpeed > 18;
-    const desiredFov = (this.isSupersonic || this.isTurboActive || isSombraGrapple)
-      ? 74
-      : isCaveiraBlast
-        ? 72
-        : isHeroSprint
-          ? 66
-          : isAimingBeam
-            ? 53
-            : this.baseFov;
+    const baseUserFov = THREE.MathUtils.clamp(
+      Number(this.hud?.settings?.fov ?? this.baseFov ?? 58),
+      50,
+      85
+    );
+    const fovDelta = baseUserFov - (this.baseFov || 58);
+    const desiredFov = THREE.MathUtils.clamp(
+      (this.isSupersonic || this.isTurboActive || isSombraGrapple)
+        ? 74 + fovDelta
+        : isCaveiraBlast
+          ? 72 + fovDelta
+          : isHeroSprint
+            ? 66 + fovDelta
+            : isAimingBeam
+              ? 53 + fovDelta * 0.5
+              : baseUserFov,
+      45,
+      98
+    );
     if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, desiredFov, Math.min(1, dt * 10));
       this.camera.updateProjectionMatrix();
