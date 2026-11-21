@@ -4,13 +4,17 @@
  *
  * Princípios acústicos:
  * - ZERO timbres agudos/chiptune ("piriripipi"): todo o barramento passa por filtro passa-baixa escuro
- *   (warmth ceiling ~1950 Hz), envelopes lentos de ataque/release, reverberação de catedral escura (4.2s)
- *   e delay estéreo de fita filtrada.
- * - Volume estritamente ambiente e discreto (teto baixo que nunca compete com SFX, vozes ou motores).
+ *   (warmth ceiling ~2300 Hz), compressor suave, envelopes lentos de ataque/release, reverberação de
+ *   catedral escura (4.2s) e delay estéreo de fita filtrada.
+ * - Calibração audível e encorpada em qualquer fone ou caixa de som (harmônicos de 2ª/3ª oitava nos graves
+ *   para traduzir notas de 30–65 Hz em todos os alto-falantes), mantendo volume ambiente confortável (~-20 dBFS).
  * - 100% seguro em ambientes headless / testes Node sem WebAudio nativo.
  */
 
 const _rigByContext = new WeakMap();
+
+// Multiplicador de calibração para compensar sfx.musicBus (0.47) e envelopes polifônicos suaves
+const VOICE_GAIN_CALIBRATION = 3.8;
 
 const NOTE_SEMITONES = {
   C: 0,
@@ -50,14 +54,13 @@ export function noteToHz(note) {
 }
 
 export function seededRand(seed) {
-  let t = (Math.imul(Math.floor(seed * 1000) ^ 0x9e3779b9, 0x85ebca6b) >>> 0);
+  let t = Math.imul(Math.floor(seed * 1000) ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
   t = Math.imul(t ^ (t >>> 13), 0xc2b2ae35) >>> 0;
   return ((t ^ (t >>> 16)) >>> 0) / 4294967296;
 }
 
 /**
  * Verifica se um evento periódico de período `periodSec` (com fase `offsetSec`) cai na janela `[cursorSec, cursorSec + windowDurSec)`.
- * Retorna `{ hit: true, delaySec, stepIndex }` ou `{ hit: false, delaySec: 0, stepIndex: -1 }`.
  */
 export function checkPeriodicTrigger(cursorSec, windowDurSec, periodSec, offsetSec = 0) {
   if (!(periodSec > 0) || !(windowDurSec > 0)) {
@@ -78,7 +81,7 @@ export function checkPeriodicTrigger(cursorSec, windowDurSec, periodSec, offsetS
 }
 
 /**
- * Localiza o movimento ativo dentro de `movements` (0..600s) e retorna também o progresso normalizado `0..1`.
+ * Localiza o movimento ativo dentro de `movements` (0..600s) e retorna o progresso normalizado `0..1`.
  */
 export function resolveMovementAt(movements, cursorSec, totalDurationSec = 600) {
   const t = ((cursorSec % totalDurationSec) + totalDurationSec) % totalDurationSec;
@@ -112,8 +115,8 @@ function buildColoredNoiseBuffer(ctx, durationSec = 7.5, mode = 'brown') {
     let last = 0;
     for (let i = 0; i < len; i++) {
       const white = seededRand(i * 0.0137 + 11.3) * 2 - 1;
-      last = (last + 0.022 * white) / 1.022;
-      data[i] = last * 3.1;
+      last = (last + 0.024 * white) / 1.024;
+      data[i] = last * 3.2;
     }
   } else {
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
@@ -125,12 +128,11 @@ function buildColoredNoiseBuffer(ctx, durationSec = 7.5, mode = 'brown') {
       b3 = 0.86650 * b3 + white * 0.3104856;
       b4 = 0.55000 * b4 + white * 0.5329522;
       b5 = -0.7616 * b5 - white * 0.0168980;
-      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.13;
       b6 = white * 0.115926;
     }
   }
 
-  // Crossfade suave nas extremidades para loop sem clique
   const fadeSamples = Math.min(Math.floor(sr * 0.25), Math.floor(len * 0.1));
   for (let i = 0; i < fadeSamples; i++) {
     const a = i / fadeSamples;
@@ -150,11 +152,10 @@ function buildDarkCathedralImpulse(ctx, durationSec = 4.2) {
     let lp = 0;
     for (let i = 0; i < len; i++) {
       const u = i / len;
-      const env = Math.pow(1 - u, 2.85) * (i < sr * 0.035 ? i / (sr * 0.035) : 1);
+      const env = Math.pow(1 - u, 2.65) * (i < sr * 0.03 ? i / (sr * 0.03) : 1);
       const raw = seededRand((i + 1) * (ch === 0 ? 0.0173 : 0.0239)) * 2 - 1;
-      // Filtro passa-baixa interno no impulso -> cauda escura aveludada sem brilho metálico estridente
-      lp = lp * 0.86 + raw * 0.14;
-      data[i] = lp * env * 0.68;
+      lp = lp * 0.83 + raw * 0.17;
+      data[i] = lp * env * 0.78;
     }
   }
   return buf;
@@ -170,22 +171,38 @@ export function getAmbienceAudioRig(ctx, destinationBus) {
 
   const dest = destinationBus || ctx.destination;
   const masterOut = ctx.createGain();
-  // Teto baixo intencional: música ambiente sombria e discreta ao fundo
-  masterOut.gain.setValueAtTime(0.23, ctx.currentTime || 0);
+  masterOut.gain.setValueAtTime?.(0.92, ctx.currentTime || 0);
+
+  // Compressor/limitador suave para presença clara sem nunca estourar acima de ~-16 dBFS
+  let postBus = masterOut;
+  if (typeof ctx.createDynamicsCompressor === 'function') {
+    try {
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold?.setValueAtTime?.(-16, ctx.currentTime || 0);
+      comp.knee?.setValueAtTime?.(12, ctx.currentTime || 0);
+      comp.ratio?.setValueAtTime?.(4, ctx.currentTime || 0);
+      comp.attack?.setValueAtTime?.(0.02, ctx.currentTime || 0);
+      comp.release?.setValueAtTime?.(0.28, ctx.currentTime || 0);
+      comp.connect(masterOut);
+      postBus = comp;
+    } catch (_) {
+      postBus = masterOut;
+    }
+  }
 
   let darkCeilingFilter = null;
   if (typeof ctx.createBiquadFilter === 'function') {
     darkCeilingFilter = ctx.createBiquadFilter();
     darkCeilingFilter.type = 'lowpass';
-    darkCeilingFilter.frequency.setValueAtTime(1850, ctx.currentTime || 0);
-    darkCeilingFilter.Q.setValueAtTime(0.55, ctx.currentTime || 0);
-    darkCeilingFilter.connect(masterOut);
+    darkCeilingFilter.frequency.setValueAtTime?.(2300, ctx.currentTime || 0);
+    darkCeilingFilter.Q.setValueAtTime?.(0.6, ctx.currentTime || 0);
+    darkCeilingFilter.connect(postBus);
   }
   masterOut.connect(dest);
 
-  const dryBus = darkCeilingFilter || masterOut;
+  const dryBus = darkCeilingFilter || postBus;
   const reverbInput = ctx.createGain();
-  reverbInput.gain.setValueAtTime(0.62, ctx.currentTime || 0);
+  reverbInput.gain.setValueAtTime?.(0.68, ctx.currentTime || 0);
 
   if (typeof ctx.createConvolver === 'function') {
     try {
@@ -206,16 +223,16 @@ export function getAmbienceAudioRig(ctx, destinationBus) {
   }
 
   const delayInput = ctx.createGain();
-  delayInput.gain.setValueAtTime(0.32, ctx.currentTime || 0);
+  delayInput.gain.setValueAtTime?.(0.36, ctx.currentTime || 0);
   if (typeof ctx.createDelay === 'function' && typeof ctx.createBiquadFilter === 'function') {
     try {
       const delayNode = ctx.createDelay(2.0);
-      delayNode.delayTime.setValueAtTime(0.68, ctx.currentTime || 0);
+      delayNode.delayTime.setValueAtTime?.(0.68, ctx.currentTime || 0);
       const fbGain = ctx.createGain();
-      fbGain.gain.setValueAtTime(0.34, ctx.currentTime || 0);
+      fbGain.gain.setValueAtTime?.(0.36, ctx.currentTime || 0);
       const tapeLp = ctx.createBiquadFilter();
       tapeLp.type = 'lowpass';
-      tapeLp.frequency.setValueAtTime(680, ctx.currentTime || 0);
+      tapeLp.frequency.setValueAtTime?.(780, ctx.currentTime || 0);
 
       delayInput.connect(delayNode);
       delayNode.connect(tapeLp);
@@ -251,7 +268,7 @@ function connectVoiceSpatial(rig, sourceOut, targetBus, { pan = 0, reverb = 0.55
   if (pan !== 0 && typeof ctx.createStereoPanner === 'function') {
     try {
       const panner = ctx.createStereoPanner();
-      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), ctx.currentTime || 0);
+      panner.pan.setValueAtTime?.(Math.max(-1, Math.min(1, pan)), ctx.currentTime || 0);
       sourceOut.connect(panner);
       routed = panner;
     } catch (_) {
@@ -259,34 +276,40 @@ function connectVoiceSpatial(rig, sourceOut, targetBus, { pan = 0, reverb = 0.55
     }
   }
 
+  // Se targetBus for um canal de crossfade de bairro, envia tudo para ele (que já alimenta dry + reverb + delay!)
+  if (targetBus && targetBus._isRegionChannelBus) {
+    routed.connect(targetBus);
+    return;
+  }
+
   const dryTarget = targetBus || rig.dryBus;
   routed.connect(dryTarget);
 
   if (reverb > 0.01 && rig.reverbInput) {
     const revSend = ctx.createGain();
-    revSend.gain.setValueAtTime(Math.min(1, reverb), ctx.currentTime || 0);
+    revSend.gain.setValueAtTime?.(Math.min(1, reverb), ctx.currentTime || 0);
     routed.connect(revSend);
     revSend.connect(rig.reverbInput);
   }
   if (delay > 0.01 && rig.delayInput) {
     const delSend = ctx.createGain();
-    delSend.gain.setValueAtTime(Math.min(0.85, delay), ctx.currentTime || 0);
+    delSend.gain.setValueAtTime?.(Math.min(0.85, delay), ctx.currentTime || 0);
     routed.connect(delSend);
     delSend.connect(rig.delayInput);
   }
 }
 
-function rampEnvelope(gainParam, t0, peak, attackSec, holdEndSec, stopSec) {
+function rampEnvelope(gainParam, t0, rawPeak, attackSec, holdEndSec, stopSec) {
   if (!gainParam) return;
-  const safePeak = Math.max(0.0002, Math.min(0.18, peak));
-  gainParam.setValueAtTime?.(0.0001, t0);
+  const calibrated = Math.max(0.001, Math.min(0.32, rawPeak * VOICE_GAIN_CALIBRATION));
+  gainParam.setValueAtTime?.(0.0002, t0);
   if (typeof gainParam.linearRampToValueAtTime === 'function') {
-    gainParam.linearRampToValueAtTime(safePeak, t0 + Math.max(0.03, attackSec));
-    gainParam.setValueAtTime?.(safePeak * 0.92, Math.max(t0 + attackSec, holdEndSec));
-    gainParam.exponentialRampToValueAtTime?.(0.0001, stopSec);
+    gainParam.linearRampToValueAtTime(calibrated, t0 + Math.max(0.03, attackSec));
+    gainParam.setValueAtTime?.(calibrated * 0.92, Math.max(t0 + attackSec, holdEndSec));
+    gainParam.exponentialRampToValueAtTime?.(0.0002, stopSec);
   } else {
-    gainParam.exponentialRampToValueAtTime?.(safePeak, t0 + Math.max(0.03, attackSec));
-    gainParam.exponentialRampToValueAtTime?.(0.0001, stopSec);
+    gainParam.exponentialRampToValueAtTime?.(calibrated, t0 + Math.max(0.03, attackSec));
+    gainParam.exponentialRampToValueAtTime?.(0.0002, stopSec);
   }
 }
 
@@ -299,12 +322,12 @@ export function playDarkPadChord(rig, opts = {}) {
   const notes = Array.isArray(opts.notes) && opts.notes.length ? opts.notes : ['C2', 'G2', 'Eb3'];
   const t0 = Math.max(ctx.currentTime || 0, opts.time ?? (ctx.currentTime || 0));
   const duration = Math.max(3.5, opts.duration ?? 13.0);
-  const attack = Math.min(duration * 0.45, Math.max(1.2, opts.attack ?? 3.6));
-  const release = Math.min(duration * 0.48, Math.max(1.5, opts.release ?? 4.2));
-  const cutoff = Math.max(140, Math.min(1150, opts.cutoff ?? 420));
-  const cutoffPeak = Math.max(cutoff, Math.min(1450, opts.cutoffPeak ?? cutoff * 1.45));
-  const detuneCents = opts.detuneCents ?? 7.5;
-  const perVoiceGain = (opts.gain ?? 0.042) / Math.max(1, Math.sqrt(notes.length) * 1.45);
+  const attack = Math.min(duration * 0.42, Math.max(0.9, opts.attack ?? 2.8));
+  const release = Math.min(duration * 0.48, Math.max(1.5, opts.release ?? 4.0));
+  const cutoff = Math.max(210, Math.min(1350, (opts.cutoff ?? 420) * 1.18));
+  const cutoffPeak = Math.max(cutoff, Math.min(1650, (opts.cutoffPeak ?? cutoff * 1.48) * 1.15));
+  const detuneCents = opts.detuneCents ?? 8.0;
+  const perVoiceGain = (opts.gain ?? 0.042) / Math.max(1, Math.sqrt(notes.length) * 0.85);
   const waveform = opts.waveform || 'sawtooth';
 
   const voiceGain = ctx.createGain();
@@ -314,11 +337,11 @@ export function playDarkPadChord(rig, opts = {}) {
   if (typeof ctx.createBiquadFilter === 'function') {
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.Q.setValueAtTime(opts.q ?? 0.9, t0);
-    lp.frequency.setValueAtTime(cutoff * 0.72, t0);
+    lp.Q.setValueAtTime?.(opts.q ?? 1.0, t0);
+    lp.frequency.setValueAtTime?.(cutoff * 0.8, t0);
     if (typeof lp.frequency.linearRampToValueAtTime === 'function') {
-      lp.frequency.linearRampToValueAtTime(cutoffPeak, t0 + duration * 0.52);
-      lp.frequency.linearRampToValueAtTime(cutoff * 0.65, t0 + duration);
+      lp.frequency.linearRampToValueAtTime(cutoffPeak, t0 + duration * 0.5);
+      lp.frequency.linearRampToValueAtTime(cutoff * 0.72, t0 + duration);
     }
     lp.connect(voiceGain);
     filterIn = lp;
@@ -326,16 +349,18 @@ export function playDarkPadChord(rig, opts = {}) {
 
   connectVoiceSpatial(rig, voiceGain, opts.dest, {
     pan: opts.pan ?? 0,
-    reverb: opts.reverb ?? 0.74,
-    delay: opts.delay ?? 0.18
+    reverb: opts.reverb ?? 0.76,
+    delay: opts.delay ?? 0.22
   });
 
   for (const n of notes) {
-    const hz = noteToHz(n);
+    const rawHz = noteToHz(n);
+    // Se a nota do acorde for abaixo de 55 Hz, dobra uma oitava para clareza harmônica no pad
+    const hz = rawHz < 52 ? rawHz * 2 : rawHz;
     for (const sign of [-1, 1]) {
       const osc = ctx.createOscillator();
       osc.type = sign < 0 ? waveform : 'triangle';
-      osc.frequency.setValueAtTime(hz, t0);
+      osc.frequency.setValueAtTime?.(hz, t0);
       if (osc.detune && typeof osc.detune.setValueAtTime === 'function') {
         osc.detune.setValueAtTime(sign * detuneCents, t0);
       }
@@ -349,7 +374,7 @@ export function playDarkPadChord(rig, opts = {}) {
 }
 
 /**
- * 2. Sub-Drone Abissal Contínuo (fundação grave 28 Hz – 75 Hz)
+ * 2. Sub-Drone Abissal Contínuo com Harmônicos de Cello/Baixo Audíveis em Qualquer Caixa de Som
  */
 export function playSubDrone(rig, opts = {}) {
   if (!rig?.ctx || typeof rig.ctx.createOscillator !== 'function') return false;
@@ -357,9 +382,9 @@ export function playSubDrone(rig, opts = {}) {
   const t0 = Math.max(ctx.currentTime || 0, opts.time ?? (ctx.currentTime || 0));
   const duration = Math.max(4.0, opts.duration ?? 15.0);
   const hz = noteToHz(opts.note ?? 'C1');
-  const peak = Math.min(0.085, opts.gain ?? 0.055);
-  const attack = Math.min(duration * 0.4, opts.attack ?? 3.2);
-  const release = Math.min(duration * 0.45, opts.release ?? 4.0);
+  const peak = Math.min(0.075, opts.gain ?? 0.05);
+  const attack = Math.min(duration * 0.38, opts.attack ?? 2.4);
+  const release = Math.min(duration * 0.45, opts.release ?? 3.8);
 
   const outGain = ctx.createGain();
   rampEnvelope(outGain.gain, t0, peak, attack, t0 + duration - release, t0 + duration);
@@ -368,38 +393,49 @@ export function playSubDrone(rig, opts = {}) {
   if (typeof ctx.createBiquadFilter === 'function') {
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(Math.max(75, Math.min(240, opts.cutoff ?? 135)), t0);
+    lp.frequency.setValueAtTime?.(Math.max(145, Math.min(340, (opts.cutoff ?? 165) * 1.35)), t0);
     lp.connect(outGain);
     targetIn = lp;
   }
 
   connectVoiceSpatial(rig, outGain, opts.dest, {
     pan: 0,
-    reverb: opts.reverb ?? 0.28,
+    reverb: opts.reverb ?? 0.35,
     delay: 0
   });
 
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
-  subOsc.frequency.setValueAtTime(hz, t0);
+  subOsc.frequency.setValueAtTime?.(hz, t0);
   if (opts.glideToNote && typeof subOsc.frequency.exponentialRampToValueAtTime === 'function') {
     subOsc.frequency.exponentialRampToValueAtTime(noteToHz(opts.glideToNote), t0 + duration * 0.85);
   }
   subOsc.connect(targetIn);
 
-  const warmOsc = ctx.createOscillator();
-  warmOsc.type = 'triangle';
-  warmOsc.frequency.setValueAtTime(hz * (opts.fifth ? 1.5 : 2.0), t0);
-  const harmGain = ctx.createGain();
-  harmGain.gain.setValueAtTime(0.24, t0);
-  warmOsc.connect(harmGain);
-  harmGain.connect(targetIn);
+  // Oitava superior + quinta/duodécima suave (garante presença em 80–240 Hz mesmo em fones/caixas pequenas!)
+  const bodyOsc = ctx.createOscillator();
+  bodyOsc.type = 'sawtooth';
+  bodyOsc.frequency.setValueAtTime?.(hz * 2.0, t0);
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.setValueAtTime?.(0.42, t0);
+  bodyOsc.connect(bodyGain);
+  bodyGain.connect(targetIn);
+
+  const fifthOsc = ctx.createOscillator();
+  fifthOsc.type = 'triangle';
+  fifthOsc.frequency.setValueAtTime?.(hz * (opts.fifth ? 3.0 : 4.0), t0);
+  const fifthGain = ctx.createGain();
+  fifthGain.gain.setValueAtTime?.(0.18, t0);
+  fifthOsc.connect(fifthGain);
+  fifthGain.connect(targetIn);
 
   subOsc.start(t0);
-  warmOsc.start(t0);
+  bodyOsc.start(t0);
+  fifthOsc.start(t0);
   subOsc.stop(t0 + duration + 0.06);
-  warmOsc.stop(t0 + duration + 0.06);
-  rig.voiceCount += 2;
+  bodyOsc.stop(t0 + duration + 0.06);
+  fifthOsc.stop(t0 + duration + 0.06);
+  rig.voiceCount += 3;
   return true;
 }
 
@@ -411,29 +447,29 @@ export function playNoirFeltNote(rig, opts = {}) {
   const ctx = rig.ctx;
   const t0 = Math.max(ctx.currentTime || 0, opts.time ?? (ctx.currentTime || 0));
   const hz = noteToHz(opts.note ?? 'C4');
-  const duration = Math.max(1.6, opts.duration ?? 4.6);
+  const duration = Math.max(1.8, opts.duration ?? 4.8);
   const tone = opts.tone || 'felt'; // 'felt' | 'rhodes' | 'glass' | 'nylon'
-  const peak = Math.min(0.055, opts.gain ?? 0.026);
-  const attack = tone === 'glass' ? 0.08 : tone === 'rhodes' ? 0.055 : 0.038;
+  const calibratedPeak = Math.min(0.24, (opts.gain ?? 0.028) * VOICE_GAIN_CALIBRATION);
+  const attack = tone === 'glass' ? 0.07 : tone === 'rhodes' ? 0.05 : 0.032;
 
   const envGain = ctx.createGain();
-  envGain.gain.setValueAtTime(0.0001, t0);
+  envGain.gain.setValueAtTime?.(0.0002, t0);
   if (typeof envGain.gain.linearRampToValueAtTime === 'function') {
-    envGain.gain.linearRampToValueAtTime(peak, t0 + attack);
+    envGain.gain.linearRampToValueAtTime(calibratedPeak, t0 + attack);
   } else {
-    envGain.gain.exponentialRampToValueAtTime(peak, t0 + attack);
+    envGain.gain.exponentialRampToValueAtTime?.(calibratedPeak, t0 + attack);
   }
-  envGain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  envGain.gain.exponentialRampToValueAtTime?.(0.0002, t0 + duration);
 
   let filterIn = envGain;
   if (typeof ctx.createBiquadFilter === 'function') {
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
     const startCut =
-      tone === 'glass' ? 1280 : tone === 'nylon' ? 980 : tone === 'rhodes' ? 780 : 620;
-    lp.frequency.setValueAtTime?.(opts.cutoff ?? startCut, t0);
+      tone === 'glass' ? 1380 : tone === 'nylon' ? 1100 : tone === 'rhodes' ? 880 : 720;
+    lp.frequency.setValueAtTime?.(opts.cutoff ? opts.cutoff * 1.15 : startCut, t0);
     if (typeof lp.frequency.exponentialRampToValueAtTime === 'function') {
-      lp.frequency.exponentialRampToValueAtTime(Math.max(180, startCut * 0.34), t0 + duration);
+      lp.frequency.exponentialRampToValueAtTime(Math.max(210, startCut * 0.36), t0 + duration);
     }
     lp.connect(envGain);
     filterIn = lp;
@@ -441,20 +477,20 @@ export function playNoirFeltNote(rig, opts = {}) {
 
   connectVoiceSpatial(rig, envGain, opts.dest, {
     pan: opts.pan ?? 0,
-    reverb: opts.reverb ?? 0.78,
-    delay: opts.delay ?? 0.42
+    reverb: opts.reverb ?? 0.8,
+    delay: opts.delay ?? 0.45
   });
 
   const mainOsc = ctx.createOscillator();
   mainOsc.type = tone === 'nylon' ? 'sawtooth' : 'triangle';
-  mainOsc.frequency.setValueAtTime(hz, t0);
+  mainOsc.frequency.setValueAtTime?.(hz, t0);
 
   const overOsc = ctx.createOscillator();
   overOsc.type = 'sine';
-  overOsc.frequency.setValueAtTime(hz * (tone === 'glass' ? 3.0 : 2.0), t0);
+  overOsc.frequency.setValueAtTime?.(hz * (tone === 'glass' ? 3.0 : 2.0), t0);
   const overGain = ctx.createGain();
-  overGain.gain.setValueAtTime(tone === 'glass' ? 0.22 : 0.14, t0);
-  overGain.gain.exponentialRampToValueAtTime(0.001, t0 + duration * 0.45);
+  overGain.gain.setValueAtTime?.(tone === 'glass' ? 0.24 : 0.16, t0);
+  overGain.gain.exponentialRampToValueAtTime?.(0.001, t0 + duration * 0.48);
 
   mainOsc.connect(filterIn);
   overOsc.connect(overGain);
@@ -475,11 +511,12 @@ export function playBowedMetalOrHorn(rig, opts = {}) {
   if (!rig?.ctx || typeof rig.ctx.createOscillator !== 'function') return false;
   const ctx = rig.ctx;
   const t0 = Math.max(ctx.currentTime || 0, opts.time ?? (ctx.currentTime || 0));
-  const hz = noteToHz(opts.note ?? 'G1');
+  const rawHz = noteToHz(opts.note ?? 'G1');
+  const hz = rawHz < 42 ? rawHz * 2 : rawHz;
   const endHz = opts.endNote ? noteToHz(opts.endNote) : hz * (opts.bendRatio ?? 0.985);
   const duration = Math.max(3.0, opts.duration ?? 8.5);
-  const attack = Math.min(duration * 0.45, opts.attack ?? 2.4);
-  const peak = Math.min(0.06, opts.gain ?? 0.032);
+  const attack = Math.min(duration * 0.42, opts.attack ?? 2.1);
+  const peak = Math.min(0.068, opts.gain ?? 0.034);
 
   const envGain = ctx.createGain();
   rampEnvelope(envGain.gain, t0, peak, attack, t0 + duration * 0.68, t0 + duration);
@@ -488,12 +525,12 @@ export function playBowedMetalOrHorn(rig, opts = {}) {
   if (typeof ctx.createBiquadFilter === 'function') {
     const bp = ctx.createBiquadFilter();
     bp.type = opts.filterType || 'lowpass';
-    bp.Q.setValueAtTime(opts.q ?? 2.6, t0);
-    const baseCut = opts.cutoff ?? Math.max(190, Math.min(680, hz * 3.4));
-    bp.frequency.setValueAtTime(baseCut * 0.65, t0);
+    bp.Q.setValueAtTime?.(opts.q ?? 2.4, t0);
+    const baseCut = opts.cutoff ?? Math.max(240, Math.min(780, hz * 3.8));
+    bp.frequency.setValueAtTime?.(baseCut * 0.72, t0);
     if (typeof bp.frequency.linearRampToValueAtTime === 'function') {
-      bp.frequency.linearRampToValueAtTime(baseCut * 1.35, t0 + attack);
-      bp.frequency.linearRampToValueAtTime(baseCut * 0.55, t0 + duration);
+      bp.frequency.linearRampToValueAtTime(baseCut * 1.4, t0 + attack);
+      bp.frequency.linearRampToValueAtTime(baseCut * 0.6, t0 + duration);
     }
     bp.connect(envGain);
     filterIn = bp;
@@ -508,9 +545,9 @@ export function playBowedMetalOrHorn(rig, opts = {}) {
   for (const det of [-8, 0, 8]) {
     const osc = ctx.createOscillator();
     osc.type = det === 0 ? 'sawtooth' : 'triangle';
-    osc.frequency.setValueAtTime(hz, t0);
+    osc.frequency.setValueAtTime?.(hz, t0);
     if (typeof osc.frequency.exponentialRampToValueAtTime === 'function') {
-      osc.frequency.exponentialRampToValueAtTime(Math.max(24, endHz), t0 + duration);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(32, endHz), t0 + duration);
     }
     if (osc.detune && typeof osc.detune.setValueAtTime === 'function') {
       osc.detune.setValueAtTime(det, t0);
@@ -533,8 +570,8 @@ export function playAtmosphericNoiseSwell(rig, opts = {}) {
 
   const t0 = Math.max(ctx.currentTime || 0, opts.time ?? (ctx.currentTime || 0));
   const duration = Math.max(3.0, opts.duration ?? 10.0);
-  const attack = Math.min(duration * 0.45, opts.attack ?? 2.8);
-  const peak = Math.min(0.055, opts.gain ?? 0.022);
+  const attack = Math.min(duration * 0.42, opts.attack ?? 2.4);
+  const peak = Math.min(0.06, opts.gain ?? 0.024);
 
   const src = ctx.createBufferSource();
   src.buffer = buf;
@@ -546,10 +583,10 @@ export function playAtmosphericNoiseSwell(rig, opts = {}) {
   if (typeof ctx.createBiquadFilter === 'function') {
     const flt = ctx.createBiquadFilter();
     flt.type = opts.filterType || 'bandpass';
-    flt.Q.setValueAtTime(opts.q ?? 1.4, t0);
-    const fStart = Math.max(45, Math.min(1400, opts.freqStart ?? 240));
-    const fEnd = Math.max(45, Math.min(1400, opts.freqEnd ?? 420));
-    flt.frequency.setValueAtTime(fStart, t0);
+    flt.Q.setValueAtTime?.(opts.q ?? 1.4, t0);
+    const fStart = Math.max(55, Math.min(1500, opts.freqStart ?? 260));
+    const fEnd = Math.max(55, Math.min(1500, opts.freqEnd ?? 460));
+    flt.frequency.setValueAtTime?.(fStart, t0);
     if (typeof flt.frequency.linearRampToValueAtTime === 'function') {
       flt.frequency.linearRampToValueAtTime(fEnd, t0 + duration * 0.6);
       flt.frequency.linearRampToValueAtTime(fStart * 0.85, t0 + duration);
@@ -562,8 +599,8 @@ export function playAtmosphericNoiseSwell(rig, opts = {}) {
 
   connectVoiceSpatial(rig, envGain, opts.dest, {
     pan: opts.pan ?? 0,
-    reverb: opts.reverb ?? 0.58,
-    delay: opts.delay ?? 0.12
+    reverb: opts.reverb ?? 0.6,
+    delay: opts.delay ?? 0.14
   });
 
   const maxOffset = Math.max(0, (buf.duration || 6) - 0.5);
@@ -583,39 +620,45 @@ export function playMetallicEchoPing(rig, opts = {}) {
   const t0 = Math.max(ctx.currentTime || 0, opts.time ?? (ctx.currentTime || 0));
   const baseHz = noteToHz(opts.note ?? 180);
   const ratios = Array.isArray(opts.ratios) && opts.ratios.length ? opts.ratios : [1.0, 1.47, 2.09];
-  const duration = Math.max(0.9, opts.duration ?? 3.4);
-  const peak = Math.min(0.04, (opts.gain ?? 0.018) / Math.sqrt(ratios.length));
+  const duration = Math.max(1.1, opts.duration ?? 3.6);
+  const calibratedPeak = Math.min(
+    0.2,
+    ((opts.gain ?? 0.02) * VOICE_GAIN_CALIBRATION) / Math.sqrt(ratios.length)
+  );
 
   const envGain = ctx.createGain();
-  envGain.gain.setValueAtTime(0.0001, t0);
+  envGain.gain.setValueAtTime?.(0.0002, t0);
   if (typeof envGain.gain.linearRampToValueAtTime === 'function') {
-    envGain.gain.linearRampToValueAtTime(peak, t0 + (opts.attack ?? 0.025));
+    envGain.gain.linearRampToValueAtTime(calibratedPeak, t0 + (opts.attack ?? 0.025));
   } else {
-    envGain.gain.exponentialRampToValueAtTime(peak, t0 + 0.025);
+    envGain.gain.exponentialRampToValueAtTime?.(calibratedPeak, t0 + 0.025);
   }
-  envGain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  envGain.gain.exponentialRampToValueAtTime?.(0.0002, t0 + duration);
 
   let filterIn = envGain;
   if (typeof ctx.createBiquadFilter === 'function') {
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(Math.max(140, Math.min(1350, opts.cutoff ?? 760)), t0);
+    lp.frequency.setValueAtTime?.(Math.max(160, Math.min(1450, opts.cutoff ?? 820)), t0);
     lp.connect(envGain);
     filterIn = lp;
   }
 
   connectVoiceSpatial(rig, envGain, opts.dest, {
     pan: opts.pan ?? 0,
-    reverb: opts.reverb ?? 0.86,
+    reverb: opts.reverb ?? 0.88,
     delay: opts.delay ?? 0.52
   });
 
   ratios.forEach((ratio, idx) => {
     const osc = ctx.createOscillator();
     osc.type = idx === 0 ? 'sine' : 'triangle';
-    osc.frequency.setValueAtTime(baseHz * ratio, t0);
+    osc.frequency.setValueAtTime?.(baseHz * ratio, t0);
     if (opts.pitchDrop && typeof osc.frequency.exponentialRampToValueAtTime === 'function') {
-      osc.frequency.exponentialRampToValueAtTime(Math.max(28, baseHz * ratio * opts.pitchDrop), t0 + duration * 0.5);
+      osc.frequency.exponentialRampToValueAtTime(
+        Math.max(36, baseHz * ratio * opts.pitchDrop),
+        t0 + duration * 0.52
+      );
     }
     osc.connect(filterIn);
     osc.start(t0);

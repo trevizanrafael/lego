@@ -234,6 +234,13 @@ class LegoGameRequestHandler(SimpleHTTPRequestHandler):
         if self.path.startswith("/api/"):
             sys.stderr.write(f"[API] {self.command} {self.path}\n")
 
+    def end_headers(self) -> None:
+        clean_p = unquote(urlparse(self.path).path).lower()
+        if clean_p == "/" or clean_p.endswith((".html", ".js", ".mjs", ".css")):
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+        super().end_headers()
+
     def _send_json(self, payload: dict, status: int = 200) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -447,19 +454,36 @@ class LegoGameRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"ok": False, "error": str(exc)}, 400)
 
 
+import socket
+
+
 class QuietThreadingHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def handle_error(self, request, client_address) -> None:
         exc = sys.exc_info()[1]
-        if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError)):
             return
         super().handle_error(request, client_address)
 
 
+class DualStackThreadingHTTPServer(QuietThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+    def server_bind(self) -> None:
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        except Exception:
+            pass
+        super().server_bind()
+
+
 def main() -> None:
     port = int(os.environ.get("PORT", "5173"))
-    server = QuietThreadingHTTPServer(("0.0.0.0", port), LegoGameRequestHandler)
+    try:
+        server = DualStackThreadingHTTPServer(("::", port), LegoGameRequestHandler)
+    except OSError:
+        server = QuietThreadingHTTPServer(("0.0.0.0", port), LegoGameRequestHandler)
     print(f"[LEGO Server] Jogo 3D:  http://localhost:{port}/")
     print(f"[LEGO Server] Configs:  http://localhost:{port}/configs")
     print(f"[LEGO Server] yt-dlp:   {YT_DLP_BIN or 'NÃO ENCONTRADO'}")

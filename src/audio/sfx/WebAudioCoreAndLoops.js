@@ -20,6 +20,36 @@ export function initSoundFXState(sfx) {
   sfx.baileBeatPulse = 0;
   sfx.tiktokRadioActive = false;
   sfx.urbanAmbience = new UrbanAmbienceSoundtrack(sfx);
+
+  // Desbloqueia automaticamente o WebAudio e inicia a ambiência sombria no 1º gesto do usuário no navegador
+  if (!globalThis.__testEnvReady && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    const unlockOnce = () => {
+      const ctx = ensureWebAudioContext(sfx);
+      if (ctx && ctx.state === 'running') {
+        if (!sfx.isMusicPlaying) {
+          startWarMusicLoop(sfx);
+        } else {
+          sfx.urbanAmbience?._onContextUnlocked?.();
+        }
+        window.removeEventListener('pointerdown', unlockOnce, true);
+        window.removeEventListener('keydown', unlockOnce, true);
+      } else if (ctx && typeof ctx.resume === 'function') {
+        ctx.resume().then(() => {
+          if (!sfx.isMusicPlaying) {
+            startWarMusicLoop(sfx);
+          } else {
+            sfx.urbanAmbience?._onContextUnlocked?.();
+          }
+          if (ctx.state === 'running') {
+            window.removeEventListener('pointerdown', unlockOnce, true);
+            window.removeEventListener('keydown', unlockOnce, true);
+          }
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('pointerdown', unlockOnce, true);
+    window.addEventListener('keydown', unlockOnce, true);
+  }
 }
 
 export function ensureWebAudioContext(sfx) {
@@ -41,7 +71,7 @@ export function ensureWebAudioContext(sfx) {
     }
   }
   if (sfx.ctx && sfx.ctx.state === 'suspended' && typeof sfx.ctx.resume === 'function') {
-    sfx.ctx.resume().catch(() => {});
+    sfx.ctx.resume().catch(() => { });
   }
   return sfx.ctx;
 }

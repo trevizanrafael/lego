@@ -143,9 +143,9 @@ describe('TRILHA SONORA NATIVA DARK AMBIENT — 10 MINUTOS EXCLUSIVOS POR BAIRRO
         `${id} deve gerar camadas harmônicas/drones ricas ao longo dos 10 min (gerou ${mockCtx.createdOscFreqs.length})`
       );
 
-      // Garante volume discreto/ambiente (nenhuma voz estoura acima do teto suave de 0.18)
+      // Garante volume ambiente calibrado e controlado (nenhuma voz individual estoura acima de 0.34)
       const maxVoicePeak = Math.max(...mockCtx.createdPeakGains.filter((v) => v < 0.8));
-      assert.ok(maxVoicePeak <= 0.185, `Pico de voz em ${id} muito alto: ${maxVoicePeak}`);
+      assert.ok(maxVoicePeak >= 0.02 && maxVoicePeak <= 0.34, `Pico de voz fora da faixa audível ambiente em ${id}: ${maxVoicePeak}`);
 
       const avgHz =
         mockCtx.createdOscFreqs.reduce((acc, v) => acc + v, 0) / mockCtx.createdOscFreqs.length;
