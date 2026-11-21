@@ -650,3 +650,120 @@
   text-transform: uppercase;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.98);
 }
+
+/* ===================================================
+   COMPATIBILIDADE DE DOM LEGADA DA HUD & GUERRA URBANA
+   =================================================== */
+#pointer-prompt {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.prompt-card {
+  background: linear-gradient(180deg, #080b12 0%, #04060a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 4px solid #991b1b;
+  color: #e2e8f0;
+  padding: 16px 22px;
+}
+
+.hud-faction-pill {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  background: #04060a;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+}
+.hud-faction-pill[data-faction="cv"] { border-color: #dc2626; color: #dc2626; }
+.hud-faction-pill[data-faction="pcc"] { border-color: #3b82f6; color: #60a5fa; }
+.hud-faction-pill[data-faction="ares"] { border-color: #a855f7; color: #c084fc; }
+
+.hud-health-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hud-hp-bar-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: 0.06em;
+}
+
+.hud-medic-heal-tag {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #7dd3fc;
+  padding: 2px 8px;
+}
+
+.world-war-hud-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 360px;
+  max-width: 470px;
+  pointer-events: none;
+}
+
+.ww-fac-cv { color: #dc2626; }
+.ww-fac-pcc { color: #3b82f6; }
+.ww-fac-ares { color: #a855f7; }
+.ww-fac-sep { color: #c28e2b; letter-spacing: 0.06em; }
+
+.ww-boss-bars-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ww-boss-bar-row {
+  background: rgba(4, 6, 10, 0.86);
+  border-left: 3px solid #dc2626;
+  padding: 3px 8px;
+}
+
+.ww-boss-bar-row.allied-boss {
+  border-left-color: #7dd3fc;
+}
+
+.ww-boss-bar-top {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #e2e8f0;
+  margin-bottom: 2px;
+}
+
+.ww-boss-bar-track {
+  width: 100%;
+  height: 6px;
+  background: #0d121d;
+  overflow: hidden;
+}
+
+.ww-boss-bar-fill {
+  height: 100%;
+  background: #dc2626;
+  transition: width 0.15s ease;
+}
+
+.ww-boss-bar-row.allied-boss .ww-boss-bar-fill {
+  background: #7dd3fc;
+}
