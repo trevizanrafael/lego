@@ -123,8 +123,9 @@ Sempre adicione ou edite funcionalidades diretamente no submódulo específico d
   * `vehicles/` & `garages/` — Catálogo e malhas da frota terrestre/naval/aérea + oficinas `street-customs/` e `aircraft-customs/`.
   * `destructibles/` — Registro/culling com histerese, dano/explosões em cadeia, estilhaços/studs, balística e VFX de cada herói.
   * `living-city/`, `factions/`, `police/`, `atmosphere/`, `attractions/` — Trânsito/pedestres instanciados, guerra territorial 1x1, perseguição policial 0★–5★, ciclo dia/noite e Baile/Parque de Diversões.
-* **Materiais, Áudio, UI & Estilos (`src/materials/modules/`, `src/audio/sfx/`, `src/ui/`, `styles/`):**
+* **Materiais, Áudio, UI & Estilos (`src/materials/modules/`, `src/audio/`, `src/ui/`, `styles/`):**
   * `src/materials/modules/` — Paleta PBR sombria, shaders de água/superfície e texturas procedurais de rostos/torsos.
+  * `src/audio/ambience/` + `src/audio/ambience/regions/` — Primitivas de síntese Dark Ambient e 11 compositores independentes de 10 minutos (`600s`) por bairro, orquestrados por `UrbanAmbienceSoundtrack.js`.
   * `src/ui/hud/`, `src/ui/map/`, `src/ui/minimap/`, `src/ui/wheel-dossier/` — Módulos isolados da interface Dark-Tech.
   * `styles/` — Folhas CSS separadas por domínio (`tokens-and-base.css`, `operator-hud.css`, `wheel-map-dossier.css`, `title-and-menus.css`, `garages-and-lab.css`, `wanted-and-objectives.css`, `aircraft-hangar.css`), importadas em cascata por `style.css` (lembrar de atualizar o cache-bust `?v=...` em `index.html` ao alterar CSS/JS).
 

@@ -1,5 +1,6 @@
 import { getSvgIcon, drawCanvasVectorIcon } from '../TacticalIcons.js';
 import { TERRITORY_ZONES, FACTION_THEME } from '../../world/FactionWarSystem.js';
+import { soundFX } from '../../audio/SoundFX.js';
 
 export function normalizeAngleDiff(a, b) {
   let d = (a - b) % (Math.PI * 2);
@@ -15,6 +16,18 @@ export function updateMinimapHeaderAndTelemetry(
   world = null,
   playerSpeed = 0
 ) {
+  if (currentRegion && playerPos) {
+    soundFX.setAmbienceContext({
+      regionId: currentRegion.id,
+      altitudeY: playerPos.y || 0,
+      isNight: Boolean(world?.atmosphere?.isNight),
+      timeOfDay: world?.atmosphere?.timeHours ?? 20
+    });
+    if (!soundFX.isMusicPlaying && !hud?.isTitleScreenActive && !hud?.isLoadingActive) {
+      soundFX.startWarMusic();
+    }
+  }
+
   if (currentRegion && currentRegion.id !== hud._lastRegionId) {
     const shouldShowToast = hud._hasInitializedRegion;
     hud._hasInitializedRegion = true;
