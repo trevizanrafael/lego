@@ -1,12 +1,22 @@
 import * as THREE from 'three';
-import { LEGO_COLORS, getLegoMaterial, getSharedNpcFaceMaterial } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries } from '../BuildingGenerator.js';
-import { isInsideBuiltUrbanCore } from '../CoastlineProfile.js';
+import { getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { getTerritoryZoneAt } from '../FactionWarSystem.js';
+import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
+import { resetHumanoidLimbPose } from '../npc-health/HumanoidHitReactions.js';
 import {
-  NPC_HEAD_GEO, NPC_FACE_SHELL_GEO, NPC_TRAPEZOID_TORSO_GEO, NPC_TORSO_DECAL_GEO,
-  NPC_HIP_GEO, NPC_ARM_GEO, NPC_LEG_GEO, SHARED_CIV_PROP_GEOS,
-  CAMERA_FLASH_GEO, SHARED_CAMERA_FLASH_MAT, getSharedCivilianTorsoMaterial
+  NPC_HEAD_GEO,
+  NPC_FACE_SHELL_GEO,
+  NPC_TRAPEZOID_TORSO_GEO,
+  NPC_TORSO_DECAL_GEO,
+  NPC_HIP_GEO,
+  NPC_ARM_GEO,
+  NPC_HAND_GEO,
+  NPC_LEG_GEO,
+  SHARED_CIV_PROP_GEOS,
+  CAMERA_FLASH_GEO,
+  SHARED_CAMERA_FLASH_MAT,
+  getSharedCivilianTorsoMaterial,
+  getSharedHumanCivilianFaceMaterial
 } from './PedestrianSharedGeometriesAndArchetypes.js';
 
 // Scratch objects para instancing de pedestres (Zero alocação por frame!)
@@ -22,13 +32,6 @@ const _PED_COLOR = new THREE.Color();
 
 export const pedestrianCrowdAndInstancingMethods = {
   _initPedestrianInstancedPools() {
-    const Ctor = this.constructor || Object;
-    if (!Ctor._mergedTorsoHipGeo) {
-      const tGeo = NPC_TRAPEZOID_TORSO_GEO.clone();
-      const hGeo = NPC_HIP_GEO.clone();
-      hGeo.translate(0, -0.4, 0);
-      Ctor._mergedTorsoHipGeo = mergeBufferGeometries([tGeo, hGeo]);
-    }
     const maxPeds = 220;
     const mkInst = (geo, mat, cap, withColor = false) => {
       const inst = new THREE.InstancedMesh(geo, mat, cap);
@@ -45,24 +48,29 @@ export const pedestrianCrowdAndInstancingMethods = {
       return inst;
     };
 
+    const skinMat = getLegoMaterial(0xffffff, { roughness: 0.46, clearcoat: 0.12 });
+    const clothMat = getLegoMaterial(0xffffff, { roughness: 0.56, clearcoat: 0.08 });
+
     this._pedMaxCap = maxPeds;
     this._pedPools = {
-      torso: mkInst(Ctor._mergedTorsoHipGeo, getLegoMaterial(0xffffff, { roughness: 0.22 }), maxPeds, true),
-      legs: mkInst(NPC_LEG_GEO, getLegoMaterial(0xffffff, { roughness: 0.24 }), maxPeds * 2, true),
-      arms: mkInst(NPC_ARM_GEO, getLegoMaterial(0xffffff, { roughness: 0.22 }), maxPeds * 2, true),
-      head: mkInst(NPC_HEAD_GEO, getLegoMaterial(LEGO_COLORS.yellow, { roughness: 0.22 }), maxPeds, false),
+      hip: mkInst(NPC_HIP_GEO, clothMat, maxPeds, true),
+      torso: mkInst(NPC_TRAPEZOID_TORSO_GEO, clothMat, maxPeds, true),
+      legs: mkInst(NPC_LEG_GEO, clothMat, maxPeds * 2, true),
+      arms: mkInst(NPC_ARM_GEO, clothMat, maxPeds * 2, true),
+      hands: mkInst(NPC_HAND_GEO, skinMat, maxPeds * 2, true),
+      head: mkInst(NPC_HEAD_GEO, skinMat, maxPeds, true),
       cameraFlash: mkInst(CAMERA_FLASH_GEO, SHARED_CAMERA_FLASH_MAT, 32, false),
-      backProp: mkInst(SHARED_CIV_PROP_GEOS.backpack, getLegoMaterial(0xffffff, { roughness: 0.25 }), maxPeds, true),
+      backProp: mkInst(SHARED_CIV_PROP_GEOS.backpack, clothMat, maxPeds, true),
       faces: new Map(),
       decals: new Map(),
       headProps: new Map(),
       handProps: new Map(),
       all: []
     };
-    const { all, torso, legs, arms, head, cameraFlash, backProp } = this._pedPools;
-    all.push(torso, legs, arms, head, cameraFlash, backProp);
-    this._pedHeadPropMat = getLegoMaterial(0xffffff, { roughness: 0.24 });
-    this._pedHandPropMat = getLegoMaterial(0xffffff, { roughness: 0.22 });
+    const { all, hip, torso, legs, arms, hands, head, cameraFlash, backProp } = this._pedPools;
+    all.push(hip, torso, legs, arms, hands, head, cameraFlash, backProp);
+    this._pedHeadPropMat = getLegoMaterial(0xffffff, { roughness: 0.52, clearcoat: 0.1 });
+    this._pedHandPropMat = getLegoMaterial(0xffffff, { roughness: 0.42, clearcoat: 0.14 });
   },
 
   _getPedSubPool(map, key, createFn) {
@@ -117,41 +125,58 @@ export const pedestrianCrowdAndInstancingMethods = {
       if (!root || !root.visible) continue;
 
       _PED_QUAT.setFromEuler(root.rotation);
-      _PED_ROOT_MAT4.compose(root.position, _PED_QUAT, _PED_SCALE_ONE);
+      _PED_ROOT_MAT4.compose(root.position, _PED_QUAT, root.scale || _PED_SCALE_ONE);
 
-      // Tronco + Decal
-      composePart(_PED_ROOT_MAT4, 0, 1.04, 0, 0, 0, 0);
+      // Cintura (cor da calça igual aos operadores) em y = 0.72
+      composePart(_PED_ROOT_MAT4, 0, 0.72, 0, 0, 0, 0);
+      pushMat(pools.hip, _PED_WORLD_MAT4, vis.legHex);
+
+      // Tronco + Decal em y = 0.86 + 0.38 = 1.24
+      composePart(_PED_ROOT_MAT4, 0, 1.24, 0, 0, 0, 0);
       pushMat(pools.torso, _PED_WORLD_MAT4, vis.torsoHex);
 
-      const decalKey = vis.torsoKey || 'casual_blue';
+      const decalKey = vis.torsoKey || 'casual_denim';
       const decalPool = this._getPedSubPool(pools.decals, decalKey, () =>
         new THREE.InstancedMesh(NPC_TORSO_DECAL_GEO, getSharedCivilianTorsoMaterial(decalKey), this._pedMaxCap)
       );
       pushMat(decalPool, _PED_WORLD_MAT4);
 
-      // Pernas esquerda e direita
-      composePart(_PED_ROOT_MAT4, -0.2, 0.62, 0, vis.leftLeg.rotation.x, 0, 0);
+      // Pernas esquerda e direita (pivô y = 0.72 -> sola toca y = 0.00 exato)
+      composePart(_PED_ROOT_MAT4, -0.21, 0.72, 0, vis.leftLeg.rotation.x, 0, vis.leftLeg.rotation.z || 0);
       pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
-      composePart(_PED_ROOT_MAT4, 0.2, 0.62, 0, vis.rightLeg.rotation.x, 0, 0);
+      composePart(_PED_ROOT_MAT4, 0.21, 0.72, 0, vis.rightLeg.rotation.x, 0, vis.rightLeg.rotation.z || 0);
       pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
 
-      // Cabeça + Shell de Expressão Facial
-      composePart(_PED_ROOT_MAT4, 0, 1.66, 0, 0, 0, 0);
-      pushMat(pools.head, _PED_WORLD_MAT4);
+      // Cabeça humana + Shell de expressão transparente + Cabelo/Boné em y = 1.95 (base headGroup = 1.62)
+      const headYaw = vis.headYaw || 0;
+      composePart(_PED_ROOT_MAT4, 0, 1.95, 0, 0, headYaw, 0);
+      pushMat(pools.head, _PED_WORLD_MAT4, vis.skinHex);
 
-      const faceKey = vis.faceKey || ped.currentFaceKey || 'civ_smile';
+      const faceKey = vis.faceKey || ped.currentFaceKey || 'civ_calm';
       const facePool = this._getPedSubPool(pools.faces, faceKey, () =>
-        new THREE.InstancedMesh(NPC_FACE_SHELL_GEO, getSharedNpcFaceMaterial(faceKey), this._pedMaxCap)
+        new THREE.InstancedMesh(NPC_FACE_SHELL_GEO, getSharedHumanCivilianFaceMaterial(faceKey), this._pedMaxCap)
       );
       pushMat(facePool, _PED_WORLD_MAT4);
 
-      // Braço esquerdo
-      composePart(_PED_ROOT_MAT4, -0.52, 1.33, 0, vis.leftArm.rotation.x, 0, vis.leftArm.rotation.z);
-      pushMat(pools.arms, _PED_WORLD_MAT4, vis.torsoHex);
+      if (vis.headPropMesh?.visible && vis.headPropKey && SHARED_CIV_PROP_GEOS[vis.headPropKey]) {
+        const hpKey = vis.headPropKey;
+        const hpPool = this._getPedSubPool(pools.headProps, hpKey, () => {
+          const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHeadPropMat, this._pedMaxCap);
+          im.setColorAt(0, _PED_COLOR.setHex(0xffffff));
+          return im;
+        });
+        pushMat(hpPool, _PED_WORLD_MAT4, vis.headColor);
+      }
 
-      // Braço direito + Prop da Mão + Flash de Câmera
-      composePart(_PED_ROOT_MAT4, 0.52, 1.33, 0, vis.rightArm.rotation.x, 0, vis.rightArm.rotation.z);
-      pushMat(pools.arms, _PED_WORLD_MAT4, vis.torsoHex);
+      // Braço esquerdo + Mão humana em C (cor da pele) em (-0.46, 1.52, 0)
+      composePart(_PED_ROOT_MAT4, -0.46, 1.52, 0, vis.leftArm.rotation.x, 0, vis.leftArm.rotation.z);
+      pushMat(pools.arms, _PED_WORLD_MAT4, vis.armHex ?? vis.torsoHex);
+      pushMat(pools.hands, _PED_WORLD_MAT4, vis.skinHex);
+
+      // Braço direito + Mão humana em C + Prop de Mão em (0.46, 1.52, 0)
+      composePart(_PED_ROOT_MAT4, 0.46, 1.52, 0, vis.rightArm.rotation.x, 0, vis.rightArm.rotation.z);
+      pushMat(pools.arms, _PED_WORLD_MAT4, vis.armHex ?? vis.torsoHex);
+      pushMat(pools.hands, _PED_WORLD_MAT4, vis.skinHex);
       _PED_ARM_MAT4.copy(_PED_WORLD_MAT4);
 
       if (vis.handPropMesh?.visible && vis.handPropKey && SHARED_CIV_PROP_GEOS[vis.handPropKey]) {
@@ -161,30 +186,17 @@ export const pedestrianCrowdAndInstancingMethods = {
           im.setColorAt(0, _PED_COLOR.setHex(0xffffff));
           return im;
         });
-        composePart(_PED_ARM_MAT4, 0, -0.55, 0.13, 0, 0, 0);
+        composePart(_PED_ARM_MAT4, 0, -0.64, 0.08, 0, 0, 0);
         pushMat(hpPool, _PED_WORLD_MAT4, vis.handPropColor);
       }
       if (vis.cameraFlashMesh?.visible) {
-        composePart(_PED_ARM_MAT4, 0, -0.48, 0.34, 0, 0, 0);
+        composePart(_PED_ARM_MAT4, 0, -0.6, 0.24, 0, 0, 0);
         pushMat(pools.cameraFlash, _PED_WORLD_MAT4);
       }
 
-      // Acessório de Cabeça
-      if (vis.headPropMesh?.visible && vis.headPropKey && SHARED_CIV_PROP_GEOS[vis.headPropKey]) {
-        const hpKey = vis.headPropKey;
-        const hpPool = this._getPedSubPool(pools.headProps, hpKey, () => {
-          const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHeadPropMat, this._pedMaxCap);
-          im.setColorAt(0, _PED_COLOR.setHex(0xffffff));
-          return im;
-        });
-        const yOff = hpKey === 'headband' ? 1.78 : hpKey === 'headphones' ? 1.74 : 1.83;
-        composePart(_PED_ROOT_MAT4, 0, yOff, 0, 0, 0, 0);
-        pushMat(hpPool, _PED_WORLD_MAT4, vis.headColor);
-      }
-
-      // Mochila nas costas
+      // Mochila compacta encostada nas costas (y = 1.24, z = -0.29)
       if (vis.backPropMesh?.visible) {
-        composePart(_PED_ROOT_MAT4, 0, 1.05, -0.31, 0, 0, 0);
+        composePart(_PED_ROOT_MAT4, 0, 1.24, -0.29, 0, 0, 0);
         pushMat(pools.backProp, _PED_WORLD_MAT4, vis.backPropColor);
       }
     }
@@ -206,18 +218,31 @@ export const pedestrianCrowdAndInstancingMethods = {
     const visual = this._buildCivilianLegoMinifig(archetype, seed);
 
     const terrainY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(safe.x, safe.z) : 0;
-    const baseY = Math.max(0.28, terrainY + 0.28);
+    const baseY = this._getPedestrianGroundY(safe.x, safe.z, terrainY);
+    visual.root.rotation.order = 'YXZ';
     visual.root.position.set(safe.x, baseY, safe.z);
     if (isChatGroup) {
       visual.root.rotation.y = chatPartnerAngle;
     }
 
+    const humanoidHealth = new HumanoidHealthModel({
+      kind: 'civilian',
+      maxHp: 100,
+      onRecoveredFromDowned: () => {
+        ped.isChatGroup = false;
+        ped.crouchPanicTimer = 0;
+        ped.panicTimer = Math.max(ped.panicTimer || 0, 6.0);
+        ped.state = 'PANIC';
+        this._setPedestrianFace(ped, 'civ_panic');
+      }
+    });
+
     const ped = {
       id: seed,
       archetype,
       visual,
-      normalFaceKey: visual.preset.faceKey || 'civ_smile',
-      currentFaceKey: visual.preset.faceKey || 'civ_smile',
+      normalFaceKey: visual.preset.faceKey || 'civ_calm',
+      currentFaceKey: visual.preset.faceKey || 'civ_calm',
       isChatGroup,
       chatPartnerAngle,
       x1,
@@ -234,15 +259,17 @@ export const pedestrianCrowdAndInstancingMethods = {
       panicTimer: 0,
       panicDirX: 0,
       panicDirZ: 1,
+      crouchPanicTimer: 0,
+      vehicleHitCooldown: 0,
       diveTimer: 0,
       diveVelX: 0,
       diveVelZ: 0,
-      slapstickTimer: 0,
-      slapstickDuration: 0.65,
-      slapstickCooldown: 0,
       knockVelX: 0,
       knockVelZ: 0,
+      isDeadCorpse: false,
+      _corpseSinkOffset: 0,
       animTime: seed * 0.77,
+      humanoidHealth,
       destructible: null
     };
 
@@ -250,17 +277,23 @@ export const pedestrianCrowdAndInstancingMethods = {
       const dObj = this.destructibles.registerDestructible({
         mesh: visual.root,
         type: 'pedestrian_civilian',
-        hp: 999999,
+        hp: 100,
         radius: 0.95,
-        height: 2.0,
+        height: 2.25,
         colliders: [],
-        debrisColors: [LEGO_COLORS.yellow, LEGO_COLORS.blue],
+        debrisColors: [visual.torsoHex, visual.legHex],
         studDrops: { silver: 2, gold: 0, blue: 1, purple: 0 },
-        groundY: terrainY
+        groundY: terrainY,
+        noAutoRespawn: true
       });
+      dObj.maxHp = 100;
       dObj.isCivilianPedestrian = true;
-      dObj.onDamaged = (_amount, hitOrigin) => {
-        this._triggerCivilianSlapstickHit(ped, hitOrigin);
+      dObj.noAutoRespawn = true;
+      dObj.pedestrianRef = ped;
+      dObj.visual = visual;
+      dObj.humanoidHealth = humanoidHealth;
+      dObj.onDamaged = (_amount, hitOrigin, healthRes) => {
+        this._onCivilianDamaged(ped, hitOrigin, healthRes);
       };
       ped.destructible = dObj;
     }
@@ -270,7 +303,6 @@ export const pedestrianCrowdAndInstancingMethods = {
   },
 
   _initPedestrians() {
-    // 1. GRUPOS DE CONVERSA NAS CALÇADAS E PRAÇAS (14 pontos = 34 civis conversando!)
     const chatSpots = [
       { cx: -22, cz: -132, count: 3 },
       { cx: 22, cz: -132, count: 2 },
@@ -309,9 +341,7 @@ export const pedestrianCrowdAndInstancingMethods = {
       }
     }
 
-    // 2. ROTAS AMPLAS DE CALÇADAS EM TODAS AS 10 REGIÕES (63 rotas x 2 = 126 caminhantes -> Total = 160 Civis LEGO!)
     const sidewalkRoutes = [
-      // Centro Financeiro & Super Banco Central
       { x1: -48, z1: -133, x2: 48, z2: -133 },
       { x1: 48, z1: -133, x2: -48, z2: -133 },
       { x1: -52, z1: -101, x2: 52, z2: -101 },
@@ -322,7 +352,6 @@ export const pedestrianCrowdAndInstancingMethods = {
       { x1: 136, z1: -235, x2: 136, z2: -20 },
       { x1: -96, z1: -236, x2: 96, z2: -236 },
       { x1: -96, z1: -268, x2: 96, z2: -268 },
-      // Times Square & Complexo da Torre dos Heróis
       { x1: -236, z1: -101, x2: -136, z2: -101 },
       { x1: -236, z1: -133, x2: -136, z2: -133 },
       { x1: -136, z1: -16, x2: -18, z2: -16 },
@@ -333,7 +362,6 @@ export const pedestrianCrowdAndInstancingMethods = {
       { x1: 140, z1: -101, x2: 245, z2: -101 },
       { x1: 140, z1: -133, x2: 245, z2: -133 },
       { x1: 236, z1: -195, x2: 236, z2: 45 },
-      // Parque Central & Caminhos do Lago
       { x1: 22, z1: 18, x2: 112, z2: 18 },
       { x1: 138, z1: 18, x2: 242, z2: 18 },
       { x1: -55, z1: 18, x2: -12, z2: 18 },
@@ -342,7 +370,6 @@ export const pedestrianCrowdAndInstancingMethods = {
       { x1: 56, z1: 35, x2: 56, z2: 175 },
       { x1: -104, z1: 24, x2: -104, z2: 220 },
       { x1: 268, z1: 24, x2: 268, z2: 240 },
-      // Subúrbio Norte
       { x1: -98, z1: -528, x2: 98, z2: -528 },
       { x1: -98, z1: -496, x2: 98, z2: -496 },
       { x1: 18, z1: -662, x2: 115, z2: -662 },
@@ -351,7 +378,6 @@ export const pedestrianCrowdAndInstancingMethods = {
       { x1: -104, z1: -655, x2: -104, z2: -535 },
       { x1: 104, z1: -655, x2: 104, z2: -535 },
       { x1: -95, z1: -398, x2: 95, z2: -398 },
-      // Calçadão Turístico & Faixa de Areia da Praia Sul
       { x1: -245, z1: 728, x2: -95, z2: 728 },
       { x1: -85, z1: 728, x2: 85, z2: 728 },
       { x1: 95, z1: 728, x2: 240, z2: 728 },
@@ -363,21 +389,18 @@ export const pedestrianCrowdAndInstancingMethods = {
       { x1: 135, z1: 815, x2: 235, z2: 815 },
       { x1: -104, z1: 410, x2: -104, z2: 690 },
       { x1: 104, z1: 410, x2: 104, z2: 690 },
-      // Morro da Cidade de Deus & Entradas Oeste
       { x1: -502, z1: -240, x2: -502, z2: -40 },
       { x1: -502, z1: -20, x2: -502, z2: 180 },
       { x1: -608, z1: -140, x2: -690, z2: -140 },
       { x1: -635, z1: -230, x2: -720, z2: -230 },
       { x1: -618, z1: -45, x2: -712, z2: -45 },
       { x1: -655, z1: 80, x2: -745, z2: 80 },
-      // Distrito Leste & Porto Metropolitano
       { x1: 628, z1: -133, x2: 755, z2: -133 },
       { x1: 628, z1: -265, x2: 755, z2: -265 },
       { x1: 635, z1: -16, x2: 760, z2: -16 },
       { x1: 628, z1: 120, x2: 760, z2: 120 },
       { x1: 628, z1: 280, x2: 780, z2: 280 },
       { x1: 790, z1: 340, x2: 930, z2: 340 },
-      // Entrada do Aeroporto Internacional (Oeste)
       { x1: -1042, z1: -120, x2: -1042, z2: 120 },
       { x1: -1025, z1: -95, x2: -920, z2: -95 },
       { x1: -1025, z1: 95, x2: -920, z2: 95 },
@@ -400,9 +423,6 @@ export const pedestrianCrowdAndInstancingMethods = {
     this._syncPedestrianInstances();
   },
 
-  /**
-   * RECICLAGEM INTELIGENTE POR PROXIMIDADE ("DYNAMIC CROWD RING" — A CADA 1.0s)
-   */
   _updateDynamicCrowdRing(playerPos) {
     if (!playerPos || playerPos.y > 95) return;
 
@@ -412,6 +432,7 @@ export const pedestrianCrowdAndInstancingMethods = {
     for (let i = 0; i < this.pedestrians.length; i++) {
       if (recycledCount >= maxRecyclesPerTick) break;
       const ped = this.pedestrians[i];
+      if (ped.isDeadCorpse || ped.humanoidHealth?.isDead()) continue;
       const root = ped.visual.root;
       const dist = Math.hypot(root.position.x - playerPos.x, root.position.z - playerPos.z);
       if (dist <= 125.0) continue;
@@ -448,16 +469,21 @@ export const pedestrianCrowdAndInstancingMethods = {
           : 0;
         const pedGroundY = this._getPedestrianGroundY(safe.x, safe.z, terrainY);
         const newArch = this._pickArchetypeForCoords(safe.x, safe.z, ped.id + recycledCount);
-        this._rethemePedestrianArchetype(ped, newArch, ped.id);
+        this._rethemePedestrianArchetype(ped, newArch, ped.id + recycledCount);
 
         root.position.set(safe.x, pedGroundY, safe.z);
         root.rotation.set(0, 0, 0);
+        root.scale.set(1, 1, 1);
         root.visible = true;
         root.matrixWorldAutoUpdate = true;
+        resetHumanoidLimbPose(ped.visual);
 
         ped.panicTimer = 0;
-        ped.slapstickTimer = 0;
+        ped.crouchPanicTimer = 0;
+        ped.vehicleHitCooldown = 0;
         ped.diveTimer = 0;
+        ped.isDeadCorpse = false;
+        ped._corpseSinkOffset = 0;
         ped.state = 'NORMAL';
         ped.isChatGroup = i % 7 === 0;
         ped.chatPartnerAngle = ang + Math.PI * 0.5;
@@ -465,8 +491,13 @@ export const pedestrianCrowdAndInstancingMethods = {
         ped.z1 = end1Ok ? az1 : safe.z;
         ped.x2 = end2Ok ? ax2 : safe.x + (walkAlongX ? 16 : 0);
         ped.z2 = end2Ok ? az2 : safe.z + (walkAlongX ? 0 : 16);
+        ped.humanoidHealth?.reset(100);
 
         if (ped.destructible) {
+          ped.destructible.hp = 100;
+          ped.destructible.maxHp = 100;
+          ped.destructible.destroyed = false;
+          ped.destructible.isDeadCorpse = false;
           ped.destructible.basePos.copy(root.position);
           ped.destructible.groundY = terrainY;
         }
@@ -479,6 +510,53 @@ export const pedestrianCrowdAndInstancingMethods = {
     }
   },
 
+  recycleDeadPedestrianOutOfSight(ped, spawn) {
+    if (!ped || !spawn) return;
+    const root = ped.visual.root;
+    const newArch = this._pickArchetypeForCoords(spawn.x, spawn.z, ped.id + 11);
+    this._rethemePedestrianArchetype(ped, newArch, ped.id + 11);
+
+    const walkAlongX = ped.id % 2 === 0;
+    const halfSeg = 22.0 + (ped.id % 4) * 5.0;
+    const ax1 = walkAlongX ? spawn.x - halfSeg : spawn.x;
+    const az1 = walkAlongX ? spawn.z : spawn.z - halfSeg;
+    const ax2 = walkAlongX ? spawn.x + halfSeg : spawn.x;
+    const az2 = walkAlongX ? spawn.z : spawn.z + halfSeg;
+    const end1Ok = !this._isInsideBuilding(ax1, az1, 1.1) && this._isValidDryLandForPedestrian(ax1, az1);
+    const end2Ok = !this._isInsideBuilding(ax2, az2, 1.1) && this._isValidDryLandForPedestrian(ax2, az2);
+
+    root.position.set(spawn.x, spawn.y, spawn.z);
+    root.rotation.set(0, 0, 0);
+    root.scale.set(1, 1, 1);
+    root.visible = true;
+    root.matrixWorldAutoUpdate = true;
+    resetHumanoidLimbPose(ped.visual);
+
+    ped.isDeadCorpse = false;
+    ped._corpseSinkOffset = 0;
+    ped.panicTimer = 0;
+    ped.crouchPanicTimer = 0;
+    ped.vehicleHitCooldown = 0;
+    ped.diveTimer = 0;
+    ped.state = 'NORMAL';
+    ped.isChatGroup = false;
+    ped.x1 = end1Ok ? ax1 : spawn.x;
+    ped.z1 = end1Ok ? az1 : spawn.z;
+    ped.x2 = end2Ok ? ax2 : spawn.x + (walkAlongX ? 16 : 0);
+    ped.z2 = end2Ok ? az2 : spawn.z + (walkAlongX ? 0 : 16);
+    this._setPedestrianFace(ped, ped.normalFaceKey);
+    ped.humanoidHealth?.reset(100);
+
+    if (ped.destructible) {
+      ped.destructible.hp = 100;
+      ped.destructible.maxHp = 100;
+      ped.destructible.destroyed = false;
+      ped.destructible.isDeadCorpse = false;
+      ped.destructible.basePos.set(spawn.x, spawn.y, spawn.z);
+      ped.destructible.groundY = spawn.terrainY ?? 0;
+    }
+  },
+
   _getPedestrianGroundY(x, z, precomputedTerrainY = null) {
     const terrainY =
       precomputedTerrainY !== null
@@ -486,14 +564,6 @@ export const pedestrianCrowdAndInstancingMethods = {
         : this.world.getTerrainHeightAt
           ? this.world.getTerrainHeightAt(x, z)
           : 0;
-
-    // Na Orla Sul (Calçadão Y=0.32m e Areia Y=0.12m), no Morro da CDD e nas Penínsulas externas, o piso já é a superfície real!
-    const onSouthBeachOrBoardwalk =
-      x >= -1825 && x <= 538 && z >= 726 && z <= 1058 && !(x < -1530 && z > 1020);
-    const onFavelaHill = x >= -1016 && x <= -528 && z >= -1820 && z <= 675 && terrainY > 0.35;
-    if (onSouthBeachOrBoardwalk || onFavelaHill || !isInsideBuiltUrbanCore(x, z)) {
-      return Math.max(0.06, terrainY);
-    }
-    return Math.max(0.28, terrainY + 0.28);
+    return Math.max(0, terrainY);
   }
 };

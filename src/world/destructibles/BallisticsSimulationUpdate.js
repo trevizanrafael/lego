@@ -7,13 +7,13 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
-      p.mesh.position.addScaledVector(p.vel, dt);
 
       if (
         p.type === 'katana_slash' ||
         p.type === 'turbo_plasma_slash' ||
         p.type === 'vortex_symbiote_wave'
       ) {
+        p.mesh.position.addScaledVector(p.vel, dt);
         if (p.mesh.userData?.spinRing) {
           p.mesh.userData.spinRing.rotation.y += dt * 32.0;
         }
@@ -55,11 +55,19 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
             if (p.hitObjects) p.hitObjects.add(obj);
             if (p.type === 'turbo_plasma_slash' || p.type === 'vortex_symbiote_wave') {
               _TMP_IMPACT_VEC.set(ox, oy + 0.8, oz);
-              this._triggerMicroImpactBlast(_TMP_IMPACT_VEC);
+              this._triggerMicroImpactBlast(
+                _TMP_IMPACT_VEC,
+                p.sourceIsPlayer !== undefined ? Boolean(p.sourceIsPlayer) : true
+              );
             }
             this.damageObject(obj, p.damage, p.mesh.position, false, {
               canBreakCrackedWall: Boolean(p.canBreakCrackedWall),
-              canBreakSilver: Boolean(p.canBreakSilver)
+              canBreakSilver: Boolean(p.canBreakSilver),
+              sourceIsPlayer: p.sourceIsPlayer !== undefined ? Boolean(p.sourceIsPlayer) : true,
+              isCloseShotgun: Boolean(p.isCloseShotgun),
+              isExplosion: Boolean(p.isExplosion),
+              shotOrigin: p.originPos || null,
+              shotDir: p.vel
             });
           }
         }
@@ -71,26 +79,146 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
         continue;
       }
 
-      if ((p.type === 'fireball' || p.type === 'rpg_rocket') && Math.random() < 0.78) {
-        this.spawnFlameTrailParticle(p.mesh.position, p.type === 'rpg_rocket' ? 1.1 : 0.7);
-      } else if (p.type === 'shotgun_pellet' && Math.random() < 0.35) {
-        this.spawnFlameTrailParticle(p.mesh.position, 0.55);
-      }
+      const startX = p.mesh.position.x;
+      const startY = p.mesh.position.y;
+      const startZ = p.mesh.position.z;
+      const stepX = p.vel.x * dt;
+      const stepY = p.vel.y * dt;
+      const stepZ = p.vel.z * dt;
+      const stepDist = Math.hypot(stepX, stepY, stepZ);
+      const projFromPlayer = p.sourceIsPlayer !== undefined ? Boolean(p.sourceIsPlayer) : true;
+      const checksWorldCols =
+        p.type === 'rpg_rocket' || p.type === 'punisher_50cal' || p.weaponKey === 'pcc_dmr';
 
       let hit = false;
-      const projCandidates = this.getObjectsNear(p.mesh.position.x, p.mesh.position.z, 5.0);
-      for (const obj of projCandidates) {
-        if (obj.destroyed || obj.isDriven) continue;
-        const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
-        const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
-        const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
-        const dx = p.mesh.position.x - ox;
-        const dz = p.mesh.position.z - oz;
-        const dy = p.mesh.position.y - (oy + obj.height * 0.5);
+      const projCandidates = this.getObjectsNear(
+        startX + stepX * 0.5,
+        startZ + stepZ * 0.5,
+        stepDist * 0.5 + 5.0
+      );
+      const steps = Math.max(1, Math.min(28, Math.ceil(stepDist / 1.15)));
 
-        if (Math.hypot(dx, dz) <= obj.radius + 0.45 && Math.abs(dy) <= obj.height * 0.65 + 0.5) {
+      for (let s = 1; s <= steps && !hit; s++) {
+        const frac = s / steps;
+        p.mesh.position.set(startX + stepX * frac, startY + stepY * frac, startZ + stepZ * frac);
+
+        if (s === 1) {
+          if ((p.type === 'fireball' || p.type === 'rpg_rocket') && Math.random() < 0.78) {
+            this.spawnFlameTrailParticle(p.mesh.position, p.type === 'rpg_rocket' ? 1.1 : 0.7);
+          } else if (p.type === 'shotgun_pellet' && Math.random() < 0.35) {
+            this.spawnFlameTrailParticle(p.mesh.position, 0.55);
+          }
+        }
+
+        for (const obj of projCandidates) {
+          if (obj.destroyed || obj.isDriven) continue;
+          const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+          const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+          const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+          const dx = p.mesh.position.x - ox;
+          const dz = p.mesh.position.z - oz;
+          const dy = p.mesh.position.y - (oy + obj.height * 0.5);
+
+          if (Math.hypot(dx, dz) <= obj.radius + 0.45 && Math.abs(dy) <= obj.height * 0.65 + 0.5) {
+            const isCloseShotgun = p.type === 'shotgun_pellet' || Boolean(p.isCloseShotgun);
+            const isExplosion =
+              p.type === 'fireball' || p.type === 'rpg_rocket' || Boolean(p.isExplosion);
+
+            if (p.type === 'fireball' || p.type === 'rpg_rocket') {
+              const blastPos = p.mesh.position.clone();
+              this._triggerExplosion(
+                blastPos,
+                p.blastRadius ?? 4.2,
+                p.damage,
+                false,
+                Boolean(p.isSupernovaBlast),
+                {
+                  canBreakSilver: Boolean(p.canBreakSilver),
+                  canBreakCrackedWall: Boolean(p.canBreakCrackedWall),
+                  sourceIsPlayer: projFromPlayer,
+                  isExplosion: true
+                }
+              );
+              if (typeof p.onExplode === 'function') {
+                p.onExplode(blastPos);
+              }
+            } else if (p.type === 'punisher_50cal') {
+              this.damageObject(obj, p.damage, p.mesh.position, false, {
+                canBreakCrackedWall: true,
+                sourceIsPlayer: projFromPlayer,
+                shotOrigin: p.originPos || null,
+                shotDir: p.vel
+              });
+              this._triggerMicroImpactBlast(p.mesh.position.clone(), projFromPlayer);
+            } else {
+              this.damageObject(obj, p.damage, p.mesh.position, p.isSolar, {
+                canBreakSilver: Boolean(p.canBreakSilver),
+                canBreakCrackedWall: Boolean(p.canBreakCrackedWall),
+                sourceIsPlayer: projFromPlayer,
+                isCloseShotgun,
+                isExplosion,
+                shotOrigin: p.originPos || null,
+                shotDir: p.vel
+              });
+            }
+            hit = true;
+            break;
+          }
+        }
+        if (hit) break;
+
+        // Colisão contra prédios/muros via grade espacial O(1) para Bazuca RPG, Calibre .50 e Sniper DMR
+        if (checksWorldCols && this.world?.colliders) {
+          const px = p.mesh.position.x;
+          const py = p.mesh.position.y;
+          const pz = p.mesh.position.z;
+          const colPad = p.weaponKey === 'pcc_dmr' ? 0.0 : 0.25;
+          const nearProjCols = this.world.getCollidersNear
+            ? this.world.getCollidersNear(px, pz, 2.5)
+            : this.world.colliders;
+          for (const col of nearProjCols) {
+            if (col.disabled) continue;
+            const colMinY = col.minY ?? 0;
+            if (
+              px >= col.minX - colPad &&
+              px <= col.maxX + colPad &&
+              pz >= col.minZ - colPad &&
+              pz <= col.maxZ + colPad &&
+              py >= colMinY &&
+              py <= col.maxY
+            ) {
+              if (p.type === 'rpg_rocket') {
+                const blastPos = p.mesh.position.clone();
+                this._triggerExplosion(blastPos, p.blastRadius ?? 9.5, p.damage, false, true, {
+                  canBreakSilver: true,
+                  canBreakCrackedWall: true,
+                  sourceIsPlayer: projFromPlayer,
+                  isExplosion: true
+                });
+                if (typeof p.onExplode === 'function') {
+                  p.onExplode(blastPos);
+                }
+              } else if (p.type === 'punisher_50cal') {
+                this._triggerMicroImpactBlast(p.mesh.position.clone(), projFromPlayer);
+              } else {
+                this._spawnFxParticle?.(
+                  TRAIL_CUBE_GEO, 0xfbbf24, 0.92, px, py, pz,
+                  0.35, 0.35, 0.35, (Math.random() - 0.5) * 6, 1.8 + Math.random() * 2.5, (Math.random() - 0.5) * 6, 0.16
+                );
+              }
+              hit = true;
+              break;
+            }
+          }
+        }
+        if (hit) break;
+
+        const floorY = this.world?.getTerrainHeightAt
+          ? this.world.getTerrainHeightAt(p.mesh.position.x, p.mesh.position.z)
+          : 0;
+        if (p.mesh.position.y <= floorY + 0.22) {
+          const blastPos = new THREE.Vector3(p.mesh.position.x, floorY + 0.2, p.mesh.position.z);
           if (p.type === 'fireball' || p.type === 'rpg_rocket') {
-            const blastPos = p.mesh.position.clone();
             this._triggerExplosion(
               blastPos,
               p.blastRadius ?? 4.2,
@@ -99,89 +227,20 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
               Boolean(p.isSupernovaBlast),
               {
                 canBreakSilver: Boolean(p.canBreakSilver),
-                canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
+                canBreakCrackedWall: Boolean(p.canBreakCrackedWall),
+                sourceIsPlayer: projFromPlayer,
+                isExplosion: true
               }
             );
             if (typeof p.onExplode === 'function') {
               p.onExplode(blastPos);
             }
           } else if (p.type === 'punisher_50cal') {
-            this.damageObject(obj, p.damage, p.mesh.position, false, {
-              canBreakCrackedWall: true
-            });
-            this._triggerMicroImpactBlast(p.mesh.position.clone());
-          } else {
-            this.damageObject(obj, p.damage, p.mesh.position, p.isSolar, {
-              canBreakSilver: Boolean(p.canBreakSilver),
-              canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
-            });
+            this._triggerMicroImpactBlast(blastPos, projFromPlayer);
           }
           hit = true;
           break;
         }
-      }
-
-      // Colisão contra prédios/muros via grade espacial O(1) para Bazuca RPG e Calibre .50
-      if (!hit && (p.type === 'rpg_rocket' || p.type === 'punisher_50cal') && this.world?.colliders) {
-        const px = p.mesh.position.x;
-        const py = p.mesh.position.y;
-        const pz = p.mesh.position.z;
-        const nearProjCols = this.world.getCollidersNear
-          ? this.world.getCollidersNear(px, pz, 2.5)
-          : this.world.colliders;
-        for (const col of nearProjCols) {
-          if (col.disabled) continue;
-          const colMinY = col.minY ?? 0;
-          if (
-            px >= col.minX - 0.25 &&
-            px <= col.maxX + 0.25 &&
-            pz >= col.minZ - 0.25 &&
-            pz <= col.maxZ + 0.25 &&
-            py >= colMinY &&
-            py <= col.maxY
-          ) {
-            if (p.type === 'rpg_rocket') {
-              const blastPos = p.mesh.position.clone();
-              this._triggerExplosion(blastPos, p.blastRadius ?? 9.5, p.damage, false, true, {
-                canBreakSilver: true,
-                canBreakCrackedWall: true
-              });
-              if (typeof p.onExplode === 'function') {
-                p.onExplode(blastPos);
-              }
-            } else {
-              this._triggerMicroImpactBlast(p.mesh.position.clone());
-            }
-            hit = true;
-            break;
-          }
-        }
-      }
-
-      const floorY = this.world?.getTerrainHeightAt
-        ? this.world.getTerrainHeightAt(p.mesh.position.x, p.mesh.position.z)
-        : 0;
-      if (!hit && p.mesh.position.y <= floorY + 0.22) {
-        const blastPos = new THREE.Vector3(p.mesh.position.x, floorY + 0.2, p.mesh.position.z);
-        if (p.type === 'fireball' || p.type === 'rpg_rocket') {
-          this._triggerExplosion(
-            blastPos,
-            p.blastRadius ?? 4.2,
-            p.damage,
-            false,
-            Boolean(p.isSupernovaBlast),
-            {
-              canBreakSilver: Boolean(p.canBreakSilver),
-              canBreakCrackedWall: Boolean(p.canBreakCrackedWall)
-            }
-          );
-          if (typeof p.onExplode === 'function') {
-            p.onExplode(blastPos);
-          }
-        } else if (p.type === 'punisher_50cal') {
-          this._triggerMicroImpactBlast(blastPos);
-        }
-        hit = true;
       }
 
       if (hit || p.life <= 0) {
@@ -225,12 +284,15 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
       }
 
       if (hitAny || tc.timer <= 0) {
+        const fromPlayer = tc.sourceIsPlayer !== undefined ? Boolean(tc.sourceIsPlayer) : true;
         const blastPos = carObj.mesh.position.clone();
         carObj.basePos.copy(blastPos);
-        this._shatterObject(carObj);
+        this._shatterObject(carObj, blastPos, { sourceIsPlayer: fromPlayer });
         this._triggerExplosion(blastPos, 9.5, 180, false, true, {
           canBreakCrackedWall: true,
-          canBreakSilver: true
+          canBreakSilver: true,
+          sourceIsPlayer: fromPlayer,
+          isExplosion: true
         });
         this.thrownCars.splice(i, 1);
       }
@@ -295,8 +357,12 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
       }
 
       if (hitCollision || g.timer <= 0) {
+        const fromPlayer = g.sourceIsPlayer !== undefined ? Boolean(g.sourceIsPlayer) : true;
         const blastPos = g.mesh.position.clone();
-        this._triggerExplosion(blastPos, 6.8, 70, true, false);
+        this._triggerExplosion(blastPos, 6.8, 70, true, false, {
+          sourceIsPlayer: fromPlayer,
+          isExplosion: true
+        });
         if (typeof g.onExplode === 'function') {
           g.onExplode(blastPos);
         }

@@ -1,21 +1,7 @@
 import * as THREE from 'three';
-import {
-  getLegoMaterial,
-  createMinifigFaceTexture,
-  createMinifigTorsoTexture,
-  disposeTransientObject3D
-} from '../../materials/LegoMaterials.js';
-import {
-  createCustomFaceTexture,
-  createCustomTorsoTexture,
-  attachOp09CustomRigToMinifigure
-} from '../CustomHeroSystem.js';
-import {
-  MINIFIG_PRESETS,
-  resolveHeroPreset,
-  applyPresetVisualScale,
-  resetMinifigBuildRefs
-} from './HeroProfilesCatalog.js';
+import { getLegoMaterial, createMinifigFaceTexture, createMinifigTorsoTexture, disposeTransientObject3D } from '../../materials/LegoMaterials.js';
+import { createCustomFaceTexture, createCustomTorsoTexture, attachOp09CustomRigToMinifigure } from '../CustomHeroSystem.js';
+import { MINIFIG_PRESETS, resolveHeroPreset, applyPresetVisualScale, resetMinifigBuildRefs } from './HeroProfilesCatalog.js';
 import { attachCaveiraBeretHeadgear } from './outfits/CaveiraBopeOutfit.js';
 import { attachSolarisCrownHeadgear } from './outfits/SolarisSunKingOutfit.js';
 import { attachTitaMechaHelmet } from './BigFigRigBuilder.js';
@@ -31,28 +17,89 @@ import { attachPccMuralhaHeadgear } from './outfits/PccMuralhaOutfit.js';
 import { attachAresBastiaoHeadgear } from './outfits/AresBastiaoOutfit.js';
 import { attachAresAgulhaHeadgear } from './outfits/AresAgulhaOutfit.js';
 
-/**
- * Cria a geometria trapezoidal clássica do tronco de uma Minifigura LEGO
- */
-export function createTrapezoidTorsoGeometry(
-  bottomWidth = 0.78,
-  topWidth = 0.94,
-  height = 0.76,
-  depth = 0.44
-) {
+export function createTrapezoidTorsoGeometry(bottomWidth = 0.78, topWidth = 0.94, height = 0.76, depth = 0.44) {
   const geom = new THREE.BoxGeometry(1, height, depth, 1, 1, 1);
   const pos = geom.attributes.position;
-
   for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    const x = pos.getX(i);
-    const isTop = y > 0;
-    const halfW = (isTop ? topWidth : bottomWidth) * 0.5;
-    pos.setX(i, x > 0 ? halfW : -halfW);
+    const halfW = (pos.getY(i) > 0 ? topWidth : bottomWidth) * 0.5;
+    pos.setX(i, pos.getX(i) > 0 ? halfW : -halfW);
   }
-
   geom.computeVertexNormals();
   return geom;
+}
+
+function mergeRigGeometries(geos) {
+  let vCount = 0, iCount = 0;
+  for (const g of geos) {
+    vCount += g.attributes.position.count;
+    iCount += g.index ? g.index.count : g.attributes.position.count;
+  }
+  const pos = new Float32Array(vCount * 3), norm = new Float32Array(vCount * 3), uv = new Float32Array(vCount * 2);
+  const idx = new Uint16Array(iCount);
+  let vOff = 0, iOff = 0;
+  for (const g of geos) {
+    const cnt = g.attributes.position.count;
+    pos.set(g.attributes.position.array, vOff * 3);
+    norm.set(g.attributes.normal.array, vOff * 3);
+    if (g.attributes.uv) uv.set(g.attributes.uv.array, vOff * 2);
+    if (g.index) {
+      const src = g.index.array;
+      for (let k = 0; k < src.length; k++) idx[iOff++] = src[k] + vOff;
+    } else {
+      for (let k = 0; k < cnt; k++) idx[iOff++] = vOff + k;
+    }
+    vOff += cnt;
+    g.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  out.computeBoundingSphere();
+  return out;
+}
+
+export function createMinifigHipGeometry() {
+  const waist = new THREE.BoxGeometry(0.78, 0.14, 0.42).translate(0, 0.07, 0);
+  const crotch = new THREE.BoxGeometry(0.08, 0.2, 0.4).translate(0, -0.06, 0);
+  return mergeRigGeometries([waist, crotch]);
+}
+
+export function createMinifigLegGeometry() {
+  const hipRoll = new THREE.CylinderGeometry(0.17, 0.17, 0.35, 16).rotateZ(Math.PI / 2);
+  const legShaft = new THREE.BoxGeometry(0.35, 0.54, 0.38).translate(0, -0.31, 0);
+  const footMesh = new THREE.BoxGeometry(0.35, 0.16, 0.52).translate(0, -0.64, 0.07);
+  return mergeRigGeometries([hipRoll, legShaft, footMesh]);
+}
+
+export function createMinifigArmGeometry(sideSign = 0) {
+  const shoulderCap = new THREE.SphereGeometry(0.14, 14, 14);
+  const upperArm = new THREE.CylinderGeometry(0.13, 0.12, 0.34, 16).translate(0, -0.17, 0);
+  const forearm = new THREE.CylinderGeometry(0.12, 0.11, 0.24, 16).translate(0, -0.11, 0).rotateX(-0.18).translate(0, -0.32, 0);
+  const merged = mergeRigGeometries([shoulderCap, upperArm, forearm]);
+  return sideSign !== 0 ? merged.rotateZ(sideSign * 0.06) : merged;
+}
+
+export function createMinifigHandGeometry(sideSign = 0) {
+  const wrist = new THREE.CylinderGeometry(0.058, 0.058, 0.08, 12).translate(0, -0.25, 0);
+  const cHand = new THREE.TorusGeometry(0.068, 0.028, 10, 16, Math.PI * 1.35)
+    .rotateZ(-Math.PI * 0.58).rotateY(Math.PI / 2).translate(0, -0.322, 0.012);
+  const merged = mergeRigGeometries([wrist, cHand]).rotateX(-0.18).translate(0, -0.32, 0);
+  return sideSign !== 0 ? merged.rotateZ(sideSign * 0.06) : merged;
+}
+
+export function createMinifigHeadGeometry() {
+  const neck = new THREE.CylinderGeometry(0.18, 0.18, 0.1, 18).translate(0, -0.29, 0);
+  const headCyl = new THREE.CylinderGeometry(0.35, 0.35, 0.52, 28);
+  const topRim = new THREE.TorusGeometry(0.32, 0.03, 10, 28).rotateX(Math.PI / 2).translate(0, 0.26, 0);
+  const botRim = new THREE.TorusGeometry(0.32, 0.03, 10, 28).rotateX(Math.PI / 2).translate(0, -0.26, 0);
+  const headStud = new THREE.CylinderGeometry(0.18, 0.18, 0.13, 20).translate(0, 0.325, 0);
+  return mergeRigGeometries([neck, headCyl, topRim, botRim, headStud]);
+}
+
+export function createMinifigFaceShellGeometry() {
+  return new THREE.CylinderGeometry(0.353, 0.353, 0.52 * 0.9, 28, 1, true, -Math.PI * 0.45, Math.PI * 0.9);
 }
 
 const HEADGEAR_BUILDERS = {

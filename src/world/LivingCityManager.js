@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FactionWarSystem } from './FactionWarSystem.js';
 import { WantedPursuitSystem } from './WantedPursuitSystem.js';
+import { HumanoidCorpseManager } from './npc-health/HumanoidCorpseManager.js';
 import { applyIncomingDamageMitigation } from '../entities/operators/RoleBaselines.js';
 import { resolveCombatantSheet, getDefaultHybridOperatorKey } from '../entities/operators/OperatorCatalog.js';
 import { pedestrianArchetypeMethods } from './living-city/PedestrianSharedGeometriesAndArchetypes.js';
@@ -52,6 +53,7 @@ export class LivingCityManager {
     this._initPedestrians();
     this._initCivilianSkyHelicopter();
     this._initStreetVendorCarts();
+    this.corpseManager = new HumanoidCorpseManager(this.scene, this);
     this.factionWar = new FactionWarSystem(this);
     this.wantedSystem = new WantedPursuitSystem(this);
   }
@@ -78,7 +80,17 @@ export class LivingCityManager {
     if (!Number.isFinite(numericRaw) || numericRaw <= 0) return 0;
     const afterRole = applyIncomingDamageMitigation(numericRaw, this.playerDamageReduction || 0);
     const abilityMult = controller?.operatorAbilities?.getIncomingDamageMultiplier?.(opts?.attackerPos || null) ?? 1.0;
-    return Math.max(1, Math.round(afterRole * abilityMult * 10) / 10);
+    const earlyWindow = Number.isFinite(Number(controller?.rollEarlyMitigationSec))
+      ? Number(controller.rollEarlyMitigationSec)
+      : 0.20;
+    const earlyMit = Number.isFinite(Number(controller?.rollEarlyMitigation))
+      ? Number(controller.rollEarlyMitigation)
+      : 0.40;
+    const isEarlyRoll = Boolean(
+      controller && Number(controller.rollImpulseTimer) > 0 && (Number(controller.rollElapsed) || 0) < earlyWindow
+    );
+    const rollMult = isEarlyRoll ? Math.max(0, 1 - earlyMit) : 1.0;
+    return Math.max(1, Math.round(afterRole * abilityMult * rollMult * 10) / 10);
   }
 
   healPlayerAndAlliesInRadius(center, radius, playerHealAmount, npcHealAmount = playerHealAmount, opts = {}) {
@@ -112,6 +124,7 @@ export class LivingCityManager {
       if (nHeal > 0) {
         const maxNpcHp = dest.maxHp || dest.hp || 100;
         dest.hp = Math.min(maxNpcHp, dest.hp + nHeal);
+        if (dest.humanoidHealth) dest.humanoidHealth.hp = dest.hp;
         alliesHealed++;
       }
     };
@@ -166,6 +179,7 @@ export class LivingCityManager {
     }
 
     this._updateUrbanTraffic(dt, playerPos, controller);
+    this.corpseManager?.update(dt, playerPos, controller);
     this._updatePedestrians(dt, playerPos, controller);
     this._updateCivilianSkyHelicopter(dt);
     if (this.factionWar) {

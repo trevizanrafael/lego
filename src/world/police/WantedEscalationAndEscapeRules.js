@@ -108,19 +108,32 @@ export const wantedEscalationAndEscapeMethods = {
   _handlePlayerDamagedObject(obj, dmg) {
     if (!obj || obj.isDriven || this._isFactionWarContext(obj)) return;
 
+    if (obj.isCivilianPedestrian || obj.type === 'pedestrian_civilian') {
+      this.addChaos(Math.max(26, Math.round(dmg * 0.45)), false);
+      return;
+    }
+
     const carType = obj.mesh?.userData?.carType || '';
+    const isPoliceOfficer = Boolean(obj.isPoliceUnit && obj.isCombatNpc);
     const isPoliceTarget =
       Boolean(obj.isPoliceUnit) ||
       carType === 'interceptor_v8' ||
       carType === 'caveirao_bope';
 
-    if (isPoliceTarget && dmg >= 22) {
+    if (isPoliceOfficer && dmg >= 4) {
+      this.addChaos(Math.max(52, dmg * 0.9), true);
+    } else if (isPoliceTarget && dmg >= 22) {
       this.addChaos(Math.max(52, dmg * 0.9), true);
     }
   },
 
   _handlePlayerDestroyedObject(obj) {
     if (!obj || this._isFactionWarContext(obj)) return;
+
+    if (obj.isCivilianPedestrian || obj.type === 'pedestrian_civilian') {
+      this.addChaos(105, true);
+      return;
+    }
 
     const carType = obj.mesh?.userData?.carType || '';
     const isPoliceTarget =

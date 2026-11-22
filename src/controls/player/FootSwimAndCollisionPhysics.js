@@ -1,18 +1,136 @@
 import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
 import { isFactionOperatorKey, getOperatorSpec } from '../../entities/operators/OperatorCatalog.js';
+import { resolveRoleRollSpec } from '../../entities/operators/RoleBaselines.js';
 import { getWorldSoftBoundaryForce } from '../../world/CoastlineProfile.js';
 import { lerpAngle } from './CameraOrbitAndRig.js';
 
 export const footSwimAndCollisionMethods = {
+  _isAnyMenuOpenForRoll() {
+    if (this.fastTravelState?.active) return true;
+    const h = this.hud;
+    if (!h) return false;
+    return Boolean(
+      h.isTitleScreenActive ||
+      h.isPauseMenuOpen ||
+      h.isFullMapOpen ||
+      h.isDossierOpen ||
+      h.isHeroWheelOpen ||
+      h.isCharacterGridOpen ||
+      h.isCreatorOpen ||
+      h.isCustomsOpen ||
+      h.isAircraftStudioOpen ||
+      h.isTikTokRadioOpen ||
+      h.isRadioWheelOpen ||
+      h.isConfirmDialogOpen
+    );
+  },
+
+  _canPerformCtrlTacticalRoll() {
+    const hero = this.minifigure?.currentHeroKey;
+    const canHeroRoll = isFactionOperatorKey(hero) || hero === 'caveira' || hero === 'sombra';
+    if (!canHeroRoll) return false;
+    if (this.currentVehicle || this.activeRide) return false;
+    if (!this.isGrounded || this.isFlying || this.isSwimming) return false;
+    if (this._isAnyMenuOpenForRoll()) return false;
+    if ((this.rollCooldownTimer || 0) > 0 || (this.rollImpulseTimer || 0) > 0) return false;
+    if (Boolean(this.operatorAbilities?.personal?.shieldActive)) return false;
+    if ((this.operatorWeapons?.spinupProgress || 0) > 0.05 && Boolean(this.mouseButtons?.left)) return false;
+    return true;
+  },
+
   /**
-   * Rolamento Tático do Comandante Caveira / Sombra Escarlate (Q / Ctrl ou pouso de queda alta)
+   * Rolamento de Combate no [Ctrl] / [C] estilo GTA V para os 6 Operadores de Facção + Caveira + Sombra.
+   */
+  _triggerCtrlTacticalRoll() {
+    if (!this._canPerformCtrlTacticalRoll()) return false;
+
+    const hero = this.minifigure.currentHeroKey;
+    const opSpec = isFactionOperatorKey(hero) ? getOperatorSpec(hero) : null;
+    const rollSpec = resolveRoleRollSpec(opSpec ? opSpec.roles : ['damage']);
+
+    const yaw = Number(this.yaw) || 0;
+    const camFwdX = -Math.sin(yaw);
+    const camFwdZ = -Math.cos(yaw);
+    const camRightX = Math.cos(yaw);
+    const camRightZ = -Math.sin(yaw);
+
+    const fwdAxis = (this.keys?.forward ? 1 : 0) - (this.keys?.backward ? 1 : 0);
+    const rightAxis = (this.keys?.right ? 1 : 0) - (this.keys?.left ? 1 : 0);
+    const isAimingRightClick = Boolean(this.mouseButtons?.right);
+
+    if (!this.rollDir) this.rollDir = new THREE.Vector3(0, 0, 1);
+
+    if (fwdAxis !== 0 || rightAxis !== 0) {
+      this.rollDir.set(
+        camFwdX * fwdAxis + camRightX * rightAxis,
+        0,
+        camFwdZ * fwdAxis + camRightZ * rightAxis
+      ).normalize();
+    } else if (isAimingRightClick) {
+      this.rollDir.set(camFwdX, 0, camFwdZ).normalize();
+    } else {
+      const fa = Number(this.facingAngle) || 0;
+      this.rollDir.set(Math.sin(fa), 0, Math.cos(fa)).normalize();
+    }
+
+    let localRollYaw = 0;
+    if (isAimingRightClick) {
+      if (typeof this._alignCharacterToCrosshair === 'function' && this.camera?.getWorldDirection) {
+        this._alignCharacterToCrosshair();
+      } else {
+        this.facingAngle = Math.atan2(camFwdX, camFwdZ);
+        if (this.minifigure?.root) {
+          this.minifigure.root.rotation.y = this.facingAngle;
+        }
+      }
+      const fa = Number(this.facingAngle) || 0;
+      const lx = this.rollDir.x * Math.cos(fa) - this.rollDir.z * Math.sin(fa);
+      const lz = this.rollDir.x * Math.sin(fa) + this.rollDir.z * Math.cos(fa);
+      localRollYaw = Math.atan2(lx, lz);
+    } else {
+      this.facingAngle = Math.atan2(this.rollDir.x, this.rollDir.z);
+      if (this.minifigure?.root) {
+        this.minifigure.root.rotation.y = this.facingAngle;
+      }
+      localRollYaw = 0;
+    }
+
+    if (!this.minifigure?.triggerTacticalRoll?.(rollSpec.duration, localRollYaw)) {
+      return false;
+    }
+
+    this.operatorWeapons?.cancelReload?.();
+    if (this.operatorWeapons) {
+      this.operatorWeapons.isCharging = false;
+      this.operatorWeapons.chargeTime = 0;
+    }
+
+    soundFX.playTacticalRoll();
+    this._isCtrlCombatRoll = true;
+    this._activeRollSpeed = rollSpec.distance / rollSpec.duration;
+    this.rollDurationActive = rollSpec.duration;
+    this.rollImpulseTimer = rollSpec.duration;
+    this.rollElapsed = 0;
+    this.rollCooldownTimer = rollSpec.cooldown;
+    this.rollEarlyMitigationSec = rollSpec.earlyMitigationSec;
+    this.rollEarlyMitigation = rollSpec.earlyMitigation;
+    this.cameraShakeTimer = Math.max(this.cameraShakeTimer || 0, 0.10);
+    return true;
+  },
+
+  /**
+   * Rolamento Acrobático do Comandante Caveira / Sombra Escarlate (Q ou pouso de queda alta)
    */
   _triggerTacticalRoll(customDir = null) {
     if (!this.minifigure.triggerTacticalRoll()) return;
     soundFX.playTacticalRoll();
+    this._isCtrlCombatRoll = false;
     this.rollImpulseTimer = 0.38;
+    this.rollDurationActive = 0.38;
+    this.rollElapsed = 0;
 
+    if (!this.rollDir) this.rollDir = new THREE.Vector3(0, 0, 1);
     if (customDir && customDir.lengthSq() > 0.01) {
       this.rollDir.copy(customDir).normalize();
     } else {
@@ -73,18 +191,73 @@ export const footSwimAndCollisionMethods = {
   },
 
   _updateTacticalRollImpulse(dt) {
-    this.rollImpulseTimer = Math.max(0, this.rollImpulseTimer - dt);
-    const isSombra = this.minifigure.currentHeroKey === 'sombra';
-    const rollSpeed = isSombra ? 38.0 : 33.0;
-    this.velocity.x = this.rollDir.x * rollSpeed;
-    this.velocity.z = this.rollDir.z * rollSpeed;
-    this.currentSpeed = isSombra ? 32.0 : 27.5;
+    const safeDt = Math.max(0, Number(dt) || 0);
+    const prevImpulse = Math.max(0, Number(this.rollImpulseTimer) || 0);
+    const effectiveDt = Math.min(safeDt, prevImpulse);
+    if (prevImpulse > 0) {
+      this.rollElapsed = (this.rollElapsed || 0) + safeDt;
+    }
+    this.rollImpulseTimer = Math.max(0, prevImpulse - safeDt);
+    if ((this.rollCooldownTimer || 0) > 0) {
+      this.rollCooldownTimer = Math.max(0, this.rollCooldownTimer - safeDt);
+    }
+
+    const isSombra = this.minifigure?.currentHeroKey === 'sombra';
+    if (!this.rollDir) this.rollDir = new THREE.Vector3(0, 0, 1);
+
+    if (this._isCtrlCombatRoll) {
+      const baseRollSpeed = Number(this._activeRollSpeed) || (3.6 / 0.42);
+      const frameScale = safeDt > 1e-6 ? (effectiveDt / safeDt) : 1.0;
+      this.velocity.x = this.rollDir.x * baseRollSpeed * frameScale;
+      this.velocity.z = this.rollDir.z * baseRollSpeed * frameScale;
+      this.currentSpeed = baseRollSpeed;
+
+      if (Boolean(this.mouseButtons?.right)) {
+        if (typeof this._alignCharacterToCrosshair === 'function' && this.camera?.getWorldDirection) {
+          this._alignCharacterToCrosshair();
+        } else {
+          const yaw = Number(this.yaw) || 0;
+          this.facingAngle = Math.atan2(-Math.sin(yaw), -Math.cos(yaw));
+          if (this.minifigure?.root) {
+            this.minifigure.root.rotation.y = this.facingAngle;
+          }
+        }
+        if (this.minifigure) {
+          const fa = Number(this.facingAngle) || 0;
+          const lx = this.rollDir.x * Math.cos(fa) - this.rollDir.z * Math.sin(fa);
+          const lz = this.rollDir.x * Math.sin(fa) + this.rollDir.z * Math.cos(fa);
+          this.minifigure.rollLocalYaw = Math.atan2(lx, lz);
+        }
+      }
+
+      if (this.rollImpulseTimer <= 0) {
+        this._isCtrlCombatRoll = false;
+        this._justFinishedCtrlRoll = true;
+      }
+    } else {
+      const rollSpeed = isSombra ? 38.0 : 33.0;
+      this.velocity.x = this.rollDir.x * rollSpeed;
+      this.velocity.z = this.rollDir.z * rollSpeed;
+      this.currentSpeed = isSombra ? 32.0 : 27.5;
+    }
+
     if (isSombra && this.destructibles && Math.random() < 0.72) {
       this.destructibles.spawnSombraShadowStepTrail(this.position, 1.15);
     }
   },
 
   _updateFootAndGlideLocomotion(dt, moveInput, hasInput, isUsingSolarBeam) {
+    if ((this.rollCooldownTimer || 0) > 0) {
+      this.rollCooldownTimer = Math.max(0, this.rollCooldownTimer - Math.max(0, Number(dt) || 0));
+    }
+    if (this._justFinishedCtrlRoll) {
+      this._justFinishedCtrlRoll = false;
+      if (!hasInput) {
+        this.velocity.x = 0;
+        this.velocity.z = 0;
+        this.currentSpeed = 0;
+      }
+    }
     const hero = this.minifigure.currentHeroKey;
     const isOperator = isFactionOperatorKey(hero);
     const opSpec = isOperator ? getOperatorSpec(hero) : null;

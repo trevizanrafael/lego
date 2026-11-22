@@ -7,6 +7,8 @@ import {
 } from '../../materials/LegoMaterials.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { TRAIL_CUBE_GEO, SHARED_UNIT_SPHERE_20 } from './DestructibleRegistryAndCulling.js';
+import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
+import { spawnBloodHitSplatter } from '../npc-health/HumanoidHitReactions.js';
 
 const WATER_DROP_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.22, 0.22, 0.22));
 
@@ -48,7 +50,7 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
         { color: 0xf97316, speedMult: 1.18, tiltX: 0, tiltZ: 0 },
         { color: 0xef4444, speedMult: 0.76, tiltX: 0, tiltZ: 0 },
         { color: 0xfef08a, speedMult: 1.02, tiltX: 0.42, tiltZ: 0.35 },
-        { color: 0xfacc15, speedMult: 1.02, tiltX: -0.42, tiltZ: -0.35 }
+        { color: 0xf59e0b, speedMult: 1.02, tiltX: -0.42, tiltZ: -0.35 }
       ];
       for (const rc of ringConfigs) {
         const rGeo = new THREE.TorusGeometry(1, 0.055, 10, 36);
@@ -56,8 +58,7 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
         const rMat = new THREE.MeshBasicMaterial({ color: rc.color, transparent: true, opacity: 0.9 });
         const rMesh = new THREE.Mesh(rGeo, rMat);
         rMesh.position.copy(center);
-        rMesh.rotation.x = rc.tiltX;
-        rMesh.rotation.z = rc.tiltZ;
+        rMesh.rotation.set(rc.tiltX, 0, rc.tiltZ);
         this.scene.add(rMesh);
         extraMeshes.push(rMesh);
         extraRings.push({ mesh: rMesh, speedMult: rc.speedMult });
@@ -65,7 +66,7 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
 
       const spikeCount = Math.round(12 + chargeRatio * 12);
       const floorY = damageOpts.groundY ?? Math.max(0, center.y - 1.1);
-      const spikeColors = [0xffffff, 0xfef08a, 0xfacc15, 0xf97316, 0xef4444];
+      const spikeColors = [0xffffff, 0xfef08a, 0xf59e0b, 0xf97316, 0xef4444];
       for (let s = 0; s < spikeCount; s++) {
         const isOuterRing = s >= spikeCount * 0.45;
         const ringRatio = isOuterRing ? 0.68 : 0.34;
@@ -114,6 +115,10 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       isSupernova, maxRadius: radius, age: 0, duration: isSupernova ? 0.72 + chargeRatio * 0.38 : 0.36
     });
 
+    const blastDamageOpts = {
+      ...damageOpts,
+      isExplosion: true
+    };
     const blastCandidates = this.getObjectsNear(center.x, center.z, radius + 3.0);
     for (const obj of blastCandidates) {
       if (obj.destroyed || obj.isDriven || obj.isGrabbed) continue;
@@ -122,8 +127,121 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
       const objPos = new THREE.Vector3(ox, oy + obj.height * 0.5, oz);
       if (objPos.distanceTo(center) <= radius + obj.radius) {
-        this.damageObject(obj, maxDamage, center, isSupernova, damageOpts);
+        this.damageObject(obj, maxDamage, center, isSupernova, blastDamageOpts);
       }
+    }
+  },
+
+  _damageHumanoidObject(obj, amount, hitOrigin, isSolar, damageOpts, causedByPlayer) {
+    const UNARMORED_CIVILIAN_MULT = 4.1;
+    let finalDamage = amount;
+
+    if (obj.isCivilianPedestrian) {
+      if (!damageOpts?.unscaledDamage) {
+        if (damageOpts?.isExplosion || damageOpts?.isCloseShotgun || damageOpts?.isShotgunPellet) {
+          finalDamage = amount * 2.5;
+        } else if (amount <= 21) {
+          finalDamage = amount * UNARMORED_CIVILIAN_MULT;
+        } else {
+          finalDamage = amount * 2.1;
+        }
+      }
+    } else if (obj.isCombatNpc && !damageOpts?.fromEnemyNpc && !damageOpts?.unscaledDamage) {
+      finalDamage = amount * 0.55;
+      if (obj.isTankNpc) {
+        if (hitOrigin && obj.mesh) {
+          const fwdX = Math.sin(obj.mesh.rotation.y);
+          const fwdZ = Math.cos(obj.mesh.rotation.y);
+          const dx = hitOrigin.x - obj.mesh.position.x;
+          const dz = hitOrigin.z - obj.mesh.position.z;
+          if (dx * fwdX + dz * fwdZ > 0) {
+            finalDamage *= 0.6;
+          }
+        }
+        finalDamage = Math.min(85, finalDamage);
+      } else if (obj.isBossNpc) {
+        finalDamage = Math.min(160, finalDamage);
+      } else {
+        finalDamage = Math.min(95, finalDamage);
+      }
+    }
+
+    if (!obj.humanoidHealth) {
+      const fallbackKind = obj.isCivilianPedestrian
+        ? 'civilian'
+        : obj.isBossNpc
+          ? 'boss'
+          : obj.isPoliceUnit
+            ? 'police'
+            : 'soldier';
+      obj.humanoidHealth = new HumanoidHealthModel({
+        kind: fallbackKind,
+        maxHp: obj.maxHp || obj.hp || 100
+      });
+      obj.humanoidHealth.hp = Number.isFinite(obj.hp) ? obj.hp : obj.humanoidHealth.maxHp;
+    }
+
+    const entityPos = obj.mesh?.position || obj.basePos || { x: 0, y: 0, z: 0 };
+    const healthRes = obj.humanoidHealth.applyDamage(finalDamage, {
+      hitOrigin: damageOpts?.shotOrigin || hitOrigin,
+      shotDir: damageOpts?.shotDir || null,
+      entityPos,
+      facingYaw: obj.mesh?.rotation?.y || 0,
+      isExplosion: Boolean(damageOpts?.isExplosion || isSolar),
+      isCloseShotgun: Boolean(damageOpts?.isCloseShotgun || damageOpts?.isShotgunPellet),
+      sourceIsPlayer: causedByPlayer
+    });
+    obj.hp = obj.humanoidHealth.hp;
+
+    const bloodPos = { x: entityPos.x, y: (entityPos.y || 0) + (obj.height || 2.1) * 0.56, z: entityPos.z };
+    const shotDir = damageOpts?.shotDir || (
+      hitOrigin ? { x: entityPos.x - hitOrigin.x, y: 0.12, z: entityPos.z - hitOrigin.z } : null
+    );
+    spawnBloodHitSplatter(this, bloodPos, shotDir, healthRes.killed);
+    soundFX.playPlasticHit();
+
+    if (!healthRes.killed) {
+      this.world?.livingCity?.triggerPedestrianPanicNear?.(entityPos, 28, false);
+      if (typeof obj.onDamaged === 'function') {
+        obj.onDamaged(healthRes.damageApplied, hitOrigin, healthRes, damageOpts);
+      }
+      if (causedByPlayer) {
+        this.hud?.triggerHitmarker?.(false);
+        this.onObjectDamaged?.(obj, healthRes.damageApplied, hitOrigin, { ...damageOpts, sourceIsPlayer: true });
+      }
+      return;
+    }
+
+    // Morte humanoide: sem estilhaços LEGO! Solta studs só agora e registra corpo + poça de sangue!
+    obj.destroyed = true;
+    obj.isGrabbed = false;
+    if (obj.isCivilianPedestrian) obj.isDeadCorpse = true;
+    if (obj.colliders) {
+      for (const col of obj.colliders) col.disabled = true;
+    }
+
+    this._spawnStudShower(obj);
+    this.world?.livingCity?.triggerPedestrianPanicNear?.(entityPos, 32, true);
+    if (typeof obj.onDamaged === 'function') {
+      obj.onDamaged(healthRes.damageApplied, hitOrigin, healthRes, damageOpts);
+    }
+    obj.onShattered?.();
+
+    const corpseMgr = this.world?.livingCity?.corpseManager || obj._corpseManager || null;
+    corpseMgr?.registerCorpse({
+      isInstancedPedestrian: Boolean(obj.isCivilianPedestrian),
+      ped: obj.pedestrianRef || null,
+      visual: obj.visual || obj.pedestrianRef?.visual || null,
+      mesh: obj.mesh,
+      destructible: obj,
+      healthModel: obj.humanoidHealth,
+      groundY: obj.groundY ?? entityPos.y ?? 0,
+      unitScale: obj.unitScale || 1.0
+    });
+
+    if (causedByPlayer) {
+      this.hud?.triggerPlayerKillFeedback?.(obj);
+      this.onObjectDestroyed?.(obj, hitOrigin, { ...damageOpts, sourceIsPlayer: true });
     }
   },
 
@@ -152,35 +270,19 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       return;
     }
 
-    if (obj.isCivilianPedestrian) {
-      this.world?.livingCity?.triggerPedestrianPanicNear(obj.basePos, 28);
-      if (typeof obj.onDamaged === 'function') {
-        obj.onDamaged(amount, hitOrigin);
-      }
+    const causedByPlayer =
+      damageOpts?.sourceIsPlayer !== undefined
+        ? Boolean(damageOpts.sourceIsPlayer)
+        : (!damageOpts?.fromEnemyNpc &&
+           !damageOpts?.fromPursuitPolice &&
+           !damageOpts?.fromAmbientTraffic);
+
+    if (obj.isCivilianPedestrian || obj.isCombatNpc) {
+      this._damageHumanoidObject(obj, amount, hitOrigin, isSolar, damageOpts, causedByPlayer);
       return;
     }
 
-    let finalDamage = amount;
-    if (obj.isCombatNpc && !damageOpts.fromEnemyNpc) {
-      finalDamage = amount * 0.55;
-      if (obj.isTankNpc) {
-        if (hitOrigin && obj.mesh) {
-          const fwdX = Math.sin(obj.mesh.rotation.y);
-          const fwdZ = Math.cos(obj.mesh.rotation.y);
-          const dx = hitOrigin.x - obj.mesh.position.x;
-          const dz = hitOrigin.z - obj.mesh.position.z;
-          if (dx * fwdX + dz * fwdZ > 0) {
-            finalDamage *= 0.6;
-          }
-        }
-        finalDamage = Math.min(85, finalDamage);
-      } else if (obj.isBossNpc) {
-        finalDamage = Math.min(160, finalDamage);
-      } else {
-        finalDamage = Math.min(95, finalDamage);
-      }
-    }
-
+    const finalDamage = amount;
     obj.hp -= finalDamage;
     obj.shakeTimer = 0.2;
     if (!obj._isDynamicIndexed) this.wakeObjectMatrix(obj.mesh);
@@ -188,12 +290,11 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     if (typeof obj.onDamaged === 'function') {
       obj.onDamaged(finalDamage, hitOrigin);
     }
-    if (
-      typeof this.onObjectDamaged === 'function' &&
-      !damageOpts?.fromEnemyNpc &&
-      !damageOpts?.fromPursuitPolice
-    ) {
-      this.onObjectDamaged(obj, finalDamage, hitOrigin, damageOpts);
+    if (typeof this.onObjectDamaged === 'function' && causedByPlayer) {
+      this.onObjectDamaged(obj, finalDamage, hitOrigin, {
+        ...damageOpts,
+        sourceIsPlayer: true
+      });
     }
 
     if (obj.hp > 0) {
@@ -202,11 +303,18 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
         this._spawnDebris(obj, 2, 0.6);
       }
     } else {
-      this._shatterObject(obj, hitOrigin, damageOpts);
+      this._shatterObject(obj, hitOrigin, { ...damageOpts, sourceIsPlayer: causedByPlayer });
     }
   },
 
   _shatterObject(obj, hitOrigin = null, damageOpts = {}) {
+    const causedByPlayer =
+      damageOpts?.sourceIsPlayer !== undefined
+        ? Boolean(damageOpts.sourceIsPlayer)
+        : (!damageOpts?.fromEnemyNpc &&
+           !damageOpts?.fromPursuitPolice &&
+           !damageOpts?.fromAmbientTraffic);
+
     obj.destroyed = true;
     obj.isGrabbed = false;
     obj.respawnTimer = obj.isCombatNpc ? 4.0 : obj.isStreetProp ? 45.0 : 28.0;
@@ -221,30 +329,21 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     if (typeof obj.onShattered === 'function') {
       obj.onShattered();
     }
-    if (
-      typeof this.onObjectDestroyed === 'function' &&
-      !damageOpts?.fromEnemyNpc &&
-      !damageOpts?.fromPursuitPolice
-    ) {
-      this.onObjectDestroyed(obj, hitOrigin, damageOpts);
+    if (typeof this.onObjectDestroyed === 'function' && causedByPlayer) {
+      this.onObjectDestroyed(obj, hitOrigin, {
+        ...damageOpts,
+        sourceIsPlayer: true
+      });
     }
 
     for (const col of obj.colliders) {
       col.disabled = true;
     }
 
-    const isBig =
-      obj.type === 'car' ||
-      obj.type === 'police_helicopter' ||
-      obj.type === 'bus_stop' ||
-      obj.type === 'atm_machine' ||
-      obj.type === 'dumpster' ||
-      obj.type === 'newsstand' ||
-      obj.type === 'gold_vault' ||
-      obj.type === 'cracked_wall' ||
-      obj.type === 'silver_lego' ||
-      obj.type === 'gas_pump' ||
-      obj.type === 'bank_vault_door';
+    const isBig = [
+      'car', 'police_helicopter', 'bus_stop', 'atm_machine', 'dumpster',
+      'newsstand', 'gold_vault', 'cracked_wall', 'silver_lego', 'gas_pump', 'bank_vault_door'
+    ].includes(obj.type);
     soundFX.playLegoBreak(isBig);
 
     const pieceCount =
@@ -266,12 +365,15 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     } else if (obj.type === 'gas_pump' || obj.type === 'fuel_truck' || obj.type === 'explosive_barrel') {
       const blastCenter = obj.basePos.clone();
       blastCenter.y += 1.0;
-      this._triggerExplosion(blastCenter, 36.0, 110, false, true);
+      this._triggerExplosion(blastCenter, 36.0, 110, false, true, {
+        sourceIsPlayer: causedByPlayer,
+        isExplosion: true
+      });
     }
   },
 
   _spawnElectricSparks(origin, count = 12) {
-    const colors = [0xfacc15, 0xfef08a, 0x38bdf8, 0xffffff];
+    const colors = [0xf59e0b, 0xfef08a, 0x38bdf8, 0xffffff];
     for (let i = 0; i < count; i++) {
       const s = 0.55 + Math.random() * 0.45;
       const ang = Math.random() * Math.PI * 2;
@@ -324,7 +426,7 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     shaftGeo.translate(0, poleH * 0.5, 0);
     pivot.add(new THREE.Mesh(shaftGeo, poleMat));
 
-    const headColor = obj.type === 'traffic_light' ? 0xfacc15 : 0xfef08a;
+    const headColor = obj.type === 'traffic_light' ? 0xf59e0b : 0xfef08a;
     const headMesh = new THREE.Mesh(
       new THREE.BoxGeometry(0.42, 0.52, 0.42),
       new THREE.MeshBasicMaterial({ color: headColor })
@@ -346,23 +448,14 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
 
   _createWaterGeyser(position, groundY) {
     const waterMat = getLegoMaterial(0x38bdf8, {
-      roughness: 0.1,
-      clearcoat: 0.8,
-      transparent: true,
-      opacity: 0.82,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.25
+      roughness: 0.1, clearcoat: 0.8, transparent: true, opacity: 0.82, emissive: 0x0284c7, emissiveIntensity: 0.25
     });
     const foamMat = getLegoMaterial(0xf8fafc, { roughness: 0.2 });
 
     const colGeo = new THREE.CylinderGeometry(0.14, 0.34, 8.0, 10, 1, true);
     colGeo.translate(0, 4.0, 0);
     const colMat = new THREE.MeshBasicMaterial({
-      color: 0x7dd3fc,
-      transparent: true,
-      opacity: 0.62,
-      depthWrite: false,
-      side: THREE.DoubleSide
+      color: 0x7dd3fc, transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide
     });
     const columnMesh = new THREE.Mesh(colGeo, colMat);
     columnMesh.position.set(position.x, groundY, position.z);
@@ -376,31 +469,15 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       this.scene.add(mesh);
       drops.push({
         mesh,
-        vel: new THREE.Vector3(
-          (Math.random() - 0.5) * 1.9,
-          15.6 + Math.random() * 2.5,
-          (Math.random() - 0.5) * 1.9
-        )
+        vel: new THREE.Vector3((Math.random() - 0.5) * 1.9, 15.6 + Math.random() * 2.5, (Math.random() - 0.5) * 1.9)
       });
     }
 
-    this.geysers.push({
-      origin: position,
-      groundY,
-      maxHeight: 8.0,
-      maxTimer: 7.0,
-      timer: 7.0,
-      columnMesh,
-      drops
-    });
+    this.geysers.push({ origin: position, groundY, maxHeight: 8.0, maxTimer: 7.0, timer: 7.0, columnMesh, drops });
   },
 
   _resetGeyserDrop(mesh, origin, groundY) {
-    mesh.position.set(
-      origin.x + (Math.random() - 0.5) * 0.28,
-      groundY + 0.2,
-      origin.z + (Math.random() - 0.5) * 0.28
-    );
+    mesh.position.set(origin.x + (Math.random() - 0.5) * 0.28, groundY + 0.2, origin.z + (Math.random() - 0.5) * 0.28);
   },
 
   _updateExplosions(dt) {
@@ -409,20 +486,8 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       ex.age += dt;
       const t = ex.age / ex.duration;
       if (t >= 1) {
-        if (ex.sphereMesh) {
-          this.scene.remove(ex.sphereMesh);
-          disposeTransientObject3D(ex.sphereMesh);
-        }
-        if (ex.ringMesh) {
-          this.scene.remove(ex.ringMesh);
-          disposeTransientObject3D(ex.ringMesh);
-        }
-        if (ex.innerCoreMesh) {
-          this.scene.remove(ex.innerCoreMesh);
-          disposeTransientObject3D(ex.innerCoreMesh);
-        }
-        if (ex.extraMeshes) {
-          for (const m of ex.extraMeshes) {
+        for (const m of [ex.sphereMesh, ex.ringMesh, ex.innerCoreMesh, ...(ex.extraMeshes || [])]) {
+          if (m) {
             this.scene.remove(m);
             disposeTransientObject3D(m);
           }
@@ -447,8 +512,7 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
 
       if (ex.extraRings) {
         for (const er of ex.extraRings) {
-          const erRadius = Math.min(ex.maxRadius * 1.25, r * er.speedMult);
-          er.mesh.scale.setScalar(erRadius);
+          er.mesh.scale.setScalar(Math.min(ex.maxRadius * 1.25, r * er.speedMult));
           er.mesh.material.opacity = Math.max(0, (1 - t) * 0.88);
         }
       }
@@ -456,9 +520,7 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       if (ex.eruptionSpikes) {
         for (const sp of ex.eruptionSpikes) {
           const localT = Math.max(0, (t - sp.delay) / (1 - sp.delay));
-          const growY = localT < 0.35
-            ? localT / 0.35
-            : Math.max(0.05, 1.0 - (localT - 0.35) / 0.65);
+          const growY = localT < 0.35 ? localT / 0.35 : Math.max(0.05, 1.0 - (localT - 0.35) / 0.65);
           sp.mesh.scale.set(1.0, growY, 1.0);
           sp.mesh.material.opacity = Math.max(0, (1 - localT) * 0.95);
         }
@@ -470,16 +532,9 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     for (let i = this.geysers.length - 1; i >= 0; i--) {
       const g = this.geysers[i];
       g.timer -= dt;
-
       if (g.timer <= 0) {
-        if (g.columnMesh) {
-          this.scene.remove(g.columnMesh);
-          disposeTransientObject3D(g.columnMesh);
-        }
-        for (const drop of g.drops) {
-          this.scene.remove(drop.mesh);
-          disposeTransientObject3D(drop.mesh);
-        }
+        if (g.columnMesh) { this.scene.remove(g.columnMesh); disposeTransientObject3D(g.columnMesh); }
+        for (const drop of g.drops) { this.scene.remove(drop.mesh); disposeTransientObject3D(drop.mesh); }
         this.geysers.splice(i, 1);
         continue;
       }

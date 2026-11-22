@@ -29,21 +29,33 @@ function mkEl(tag, id = '', cls = [], attrs = {}, kids = []) {
 
 const PANEL_SPECS = {
   audio: [['s', 'masterVol', 'lbl-master-vol', 'slider-master-vol', 'val-master-vol', 0, 100, 5, 85], ['s', 'musicVol', 'lbl-music-vol', 'slider-music-vol', 'val-music-vol', 0, 100, 5, 55], ['s', 'sfxVol', 'lbl-sfx-vol', 'slider-sfx-vol', 'val-sfx-vol', 0, 100, 5, 90]],
-  video: [['st', 'graphicsQuality', 'lbl-graphics-quality', 'graphicsQuality', 'val-graphics-quality'], ['s', 'fov', 'lbl-fov', 'slider-fov', 'val-fov', 50, 85, 1, 60], ['st', 'fullscreen', 'lbl-fullscreen', 'fullscreen', 'val-fullscreen'], ['st', 'timeMode', 'lbl-time-mode', 'timeMode', 'btn-pause-time-mode']],
+  video: [['st', 'graphicsQuality', 'lbl-graphics-quality', 'graphicsQuality', 'val-graphics-quality'], ['s', 'fov', 'lbl-fov', 'slider-fov', 'val-fov', 50, 85, 1, 60], ['st', 'fullscreen', 'lbl-fullscreen', 'fullscreen', 'val-fullscreen'], ['st', 'timeMode', 'lbl-time-mode', 'timeMode', 'btn-pause-time-mode'], ['st', 'killEffect', 'lbl-kill-effect', 'killEffect', 'val-kill-effect']],
   controls: [['s', 'mouseSens', 'lbl-mouse-sens', 'slider-mouse-sens', 'val-mouse-sens', 20, 250, 5, 100], ['st', 'invertY', 'lbl-invert-y', 'invertY', 'val-invert-y'], ['km', 'controlsList', 'lbl-controls-list', 'controls-keymap-grid']],
   game: [['st', 'language', 'lbl-lang-select', 'language', 'btn-pause-language'], ['st', 'regionToast', 'lbl-region-toast', 'regionToast', 'btn-toggle-region-toast'], ['a', 'row-reset-territories', 'resetTerritories', 'lbl-reset-territories', 'btn-pause-reset-territories', 'resetTerritories', 1]]
 };
 
+function buildSettingSpecRow([kind, a, b, c, d, e, f, g, h]) {
+  if (kind === 's') return mkEl('div', '', ['option-row'], { dataset: { descKey: a } }, [mkEl('span', b, ['option-title']), mkEl('div', '', ['option-slider-wrap'], {}, [mkEl('input', c, ['tactical-slider'], { type: 'range', min: e, max: f, step: g, value: h }), mkEl('span', d, ['option-val'])])]);
+  if (kind === 'st') return mkEl('div', '', ['option-row'], { dataset: { descKey: a } }, [mkEl('span', b, ['option-title']), mkEl('div', '', ['ui-stepper'], {}, [mkEl('button', '', ['stepper-arrow', 'stepper-prev'], { type: 'button', text: '◂', dataset: { stepper: c, dir: '-1' } }), mkEl('span', d, ['stepper-value'], { dataset: { stepper: c } }), mkEl('button', '', ['stepper-arrow', 'stepper-next'], { type: 'button', text: '▸', dataset: { stepper: c, dir: '1' } })])]);
+  if (kind === 'km') return mkEl('div', '', ['option-row', 'option-row-keymap'], { dataset: { descKey: a } }, [mkEl('span', b, ['option-title']), mkEl('div', c, ['controls-keymap-grid'])]);
+  return mkEl('div', a, ['option-row', 'ingame-only-setting'], { dataset: { descKey: b } }, [mkEl('span', c, ['option-title']), mkEl('div', '', ['option-action-wrap'], {}, [mkEl('button', d, f ? ['tactical-btn', 'danger-btn'] : ['tactical-btn'], { type: 'button', dataset: { settingAction: e } })])]);
+}
+
+function ensurePanelHasRow(panelEl, descKey, rowSpec) {
+  if (!panelEl) return;
+  const exists =
+    (typeof Element !== 'undefined' && panelEl instanceof Element && Boolean(panelEl.querySelector(`[data-desc-key="${descKey}"]`))) ||
+    (Array.isArray(panelEl.children) && panelEl.children.some((ch) => ch?.dataset?.descKey === descKey));
+  if (!exists) {
+    const rowEl = buildSettingSpecRow(rowSpec);
+    if (rowEl) panelEl.appendChild?.(rowEl);
+  }
+}
+
 function buildHeadlessSettingsSubview(subview) {
   subview.classList?.add('hidden', 'settings-screen');
-  const buildRow = ([kind, a, b, c, d, e, f, g, h]) => {
-    if (kind === 's') return mkEl('div', '', ['option-row'], { dataset: { descKey: a } }, [mkEl('span', b, ['option-title']), mkEl('div', '', ['option-slider-wrap'], {}, [mkEl('input', c, ['tactical-slider'], { type: 'range', min: e, max: f, step: g, value: h }), mkEl('span', d, ['option-val'])])]);
-    if (kind === 'st') return mkEl('div', '', ['option-row'], { dataset: { descKey: a } }, [mkEl('span', b, ['option-title']), mkEl('div', '', ['ui-stepper'], {}, [mkEl('button', '', ['stepper-arrow', 'stepper-prev'], { type: 'button', text: '◂', dataset: { stepper: c, dir: '-1' } }), mkEl('span', d, ['stepper-value'], { dataset: { stepper: c } }), mkEl('button', '', ['stepper-arrow', 'stepper-next'], { type: 'button', text: '▸', dataset: { stepper: c, dir: '1' } })])]);
-    if (kind === 'km') return mkEl('div', '', ['option-row', 'option-row-keymap'], { dataset: { descKey: a } }, [mkEl('span', b, ['option-title']), mkEl('div', c, ['controls-keymap-grid'])]);
-    return mkEl('div', a, ['option-row', 'ingame-only-setting'], { dataset: { descKey: b } }, [mkEl('span', c, ['option-title']), mkEl('div', '', ['option-action-wrap'], {}, [mkEl('button', d, f ? ['tactical-btn', 'danger-btn'] : ['tactical-btn'], { type: 'button', dataset: { settingAction: e } })])]);
-  };
   const panelsWrap = mkEl('div', 'settings-panels-wrap', ['settings-panels-wrap'], {}, SETTINGS_TABS.map((tab) =>
-    mkEl('div', `settings-panel-${tab}`, tab === 'audio' ? ['settings-tab-panel'] : ['settings-tab-panel', 'hidden'], {}, PANEL_SPECS[tab].map(buildRow))
+    mkEl('div', `settings-panel-${tab}`, tab === 'audio' ? ['settings-tab-panel'] : ['settings-tab-panel', 'hidden'], {}, PANEL_SPECS[tab].map(buildSettingSpecRow))
   ));
   const footerTop = mkEl('div', '', ['settings-footer-top'], {}, [mkEl('div', 'settings-option-desc'), mkEl('button', 'btn-settings-restore-defaults', ['tactical-btn'], { type: 'button', text: 'RESTAURAR PADRÃO' })]);
   const blocks = [
@@ -74,11 +86,12 @@ export function installSettingsScreenController(LegoHud) {
       this.settingsSubviewEl = subview;
       this.settingsTabBtns = SETTINGS_TABS.map((t) => byId(`tab-btn-${t}`)).filter(Boolean);
       this.settingsTabPanels = Object.fromEntries(SETTINGS_TABS.map((t) => [t, byId(`settings-panel-${t}`)]));
+      ensurePanelHasRow(this.settingsTabPanels.video, 'killEffect', ['st', 'killEffect', 'lbl-kill-effect', 'killEffect', 'val-kill-effect']);
       for (const [prop, id] of [
         ['settingsTabsBarEl', 'settings-tabs-bar'], ['sliderMasterEl', 'slider-master-vol'], ['sliderMusicEl', 'slider-music-vol'],
         ['sliderSfxEl', 'slider-sfx-vol'], ['valMasterEl', 'val-master-vol'], ['valMusicEl', 'val-music-vol'], ['valSfxEl', 'val-sfx-vol'],
         ['valGraphicsQualityEl', 'val-graphics-quality'], ['sliderFovEl', 'slider-fov'], ['valFovEl', 'val-fov'],
-        ['valFullscreenEl', 'val-fullscreen'], ['btnPauseTimeModeEl', 'btn-pause-time-mode'],
+        ['valFullscreenEl', 'val-fullscreen'], ['btnPauseTimeModeEl', 'btn-pause-time-mode'], ['valKillEffectEl', 'val-kill-effect'],
         ['sliderMouseSensEl', 'slider-mouse-sens'], ['valMouseSensEl', 'val-mouse-sens'], ['valInvertYEl', 'val-invert-y'],
         ['controlsKeymapGridEl', 'controls-keymap-grid'], ['btnPauseLangEl', 'btn-pause-language'], ['btnToggleRegionToastEl', 'btn-toggle-region-toast'],
         ['rowResetTerritoriesEl', 'row-reset-territories'], ['settingsOptionDescEl', 'settings-option-desc'],
@@ -158,7 +171,7 @@ export function installSettingsScreenController(LegoHud) {
       for (const node of stepperNodes) {
         if (!node._stepperBound) { node._stepperBound = true; node.addEventListener?.('click', () => this._stepSettingValue(node.dataset.stepper, Number(node.dataset?.dir) < 0 ? -1 : 1)); }
       }
-      for (const [node, key] of [[this.valGraphicsQualityEl, 'graphicsQuality'], [this.valFullscreenEl, 'fullscreen'], [this.btnPauseTimeModeEl, 'timeMode'], [this.valInvertYEl, 'invertY'], [this.btnPauseLangEl, 'language'], [this.btnToggleRegionToastEl, 'regionToast']]) {
+      for (const [node, key] of [[this.valGraphicsQualityEl, 'graphicsQuality'], [this.valFullscreenEl, 'fullscreen'], [this.btnPauseTimeModeEl, 'timeMode'], [this.valKillEffectEl, 'killEffect'], [this.valInvertYEl, 'invertY'], [this.btnPauseLangEl, 'language'], [this.btnToggleRegionToastEl, 'regionToast']]) {
         if (node && !node._stepperBound) { node._stepperBound = true; node.addEventListener?.('click', () => this._stepSettingValue(key, 1)); }
       }
       for (const btn of this.graphicsQualityButtons || []) btn.addEventListener?.('click', () => this.setGraphicsQuality(btn.dataset?.quality || 'auto'));
@@ -250,6 +263,13 @@ export function installSettingsScreenController(LegoHud) {
         this.onChangeTimeMode?.(this.settings.timeMode);
         return this._refreshLanguageAndOptionsUI?.();
       }
+      if (stepperKey === 'killEffect') {
+        this.settings.killEffect = this.settings.killEffect === false;
+        saveGameSettings(this.settings);
+        soundFX.playPlasticHit();
+        this.onChangeKillEffect?.(this.settings.killEffect);
+        return this._refreshSettingsTabsUI();
+      }
       if (stepperKey === 'invertY') { this.settings.invertY = !this.settings.invertY; saveGameSettings(this.settings); soundFX.playPlasticHit(); return this._refreshSettingsTabsUI(); }
       if (stepperKey === 'language') { if (cycle(LANG_ORDER, this.settings.language || 'pt-BR', dir) !== this.settings.language) this._toggleLanguage?.(); return; }
       if (stepperKey === 'regionToast') {
@@ -268,10 +288,11 @@ export function installSettingsScreenController(LegoHud) {
         Object.assign(this.settings, { masterVolume: d.masterVolume, musicVolume: d.musicVolume, sfxVolume: d.sfxVolume });
         soundFX.setVolumes({ masterVolume: d.masterVolume, musicVolume: d.musicVolume, sfxVolume: d.sfxVolume });
       } else if (tab === 'video') {
-        Object.assign(this.settings, { graphicsQuality: d.graphicsQuality, fov: d.fov, timeMode: d.timeMode });
+        Object.assign(this.settings, { graphicsQuality: d.graphicsQuality, fov: d.fov, timeMode: d.timeMode, killEffect: d.killEffect });
         if (this._isFullscreenActive()) { this._isFullscreenFallback = false; document?.fullscreenElement && document.exitFullscreen?.()?.catch?.(() => {}); }
         this.onChangeGraphicsQuality?.(d.graphicsQuality);
         this.onChangeTimeMode?.(d.timeMode);
+        this.onChangeKillEffect?.(d.killEffect);
         if (this._lastController?.camera) { this._lastController.camera.fov = d.fov; this._lastController.camera.updateProjectionMatrix?.(); }
       } else if (tab === 'controls') {
         Object.assign(this.settings, { mouseSensitivity: d.mouseSensitivity, invertY: d.invertY });
@@ -281,7 +302,8 @@ export function installSettingsScreenController(LegoHud) {
         if (prevLang !== d.language) this.setPlayerFaction?.(this.playerFaction, false);
       }
       saveGameSettings(this.settings);
-      this._refreshLanguageAndOptionsUI?.();
+      if (typeof this._refreshLanguageAndOptionsUI === 'function') this._refreshLanguageAndOptionsUI();
+      else this._refreshSettingsTabsUI();
       const t = UI_TEXTS[this.settings.language] || UI_TEXTS['pt-BR'];
       if (this.settingsOptionDescEl && t.restoredFeedback) this.settingsOptionDescEl.textContent = t.restoredFeedback;
     },
@@ -305,7 +327,7 @@ export function installSettingsScreenController(LegoHud) {
         ['tab-btn-video', t.settingsTabs?.video], ['tab-btn-controls', t.settingsTabs?.controls], ['tab-btn-game', t.settingsTabs?.game],
         ['lbl-master-vol', t.masterVol], ['lbl-music-vol', t.musicVol], ['lbl-sfx-vol', t.sfxVol],
         ['lbl-graphics-quality', t.graphicsQualityLabel], ['lbl-fov', t.fovLabel], ['lbl-fullscreen', t.fullscreenLabel],
-        ['lbl-time-mode', t.timeOfDayLabel], ['lbl-mouse-sens', t.mouseSensLabel], ['lbl-invert-y', t.invertYLabel],
+        ['lbl-time-mode', t.timeOfDayLabel], ['lbl-kill-effect', t.killEffectLabel], ['lbl-mouse-sens', t.mouseSensLabel], ['lbl-invert-y', t.invertYLabel],
         ['lbl-controls-list', t.controlsSectionTitle], ['lbl-lang-select', t.langLabel], ['lbl-region-toast', t.regionToastToggle],
         ['lbl-reset-territories', t.resetTerritoriesBtn], ['btn-pause-reset-territories', t.resetTerritoriesBtn],
         ['btn-settings-restore-defaults', t.restoreDefaultsBtn]
@@ -333,6 +355,11 @@ export function installSettingsScreenController(LegoHud) {
       const mLabels = { ...(t.timeModes || UI_TEXTS['pt-BR'].timeModes), sunset: isEn ? 'SUNSET' : 'PÔR DO SOL' };
       if (this.valFullscreenEl) this.valFullscreenEl.textContent = this._isFullscreenActive() ? t.toggleOn : t.toggleOff;
       if (this.btnPauseTimeModeEl) this.btnPauseTimeModeEl.textContent = mLabels[this.settings.timeMode || 'auto'] || mLabels.auto;
+      if (this.valKillEffectEl) {
+        const killOn = this.settings.killEffect !== false;
+        this.valKillEffectEl.textContent = killOn ? t.toggleOn : t.toggleOff;
+        this.valKillEffectEl.classList?.toggle('active', killOn);
+      }
       if (this.valInvertYEl) this.valInvertYEl.textContent = this.settings.invertY ? t.toggleOn : t.toggleOff;
       if (this.btnPauseLangEl) this.btnPauseLangEl.textContent = t.langModes?.[lang] || (isEn ? 'ENGLISH' : 'PORTUGUÊS');
       if (this.btnToggleRegionToastEl) {

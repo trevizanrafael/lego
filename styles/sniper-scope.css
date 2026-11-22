@@ -1,0 +1,100 @@
+/* =========================================================================
+   LUNETA SNIPER CLÁSSICA MINIMALISTA (1.0X A 10.0X)
+   Exterior 100% preto sólido (#000000) + Lente circular limpa + Cruz preta
+   ========================================================================= */
+
+body.sniper-scope-active #crosshair,
+#crosshair.scope-hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+body.title-or-loading-active #sniper-scope-overlay,
+body.satellite-transition #sniper-scope-overlay {
+  display: none !important;
+}
+
+#sniper-scope-overlay,
+.sniper-scope-overlay {
+  --scope-r: min(43vh, 43vw);
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#sniper-scope-overlay.hidden,
+.sniper-scope-overlay.hidden {
+  display: none !important;
+}
+
+/* Palco central da abertura circular + cruz duplex (recebe impulso de recuo) */
+.sniper-scope-reticle-stage {
+  position: relative;
+  width: calc(var(--scope-r) * 2);
+  height: calc(var(--scope-r) * 2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+  transition: transform 0.05s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sniper-scope-svg-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sniper-scope-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Exterior 100% preto puro (#000000) com borda óptica limpa de 2px na lente circular */
+.sniper-scope-vignette {
+  position: absolute;
+  inset: -35vmax;
+  z-index: 2;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0,
+    transparent calc(var(--scope-r) - 2px),
+    rgba(0, 0, 0, 0.78) calc(var(--scope-r) - 0.8px),
+    #000000 var(--scope-r),
+    #000000 100%
+  );
+}
+
+/* Indicador monocromático ultra-discreto de zoom (1.0X..10.0X) no breu externo inferior-direito */
+.sniper-scope-zoom-txt {
+  position: absolute;
+  left: calc(50% + (var(--scope-r) * 0.74));
+  top: calc(50% + (var(--scope-r) * 0.74));
+  z-index: 3;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: rgb(226, 232, 240);
+  opacity: 0.26;
+  white-space: nowrap;
+  user-select: none;
+  transition: opacity 0.45s ease;
+}
+
+.sniper-scope-zoom-txt.is-adjusting {
+  opacity: 0.82;
+  transition: opacity 0.08s ease;
+}

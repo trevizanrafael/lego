@@ -314,12 +314,18 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
         const dx = refX - playerPosition.x;
         const dz = refZ - playerPosition.z;
         const distSq = dx * dx + dz * dz;
-        const baseDist =
+        let baseDist =
           obj.type === 'car' || obj.type === 'police_helicopter'
             ? 280
             : obj.isStreetProp
               ? 155
               : 380;
+        if (this.hud?.isSniperScopeActive && cameraForward && distSq > baseDist * baseDist) {
+          const fwdDot = dx * cameraForward.x + dz * cameraForward.z;
+          if (fwdDot > 0 && fwdDot * fwdDot >= 0.84 * distSq) {
+            baseDist = 1350;
+          }
+        }
         const cullDist = obj.mesh.visible ? baseDist + 26 : baseDist;
         const maxCullSq = cullDist * cullDist;
         const shouldBeVisible = distSq <= maxCullSq;

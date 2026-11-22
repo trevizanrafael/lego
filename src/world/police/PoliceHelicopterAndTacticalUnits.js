@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { soundFX } from '../../audio/SoundFX.js';
+import { AIM_POSE, animateFactionSoldier, createFactionSoldierVisual } from '../../entities/FactionSoldierBuilder.js';
 import { getSharedPursuitGeos } from './PolicePursuitAssets.js';
+import { HumanoidHealthModel, HUMANOID_STATES } from '../npc-health/HumanoidHealthModel.js';
+import { applyHumanoidHitPose, applyHumanoidKnockbackStep } from '../npc-health/HumanoidHitReactions.js';
 
 // ============================================================================
 // HELICÓPTERO ÁGUIA/BOPE (HOLOFOTE NOTURNO), TROPAS A PÉ, DRONES & COMBATE
@@ -9,78 +12,104 @@ import { getSharedPursuitGeos } from './PolicePursuitAssets.js';
 export const policeHelicopterAndTacticalMethods = {
   _spawnFootTrooper(spawnPos, tierStars = this.stars) {
     if (this.footUnits.length >= (tierStars >= 5 ? 7 : tierStars >= 4 ? 6 : 4)) return null;
-    const G = getSharedPursuitGeos();
     const isExo = tierStars >= 5;
     const isRiotElite = tierStars === 4;
+    const factionKey = isExo || isRiotElite ? 'bope' : 'pf';
+    const roleKey = isExo ? 'special' : isRiotElite ? 'tank' : 'rifleman';
+    const soldier = createFactionSoldierVisual(factionKey, roleKey);
 
-    const group = new THREE.Group();
-    group.userData.isOptimizedGroup = true;
-    group.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
-
-    if (isExo) {
-      const armor = new THREE.Mesh(G.exoArmorGeo, this.mats.exoArmor);
-      armor.castShadow = true;
-      const visor = new THREE.Mesh(G.exoVisorGeo, this.mats.exoNeon);
-      group.add(armor, visor);
-    } else {
-      const body = new THREE.Mesh(
-        G.officerBodyGeo,
-        isRiotElite ? this.mats.policeBlack : this.mats.policeBlue
-      );
-      body.castShadow = true;
-      const head = new THREE.Mesh(G.officerHeadGeo, this.mats.skinYellow);
-      const gun = new THREE.Mesh(G.officerGunGeo, this.mats.gunSteel);
-      group.add(body, head, gun);
-      if (isRiotElite) {
-        group.add(new THREE.Mesh(G.riotShieldGeo, this.mats.riotShield));
-      }
+    const root = soldier.root || new THREE.Group();
+    root.rotation.order = 'YXZ';
+    root.userData.skipStaticMerge = true;
+    if (!soldier.root) {
+      root.add(soldier.bodyRig);
+      soldier.root = root;
     }
+    const unitScale = isExo ? 1.08 : 1.0;
+    if (isExo && soldier.bodyRig) soldier.bodyRig.scale.setScalar(unitScale);
+    if (!soldier.torso) soldier.torso = soldier.bodyRig;
+    if (!soldier.weapon) soldier.weapon = soldier.weaponMount;
 
-    this.scene.add(group);
+    soldier.rightArm.rotation.x = AIM_POSE.rightArmX;
+    soldier.leftArm.rotation.x = soldier.hasShield ? AIM_POSE.shieldArmX : AIM_POSE.leftArmX;
+    soldier.leftArm.rotation.z = soldier.hasShield ? 0.08 : AIM_POSE.leftArmZ;
+    soldier.root.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
+    this.scene.add(soldier.root);
+
+    const maxHp = isExo ? 120 : isRiotElite ? 95 : 65;
+    const humanoidHealth = new HumanoidHealthModel({ kind: 'police', maxHp });
     const obj = this.destructibles.registerDestructible({
-      mesh: group,
+      mesh: soldier.root,
       type: 'npc_fighter',
-      hp: isExo ? 240 : isRiotElite ? 120 : 65,
-      radius: isExo ? 1.45 : 0.95,
-      height: isExo ? 2.6 : 1.85,
+      hp: maxHp,
+      radius: 0.95,
+      height: 2.05,
       colliders: [],
-      debrisColors: isExo
-        ? [0x0f172a, 0x00f0ff, 0xef4444]
-        : [0x1d4ed8, 0x111827, LEGO_COLORS.yellow],
+      debrisColors: isExo || isRiotElite
+        ? [0x15161a, 0x0b0c0f, 0xf59e0b, LEGO_COLORS.yellow]
+        : [0x0f1d3a, 0x111827, 0xf59e0b, LEGO_COLORS.yellow],
       studDrops: isExo
         ? { silver: 2, gold: 8, blue: 6, purple: 1 }
-        : { silver: 4, gold: 4, blue: 1, purple: 0 },
+        : isRiotElite
+          ? { silver: 3, gold: 5, blue: 2, purple: 0 }
+          : { silver: 4, gold: 4, blue: 1, purple: 0 },
       groundY: spawnPos.y,
       isPoliceUnit: true,
+      isCombatNpc: true,
+      isTankNpc: isRiotElite || isExo,
       noAutoRespawn: true
     });
+    obj.maxHp = maxHp;
     obj.isCombatNpc = true;
+    obj.isPoliceUnit = true;
     obj.isTankNpc = isRiotElite || isExo;
+    obj.unitScale = unitScale;
+    obj.visual = soldier;
+    obj.humanoidHealth = humanoidHealth;
 
     const unit = {
-      mesh: group,
-      obj,
-      isExo,
-      isRiotElite,
+      mesh: soldier.root, visual: soldier, obj, destructible: obj,
+      humanoidHealth, unitScale,
+      faction: factionKey, role: roleKey, className: soldier.className,
+      isExo, isRiotElite,
+      walkPhase: Math.random() * Math.PI * 2,
+      phaseOffset: Math.random() * Math.PI * 2,
+      muzzleTimer: 0,
       moveSpeed: isExo ? 16.5 : isRiotElite ? 9.5 : 8.5,
       shootCooldown: 0.7 + Math.random() * 0.7,
       specialCooldown: 2.2 + Math.random() * 1.5
     };
+    obj.npcRef = unit;
     this.footUnits.push(unit);
     return unit;
   },
 
   _clearAllFootUnits() {
     for (const fu of this.footUnits) {
-      this.destructibles.unregisterDestructible(fu.obj);
+      const keepCorpse = fu.obj?._managedByCorpseManager ? fu.mesh : null;
+      if (fu.obj) this.destructibles.unregisterDestructible(fu.obj);
+      if (keepCorpse && this.scene) {
+        if (keepCorpse.parent !== this.scene) this.scene.add(keepCorpse);
+      } else if (fu.mesh?.parent) {
+        fu.mesh.parent.remove(fu.mesh);
+      }
     }
     this.footUnits.length = 0;
   },
 
   _updateFootUnits(dt, playerPos) {
+    this._footAnimClock = (this._footAnimClock || 0) + dt;
     for (let i = this.footUnits.length - 1; i >= 0; i--) {
       const fu = this.footUnits[i];
       if (!fu.obj || fu.obj.destroyed) {
+        if (fu.visual?.muzzleFlash) fu.visual.muzzleFlash.visible = false;
+        const keepCorpse = fu.obj?._managedByCorpseManager ? fu.mesh : null;
+        if (fu.obj) this.destructibles.unregisterDestructible(fu.obj);
+        if (keepCorpse && this.scene) {
+          if (keepCorpse.parent !== this.scene) this.scene.add(keepCorpse);
+        } else if (fu.mesh?.parent) {
+          fu.mesh.parent.remove(fu.mesh);
+        }
         this.footUnits.splice(i, 1);
         continue;
       }
@@ -88,13 +117,51 @@ export const policeHelicopterAndTacticalMethods = {
       const dist = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
       if (dist > 145) {
         this.destructibles.unregisterDestructible(fu.obj);
+        if (fu.mesh?.parent) fu.mesh.parent.remove(fu.mesh);
         this.footUnits.splice(i, 1);
         continue;
+      }
+
+      const vis = fu.visual;
+      if (fu.muzzleTimer > 0) {
+        fu.muzzleTimer -= dt;
+        if (fu.muzzleTimer <= 0 && vis?.muzzleFlash) vis.muzzleFlash.visible = false;
+      }
+
+      if (fu.humanoidHealth) {
+        fu.humanoidHealth.update(dt);
+        if (
+          fu.humanoidHealth.state === HUMANOID_STATES.STAGGER ||
+          fu.humanoidHealth.state === HUMANOID_STATES.DOWNED
+        ) {
+          if (vis?.muzzleFlash) vis.muzzleFlash.visible = false;
+          applyHumanoidKnockbackStep(fu.mesh, fu.humanoidHealth, dt, (nx, nz, cx, cz) => {
+            if (this._isSegmentBlockedByBuilding(cx, cz, nx, nz)) return { blocked: true };
+            return { x: nx, z: nz, valid: true };
+          });
+          const gY = this.world?.getTerrainHeightAt
+            ? this.world.getTerrainHeightAt(pos.x, pos.z)
+            : 0;
+          applyHumanoidHitPose(vis, fu.humanoidHealth, gY, dt, {
+            unitScale: fu.unitScale || 1
+          });
+          fu.obj.basePos.set(pos.x, gY, pos.z);
+          fu.obj.groundY = gY;
+          continue;
+        }
+      }
+
+      fu.mesh.rotation.x = 0;
+      fu.mesh.rotation.z = 0;
+      if (vis) {
+        vis.leftLeg.rotation.z = 0;
+        vis.rightLeg.rotation.z = 0;
       }
 
       const ang = Math.atan2(playerPos.x - pos.x, playerPos.z - pos.z);
       fu.mesh.rotation.y = ang;
 
+      let moved = false;
       if (dist > 11.0 && !this.isEscaping) {
         const nx = pos.x + Math.sin(ang) * fu.moveSpeed * dt;
         const nz = pos.z + Math.cos(ang) * fu.moveSpeed * dt;
@@ -103,7 +170,29 @@ export const policeHelicopterAndTacticalMethods = {
           pos.z = nz;
           pos.y = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0;
           fu.obj.basePos.copy(pos);
+          fu.obj.groundY = pos.y;
+          moved = true;
         }
+      }
+
+      if (vis) {
+        if (moved) {
+          fu.walkPhase = (fu.walkPhase || 0) + dt * 9.0;
+          const swing = Math.sin(fu.walkPhase);
+          vis.leftLeg.rotation.x = swing * 0.62;
+          vis.rightLeg.rotation.x = -swing * 0.62;
+          vis.rightArm.rotation.x = AIM_POSE.rightArmX + swing * 0.16;
+          vis.leftArm.rotation.x = (vis.hasShield ? AIM_POSE.shieldArmX : AIM_POSE.leftArmX) - swing * 0.22;
+          vis.leftArm.rotation.z = vis.hasShield ? 0.08 : AIM_POSE.leftArmZ;
+        } else {
+          const damp = Math.max(0, 1 - dt * 10.0);
+          vis.leftLeg.rotation.x *= damp;
+          vis.rightLeg.rotation.x *= damp;
+          vis.rightArm.rotation.x = AIM_POSE.rightArmX;
+          vis.leftArm.rotation.x = vis.hasShield ? AIM_POSE.shieldArmX : AIM_POSE.leftArmX;
+          vis.leftArm.rotation.z = vis.hasShield ? 0.08 : AIM_POSE.leftArmZ;
+        }
+        animateFactionSoldier(vis, this._footAnimClock, fu.phaseOffset);
       }
 
       if (this.isEscaping) continue;
@@ -111,11 +200,13 @@ export const policeHelicopterAndTacticalMethods = {
       fu.shootCooldown -= dt;
       if (fu.shootCooldown <= 0 && dist < 68.0) {
         fu.shootCooldown = fu.isExo ? 0.85 : fu.isRiotElite ? 0.95 : 1.35;
-        const muzzle = new THREE.Vector3(pos.x, pos.y + (fu.isExo ? 1.8 : 1.15), pos.z);
+        if (vis?.muzzleFlash) {
+          vis.muzzleFlash.visible = true;
+          fu.muzzleTimer = 0.08;
+        }
+        const muzzle = new THREE.Vector3(pos.x, pos.y + (fu.isExo ? 1.48 : 1.38), pos.z);
         const aim = new THREE.Vector3(
-          playerPos.x + (Math.random() - 0.5) * 1.4,
-          playerPos.y + 1.0,
-          playerPos.z + (Math.random() - 0.5) * 1.4
+          playerPos.x + (Math.random() - 0.5) * 1.4, playerPos.y + 1.0, playerPos.z + (Math.random() - 0.5) * 1.4
         );
         this._spawnPursuitProjectile(muzzle, aim, 'bullet');
       }
@@ -124,12 +215,10 @@ export const policeHelicopterAndTacticalMethods = {
         fu.specialCooldown -= dt;
         if (fu.specialCooldown <= 0 && dist < 95.0) {
           fu.specialCooldown = 3.4;
-          const muzzle = new THREE.Vector3(pos.x, pos.y + 2.35, pos.z);
-          const kind = Math.random() < 0.5 ? 'energy_net' : 'missile';
           this._spawnPursuitProjectile(
-            muzzle,
+            new THREE.Vector3(pos.x, pos.y + 1.65, pos.z),
             new THREE.Vector3(playerPos.x, playerPos.y + 1.1, playerPos.z),
-            kind
+            Math.random() < 0.5 ? 'energy_net' : 'missile'
           );
         }
       }
@@ -165,17 +254,10 @@ export const policeHelicopterAndTacticalMethods = {
     this.scene.add(coneMesh, discMesh);
 
     const obj = this.destructibles.registerDestructible({
-      mesh: heliGroup,
-      type: 'police_helicopter',
-      hp: 260,
-      radius: 3.6,
-      height: 3.2,
-      colliders: [],
-      debrisColors: [0x111827, LEGO_COLORS.white, 0x38bdf8, 0xfacc15],
+      mesh: heliGroup, type: 'police_helicopter', hp: 260, radius: 3.6, height: 3.2, colliders: [],
+      debrisColors: [0x111827, LEGO_COLORS.white, 0x38bdf8, 0xf59e0b],
       studDrops: { silver: 0, gold: 12, blue: 8, purple: 2 },
-      groundY: 0,
-      isPoliceUnit: true,
-      noAutoRespawn: true
+      groundY: 0, isPoliceUnit: true, noAutoRespawn: true
     });
 
     obj.onShattered = () => {
@@ -187,15 +269,8 @@ export const policeHelicopterAndTacticalMethods = {
     };
 
     this.eagleHeli = {
-      mesh: heliGroup,
-      rotor,
-      strobeRed,
-      strobeBlue,
-      coneMesh,
-      discMesh,
-      obj,
-      orbitPhase: Math.random() * Math.PI * 2,
-      shootTimer: 1.6
+      mesh: heliGroup, rotor, strobeRed, strobeBlue, coneMesh, discMesh, obj,
+      orbitPhase: Math.random() * Math.PI * 2, shootTimer: 1.6
     };
   },
 
@@ -311,23 +386,14 @@ export const policeHelicopterAndTacticalMethods = {
     this.scene.add(group);
 
     const obj = this.destructibles.registerDestructible({
-      mesh: group,
-      type: 'hunter_drone',
-      hp: 95,
-      radius: 1.45,
-      height: 1.2,
-      colliders: [],
+      mesh: group, type: 'hunter_drone', hp: 95, radius: 1.45, height: 1.2, colliders: [],
       debrisColors: [0x0f172a, 0x00f0ff, 0xef4444],
       studDrops: { silver: 0, gold: 6, blue: 4, purple: 1 },
-      groundY: 0,
-      isPoliceUnit: true,
-      noAutoRespawn: true
+      groundY: 0, isPoliceUnit: true, noAutoRespawn: true
     });
 
     const drone = {
-      mesh: group,
-      obj,
-      orbitOffset: ang,
+      mesh: group, obj, orbitOffset: ang,
       fireCooldown: 1.4 + Math.random() * 1.4
     };
     this.hunterDrones.push(drone);
@@ -420,14 +486,7 @@ export const policeHelicopterAndTacticalMethods = {
     mesh.lookAt(targetPos);
     this.scene.add(mesh);
 
-    this.enemyProjectiles.push({
-      mesh,
-      kind,
-      vel: dir.multiplyScalar(speed),
-      speed,
-      life,
-      damage
-    });
+    this.enemyProjectiles.push({ mesh, kind, vel: dir.multiplyScalar(speed), speed, life, damage });
   },
 
   _clearAllEnemyProjectiles() {
@@ -484,7 +543,9 @@ export const policeHelicopterAndTacticalMethods = {
           this._applyEnergyNetHit(playerPos, controller);
         } else if (p.kind === 'missile') {
           this.destructibles._triggerExplosion(p.mesh.position.clone(), 5.2, 35, false, false, {
-            fromPursuitPolice: true
+            fromPursuitPolice: true,
+            isExplosion: true,
+            sourceIsPlayer: false
           });
         }
         this.applyPursuitDamageToPlayer(p.damage, controller);
@@ -496,7 +557,9 @@ export const policeHelicopterAndTacticalMethods = {
         if (p.mesh.position.y <= floorY + 0.15) {
           if (p.kind === 'missile') {
             this.destructibles._triggerExplosion(p.mesh.position.clone(), 5.0, 30, false, false, {
-              fromPursuitPolice: true
+              fromPursuitPolice: true,
+              isExplosion: true,
+              sourceIsPlayer: false
             });
           }
           removeProj = true;

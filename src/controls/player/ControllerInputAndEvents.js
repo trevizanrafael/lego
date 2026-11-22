@@ -50,7 +50,10 @@ export const controllerInputAndEventsMethods = {
         this.minifigure?.stopEmote?.();
         if (this.activeRide) return;
         const hero = this.minifigure.currentHeroKey;
-        if (isFactionOperatorKey(hero)) return;
+        if (isFactionOperatorKey(hero)) {
+          this.operatorWeapons?.syncScopeState?.();
+          return;
+        }
         if (this.currentVehicle) {
           if (hero === 'turbo') this._summonAndMountTurboGhostBike();
         } else if (hero === 'caveira') {
@@ -80,6 +83,7 @@ export const controllerInputAndEventsMethods = {
         this.operatorWeapons?.handlePrimaryMouseUp?.();
       } else if (e.button === 2) {
         this.mouseButtons.right = false;
+        this.operatorWeapons?.syncScopeState?.();
       }
     });
 
@@ -145,7 +149,8 @@ export const controllerInputAndEventsMethods = {
       }
       if (!this.isPointerLocked && !this.isDraggingMouse) return;
       const sensMult = THREE.MathUtils.clamp(Number(this.hud?.settings?.mouseSensitivity ?? 1.0), 0.2, 2.5);
-      const sensitivity = 0.0032 * sensMult;
+      const aimSensScale = this.operatorWeapons?.getAimSensitivityScale?.() ?? 1.0;
+      const sensitivity = 0.0032 * sensMult * aimSensScale;
       const invertSign = this.hud?.settings?.invertY ? -1 : 1;
       this.yaw -= e.movementX * sensitivity;
       this.pitch = THREE.MathUtils.clamp(this.pitch + e.movementY * sensitivity * invertSign, -1.48, 1.48);
@@ -167,6 +172,10 @@ export const controllerInputAndEventsMethods = {
           return;
         }
         if (e.target && typeof e.target.closest === 'function' && e.target.closest('#fullmap-modal')) {
+          return;
+        }
+        if (this.operatorWeapons?.isScopedIn && typeof this.operatorWeapons.handleScopeWheel === 'function') {
+          this.operatorWeapons.handleScopeWheel(e.deltaY);
           return;
         }
         if (
@@ -429,16 +438,20 @@ export const controllerInputAndEventsMethods = {
         break;
       case 'ControlLeft':
       case 'ControlRight':
-      case 'KeyC':
-        this.keys.descend = isDown;
-        if (
-          isDown && !e.repeat &&
-          (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
-          this.isGrounded
-        ) {
-          this._triggerTacticalRoll();
+      case 'KeyC': {
+        const hero = this.minifigure?.currentHeroKey;
+        const canCtrlRollHero = isFactionOperatorKey(hero) || hero === 'caveira' || hero === 'sombra';
+        if (canCtrlRollHero && !this.currentVehicle && !this.activeRide && !this.isFlying) {
+          this.keys.descend = false;
+          if (isDown && !e.repeat) {
+            this._triggerCtrlTacticalRoll?.();
+            this.operatorWeapons?.syncScopeState?.();
+          }
+        } else {
+          this.keys.descend = isDown;
         }
         break;
+      }
       case 'Tab':
         e.preventDefault?.();
         if (isDown && !e.repeat) {
@@ -456,7 +469,10 @@ export const controllerInputAndEventsMethods = {
         }
         break;
       case 'KeyF':
-        if (isDown && !e.repeat) this.toggleVehicleInteraction();
+        if (isDown && !e.repeat) {
+          this.toggleVehicleInteraction();
+          this.operatorWeapons?.syncScopeState?.();
+        }
         break;
       case 'KeyK':
         if (isDown && !e.repeat) {

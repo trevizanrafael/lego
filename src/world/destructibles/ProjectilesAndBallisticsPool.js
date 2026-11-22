@@ -96,7 +96,10 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       const dy = Math.abs(by + obj.height * 0.5 - attackCenter.y);
 
       if (distHoriz <= obj.radius + range * 0.55 && dy <= obj.height + 1.4) {
-        this.damageObject(obj, damage, attackCenter, false);
+        this.damageObject(obj, damage, attackCenter, false, {
+          sourceIsPlayer: true,
+          isMelee: true
+        });
         hitAny = true;
       }
     }
@@ -123,10 +126,12 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
     this.projectiles.push({
       mesh,
       type: 'bullet',
+      originPos: origin.clone(),
       vel: dir.multiplyScalar(72),
       life: 1.2,
       damage: 14,
-      isSolar: false
+      isSolar: false,
+      sourceIsPlayer: true
     });
   },
 
@@ -144,10 +149,13 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
     this.projectiles.push({
       mesh: group,
       type: 'fireball',
+      originPos: origin.clone(),
       vel: dir.multiplyScalar(42),
       life: 1.8,
       damage: 30,
-      isSolar: true
+      isSolar: true,
+      isExplosion: true,
+      sourceIsPlayer: true
     });
   },
 
@@ -170,10 +178,12 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       this.projectiles.push({
         mesh,
         type: 'bullet',
+        originPos: origin.clone(),
         vel: dir.multiplyScalar(88),
         life: 1.4,
         damage: weaponType === 'machinegun' ? 28 : 20,
-        isSolar: false
+        isSolar: false,
+        sourceIsPlayer: true
       });
     } else if (weaponType === 'plasma_laser') {
       soundFX.playFireballCast();
@@ -193,16 +203,19 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       this.projectiles.push({
         mesh: plasmaGroup,
         type: 'fireball',
+        originPos: origin.clone(),
         vel: dir.multiplyScalar(76),
         life: 1.6,
         damage: 65,
         blastRadius: 4.8,
-        isSolar: true
+        isSolar: true,
+        isExplosion: true,
+        sourceIsPlayer: true
       });
     } else if (weaponType === 'tank_cannon') {
       soundFX.playExplosion(1.1);
       const shellGroup = new THREE.Group();
-      const shellMat = getLegoMaterial(0xfacc15, { emissive: 0xef4444, emissiveIntensity: 2.5 });
+      const shellMat = getLegoMaterial(0xf59e0b, { emissive: 0xef4444, emissiveIntensity: 2.5 });
       const shell = new THREE.Mesh(FIREBALL_GEO, shellMat);
       shell.scale.setScalar(1.45);
       shellGroup.add(shell);
@@ -212,12 +225,15 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       this.projectiles.push({
         mesh: shellGroup,
         type: 'fireball',
+        originPos: origin.clone(),
         vel: dir.multiplyScalar(68),
         life: 2.0,
         damage: 260,
         blastRadius: 9.5,
         isSupernovaBlast: true,
         isSolar: true,
+        isExplosion: true,
+        sourceIsPlayer: true,
         canBreakCrackedWall: true,
         canBreakSilver: true
       });
@@ -248,10 +264,12 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
     this.projectiles.push({
       mesh,
       type: 'bullet',
+      originPos: origin.clone(),
       vel: dir.multiplyScalar(105),
       life: 1.25,
       damage: 22,
-      isSolar: false
+      isSolar: false,
+      sourceIsPlayer: true
     });
   },
 
@@ -269,14 +287,15 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       carObj,
       vel,
       worldColliders,
-      timer: 2.2
+      timer: 2.2,
+      sourceIsPlayer: true
     });
   },
 
   _spawnEjectedBrassShell(origin, isShotgunShell = false) {
     this._spawnFxParticle(
       TRAIL_CUBE_GEO,
-      isShotgunShell ? 0xdc2626 : 0xfacc15,
+      isShotgunShell ? 0xdc2626 : 0xf59e0b,
       0.95,
       origin.x, origin.y, origin.z,
       isShotgunShell ? 0.65 : 0.45,
@@ -289,7 +308,7 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
     );
   },
 
-  _triggerMicroImpactBlast(hitPos) {
+  _triggerMicroImpactBlast(hitPos, sourceIsPlayer = true) {
     soundFX.playPlasticHit();
     this._spawnFxParticle(
       FIREBALL_GEO, 0xf97316, 0.92,
@@ -319,7 +338,11 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       const d = Math.hypot(obj.basePos.x - hitPos.x, obj.basePos.z - hitPos.z);
       const dy = Math.abs((obj.basePos.y + obj.height * 0.5) - hitPos.y);
       if (d <= obj.radius + 2.4 && dy <= obj.height + 1.8) {
-        this.damageObject(obj, 22, hitPos, false, { canBreakCrackedWall: true });
+        this.damageObject(obj, 22, hitPos, false, {
+          canBreakCrackedWall: true,
+          isExplosion: true,
+          sourceIsPlayer: Boolean(sourceIsPlayer)
+        });
       }
     }
   },
@@ -354,10 +377,12 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       this.projectiles.push({
         mesh: bulletGroup,
         type: 'punisher_50cal',
+        originPos: orig.clone(),
         vel: dir.multiplyScalar(115.0),
         life: 0.95,
         damage: 36,
         isSolar: false,
+        sourceIsPlayer: true,
         canBreakCrackedWall: true
       });
     }
@@ -414,10 +439,13 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       this.projectiles.push({
         mesh,
         type: 'shotgun_pellet',
+        originPos: origin.clone(),
         vel: spreadDir.multiplyScalar(74.0 + (Math.random() - 0.5) * 10.0),
         life: 0.46,
         damage: 22,
         isSolar: false,
+        isCloseShotgun: true,
+        sourceIsPlayer: true,
         canBreakCrackedWall: true
       });
     }
@@ -449,11 +477,14 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
     this.projectiles.push({
       mesh: rocketGroup,
       type: 'rpg_rocket',
+      originPos: origin.clone(),
       vel: dir.multiplyScalar(85.0),
       life: 2.2,
       damage: 210,
       blastRadius: 9.5,
       isSolar: false,
+      isExplosion: true,
+      sourceIsPlayer: true,
       canBreakSilver: true,
       canBreakCrackedWall: true,
       onExplode
@@ -492,7 +523,9 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
       onExplode,
       getTerrainHeightAt,
       age: 0,
-      timer: 1.5
+      timer: 1.5,
+      isExplosion: true,
+      sourceIsPlayer: true
     });
   },
 
@@ -500,7 +533,10 @@ export const PROJECTILES_AND_BALLISTICS_METHODS = {
     if (!this.grenades || this.grenades.length === 0) return false;
     const g = this.grenades.pop();
     const blastPos = g.mesh.position.clone();
-    this._triggerExplosion(blastPos, 8.2, 85, true, false);
+    this._triggerExplosion(blastPos, 8.2, 85, true, false, {
+      sourceIsPlayer: true,
+      isExplosion: true
+    });
     if (typeof g.onExplode === 'function') {
       g.onExplode(blastPos);
     }
