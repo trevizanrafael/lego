@@ -20,6 +20,8 @@ import {
   getSouthwestBeachReliefY
 } from '../ViaductAndReliefBuilder.js';
 import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
+import { IS_SCALED_WORLD, ws, wsBounds, wsPos3, fromWs } from './WorldLayoutScale.js';
+import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
 
 export const worldElevationAndWaterMethods = {
   _createStaticSubRegions() {
@@ -68,8 +70,8 @@ export const worldElevationAndWaterMethods = {
         name: 'COMPLEXO DA CIDADE DE DEUS — DOMÍNIO DO CV',
         shortName: 'CIDADE DE DEUS (CV)',
         sub: 'Morro Contínuo, Vielas, Campinho, Baile do CV & Fortaleza do Barão Vermelho',
-        bounds: { minX: -1012, maxX: -530, minZ: -1820, maxZ: 580, minY: 0, maxY: 140 },
-        spawn: { x: -702, y: 26.2, z: -135 },
+        bounds: wsBounds({ minX: -1012, maxX: -530, minZ: -1820, maxZ: 580, minY: 0, maxY: 140 }),
+        spawn: wsPos3({ x: -702, y: 26.2, z: -135 }),
         color: '#dc2626',
         icon: 'cdd'
       }
@@ -77,22 +79,21 @@ export const worldElevationAndWaterMethods = {
   },
 
   /**
-   * Retorna a cota Y da superfície da água em (x, z):
-   * - Grande Lago do Parque Central: Y = 0.42
-   * - Rio / Canal Urbano Leste (X = 539..581, Z = -1325..+1075): Y = -3.50 (com transição suave nas fozes oceânicas)
-   * - Canais de Santos e Oceano Atlântico: Y = -0.15
+   * Retorna a cota Y da superfície da água em (x, z)
    */
   getWaterSurfaceY(x, z) {
-    if (x >= 70 && x <= 340 && z >= 187 && z <= 349) {
+    const ux = fromWs(x);
+    const uz = fromWs(z);
+    if (ux >= 70 && ux <= 340 && uz >= 187 && uz <= 349) {
       return 0.42;
     }
-    if (x >= 539 && x <= 581 && z >= -2950 && z <= 1075) {
-      if (z > 1050) {
-        const t = Math.min(1, (z - 1050) / 25);
+    if (ux >= 539 && ux <= 581 && uz >= -2950 && uz <= 1075) {
+      if (uz > 1050) {
+        const t = Math.min(1, (uz - 1050) / 25);
         return -3.5 + t * 3.35;
       }
-      if (z < -1305) {
-        const t = Math.min(1, (-1305 - z) / 20);
+      if (uz < -1305) {
+        const t = Math.min(1, (-1305 - uz) / 20);
         return -3.5 + t * 3.35;
       }
       return -3.5;
@@ -101,11 +102,10 @@ export const worldElevationAndWaterMethods = {
   },
 
   /**
-   * Retorna a elevação contínua das Pontes em Arco (bridgeY = 5.0 * sin(t * PI)) e dos Píeres Fluviais de Madeira:
-   * - Permite que veículos a 290+ km/h e pedestres subam e desçam as 9 Pontes em Arco suavemente sem bater em colisores!
+   * Retorna a elevação contínua das Pontes em Arco e dos Píeres Fluviais de Madeira
    */
   getRoadElevation(x, z) {
-    if (x >= 526 && x <= 594) {
+    if (x >= ws(526) && x <= ws(594)) {
       for (const b of RIVER_BRIDGE_SPECS) {
         if (Math.abs(z - b.z) <= b.width * 0.5) {
           const t = Math.max(0, Math.min(1, (x - b.xStart) / (b.xEnd - b.xStart)));
@@ -119,7 +119,7 @@ export const worldElevationAndWaterMethods = {
         }
       }
     }
-    if (x >= 530 && x <= 590) {
+    if (x >= ws(540) - 10 && x <= ws(580) + 10) {
       for (const p of RIVER_PIER_SPECS) {
         if (Math.abs(z - p.z) <= p.lengthZ * 0.5) {
           if (x >= p.deckXMin && x <= p.deckXMax) {
@@ -138,11 +138,8 @@ export const worldElevationAndWaterMethods = {
   },
 
   /**
-   * Retorna a elevação contínua do solo base em (x, z):
-   * - Recortes de escadarias subterrâneas e trincheiras portais do Metrô (até Y = -6.8m / -7.35m)
-   * - 9 Pontes em Arco e 3 Píeres Fluviais do Rio Urbano (`getRoadElevation`)
-   * - Platô Panorâmico & Ladeiras do Subúrbio Norte (`0m -> +11.5m`), Colinas do Parque Central (`0m -> +10.5m`),
-   *   Dunas & Costão Sudoeste da Praia (`+2.5m -> +8.5m`) e Morro da Cidade de Deus (`0m -> +43m`, com passagem em Z = 0).
+   * Retorna a elevação contínua do solo base em (x, z), incluindo o degrau suave de +0.18m
+   * das calçadas reais de 10m quando `IS_SCALED_WORLD` está ativo!
    */
   getTerrainHeightAt(x, z) {
     const metroCutY = getMetroCutoutFloorY(x, z);
@@ -154,38 +151,36 @@ export const worldElevationAndWaterMethods = {
     const isletSample = getIsletSampleAt(x, z);
     if (isletSample) return isletSample.height;
 
-    // Orla Sul construída (Calçadão Z=726..778 em Y=0.32m e Faixa de Areia Z=778..1056 em Y=0.12m) — zero flutuação!
-    if (x >= -1825 && x <= 538 && z >= 726 && z <= 1056 && !(x < -1530 && z > 1020)) {
+    // Orla Sul construída (Calçadão e Faixa de Areia)
+    if (x >= ws(-1825) && x <= ws(538) && z >= ws(726) && z <= ws(1056) && !(x < ws(-1530) && z > ws(1020))) {
       const inSantosCanal =
-        (Math.abs(x - -384) < 9.5 || Math.abs(x - -120) < 9.5 || Math.abs(x - 252) < 9.5) &&
-        !((z >= 725 && z <= 778) || (z >= 902 && z <= 918));
+        (Math.abs(x - ws(-384)) < 9.5 || Math.abs(x - ws(-120)) < 9.5 || Math.abs(x - ws(252)) < 9.5) &&
+        !((z >= ws(725) && z <= ws(778)) || Math.abs(z - ws(910)) <= 8);
       if (!inSantosCanal) {
-        if (z < 778) {
+        if (z < ws(778)) {
           return Math.max(0.32, getUrbanCityReliefY(x, z));
         }
-        if (!(Math.abs(x) <= 48 && z >= 1020)) {
-          const wetSlope = z <= 1036 ? 0.12 : 0.12 - ((z - 1036) / 20.0) * 0.24;
+        if (!(Math.abs(x) <= 48 && z >= ws(1020))) {
+          const zWetStart = ws(1056) - 20;
+          const wetSlope = z <= zWetStart ? 0.12 : 0.12 - ((z - zWetStart) / 20.0) * 0.24;
           return Math.max(wetSlope, getSouthwestBeachReliefY(x, z));
         }
       }
     }
 
-    return Math.max(
+    const baseY = Math.max(
       getFavelaElevation(x, z),
       getUrbanCityReliefY(x, z),
       getPangaeaElevationAt(x, z)
     );
+    if (!IS_SCALED_WORLD) return baseY;
+    return baseY + getScaledUrbanCurbLiftAt(this, x, z);
   },
 
   /**
-   * Suporte físico real a múltiplos níveis empilhados (`elevatedDecks` + `undergroundFloors`) — ZERO bug de teleporte:
-   * - Viadutos, Rampas e Estações Elevadas (`deckY` entre `0m` e `+12.75m`): retorna `deckY` SOMENTE se `currentY >= deckY - thresholdBelow`,
-   *   permitindo dirigir e caminhar livremente POR BAIXO dos 3 viadutos (`0m`)!
-   * - Subsolo do Metrô (`floorY = -6.8m` / `-7.35m`): se o jogador desceu as escadas (`currentY < -0.6`), retorna a plataforma/túnel
-   *   subterrâneo, enquanto quem está na rua acima (`currentY >= -0.4`) continua normalmente sobre o asfalto (`0m`)!
+   * Suporte físico real a múltiplos níveis empilhados (`elevatedDecks` + `undergroundFloors`)
    */
   getSurfaceHeightAt(x, z, currentY = 0) {
-    // 1. Subsolo do Metrô (quando já desceu abaixo da rua: currentY < -0.6)
     if (currentY < -0.6) {
       const cutY = getMetroCutoutFloorY(x, z);
       if (cutY !== null) return cutY;
@@ -207,7 +202,6 @@ export const worldElevationAndWaterMethods = {
       }
     }
 
-    // 2. Tabuleiros e Rampas Elevadas (Viadutos 1, 2, 3 + Plataformas/Escadas Elevadas do Metrô)
     if (this.elevatedDecks && this.elevatedDecks.length > 0) {
       let bestDeckY = -Infinity;
       for (let i = 0; i < this.elevatedDecks.length; i++) {
@@ -224,40 +218,40 @@ export const worldElevationAndWaterMethods = {
       }
     }
 
-    // 3. Solo base contínuo (ruas térreas sob viadutos, colinas, platô norte, dunas, pontes e escadarias abertas)
     return this.getTerrainHeightAt(x, z);
   },
 
   /**
-   * Verifica se a coordenada (x, z) é ÁGUA PROFUNDA (Lago do Parque, Rio Urbano, Canais ou Oceano Atlântico):
-   * - opts.forBoat = true: permite que barcos/lanchas/jet-skis passem livremente por baixo de TODAS as 9 Pontes em Arco!
-   * - opts.forCar / padrão: considera as 9 Pontes em Arco, os 3 Píeres Fluviais e os decks da marina como piso seco!
+   * Verifica se a coordenada (x, z) é ÁGUA PROFUNDA (Lago do Parque, Rio Urbano, Canais ou Oceano Atlântico)
    */
   isDeepWaterAt(x, z, opts = {}) {
     const forBoat = Boolean(opts.forBoat);
+    const ux = fromWs(x);
+    const uz = fromWs(z);
 
-    // 1. GRANDE LAGO DO PARQUE CENTRAL (X: 73..337, Z: 190..346)
-    if (x >= 73 && x <= 337 && z >= 190 && z <= 346) {
-      if (!forBoat && x <= 107 && z >= 259 && z <= 277) return false;
-      if (x >= 196.5 && x <= 213.5) {
+    // 1. GRANDE LAGO DO PARQUE CENTRAL
+    if (ux >= 73 && ux <= 337 && uz >= 190 && uz <= 346) {
+      if (!forBoat && ux <= 107 && uz >= 259 && uz <= 277) return false;
+      if (Math.abs(x - ws(205)) <= 8.5) {
         if (!forBoat) return false;
-        if (Math.abs(z - 268) >= 20 && Math.abs(z - 268) <= 24) return false;
+        if (Math.abs(uz - 268) >= 20 && Math.abs(uz - 268) <= 24) return false;
       }
       return true;
     }
 
-    // 2. OS 3 CANAIS ESTILO SANTOS NA ORLA SUL (X = -384, -120, +252, largura 22m, Z: 726..1055)
-    for (const cx of [-384, -120, 252]) {
-      if (Math.abs(x - cx) < 9.5 && z >= 726 && z <= 1055) {
+    // 2. OS 3 CANAIS ESTILO SANTOS NA ORLA SUL (meia-largura 9.5m em 1x!)
+    for (const dcx of [-384, -120, 252]) {
+      const cx = ws(dcx);
+      if (Math.abs(x - cx) < 9.5 && z >= ws(726) && z <= ws(1055)) {
         if (!forBoat) {
-          if ((z >= 725 && z <= 778) || (z >= 902 && z <= 918)) return false;
+          if ((z >= ws(725) && z <= ws(778)) || Math.abs(z - ws(910)) <= 8) return false;
         }
         return true;
       }
     }
 
-    // 3. RIO / CANAL URBANO & FIORDE BOREAL LESTE NAVEGÁVEL (X: 540..580, Z: -2950..+1075)
-    if (x >= 540 && x <= 580 && z >= -2950 && z <= 1075) {
+    // 3. RIO / CANAL URBANO & FIORDE BOREAL LESTE NAVEGÁVEL
+    if (x >= ws(540) && x <= ws(580) && z >= ws(-2950) && z <= ws(1075)) {
       if (!forBoat) {
         for (const b of RIVER_BRIDGE_SPECS) {
           if (Math.abs(z - b.z) <= b.width * 0.5) return false;
@@ -276,13 +270,12 @@ export const worldElevationAndWaterMethods = {
       return true;
     }
 
-    // 4. TERRA FIRME (Ilha Principal Orgânica, Ilhotas do Arquipélago, Península Leste, Prisão e Píeres/Marinas)
+    // 4. TERRA FIRME
     if (isPointOnOrganicLand(x, z)) return false;
-    if (x >= -1825 && x <= 540 && z >= -1320 && z <= 1045) return false;
-    if (x >= 580 && x <= 1628 && z >= -1320 && z <= 736) return false;
-    // 2 Grandes Navios Porta-Contêineres no Cais Leste + 1 Navio Blindado A.R.E.S. na Doca Sul (Rampas + Convés Dinâmico Pilotável!)
-    if (!forBoat && x >= 1618 && x <= 1650 && z >= 120 && z <= 695) return false;
-    if (!forBoat && x >= 995 && x <= 1255 && z >= 734 && z <= 752) return false;
+    if (x >= ws(-1825) && x <= ws(540) && z >= ws(-1320) && z <= ws(1045)) return false;
+    if (x >= ws(580) && x <= ws(1628) && z >= ws(-1320) && z <= ws(736)) return false;
+    if (!forBoat && ux >= 1618 && ux <= 1650 && uz >= 120 && uz <= 695) return false;
+    if (!forBoat && ux >= 995 && ux <= 1255 && uz >= 734 && uz <= 752) return false;
     if (!forBoat && this.cargoShips) {
       for (const ship of this.cargoShips) {
         const sx = ship.mesh.position.x;
@@ -299,25 +292,25 @@ export const worldElevationAndWaterMethods = {
         }
       }
     }
-    // Ilha-Fortaleza da Prisão de Segurança Máxima (2x Maior: X = 955..1795, Z = 1120..1980) + Píer Naval da Guarda Costeira (X = 860..995)
-    if (x >= 955 && x <= 1795 && z >= 1118 && z <= 1980) return false;
-    if (!forBoat && x >= 860 && x <= 995 && z >= 1505 && z <= 1595) return false;
+    if (x >= ws(955) && x <= ws(1795) && z >= ws(1118) && z <= ws(1980)) return false;
+    if (!forBoat && ux >= 860 && ux <= 995 && uz >= 1505 && uz <= 1595) return false;
 
-    // Grande Ponte Blindada Retilínea (X = 1351..1399, Z = 735..1125) ligando o Porto direto à Ilha da Prisão!
-    if (!forBoat && x >= 1351 && x <= 1399 && z >= 735 && z <= 1126) return false;
+    // Grande Ponte Blindada Retilínea ligando o Porto direto à Ilha da Prisão
+    if (!forBoat && Math.abs(x - ws(1375)) <= 24 && z >= ws(735) && z <= ws(1126)) return false;
 
     if (!forBoat) {
-      if (Math.abs(x) <= 48 && z >= 1020 && z <= 1422) return false;
-      if (Math.abs(x) <= 69 && z >= 1405 && z <= 1572) return false;
-      if (x >= 43 && x <= 108 && z >= 1076 && z <= 1094) return false;
-      if (x >= 95 && x <= 109 && z >= 1062 && z <= 1228) return false;
-      for (const dz of [1095, 1135, 1175, 1215]) {
-        if (x >= 105 && x <= 151 && Math.abs(z - dz) <= 3.5) return false;
+      if (Math.abs(x) <= 48 && z >= ws(1020) && z <= ws(1422)) return false;
+      if (Math.abs(x) <= 69 && z >= ws(1405) && z <= ws(1572)) return false;
+      if (x >= 43 && x <= 108 && Math.abs(z - ws(1085)) <= 9) return false;
+      if (x >= 95 && x <= 109 && z >= ws(1062) && z <= ws(1228)) return false;
+      for (const ddz of [1095, 1135, 1175, 1215]) {
+        if (x >= 105 && x <= 151 && Math.abs(z - ws(ddz)) <= 3.5) return false;
       }
-      // Marina Oeste na Ponta da Praia / Costão Sudoeste (X = -1388..-1332, Z = 1040..1230)
-      if (x >= -1388 && x <= -1372 && z >= 1040 && z <= 1230) return false;
-      for (const dz of [1095, 1135, 1175, 1215]) {
-        if (x >= -1376 && x <= -1328 && Math.abs(z - dz) <= 3.5) return false;
+      // Marina Oeste
+      const mwX = ws(-1380);
+      if (x >= mwX - 8 && x <= mwX + 8 && z >= ws(1040) && z <= ws(1230)) return false;
+      for (const ddz of [1095, 1135, 1175, 1215]) {
+        if (x >= mwX + 4 && x <= mwX + 52 && Math.abs(z - ws(ddz)) <= 3.5) return false;
       }
     }
 
@@ -336,33 +329,35 @@ export const worldElevationAndWaterMethods = {
       return skyRegion;
     }
 
+    const ux = fromWs(x);
+    const uz = fromWs(z);
+
     if (y < -2.2) {
-      if (x >= -360 && x <= -280 && z >= -202 && z <= -135) {
+      if (ux >= -360 && ux <= -280 && uz >= -202 && uz <= -135) {
         return this._subRegions.porao;
       }
       return this._subRegions.metro;
     }
 
-    if (y < 24.0 && x >= 14 && x <= 106 && z >= -496 && z <= -400) {
+    if (y < 24.0 && ux >= 14 && ux <= 106 && uz >= -496 && uz <= -400) {
       return this._subRegions.customs;
     }
 
-    if (y < 41.0 && x >= -74 && x <= 74 && z >= -229 && z <= -130) {
+    if (y < 41.0 && Math.abs(x) <= 74 && uz >= -229 && uz <= -130) {
       return this._subRegions.bankInterior;
     }
 
-    // Detecção do Complexo da Cidade de Deus (Morro contínuo do CV estendido até a encosta Boreal Z = -1820!)
     if (
-      x >= -1012 &&
-      x <= -528 &&
-      z >= -1820 &&
-      z <= 580 &&
-      (x <= -658 || (z >= -508 && z <= 415))
+      ux >= -1012 &&
+      ux <= -528 &&
+      uz >= -1820 &&
+      uz <= 580 &&
+      (ux <= -658 || (uz >= -508 && uz <= 415))
     ) {
       return this._subRegions.favela;
     }
 
-    if (z < -1320 && x >= -1650 && x <= 540 && y < 120) {
+    if (uz < -1320 && ux >= -1650 && ux <= 540 && y < 120) {
       return this.regions[3];
     }
 

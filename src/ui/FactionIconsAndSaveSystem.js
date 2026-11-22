@@ -6,6 +6,7 @@
 import { createDefaultCustomHeroState } from '../entities/CustomHeroSystem.js';
 import { createDefaultGarageSaveData } from '../world/StreetCustomGarage.js';
 import { getDefaultHybridOperatorKey } from '../entities/operators/OperatorCatalog.js';
+import { WORLD_SCALE, wsPos3 } from '../world/core/WorldLayoutScale.js';
 
 export const SAVE_STORAGE_KEY = 'lego_cdd_saves_v1';
 export const SETTINGS_STORAGE_KEY = 'lego_cdd_settings_v1';
@@ -13,7 +14,7 @@ export const SETTINGS_STORAGE_KEY = 'lego_cdd_settings_v1';
 export const FACTION_DATA = {
   cv: {
     id: 'cv', color: '#dc2626', accentDark: '#7f1d1d', hex: 0xdc2626,
-    baseSpawn: { x: -495, y: 1.5, z: -120 },
+    baseSpawn: wsPos3({ x: -495, y: 1.5, z: -120 }),
     bossName: { 'pt-BR': 'Trovão Rubro', 'en-US': 'Crimson Thunder' },
     name: { 'pt-BR': 'COMANDO VERMELHO (CV)', 'en-US': 'RED COMMAND (CV)' },
     shortName: { 'pt-BR': 'ALIANÇA: CV', 'en-US': 'ALLIANCE: CV' },
@@ -25,7 +26,7 @@ export const FACTION_DATA = {
   },
   pcc: {
     id: 'pcc', color: '#3b82f6', accentDark: '#1e3a8a', hex: 0x3b82f6,
-    baseSpawn: { x: 585, y: 1.5, z: -120 },
+    baseSpawn: wsPos3({ x: 585, y: 1.5, z: -120 }),
     bossName: { 'pt-BR': 'Blindado Z-15', 'en-US': 'Armor Z-15' },
     name: { 'pt-BR': 'PRIMEIRO COMANDO (PCC)', 'en-US': 'FIRST COMMAND (PCC)' },
     shortName: { 'pt-BR': 'ALIANÇA: PCC', 'en-US': 'ALLIANCE: PCC' },
@@ -37,7 +38,7 @@ export const FACTION_DATA = {
   },
   ares: {
     id: 'ares', color: '#a855f7', accentDark: '#581c87', hex: 0xa855f7,
-    baseSpawn: { x: 745, y: 1.5, z: 140 },
+    baseSpawn: wsPos3({ x: 745, y: 1.5, z: 140 }),
     bossName: { 'pt-BR': 'Overlord Quântico', 'en-US': 'Quantum Overlord' },
     name: { 'pt-BR': 'SINDICATO A.R.E.S.', 'en-US': 'A.R.E.S. SYNDICATE' },
     shortName: { 'pt-BR': 'ALIANÇA: A.R.E.S.', 'en-US': 'ALLIANCE: A.R.E.S.' },
@@ -480,12 +481,31 @@ export const DEFAULT_GAME_SETTINGS = {
   fov: 60
 };
 
+export function migrateSaveSlotToWorldScale(slot, targetScale = WORLD_SCALE) {
+  if (!slot || typeof slot !== 'object') return slot;
+  const prevScale = Number(slot.worldScale) > 0 ? Number(slot.worldScale) : 1;
+  if (Math.abs(prevScale - targetScale) > 1e-4) {
+    const ratio = targetScale / prevScale;
+    for (const key of ['playerPos', 'savedPos', 'waypoint']) {
+      const pt = slot[key];
+      if (pt && typeof pt === 'object') {
+        if (Number.isFinite(Number(pt.x))) pt.x = Number(pt.x) * ratio;
+        if (Number.isFinite(Number(pt.z))) pt.z = Number(pt.z) * ratio;
+      }
+    }
+  }
+  slot.worldScale = targetScale;
+  return slot;
+}
+
 export function loadAllSaveSlots() {
   try {
     const raw = localStorage.getItem(SAVE_STORAGE_KEY);
     if (!raw) return [null, null, null];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length === 3) return parsed;
+    if (Array.isArray(parsed) && parsed.length === 3) {
+      return parsed.map((slot) => (slot ? migrateSaveSlotToWorldScale(slot, WORLD_SCALE) : null));
+    }
   } catch (e) { /* storage indisponível */ }
   return [null, null, null];
 }
@@ -569,6 +589,10 @@ export function writeSaveSlot(slotIndex, data = {}) {
     sessionKills,
     savedAtMs,
     playTimeSec,
+    worldScale: WORLD_SCALE,
+    ...(data.playerPos && typeof data.playerPos === 'object' ? { playerPos: { ...data.playerPos } } : prev?.playerPos ? { playerPos: { ...prev.playerPos } } : {}),
+    ...(data.savedPos && typeof data.savedPos === 'object' ? { savedPos: { ...data.savedPos } } : prev?.savedPos ? { savedPos: { ...prev.savedPos } } : {}),
+    ...(data.waypoint && typeof data.waypoint === 'object' ? { waypoint: { ...data.waypoint } } : prev?.waypoint ? { waypoint: { ...prev.waypoint } } : {}),
     updatedAt: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   };
   try { localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots)); } catch (e) { /* storage indisponível */ }

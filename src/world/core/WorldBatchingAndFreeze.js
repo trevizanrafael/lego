@@ -15,6 +15,8 @@ import {
 import { createLegoCarMesh } from '../StreetPropsBuilder.js';
 import { buildUrbanDowntownBlock } from '../regions/DowntownBuilder.js';
 import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from '../MetroSystemBuilder.js';
+import { WORLD_SCALE, IS_SCALED_WORLD, ROAD, ws, fromWs } from './WorldLayoutScale.js';
+import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
 
 export const worldBatchingAndFreezeMethods = {
   _freezeStaticSceneGraph(staticPhaseChildren) {
@@ -140,11 +142,18 @@ export const worldBatchingAndFreezeMethods = {
 
   addBuildingBox(x, z, w, h, d, colorHex, opts = {}) {
     const terrainY = this.getTerrainHeightAt ? this.getTerrainHeightAt(x, z) : 0;
-    const yBase = opts.yBase ?? (terrainY + 0.28);
+    const defaultPad = IS_SCALED_WORLD
+      ? getScaledUrbanCurbLiftAt(this, x, z) > 0.05
+        ? 0.02
+        : ROAD.curbHeight
+      : 0.28;
+    const yBase = opts.yBase ?? (terrainY + defaultPad);
+    const ux = fromWs(x);
+    const uz = fromWs(z);
     const overUnderground =
-      (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
-      (x >= -375 && x <= -260 && z >= -235 && z <= -125);
-    const skirtDepth = overUnderground && terrainY < 0.2 ? 0.28 : 8.5;
+      (ux >= -115 && ux <= 115 && uz >= -210 && uz <= 85) ||
+      (ux >= -375 && ux <= -260 && uz >= -235 && uz <= -125);
+    const skirtDepth = overUnderground && terrainY < 0.25 ? 0.28 : 8.5;
     const addSkirt = opts.yBase === undefined && opts.foundation !== false && skirtDepth > 0.5;
     const totalH = addSkirt ? h + skirtDepth : h;
     const centerY = addSkirt ? yBase + h * 0.5 - skirtDepth * 0.5 : yBase + h * 0.5;
@@ -296,7 +305,7 @@ export const worldBatchingAndFreezeMethods = {
       mats.set(colorHex, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45 }));
     }
     flushSpatialChunkedBuckets(this.scene, this._sidewalkGeosByColor, mats, {
-      chunkSize: 512,
+      chunkSize: ws(512),
       castShadowFn: () => false,
       receiveShadowFn: () => true
     });
@@ -323,11 +332,11 @@ export const worldBatchingAndFreezeMethods = {
     canopyGeo.translate(0, 3.8, 0);
     const canopyMat = new THREE.MeshStandardMaterial({ color: LEGO_COLORS.green, roughness: 0.35 });
 
-    // Agrupa árvores por chunks de 256m x 256m para Frustum & Shadow Culling nativo
+    const treeChunk = ws(256);
     const chunks = new Map();
     for (let i = 0; i < count; i++) {
       const t = this._treeInstances[i];
-      const key = `${Math.floor(t.x / 256)},${Math.floor(t.z / 256)}`;
+      const key = `${Math.floor(t.x / treeChunk)},${Math.floor(t.z / treeChunk)}`;
       let bucket = chunks.get(key);
       if (!bucket) {
         bucket = [];
@@ -419,7 +428,7 @@ export const worldBatchingAndFreezeMethods = {
 
   _setupSkyAndLights() {
     this.scene.background = new THREE.Color(0x0a101a);
-    this.scene.fog = new THREE.FogExp2(0x0a101a, 0.00042);
+    this.scene.fog = new THREE.FogExp2(0x0a101a, 0.00042 / WORLD_SCALE);
 
     const hemiLight = new THREE.HemisphereLight(0x1f2d42, 0x05070c, 0.24);
     hemiLight.position.set(0, 480, 0);

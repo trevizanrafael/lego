@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildProfileRibbon, buildGradedProfile, sampleProfile } from '../ViaductGeometry.js';
+import { ws } from '../core/WorldLayoutScale.js';
 import { cosineStep01, getUrbanCityReliefY } from './UrbanReliefFunctions.js';
 import {
   createReliefAndViaductBatcher,
@@ -251,8 +252,8 @@ export function buildSegmentedExpressViaduct(world, batcher, cfg) {
 }
 
 export function buildViaduct1CentralAccessRamps(world, batcher, junctionDeckTopY) {
-  const zTop = -382 + AVENUE_WIDTH * 0.5; // encosta na borda sul do Viaduto 1 (largura da avenida)
-  const zBot = -282;
+  const zTop = ws(-382) + AVENUE_WIDTH * 0.5; // encosta na borda sul do Viaduto 1 (largura da avenida)
+  const zBot = ws(-382) + 100;
   const totalW = AVENUE_WIDTH; // mesma largura da Av. X = 0: a rampa encaixa 100% na rua
   const halfW = totalW * 0.5;
   const botGroundY = getUrbanCityReliefY(0, zBot);
@@ -335,12 +336,13 @@ export function buildViaduct1CentralAccessRamps(world, batcher, junctionDeckTopY
     spacing: 20
   });
 
+  const gantryZ = ws(-382) + 22;
   addOverheadHighwayGantry(
     world,
     batcher,
     0,
-    getRampY(-360),
-    -360,
+    getRampY(gantryZ),
+    gantryZ,
     totalW,
     'x_const',
     'ACESSO CENTRO / SUPER BANCO',
@@ -349,65 +351,65 @@ export function buildViaduct1CentralAccessRamps(world, batcher, junctionDeckTopY
 }
 
 export function buildExpressViaductNetwork(world, batcher) {
-  // VIADUTO 01 — Elevado Metropolitano Leste-Oeste (`Z = -382`, `X = -465..+465`, +12.4m acima da avenida abaixo!)
+  // VIADUTO 01 — Elevado Metropolitano Leste-Oeste (`Z = ws(-382)`, `X = ws(-465)..ws(465)`, +12.4m acima da avenida abaixo!)
   const v1 = buildSegmentedExpressViaduct(world, batcher, {
     id: 'viaduct_ew_north',
     axis: 'z_const',
-    fixedCoord: -382,
-    startC: -465,
-    endC: 465,
+    fixedCoord: ws(-382),
+    startC: ws(-465),
+    endC: ws(465),
     rampStartLen: 68,
     rampEndLen: 68,
     clearanceTarget: 12.4,
-    startGroundY: getUrbanCityReliefY(-465, -382),
-    endGroundY: getUrbanCityReliefY(465, -382),
+    startGroundY: getUrbanCityReliefY(ws(-465), ws(-382)),
+    endGroundY: getUrbanCityReliefY(ws(465), ws(-382)),
     deckWidth: AVENUE_WIDTH,
-    blockedPillarCoords: [-384, -252, -120, 0, 120, 252, 384],
+    blockedPillarCoords: [-384, -252, -120, 0, 120, 252, 384].map(ws),
     gantries: [
-      { c: -318, text: 'ELEVADO METROPOLITANO', sub: 'ALTO COMERCIAL • PONTE LESTE' },
-      { c: 62, text: 'SAÍDA CENTRO / SUPER BANCO', sub: 'VÃO LIVRE ELEVADO' },
-      { c: 318, text: 'PONTE LESTE • DISTRITO PCC', sub: 'VIA EXPRESSA ELEVADA' }
+      { c: ws(-318), text: 'ELEVADO METROPOLITANO', sub: 'ALTO COMERCIAL • PONTE LESTE' },
+      { c: ws(62), text: 'SAÍDA CENTRO / SUPER BANCO', sub: 'VÃO LIVRE ELEVADO' },
+      { c: ws(318), text: 'PONTE LESTE • DISTRITO PCC', sub: 'VIA EXPRESSA ELEVADA' }
     ]
   });
   buildViaduct1CentralAccessRamps(world, batcher, v1.getHeightAlong(0));
 
-  // VIADUTO 02 — Viaduto Panorâmico Norte-Sul (`X = +252`, `Z = -84..+520`, +12.4m acima da avenida abaixo!)
+  // VIADUTO 02 — Viaduto Panorâmico Norte-Sul (`X = ws(252)`, `Z = ws(-84)..ws(520)`, +12.4m acima da avenida abaixo!)
   buildSegmentedExpressViaduct(world, batcher, {
     id: 'viaduct_ns_panoramic',
     axis: 'x_const',
-    fixedCoord: 252,
-    startC: -84,
-    endC: 520,
+    fixedCoord: ws(252),
+    startC: ws(-84),
+    endC: ws(520),
     rampStartLen: 66,
     rampEndLen: 68,
     clearanceTarget: 12.4,
-    startGroundY: getUrbanCityReliefY(252, -84),
-    endGroundY: getUrbanCityReliefY(252, 520),
+    startGroundY: getUrbanCityReliefY(ws(252), ws(-84)),
+    endGroundY: getUrbanCityReliefY(ws(252), ws(520)),
     deckWidth: AVENUE_WIDTH,
-    blockedPillarCoords: [0, 134, 187, 268, 349, 402],
+    blockedPillarCoords: [0, 134, 187, 268, 349, 402].map(ws),
     gantries: [
-      { c: 65, text: 'VIADUTO PANORÂMICO LAGO', sub: 'PARQUE CENTRAL • PRAIA SUL' },
-      { c: 395, text: 'CRISTA COSTEIRA • ORLA SUL', sub: 'DESCIDA PANORÂMICA' }
+      { c: ws(65), text: 'VIADUTO PANORÂMICO LAGO', sub: 'PARQUE CENTRAL • PRAIA SUL' },
+      { c: ws(395), text: 'CRISTA COSTEIRA • ORLA SUL', sub: 'DESCIDA PANORÂMICA' }
     ]
   });
 
-  // VIADUTO 03 — Viaduto Expresso Oeste / Acesso Aeroporto-CDD (`Z = 0`, `X = -1036..-466`, +12.4m acima da avenida abaixo!)
+  // VIADUTO 03 — Viaduto Expresso Oeste / Acesso Aeroporto-CDD (`Z = 0`, `X = ws(-1036)..ws(-466)`, +12.4m acima da avenida abaixo!)
   buildSegmentedExpressViaduct(world, batcher, {
     id: 'viaduct_west_airport',
     axis: 'z_const',
     fixedCoord: 0,
-    startC: -1036,
-    endC: -466,
+    startC: ws(-1036),
+    endC: ws(-466),
     rampStartLen: 68,
     rampEndLen: 48,
     clearanceTarget: 12.4,
     startGroundY: 0.28,
-    endGroundY: getUrbanCityReliefY(-466, 0),
+    endGroundY: getUrbanCityReliefY(ws(-466), 0),
     deckWidth: AVENUE_WIDTH,
-    blockedPillarCoords: [-1020, -516],
+    blockedPillarCoords: [-1020, -516].map(ws),
     gantries: [
-      { c: -890, text: 'EXPRESSO AEROPORTO • CENTRO', sub: 'CORREDOR CIDADE DE DEUS' },
-      { c: -560, text: 'TORRE DOS HERÓIS • TIMES SQ.', sub: 'VIA EXPRESSA OESTE' }
+      { c: ws(-890), text: 'EXPRESSO AEROPORTO • CENTRO', sub: 'CORREDOR CIDADE DE DEUS' },
+      { c: ws(-560), text: 'TORRE DOS HERÓIS • TIMES SQ.', sub: 'VIA EXPRESSA OESTE' }
     ]
   });
 }

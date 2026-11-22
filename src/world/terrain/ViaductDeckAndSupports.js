@@ -6,9 +6,10 @@ import {
   isBuildingAt,
   onCrossRoad
 } from '../StreetPortalPlanner.js';
+import { ROAD } from '../core/WorldLayoutScale.js';
 
-// Largura das avenidas principais (28m): viadutos e rampas usam a mesma largura para encaixar na rua.
-export const AVENUE_WIDTH = 28.0;
+// Largura das avenidas principais: viadutos e rampas usam a mesma largura para encaixar na rua.
+export const AVENUE_WIDTH = ROAD.mainWidth;
 export const CENTRAL_RAMP_HALF_W = AVENUE_WIDTH * 0.5;
 
 export function addOverheadHighwayGantry(world, batcher, x, deckY, z, spanW, axis, signText, subText = '') {

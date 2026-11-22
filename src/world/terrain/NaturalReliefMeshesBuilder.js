@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { makeFastBox, flushSpatialChunkedBuckets } from '../buildings/GeometryMergeUtils.js';
+import { IS_SCALED_WORLD, ROAD, ws, fromWs } from '../core/WorldLayoutScale.js';
 import {
   getNorthSuburbPlateauY,
   getSouthwestBeachReliefY,
@@ -12,7 +13,6 @@ import {
  */
 export function createReliefAndViaductBatcher() {
   const palette = {
-    // Cinza-rodovia claro e nítido (0x334155) contrastando fortemente com o asfalto escuro térreo!
     viaduct_asphalt: new THREE.MeshStandardMaterial({
       color: 0x334155,
       roughness: 0.62,
@@ -101,14 +101,13 @@ export function createReliefAndViaductBatcher() {
         'park_stone'
       ]);
       flushSpatialChunkedBuckets(scene, buckets, palette, {
-        chunkSize: 512,
+        chunkSize: ws(512),
         preserveKeys: new Set(['viaduct_concrete']),
         castShadowFn: (key) => castShadowSet.has(key),
         receiveShadowFn: (_key, mat) => !mat.isMeshBasicMaterial
       });
       buckets.clear();
 
-      // Opção 2 (Studless): não espalha fileiras de pinos plásticos sobre muretas de viaduto/parque
       studPositionsYellow.length = 0;
       studPositionsStone.length = 0;
     }
@@ -117,56 +116,53 @@ export function createReliefAndViaductBatcher() {
 
 export function buildNorthSuburbCoastalAndRiverCliffs(world, batcher) {
   let rockIdx = 0;
-  for (let x = -650; x <= 534; x += 14) {
-    const topY = getNorthSuburbPlateauY(x, -1318);
+  const cliffStep = IS_SCALED_WORLD ? 28 : 14;
+  const zRef = ws(-1318);
+  for (let x = ws(-650); x <= ws(534); x += cliffStep) {
+    const topY = getNorthSuburbPlateauY(x, zRef);
     if (topY < 1.0) continue;
     const hMain = topY + 2.4;
     const key1 = rockIdx % 2 === 0 ? 'cliff_rock_dark' : 'cliff_rock_mid';
     const key2 = rockIdx % 3 === 0 ? 'cliff_rock_light' : 'cliff_rock_mid';
 
-    batcher.addBox(key1, 14.5, hMain, 5.8, x, topY - hMain * 0.5, -1320.2);
+    batcher.addBox(key1, cliffStep + 0.5, hMain, 5.8, x, topY - hMain * 0.5, zRef - 2.2);
     batcher.addBox(
       key2,
-      11.4,
+      cliffStep * 0.8,
       hMain * 0.62,
       4.0,
       x + ((rockIdx % 3) - 1) * 1.4,
       hMain * 0.31 - 0.8,
-      -1323.6
+      zRef - 5.6
     );
-    batcher.addBox('cliff_rock_dark', 8.6, 2.8, 3.4, x - 1.2, 0.5, -1325.8);
-    batcher.addBox('sea_foam', 14.2, 0.14, 2.4, x, -0.36, -1327.2);
+    batcher.addBox('cliff_rock_dark', cliffStep * 0.6, 2.8, 3.4, x - 1.2, 0.5, zRef - 7.8);
+    batcher.addBox('sea_foam', cliffStep + 0.2, 0.14, 2.4, x, -0.36, zRef - 9.2);
 
-    batcher.addBox('viaduct_concrete', 14.2, 1.08, 1.1, x, topY + 0.54, -1318.2);
-    for (let sx = x - 5.0; sx <= x + 5.0; sx += 2.5) {
-      batcher.studPositionsStone.push([sx, topY + 1.14, -1318.2]);
-    }
-    world.addCollider(x, -1318.5, 14.2, 1.8, topY + 1.25, topY - 1.5);
+    batcher.addBox('viaduct_concrete', cliffStep + 0.2, 1.08, 1.1, x, topY + 0.54, zRef - 0.2);
+    world.addCollider(x, zRef - 0.5, cliffStep + 0.2, 1.8, topY + 1.25, topY - 1.5);
     rockIdx++;
   }
 
-  for (let z = -546; z >= -1316; z -= 14) {
-    const topY = getNorthSuburbPlateauY(534, z);
+  const xRef = ws(538);
+  for (let z = ws(-546); z >= ws(-1316); z -= cliffStep) {
+    const topY = getNorthSuburbPlateauY(ws(534), z);
     if (topY < 0.6) continue;
     const hMain = topY + 2.4;
     const key1 = rockIdx % 2 === 0 ? 'cliff_rock_mid' : 'cliff_rock_dark';
 
-    batcher.addBox(key1, 5.4, hMain, 14.5, 539.8, topY - hMain * 0.5, z);
-    batcher.addBox('cliff_rock_light', 3.4, hMain * 0.56, 10.8, 542.6, hMain * 0.28 - 0.8, z);
-    batcher.addBox('viaduct_concrete', 1.1, 1.05, 14.2, 538.2, topY + 0.52, z);
-    for (let sz = z - 5.0; sz <= z + 5.0; sz += 2.5) {
-      batcher.studPositionsStone.push([538.2, topY + 1.12, sz]);
-    }
-    world.addCollider(538.4, z, 1.8, 14.2, topY + 1.25, topY - 1.5);
+    batcher.addBox(key1, 5.4, hMain, cliffStep + 0.5, xRef + 1.8, topY - hMain * 0.5, z);
+    batcher.addBox('cliff_rock_light', 3.4, hMain * 0.56, cliffStep * 0.78, xRef + 4.6, hMain * 0.28 - 0.8, z);
+    batcher.addBox('viaduct_concrete', 1.1, 1.05, cliffStep + 0.2, xRef + 0.2, topY + 0.52, z);
+    world.addCollider(xRef + 0.4, z, 1.8, cliffStep + 0.2, topY + 1.25, topY - 1.5);
     rockIdx++;
   }
 }
 
 export function buildCentralParkHillsAndMirante(world, batcher) {
-  const minX = -480;
-  const maxX = -98;
-  const minZ = 166;
-  const maxZ = 370;
+  const minX = ws(-480);
+  const maxX = ws(-98);
+  const minZ = ws(166);
+  const maxZ = ws(370);
   const width = maxX - minX;
   const depth = maxZ - minZ;
 
@@ -185,6 +181,8 @@ export function buildCentralParkHillsAndMirante(world, batcher) {
   for (let i = 0; i < pos.count; i++) {
     const vx = pos.getX(i);
     const vz = pos.getZ(i);
+    const ux = fromWs(vx);
+    const uz = fromWs(vz);
     const vy = getUrbanCityReliefY(vx, vz);
     if (vy <= 0.36) {
       pos.setY(i, 0.26);
@@ -194,8 +192,8 @@ export function buildCentralParkHillsAndMirante(world, batcher) {
     } else {
       pos.setY(i, vy + 0.04);
       const isRamp =
-        (vx >= -202 && vx <= -114 && Math.abs(vz - 296) < 5.2) ||
-        (vz >= 232 && vz <= 282 && Math.abs(vx - -215) < 5.0);
+        (ux >= -202 && ux <= -114 && Math.abs(uz - 296) < 5.2) ||
+        (uz >= 232 && uz <= 282 && Math.abs(ux - -215) < 5.0);
       if (isRamp) {
         tmp.copy(cStonePath);
       } else if (vy > 9.5) {
@@ -223,6 +221,9 @@ export function buildCentralParkHillsAndMirante(world, batcher) {
   hillMesh.castShadow = true;
   world.scene.add(hillMesh);
 
+  const mx = ws(-215);
+  const mz = ws(296);
+
   const addHillTerraceRings = (cx, cz, rx, rz, levels) => {
     for (const lv of levels) {
       const segs = 22;
@@ -230,34 +231,33 @@ export function buildCentralParkHillsAndMirante(world, batcher) {
         const ang = (s / segs) * Math.PI * 2;
         const px = cx + Math.cos(ang) * rx * lv.scale;
         const pz = cz + Math.sin(ang) * rz * lv.scale;
-        if (Math.abs(px - -215) < 8.5 && pz < cz) continue;
-        if (px > cx + 8 && Math.abs(pz - 296) < 8.5) continue;
+        if (Math.abs(px - mx) < 8.5 && pz < cz) continue;
+        if (px > cx + 8 && Math.abs(pz - mz) < 8.5) continue;
         const ty = getUrbanCityReliefY(px, pz);
         if (ty < 1.5) continue;
         batcher.addBox('cliff_rock_mid', 6.8, 1.55, 6.8, px, ty - 0.58, pz);
         batcher.addBox('park_turf_top', 7.2, 0.38, 7.2, px, ty + 0.08, pz);
-        batcher.studPositionsStone.push([px, ty + 0.32, pz]);
       }
     }
   };
-  addHillTerraceRings(-408, 268, 50, 40, [{ scale: 0.8 }, { scale: 0.54 }]);
-  addHillTerraceRings(-215, 296, 58, 48, [{ scale: 0.82 }, { scale: 0.58 }, { scale: 0.4 }]);
+  addHillTerraceRings(ws(-408), ws(268), ws(50), ws(40), [{ scale: 0.8 }, { scale: 0.54 }]);
+  addHillTerraceRings(mx, mz, ws(58), ws(48), [{ scale: 0.82 }, { scale: 0.58 }, { scale: 0.4 }]);
 
-  for (let z = 233; z <= 281; z += 2.2) {
-    const sy = getUrbanCityReliefY(-215, z);
-    batcher.addBox('park_stone', 9.2, 0.48, 2.35, -215, sy - 0.1, z);
-    batcher.addBox('cliff_rock_light', 0.65, 0.88, 2.35, -215 - 4.7, sy + 0.32, z);
-    batcher.addBox('cliff_rock_light', 0.65, 0.88, 2.35, -215 + 4.7, sy + 0.32, z);
+  const stairStepZ = IS_SCALED_WORLD ? 3.2 : 2.2;
+  for (let z = ws(233); z <= ws(281); z += stairStepZ) {
+    const sy = getUrbanCityReliefY(mx, z);
+    batcher.addBox('park_stone', 9.2, 0.48, stairStepZ + 0.15, mx, sy - 0.1, z);
+    batcher.addBox('cliff_rock_light', 0.65, 0.88, stairStepZ + 0.15, mx - 4.7, sy + 0.32, z);
+    batcher.addBox('cliff_rock_light', 0.65, 0.88, stairStepZ + 0.15, mx + 4.7, sy + 0.32, z);
   }
-  for (let x = -116; x >= -198; x -= 3.0) {
-    const ry = getUrbanCityReliefY(x, 296);
-    batcher.addBox('park_stone', 3.2, 0.45, 9.2, x, ry - 0.08, 296);
-    batcher.addBox('cliff_rock_light', 3.2, 0.82, 0.65, x, ry + 0.3, 296 - 4.7);
-    batcher.addBox('cliff_rock_light', 3.2, 0.82, 0.65, x, ry + 0.3, 296 + 4.7);
+  const rampStepX = IS_SCALED_WORLD ? 4.5 : 3.0;
+  for (let x = ws(-116); x >= ws(-198); x -= rampStepX) {
+    const ry = getUrbanCityReliefY(x, mz);
+    batcher.addBox('park_stone', rampStepX + 0.2, 0.45, 9.2, x, ry - 0.08, mz);
+    batcher.addBox('cliff_rock_light', rampStepX + 0.2, 0.82, 0.65, x, ry + 0.3, mz - 4.7);
+    batcher.addBox('cliff_rock_light', rampStepX + 0.2, 0.82, 0.65, x, ry + 0.3, mz + 4.7);
   }
 
-  const mx = -215;
-  const mz = 296;
   const my = 14.0;
   const miranteR = 14.2;
 
@@ -274,7 +274,6 @@ export function buildCentralParkHillsAndMirante(world, batcher) {
     if (Math.hypot(rx - mx, rz - (mz - miranteR + 0.7)) < 4.8) continue;
 
     batcher.addBox('park_stone', 2.6, 1.05, 2.6, rx, my + 0.85, rz);
-    batcher.studPositionsStone.push([rx, my + 1.44, rz]);
     world.addCollider(rx, rz, 2.4, 2.4, my + 1.45, my);
   }
 
@@ -350,10 +349,10 @@ export function buildCentralParkHillsAndMirante(world, batcher) {
 }
 
 export function buildSouthwestBeachDunesAndRockHeadland(world, batcher) {
-  const minX = -1352;
-  const maxX = -758;
-  const minZ = 780;
-  const maxZ = 1012;
+  const minX = ws(-1352);
+  const maxX = ws(-758);
+  const minZ = ws(780);
+  const maxZ = ws(1012);
   const width = maxX - minX;
   const depth = maxZ - minZ;
 
@@ -402,25 +401,26 @@ export function buildSouthwestBeachDunesAndRockHeadland(world, batcher) {
   world.scene.add(duneMesh);
 
   for (const [rx, rz] of [
-    [-965, 928],
-    [-1215, 898]
+    [ws(-965), ws(928)],
+    [ws(-1215), ws(898)]
   ]) {
     const ry = getSouthwestBeachReliefY(rx, rz);
     batcher.addBox('cliff_rock_dark', 16.0, 2.2, 12.0, rx, ry - 0.4, rz);
     batcher.addBox('cliff_rock_light', 10.5, 1.8, 8.5, rx + 2.5, ry + 0.35, rz - 1.5);
     batcher.addBox('wood_bench', 8.4, 0.35, 8.4, rx - 1.5, ry + 0.25, rz + 1.0);
-    batcher.studPositionsStone.push([rx + 2.5, ry + 1.3, rz - 1.5]);
   }
 }
 
 export function buildCDDCanyonPassRetainingWalls(batcher) {
-  for (let x = -984; x <= -540; x += 24) {
+  const wallStep = IS_SCALED_WORLD ? 32 : 24;
+  const wzOff = IS_SCALED_WORLD ? ROAD.mainWidth * 0.5 + 2.5 : 16.5;
+  for (let x = ws(-984); x <= ws(-540); x += wallStep) {
     for (const side of [-1, 1]) {
-      const wz = side * 16.5;
-      batcher.addBox('cliff_rock_dark', 23.6, 5.2, 3.2, x, 2.6, wz);
-      batcher.addBox('viaduct_concrete', 23.8, 0.85, 3.5, x, 5.5, wz);
-      batcher.addBox('safety_yellow', 11.0, 0.42, 3.6, x - 5.5, 1.2, wz);
-      batcher.addBox('hazard_black', 11.0, 0.42, 3.6, x + 5.5, 1.2, wz);
+      const wz = side * wzOff;
+      batcher.addBox('cliff_rock_dark', wallStep - 0.4, 5.2, 3.2, x, 2.6, wz);
+      batcher.addBox('viaduct_concrete', wallStep - 0.2, 0.85, 3.5, x, 5.5, wz);
+      batcher.addBox('safety_yellow', wallStep * 0.46, 0.42, 3.6, x - wallStep * 0.23, 1.2, wz);
+      batcher.addBox('hazard_black', wallStep * 0.46, 0.42, 3.6, x + wallStep * 0.23, 1.2, wz);
     }
   }
 }

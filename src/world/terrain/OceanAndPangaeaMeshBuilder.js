@@ -19,6 +19,7 @@ import {
   getRegionBiomeHexAt,
   isPointOnOrganicLand
 } from '../CoastlineProfile.js';
+import { WORLD_SCALE, IS_SCALED_WORLD, ws, wsBounds, fromWs } from '../core/WorldLayoutScale.js';
 import { getUrbanCityReliefY } from './UrbanReliefFunctions.js';
 import { pushChunkedTerrainSectorGeos, addChunkedArrayToScene } from './BridgeAndPierSpecs.js';
 import {
@@ -48,30 +49,29 @@ export function buildOceanAndMainIsland(world) {
     waterGeos.push(g);
   };
 
-  // 1) Leito profundo ESTRITO do Rio / Fjord Urbano Leste (X = 538..582, Z = -2950..+1080 em Y = -3.55)
-  addWaterPlate(538, 582, -2950, 1080, -3.55);
+  // 1) Leito profundo ESTRITO do Rio / Fjord Urbano Leste
+  addWaterPlate(ws(538), ws(582), ws(-2950), ws(1080), -3.55);
 
-  // 2) Leitos estreitos dos 3 Canais Estilo Santos na Praia Sul (Z = 724..1070 em Y = -0.52)
-  for (const cx of [-384, -120, 252]) {
-    addWaterPlate(cx - 12, cx + 12, 724, 1070, -0.52);
+  // 2) Leitos estreitos dos 3 Canais Estilo Santos na Praia Sul (meia-largura 12m em 1x!)
+  for (const cx of [ws(-384), ws(-120), ws(252)]) {
+    addWaterPlate(cx - 12, cx + 12, ws(724), ws(1070), -0.52);
   }
 
-  // 3) Placas do Oceano Atlântico ampliadas até o super-horizonte (±14500m) ao redor da Pangeia
-  addWaterPlate(-14500, -1825, -14500, 14500, -0.45); // Oceano Oeste além do horizonte
-  addWaterPlate(-1825, 540, -14500, -1320, -0.45);   // Oceano Norte Oeste
-  addWaterPlate(540, 580, -14500, -1325, -0.45);     // Foz Norte Externa do Fjord
-  addWaterPlate(580, 14500, -14500, -1320, -0.45);   // Oceano Nordeste
-  addWaterPlate(1628, 14500, -1320, 14500, -0.45);   // Golfo de Tétis & Oceano Leste
-  addWaterPlate(580, 1628, 735, 14500, -0.45);       // Baía Sudeste (Ponte Blindada e Ilha da Prisão)
-  addWaterPlate(-1825, 540, 1035, 14500, -0.45);     // Baía Sul
-  addWaterPlate(540, 580, 1075, 14500, -0.45);       // Foz Sul Externa do Rio
+  // 3) Placas do Oceano Atlântico até o super-horizonte (±ws(14500)) ao redor da Pangeia
+  addWaterPlate(ws(-14500), ws(-1825), ws(-14500), ws(14500), -0.45);
+  addWaterPlate(ws(-1825), ws(540), ws(-14500), ws(-1320), -0.45);
+  addWaterPlate(ws(540), ws(580), ws(-14500), ws(-1325), -0.45);
+  addWaterPlate(ws(580), ws(14500), ws(-14500), ws(-1320), -0.45);
+  addWaterPlate(ws(1628), ws(14500), ws(-1320), ws(14500), -0.45);
+  addWaterPlate(ws(580), ws(1628), ws(735), ws(14500), -0.45);
+  addWaterPlate(ws(-1825), ws(540), ws(1035), ws(14500), -0.45);
+  addWaterPlate(ws(540), ws(580), ws(1075), ws(14500), -0.45);
 
   const mergedOcean = new THREE.Mesh(mergeBufferGeometries(waterGeos), oceanMat);
   for (let i = 0; i < waterGeos.length; i++) waterGeos[i].dispose();
   mergedOcean.receiveShadow = false;
   world.scene.add(mergedOcean);
 
-  // Asfalto negro semi-úmido reflexivo estilo Gotham Noir (espelha luzes de sódio, faróis e neon!)
   const asphaltMat = new THREE.MeshPhysicalMaterial({
     color: LEGO_COLORS.asphalt,
     roughness: 0.28,
@@ -80,8 +80,7 @@ export function buildOceanAndMainIsland(world) {
     clearcoatRoughness: 0.24
   });
 
-  // 4) Ilha Continental Principal (X = -1825..+540, Z = -1320..+780):
-  //    - `cutZones` reduzidos ESTRITAMENTE aos retângulos mínimos das escadas/portais (`METRO_ISLAND_CUTOUTS` + margem de 4m)
+  // 4) Ilha Continental Principal (X = ws(-1825)..ws(540), Z = ws(-1320)..ws(780))
   const islandGeos = [];
   const cutZones = METRO_ISLAND_CUTOUTS.map((c) => ({
     minX: c.minX - 4,
@@ -103,23 +102,31 @@ export function buildOceanAndMainIsland(world) {
     }
   }
 
-  // Faixa Oeste do Aeroporto (plana, malha leve) + Malha Urbana/Subúrbio fatiada apenas nos `cutZones` mínimos (células de 14m)
-  pushChunkedTerrainSectorGeos(islandGeos, -1825, -1040, -1320, 780, 28);
+  const mainMinX = ws(-1825);
+  const mainMaxX = ws(540);
+  const mainMinZ = ws(-1320);
+  const mainMaxZ = ws(780);
+  const aeroSplitX = ws(-1040);
+
+  pushChunkedTerrainSectorGeos(islandGeos, mainMinX, aeroSplitX, mainMinZ, mainMaxZ, IS_SCALED_WORLD ? 32 : 28, ws(512));
   const urbanTerrainSlices = sliceRectAroundCutouts(
-    { minX: -1040, maxX: 540, minZ: -1320, maxZ: 780 },
+    { minX: aeroSplitX, maxX: mainMaxX, minZ: mainMinZ, maxZ: mainMaxZ },
     cutZones
   );
   for (const s of urbanTerrainSlices) {
     if (s.maxX - s.minX <= 0.05 || s.maxZ - s.minZ <= 0.05) continue;
-    pushChunkedTerrainSectorGeos(islandGeos, s.minX, s.maxX, s.minZ, s.maxZ, 14);
+    pushChunkedTerrainSectorGeos(islandGeos, s.minX, s.maxX, s.minZ, s.maxZ, IS_SCALED_WORLD ? 20 : 14, ws(512));
   }
 
-  // Saias costeiras de concreto/rocha nas bordas externas da Ilha Principal (evita frestas nas falésias/margens)
+  const mainSpanX = mainMaxX - mainMinX;
+  const mainSpanZ = mainMaxZ - mainMinZ;
+  const mainMidX = (mainMinX + mainMaxX) * 0.5;
+  const mainMidZ = (mainMinZ + mainMaxZ) * 0.5;
   islandGeos.push(
-    makeFastBox(2365, 4.5, 1.5, -642.5, -2.25, -1319.25),
-    makeFastBox(2365, 4.5, 1.5, -642.5, -2.25, 779.25),
-    makeFastBox(1.5, 4.5, 2100, -1824.25, -2.25, -270),
-    makeFastBox(1.5, 4.5, 2100, 539.25, -2.25, -270)
+    makeFastBox(mainSpanX, 4.5, 1.5, mainMidX, -2.25, mainMinZ + 0.75),
+    makeFastBox(mainSpanX, 4.5, 1.5, mainMidX, -2.25, mainMaxZ - 0.75),
+    makeFastBox(1.5, 4.5, mainSpanZ, mainMinX + 0.75, -2.25, mainMidZ),
+    makeFastBox(1.5, 4.5, mainSpanZ, mainMaxX - 0.75, -2.25, mainMidZ)
   );
 
   if (!world.waterShaderUniforms) {
@@ -133,19 +140,28 @@ export function buildOceanAndMainIsland(world) {
   });
   world.oceanMaterial = oceanMat;
   world.oceanMesh = mergedOcean;
-  addChunkedArrayToScene(world.scene, islandGeos, asphaltMat, { receiveShadow: true, chunkSize: 512 });
+  addChunkedArrayToScene(world.scene, islandGeos, asphaltMat, { receiveShadow: true, chunkSize: ws(512) });
 
-  // 5) Península Leste do Distrito Industrial & Porto (X = 580..1628, Z = -1320..+735) com Relevo Industrial (+7.0m)!
+  // 5) Península Leste do Distrito Industrial & Porto (X = ws(580)..ws(1628), Z = ws(-1320)..ws(735))
+  const eastMinX = ws(580);
+  const eastMaxX = ws(1628);
+  const eastMinZ = ws(-1320);
+  const eastMaxZ = ws(735);
+  const eastSpanX = eastMaxX - eastMinX;
+  const eastSpanZ = eastMaxZ - eastMinZ;
+  const eastMidX = (eastMinX + eastMaxX) * 0.5;
+  const eastMidZ = (eastMinZ + eastMaxZ) * 0.5;
+
   const eastGeos = [
-    makeFastBox(1048, 4.5, 1.5, 1104, -2.25, -1319.25),
-    makeFastBox(1048, 4.5, 1.5, 1104, -2.25, 734.25),
-    makeFastBox(1.5, 4.5, 2055, 580.75, -2.25, -292.5),
-    makeFastBox(1.5, 4.5, 2055, 1627.25, -2.25, -292.5)
+    makeFastBox(eastSpanX, 4.5, 1.5, eastMidX, -2.25, eastMinZ + 0.75),
+    makeFastBox(eastSpanX, 4.5, 1.5, eastMidX, -2.25, eastMaxZ - 0.75),
+    makeFastBox(1.5, 4.5, eastSpanZ, eastMinX + 0.75, -2.25, eastMidZ),
+    makeFastBox(1.5, 4.5, eastSpanZ, eastMaxX - 0.75, -2.25, eastMidZ)
   ];
-  pushChunkedTerrainSectorGeos(eastGeos, 580, 1628, -1320, 735, 20);
-  addChunkedArrayToScene(world.scene, eastGeos, asphaltMat, { receiveShadow: true, chunkSize: 512 });
+  pushChunkedTerrainSectorGeos(eastGeos, eastMinX, eastMaxX, eastMinZ, eastMaxZ, 20, ws(512));
+  addChunkedArrayToScene(world.scene, eastGeos, asphaltMat, { receiveShadow: true, chunkSize: ws(512) });
 
-  // 6) Supercontinente Pangeia (Terrenos Chunked com Origem Local, Praias de Areia Contínuas, Rodovias Regionais & Horizonte)
+  // 6) Supercontinente Pangeia
   buildPangaeaSupercontinentAndSandCoast(world, asphaltMat);
 }
 
@@ -173,8 +189,7 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
   const cTmpBiome = new THREE.Color();
   const cOut = new THREE.Color();
 
-  // Helper: constrói um bloco de terreno Heightfield já com vértices transladados para origem local (cx, 0, cz)
-  const buildLocalOriginPangaeaChunk = (x0, x1, z0, z1, cellSize = 44) => {
+  const buildLocalOriginPangaeaChunk = (x0, x1, z0, z1, cellSize = 44 * WORLD_SCALE) => {
     const w = x1 - x0;
     const d = z1 - z0;
     if (w < 4 || d < 4) return;
@@ -203,11 +218,11 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
       const onLand = isPointOnOrganicLand(wx, wz);
       const coastDist = getDistanceToCoastAt(wx, wz);
       const hwyDist = getHighwayDistanceAt(wx, wz);
-      const riverDist = Math.abs(wx - 560);
+      const riverDistDesign = Math.abs(fromWs(wx) - 560);
 
       if (!onLand || hy < 0.32) {
         cOut.copy(cSandWet).lerp(cSandDry, Math.max(0, Math.min(1, (hy + 0.45) / 0.85)));
-      } else if (wz < -1318 && riverDist < 42) {
+      } else if (wz < ws(-1318) && riverDistDesign < 42) {
         cOut.copy(cBank);
       } else if (coastDist < 52) {
         const biomeHex = getRegionBiomeHexAt(wx, wz);
@@ -248,27 +263,26 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     world.scene.add(mesh);
   };
 
-  // 1) Setores estritamente externos ao núcleo urbano (ZERO sobreposição com asfalto urbano em Y=0)
   const sectorRegions = [
-    { minX: -3480, maxX: 538, minZ: -3020, maxZ: -1320 },   // Planalto Boreal Norte & Fiordes Oeste
-    { minX: 582, maxX: 3480, minZ: -2820, maxZ: -1320 },    // Planalto Boreal Leste & Chifre Nordeste
-    { minX: -3480, maxX: -1825, minZ: -1320, maxZ: 2560 },  // Cabo Noroeste, Baía Oeste & Península Sudoeste
-    { minX: -1825, maxX: -1530, minZ: 1020, maxZ: 2560 },   // Lado Leste da Península Sudoeste (livre da Marina -1400)
-    { minX: 1628, maxX: 3480, minZ: -1320, maxZ: 140 }      // Ala Leste do Chifre Nordeste & Golfo de Tétis
+    wsBounds({ minX: -3480, maxX: 538, minZ: -3020, maxZ: -1320 }),
+    wsBounds({ minX: 582, maxX: 3480, minZ: -2820, maxZ: -1320 }),
+    wsBounds({ minX: -3480, maxX: -1825, minZ: -1320, maxZ: 2560 }),
+    wsBounds({ minX: -1825, maxX: -1530, minZ: 1020, maxZ: 2560 }),
+    wsBounds({ minX: 1628, maxX: 3480, minZ: -1320, maxZ: 140 })
   ];
 
-  const chunkSpan = 480;
+  const chunkSpan = ws(480);
+  const pCellSize = 44 * WORLD_SCALE;
   for (const reg of sectorRegions) {
     for (let x0 = reg.minX; x0 < reg.maxX - 1; x0 += chunkSpan) {
       const x1 = Math.min(reg.maxX, x0 + chunkSpan);
       for (let z0 = reg.minZ; z0 < reg.maxZ - 1; z0 += chunkSpan) {
         const z1 = Math.min(reg.maxZ, z0 + chunkSpan);
-        buildLocalOriginPangaeaChunk(x0, x1, z0, z1, 44);
+        buildLocalOriginPangaeaChunk(x0, x1, z0, z1, pCellSize);
       }
     }
   }
 
-  // 2) Anéis de Areia & Costão Contínuos para Orla Sul Urbana, Cais Leste e Ilha da Prisão
   const sandGeos = [];
   const cliffGeos = [];
   const turfGeos = [];
@@ -299,7 +313,7 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
       const dx = bx - ax;
       const dz = bz - az;
       const segLen = Math.hypot(dx, dz);
-      if (segLen < 2 || segLen > 240) continue;
+      if (segLen < 2 || segLen > ws(240)) continue;
 
       const [ix, iz] = clampFn(mx, mz);
       const radialDx = mx - ix;
@@ -307,8 +321,8 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
       const span = Math.hypot(radialDx, radialDz);
       if (span < 4) continue;
 
-      if (isPrison && mx > 1300 && mx < 1450 && mz < 1165) continue;
-      if (isPrison && mx < 955 && mz > 1470 && mz < 1630) continue;
+      if (isPrison && mx > ws(1300) && mx < ws(1450) && mz < ws(1165)) continue;
+      if (isPrison && mx < ws(955) && mz > ws(1470) && mz < ws(1630)) continue;
 
       const cx = (mx + ix) * 0.5;
       const cz = (mz + iz) * 0.5;
@@ -317,7 +331,7 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
 
       sandGeos.push(makeFastBox(wBox, 0.96, dBox, cx, -0.42, cz));
       reefGeos.push(makeFastBox(wBox + 14, 0.35, dBox + 14, mx, -0.52, mz));
-      if (isPrison && span > 44 && i % 3 === 0) {
+      if (isPrison && span > ws(44) && i % 3 === 0) {
         const cliffH = 2.8 + ((i * 19) % 6) * 0.8;
         cliffGeos.push(
           makeFastBox(
@@ -335,24 +349,23 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
 
   buildUrbanCoastRim(
     MAIN_WEST_POLYGON,
-    (x, z) => [THREE.MathUtils.clamp(x, -1540, 535), THREE.MathUtils.clamp(z, -1315, 1040)],
+    (x, z) => [THREE.MathUtils.clamp(x, ws(-1540), ws(535)), THREE.MathUtils.clamp(z, ws(-1315), ws(1040))],
     false,
-    1020
+    ws(1020)
   );
   buildUrbanCoastRim(
     EAST_PENINSULA_POLYGON,
-    (x, z) => [THREE.MathUtils.clamp(x, 585, 1624), THREE.MathUtils.clamp(z, -1315, 732)],
+    (x, z) => [THREE.MathUtils.clamp(x, ws(585), ws(1624)), THREE.MathUtils.clamp(z, ws(-1315), ws(732))],
     false,
-    720
+    ws(720)
   );
   buildUrbanCoastRim(
     PRISON_ISLAND_POLYGON,
-    (x, z) => [THREE.MathUtils.clamp(x, 960, 1790), THREE.MathUtils.clamp(z, 1130, 1980)],
+    (x, z) => [THREE.MathUtils.clamp(x, ws(960), ws(1790)), THREE.MathUtils.clamp(z, ws(1130), ws(1980))],
     true,
     -Infinity
   );
 
-  // 3 & 4) Rodovias Inter-Regionais da Pangeia + Marcos Identitários
   buildPangaeaHighwaysAndLandmarks(world, {
     sandGeos,
     cliffGeos,
@@ -365,7 +378,6 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     palmTreeTransforms
   });
 
-  // 5) Ilhotas do Arquipélago ao redor (praia + núcleo sólido + árvores)
   for (const isl of ARCHIPELAGO_ISLETS) {
     reefGeos.push(makeFastBox(isl.rx * 2.15, 0.45, isl.rz * 2.15, isl.x, -0.54, isl.z));
     sandGeos.push(makeFastBox(isl.rx * 1.85, 0.9, isl.rz * 1.85, isl.x, -0.15, isl.z));
@@ -386,7 +398,6 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     }
   }
 
-  // 6) Cadeia de Montanhas Distantes no Horizonte em 360° (camuflam o limite oceânico na neblina!)
   for (const mt of HORIZON_MOUNTAINS) {
     const r = mt.radius;
     const h = mt.height;
@@ -397,10 +408,10 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     );
   }
 
-  // 7) Linhas Visuais Claras de Fronteira entre Regiões (urbanas e inter-regionais)
-  const blockedAvenuesX = [-384, -252, -120, 0, 120, 252, 384, -1215, 964];
-  const blockedAvenuesZ = [-382, -250, -117, 0, 134, 402, 710, -1285, -908];
-  const isNearAvenue = (val, list, margin = 24) => list.some((a) => Math.abs(val - a) < margin);
+  const blockedAvenuesX = [-384, -252, -120, 0, 120, 252, 384, -1215, 964].map(ws);
+  const blockedAvenuesZ = [-382, -250, -117, 0, 134, 402, 710, -1285, -908].map(ws);
+  const aveMargin = IS_SCALED_WORLD ? 30 : 26;
+  const isNearAvenue = (val, list, margin = aveMargin) => list.some((a) => Math.abs(val - a) < margin);
 
   for (const brd of REGION_BORDER_LINES) {
     const [x1, z1] = brd.from;
@@ -408,16 +419,16 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     const dx = x2 - x1;
     const dz = z2 - z1;
     const totalLen = Math.hypot(dx, dz);
-    const steps = Math.max(1, Math.floor(totalLen / 40));
+    const steps = Math.max(1, Math.floor(totalLen / ws(40)));
     const bucket = borderAccentGeos[brd.color] || (borderAccentGeos[brd.color] = []);
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
       const px = x1 + dx * t;
       const pz = z1 + dz * t;
       if (Math.abs(dx) >= Math.abs(dz)) {
-        if (isNearAvenue(px, blockedAvenuesX, 26)) continue;
+        if (isNearAvenue(px, blockedAvenuesX, aveMargin)) continue;
       } else {
-        if (isNearAvenue(pz, blockedAvenuesZ, 26)) continue;
+        if (isNearAvenue(pz, blockedAvenuesZ, aveMargin)) continue;
       }
       if (!isPointOnOrganicLand(px, pz)) continue;
       const py = Math.max(getUrbanCityReliefY(px, pz), getPangaeaElevationAt(px, pz));
@@ -440,15 +451,15 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
 
   const flushBatch = (geos, mat, opts = {}) => {
     if (!geos.length) return;
-    addChunkedArrayToScene(world.scene, geos, mat, { chunkSize: 640, receiveShadow: true, ...opts });
+    addChunkedArrayToScene(world.scene, geos, mat, { chunkSize: ws(640), receiveShadow: true, ...opts });
   };
 
   flushBatch(sandGeos, getLegoMaterial(0x7d6b4a, { roughness: 0.82 }));
   flushBatch(turfGeos, getLegoMaterial(0x1f3d23, { roughness: 0.78 }));
   flushBatch(cliffGeos, getLegoMaterial(0x282f3c, { roughness: 0.84 }));
   flushBatch(reefGeos, new THREE.MeshStandardMaterial({ color: 0x0b2230, roughness: 0.35, metalness: 0.15 }));
-  flushBatch(roadShoulderGeos, getLegoMaterial(0x1e2430, { roughness: 0.82 }), { receiveShadow: true, chunkSize: 560 });
-  flushBatch(roadAsphaltGeos, asphaltMat, { receiveShadow: true, chunkSize: 560 });
+  flushBatch(roadShoulderGeos, getLegoMaterial(0x1e2430, { roughness: 0.82 }), { receiveShadow: true, chunkSize: ws(560) });
+  flushBatch(roadAsphaltGeos, asphaltMat, { receiveShadow: true, chunkSize: ws(560) });
   flushBatch(
     roadYellowGeos,
     new THREE.MeshBasicMaterial({
@@ -457,12 +468,12 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -2
     }),
-    { receiveShadow: false, chunkSize: 560 }
+    { receiveShadow: false, chunkSize: ws(560) }
   );
   flushBatch(
     horizonGeos,
     new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.92, metalness: 0.04 }),
-    { receiveShadow: false, chunkSize: 1600 }
+    { receiveShadow: false, chunkSize: ws(1600) }
   );
 
   for (const [hexStr, list] of Object.entries(borderAccentGeos)) {

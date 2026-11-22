@@ -1,25 +1,26 @@
 import * as THREE from 'three';
 import { mergeBufferGeometries, getGeometryChunkKey } from '../buildings/GeometryMergeUtils.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../core/WorldLayoutScale.js';
 import { getUrbanCityReliefY } from './UrbanReliefFunctions.js';
 
 /**
- * Especificação Oficial das 9 Pontes Elevadas em Arco sobre o Rio/Canal Urbano Leste (X = 526..594, vão = 68m)
+ * Especificação Oficial das 9 Pontes Elevadas em Arco sobre o Rio/Canal Urbano Leste (X = ws(526)..ws(594))
  * Equação da curva suave: bridgeY = archHeight * Math.sin(((x - xStart) / (xEnd - xStart)) * Math.PI)
  */
 export const RIVER_BRIDGE_SPECS = [
-  { z: -776, width: 26, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_north', label: 'PONTE NORTE DO CANAL' },
-  { z: -512, width: 28, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE FRONTEIRA SUBÚRBIO-PCC' },
-  { z: -382, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE DA CIDADELA NORTE' },
-  { z: -250, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE CENTRAL DO SINDICATO' },
-  { z: -117, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE DO CENTRO FINANCEIRO' },
-  { z: 0, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'pcc_gate', label: 'PONTE MONUMENTAL LESTE-OESTE' },
-  { z: 134, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'port_gate', label: 'PONTE DO PARQUE & PORTO' },
-  { z: 402, width: 30, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'port_gate', label: 'PONTE LOGÍSTICA DAS DOCAS' },
-  { z: 712, width: 32, xStart: 526, xEnd: 594, archHeight: 5.0, style: 'beach', label: 'PONTE COSTEIRA DA ORLA SUL' }
+  { z: ws(-776), width: IS_SCALED_WORLD ? ROAD.secondaryWidth : 26, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'pcc_north', label: 'PONTE NORTE DO CANAL' },
+  { z: ws(-512), width: IS_SCALED_WORLD ? ROAD.secondaryWidth : 28, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'pcc_gate', label: 'PONTE FRONTEIRA SUBÚRBIO-PCC' },
+  { z: ws(-382), width: IS_SCALED_WORLD ? ROAD.mainWidth : 30, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'pcc_gate', label: 'PONTE DA CIDADELA NORTE' },
+  { z: ws(-250), width: IS_SCALED_WORLD ? ROAD.mainWidth : 30, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'pcc_gate', label: 'PONTE CENTRAL DO SINDICATO' },
+  { z: ws(-117), width: IS_SCALED_WORLD ? ROAD.mainWidth : 30, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'pcc_gate', label: 'PONTE DO CENTRO FINANCEIRO' },
+  { z: ws(0), width: IS_SCALED_WORLD ? ROAD.mainWidth : 30, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'pcc_gate', label: 'PONTE MONUMENTAL LESTE-OESTE' },
+  { z: ws(134), width: IS_SCALED_WORLD ? ROAD.mainWidth : 30, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'port_gate', label: 'PONTE DO PARQUE & PORTO' },
+  { z: ws(402), width: IS_SCALED_WORLD ? ROAD.mainWidth : 30, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'port_gate', label: 'PONTE LOGÍSTICA DAS DOCAS' },
+  { z: ws(712), width: IS_SCALED_WORLD ? ROAD.mainWidth : 32, xStart: ws(526), xEnd: ws(594), archHeight: 5.0, style: 'beach', label: 'PONTE COSTEIRA DA ORLA SUL' }
 ];
 
 export const PANGAEA_BRIDGE_SPECS = [
-  { z: -2150, width: 28, xStart: 526, xEnd: 594, archHeight: 5.5, style: 'pcc_north', label: 'PONTE BOREAL DO FIORDE' }
+  { z: ws(-2150), width: IS_SCALED_WORLD ? ROAD.secondaryWidth : 28, xStart: ws(526), xEnd: ws(594), archHeight: 5.5, style: 'pcc_north', label: 'PONTE BOREAL DO FIORDE' }
 ];
 
 /**
@@ -29,36 +30,36 @@ export const RIVER_PIER_SPECS = [
   {
     id: 'central_park_pier',
     bank: 'west',
-    z: 268,
+    z: ws(268),
     lengthZ: 32,
-    deckXMin: 540,
-    deckXMax: 547.5,
-    rampXMin: 531,
-    rampXMax: 540,
+    deckXMin: ws(540),
+    deckXMax: ws(540) + 7.5,
+    rampXMin: ws(540) - 9,
+    rampXMax: ws(540),
     deckY: -2.9,
     label: 'DECK FLUVIAL PARQUE CENTRAL'
   },
   {
     id: 'pcc_industrial_pier',
     bank: 'east',
-    z: -185,
+    z: ws(-185),
     lengthZ: 32,
-    deckXMin: 572.5,
-    deckXMax: 580,
-    rampXMin: 580,
-    rampXMax: 589,
+    deckXMin: ws(580) - 7.5,
+    deckXMax: ws(580),
+    rampXMin: ws(580),
+    rampXMax: ws(580) + 9,
     deckY: -2.9,
     label: 'DOCA FLUVIAL DE FUGA (PCC)'
   },
   {
     id: 'south_beach_mouth_pier',
     bank: 'west',
-    z: 845,
+    z: ws(845),
     lengthZ: 38,
-    deckXMin: 540,
-    deckXMax: 547.5,
-    rampXMin: 531,
-    rampXMax: 540,
+    deckXMin: ws(540),
+    deckXMax: ws(540) + 7.5,
+    rampXMin: ws(540) - 9,
+    rampXMax: ws(540),
     deckY: -2.9,
     label: 'MARINA DA FOZ DA PRAIA SUL'
   }
@@ -73,14 +74,14 @@ export function getRiverBridgeArchY(spec, x) {
 }
 
 /**
- * Constrói a geometria em arco da Ponte Rodoviária Boreal sobre o Fjord Norte (`Z = -2150`).
+ * Constrói a geometria em arco da Ponte Rodoviária Boreal sobre o Fjord Norte (`Z = ws(-2150)`).
  */
 export function buildBorealFjordBridge(world, roadAsphaltGeos, cliffGeos) {
   const borealBridge = PANGAEA_BRIDGE_SPECS[0];
-  if (!borealBridge || borealBridge.z !== -2150) return;
+  if (!borealBridge || borealBridge.z !== ws(-2150)) return;
 
-  const steps = 16;
   const spanX = borealBridge.xEnd - borealBridge.xStart;
+  const steps = IS_SCALED_WORLD ? Math.max(16, Math.round(spanX / 12)) : 16;
   const stepW = spanX / steps;
   for (let i = 0; i < steps; i++) {
     const bx0 = borealBridge.xStart + i * stepW;
@@ -116,8 +117,28 @@ export function buildBorealFjordBridge(world, roadAsphaltGeos, cliffGeos) {
 export function createSubdividedTerrainSectorGeo(minX, maxX, minZ, maxZ, cellSize = 18) {
   const w = maxX - minX;
   const d = maxZ - minZ;
-  const segX = Math.max(2, Math.round(w / cellSize));
-  const segZ = Math.max(2, Math.round(d / cellSize));
+  let segX = Math.max(2, Math.round(w / cellSize));
+  let segZ = Math.max(2, Math.round(d / cellSize));
+
+  // Otimização 60 FPS em mundo escalado: tiles 100% planos usam malha leve 2x2!
+  if (IS_SCALED_WORLD && (segX > 2 || segZ > 2)) {
+    let minH = Infinity;
+    let maxH = -Infinity;
+    for (let ix = 0; ix < 5; ix++) {
+      const sx = minX + w * (ix * 0.25);
+      for (let iz = 0; iz < 5; iz++) {
+        const sz = minZ + d * (iz * 0.25);
+        const h = getUrbanCityReliefY(sx, sz);
+        if (h < minH) minH = h;
+        if (h > maxH) maxH = h;
+      }
+    }
+    if (maxH - minH < 0.004) {
+      segX = 2;
+      segZ = 2;
+    }
+  }
+
   const geo = new THREE.PlaneGeometry(w, d, segX, segZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate((minX + maxX) * 0.5, 0, (minZ + maxZ) * 0.5);
@@ -143,7 +164,7 @@ export function pushChunkedTerrainSectorGeos(bucket, minX, maxX, minZ, maxZ, cel
 }
 
 export function addChunkedArrayToScene(scene, geos, mat, opts = {}) {
-  const chunkSize = opts.chunkSize ?? 512;
+  const chunkSize = opts.chunkSize ?? ws(512);
   const castShadow = Boolean(opts.castShadow);
   const receiveShadow = Boolean(opts.receiveShadow);
   const byChunk = new Map();
@@ -160,7 +181,6 @@ export function addChunkedArrayToScene(scene, geos, mat, opts = {}) {
   for (const list of byChunk.values()) {
     if (list.length === 0) continue;
     const merged = mergeBufferGeometries(list);
-    // Origem local por chunk para máxima precisão Float32 mesmo a +-4500m da origem!
     merged.computeBoundingBox();
     const center = new THREE.Vector3();
     if (merged.boundingBox) {

@@ -16,11 +16,12 @@ import {
   remapRegionBorderToGothamNoir,
   classifyGothamRoadKind
 } from '../TacticalIcons.js';
+import { IS_SCALED_WORLD, ws } from '../../world/core/WorldLayoutScale.js';
 
-export const STATIC_MAP_MIN_WX = -3700;
-export const STATIC_MAP_MIN_WZ = -3250;
-export const STATIC_MAP_SPAN = 7400;
-export const STATIC_MAP_PX = 2048; // ~0.277 px/m cobrindo toda a Pangeia com nitidez e metade da RAM
+export const STATIC_MAP_MIN_WX = ws(-3700);
+export const STATIC_MAP_MIN_WZ = ws(-3250);
+export const STATIC_MAP_SPAN = ws(7400);
+export const STATIC_MAP_PX = IS_SCALED_WORLD && !globalThis.__testEnvReady ? 4096 : 2048;
 
 export function getStaticMinimapCache(world) {
   if (!world) return null;

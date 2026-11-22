@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { getCachedFacadeMaterials } from '../BuildingGenerator.js';
 import { RIVER_BRIDGE_SPECS } from '../RoadGridBuilder.js';
+import { WORLD_SCALE, IS_SCALED_WORLD, ROAD, ws, fromWs } from '../core/WorldLayoutScale.js';
 import { createSkyDomeUniforms, createSkyDomeMaterial } from './AtmosphereScheduleAndShader.js';
 
 // ============================================================================
@@ -14,7 +15,7 @@ export function initCelestialSkyDomeStarsSunAndMoon(mgr) {
   mgr.skyUniforms = createSkyDomeUniforms();
   const skyMat = createSkyDomeMaterial(mgr.skyUniforms);
 
-  mgr.skyDome = new THREE.Mesh(new THREE.SphereGeometry(6600, 32, 20), skyMat);
+  mgr.skyDome = new THREE.Mesh(new THREE.SphereGeometry(6600 * WORLD_SCALE, 32, 20), skyMat);
   mgr.skyDome.renderOrder = -10;
   mgr.skyDome.frustumCulled = false;
   mgr.celestialRoot.add(mgr.skyDome);
@@ -33,7 +34,7 @@ export function initCelestialSkyDomeStarsSunAndMoon(mgr) {
     const theta = u * Math.PI * 2;
     const elevation = 0.06 + v * 0.92;
     const rHoriz = Math.sqrt(Math.max(0, 1 - elevation * elevation));
-    const rad = 6100;
+    const rad = 6100 * WORLD_SCALE;
 
     starPositions[i * 3] = Math.cos(theta) * rHoriz * rad;
     starPositions[i * 3 + 1] = elevation * rad;
@@ -49,7 +50,7 @@ export function initCelestialSkyDomeStarsSunAndMoon(mgr) {
   starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
   starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
   mgr.starMat = new THREE.PointsMaterial({
-    size: 6.5,
+    size: 6.5 * WORLD_SCALE,
     sizeAttenuation: true,
     vertexColors: true,
     transparent: true,
@@ -79,8 +80,8 @@ export function initCelestialSkyDomeStarsSunAndMoon(mgr) {
     depthWrite: false,
     fog: false
   });
-  const sunCore = new THREE.Mesh(new THREE.SphereGeometry(56, 20, 16), mgr.sunCoreMat);
-  const sunHalo = new THREE.Mesh(new THREE.SphereGeometry(118, 20, 16), mgr.sunHaloMat);
+  const sunCore = new THREE.Mesh(new THREE.SphereGeometry(56 * WORLD_SCALE, 20, 16), mgr.sunCoreMat);
+  const sunHalo = new THREE.Mesh(new THREE.SphereGeometry(118 * WORLD_SCALE, 20, 16), mgr.sunHaloMat);
   mgr.sunDiscGroup.add(sunCore, sunHalo);
   mgr.sunDiscGroup.frustumCulled = false;
   mgr.celestialRoot.add(mgr.sunDiscGroup);
@@ -109,13 +110,19 @@ export function initCelestialSkyDomeStarsSunAndMoon(mgr) {
     depthWrite: false,
     fog: false
   });
-  const moonDisc = new THREE.Mesh(new THREE.SphereGeometry(52, 20, 16), mgr.moonCoreMat);
-  const moonHalo = new THREE.Mesh(new THREE.SphereGeometry(128, 20, 16), mgr.moonHaloMat);
-  const crater1 = new THREE.Mesh(new THREE.CylinderGeometry(11, 11, 6, 12), mgr.moonCraterMat);
-  crater1.position.set(-14, 12, 47);
+  const moonDisc = new THREE.Mesh(new THREE.SphereGeometry(52 * WORLD_SCALE, 20, 16), mgr.moonCoreMat);
+  const moonHalo = new THREE.Mesh(new THREE.SphereGeometry(128 * WORLD_SCALE, 20, 16), mgr.moonHaloMat);
+  const crater1 = new THREE.Mesh(
+    new THREE.CylinderGeometry(11 * WORLD_SCALE, 11 * WORLD_SCALE, 6 * WORLD_SCALE, 12),
+    mgr.moonCraterMat
+  );
+  crater1.position.set(-14 * WORLD_SCALE, 12 * WORLD_SCALE, 47 * WORLD_SCALE);
   crater1.rotation.x = Math.PI / 2;
-  const crater2 = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 7.5, 6, 12), mgr.moonCraterMat);
-  crater2.position.set(15, -10, 48);
+  const crater2 = new THREE.Mesh(
+    new THREE.CylinderGeometry(7.5 * WORLD_SCALE, 7.5 * WORLD_SCALE, 6 * WORLD_SCALE, 12),
+    mgr.moonCraterMat
+  );
+  crater2.position.set(15 * WORLD_SCALE, -10 * WORLD_SCALE, 48 * WORLD_SCALE);
   crater2.rotation.x = Math.PI / 2;
   mgr.moonGroup.add(moonDisc, moonHalo, crater1, crater2);
   mgr.moonGroup.visible = false;
@@ -142,10 +149,13 @@ export function initCitywideStreetlampsAndCones(mgr) {
   const physicalPoleLocations = []; // Postes metálicos adicionais para Viadutos, Pontes, Píer e Avenidas
 
   // 2.2 Postes das Grandes Avenidas do Centro, Subúrbio, Praia e Distrito Leste
-  for (const ax of [-384, -252, -120, 0, 120, 252, 384]) {
-    for (let az = -760; az <= 680; az += 88) {
-      const px = ax + 14.8;
-      const gy = terrainAt(px, az) + 0.28;
+  const aveLampOff = IS_SCALED_WORLD ? ROAD.mainWidth * 0.5 + 1.8 : 14.8;
+  const aveLampStepZ = ws(88);
+  for (const rawAx of [-384, -252, -120, 0, 120, 252, 384]) {
+    const ax = ws(rawAx);
+    for (let az = ws(-760); az <= ws(680); az += aveLampStepZ) {
+      const px = ax + aveLampOff;
+      const gy = terrainAt(px, az) + (IS_SCALED_WORLD ? 0.02 : 0.28);
       physicalPoleLocations.push({ x: px, y: gy, z: az, h: 6.2 });
       mgr.lampNodes.push({
         x: px - 1.2,
@@ -159,8 +169,7 @@ export function initCitywideStreetlampsAndCones(mgr) {
     }
   }
 
-  // 2.3 Luz noturna das luminárias dos viadutos: os postes ficam NA MURETA (construídos pelo próprio viaduto,
-  //     `world.viaductLampSpots`), aqui só entra a luz — nada de poste extra no meio das faixas.
+  // 2.3 Luz noturna das luminárias dos viadutos
   for (const spot of mgr.world.viaductLampSpots || []) {
     mgr.lampNodes.push({
       x: spot.x,
@@ -175,7 +184,7 @@ export function initCitywideStreetlampsAndCones(mgr) {
 
   // 2.4 Postes nas 9 Pontes em Arco sobre o Rio Urbano Leste!
   for (const br of RIVER_BRIDGE_SPECS) {
-    for (const bx of [540, 560, 580]) {
+    for (const bx of [ws(540), ws(560), ws(580)]) {
       const u = (bx - br.xStart) / (br.xEnd - br.xStart);
       const archY = Math.sin(u * Math.PI) * br.archHeight;
       for (const side of [-1, 1]) {
@@ -196,9 +205,9 @@ export function initCitywideStreetlampsAndCones(mgr) {
 
   // 2.5 Iluminação das 3 Estações Elevadas do Metrô (+14.85m) & Calçadão/Píer da Roda-Gigante!
   const elevatedStations = [
-    { x: -384, z: -180, axis: 'z' },
-    { x: 0, z: 134, axis: 'x' },
-    { x: 384, z: -117, axis: 'z' }
+    { x: ws(-384), z: ws(-180), axis: 'z' },
+    { x: ws(0), z: ws(134), axis: 'x' },
+    { x: ws(384), z: ws(-117), axis: 'z' }
   ];
   for (const st of elevatedStations) {
     for (const off of [-20, 0, 20]) {
@@ -216,7 +225,8 @@ export function initCitywideStreetlampsAndCones(mgr) {
     }
   }
 
-  for (let pz = 1045; pz <= 1525; pz += 48) {
+  const pierLampStep = ws(48);
+  for (let pz = ws(1045); pz <= ws(1525); pz += pierLampStep) {
     for (const side of [-11.5, 11.5]) {
       physicalPoleLocations.push({ x: side, y: 1.5, z: pz, h: 5.0 });
       mgr.lampNodes.push({
@@ -371,32 +381,32 @@ export function initLandmarkNeonAndLighthouses(mgr) {
     }
   }
 
-  // 3.2 Emblema "H" Colossal da Torre dos Heróis (-318, -180, Y = 255m) + Cúpula Solar (Y = 306m)
+  // 3.2 Emblema "H" Colossal da Torre dos Heróis + Cúpula Solar
   const heroHaloMat = makeNeonHaloMat(0x00f0ff, 0.45);
   const heroCrownGlow = new THREE.Mesh(new THREE.CylinderGeometry(24, 28, 42, 16, 1, true), heroHaloMat);
-  heroCrownGlow.position.set(-318, 258, -180);
+  heroCrownGlow.position.set(ws(-318), 258, ws(-180));
   mgr.scene.add(heroCrownGlow);
 
-  // 3.3 Fachada Dourada do Super Banco Central (X = 0, Z = -134) + Painéis Neon de Times Square (X = -60, Z = -10)
+  // 3.3 Fachada Dourada do Super Banco Central + Painéis Neon de Times Square
   const bankGlowMat = makeNeonHaloMat(0xd99b16, 0.14);
   const bankUplight = new THREE.Mesh(new THREE.BoxGeometry(88, 28, 6), bankGlowMat);
-  bankUplight.position.set(0, 15, -133);
+  bankUplight.position.set(0, 15, IS_SCALED_WORLD ? ws(-117) - ROAD.mainWidth * 0.5 - 12 : -133);
   mgr.scene.add(bankUplight);
 
   const tsGlowMat = makeNeonHaloMat(0xd946ef, 0.28);
   const tsHalo = new THREE.Mesh(new THREE.CylinderGeometry(28, 34, 32, 16, 1, true), tsGlowMat);
-  tsHalo.position.set(-60, 18, -8);
+  tsHalo.position.set(ws(-60), 18, ws(-8));
   mgr.scene.add(tsHalo);
 
-  // 3.4 Feixes Giratórios dos 2 Faróis Marítimos (Píer Sul Z=1552 e Costão Sudoeste X=-1735, Z=945)
+  // 3.4 Feixes Giratórios dos 2 Faróis Marítimos
   const lhBeamGeo = new THREE.ConeGeometry(12.0, 135.0, 14, 1, true);
   lhBeamGeo.rotateX(-Math.PI / 2);
   lhBeamGeo.translate(0, 0, 67.5);
   const lhMat = makeNeonHaloMat(0xfef08a, 0.34);
 
   for (const [lx, ly, lz, spd] of [
-    [0, 34.2, 1552, 0.85],
-    [-1735, 66.8, 945, -0.72]
+    [0, 34.2, ws(1552), 0.85],
+    [ws(-1735), 66.8, ws(945), -0.72]
   ]) {
     const pivot = new THREE.Group();
     pivot.position.set(lx, ly, lz);
@@ -429,8 +439,8 @@ export function updateClosestFourPointLights(mgr, playerPos, nightFactor) {
   const inSuperBank =
     playerPos &&
     Math.abs(playerPos.x) <= 74 &&
-    playerPos.z >= -229 &&
-    playerPos.z <= -130 &&
+    fromWs(playerPos.z) >= -229 &&
+    fromWs(playerPos.z) <= -130 &&
     playerPos.y < 41;
 
   if (inSuperBank) {
@@ -561,7 +571,7 @@ export function updateCelestialAndSunShadow(mgr, dt, playerPos, controller) {
   const sunVisFade = THREE.MathUtils.smoothstep(sunY, -0.14, 0.04);
   mgr.sunDiscGroup.visible = sunVisFade > 0.005;
   if (mgr.sunDiscGroup.visible) {
-    mgr.sunDiscGroup.position.copy(mgr._sunDir).multiplyScalar(5850);
+    mgr.sunDiscGroup.position.copy(mgr._sunDir).multiplyScalar(5850 * WORLD_SCALE);
     const sunScale = isGoldenHour || isSunrise ? 1.48 : 1.0;
     mgr.sunDiscGroup.scale.setScalar(sunScale);
     mgr.sunCoreMat.color.copy(isGoldenHour ? s.sunGlow : s.dirColor);
@@ -573,7 +583,7 @@ export function updateCelestialAndSunShadow(mgr, dt, playerPos, controller) {
   // Lua Cheia LEGO + 1.200 Estrelas Cintilantes
   mgr.moonGroup.visible = nf > 0.06;
   if (mgr.moonGroup.visible) {
-    mgr.moonGroup.position.copy(mgr._moonDir).multiplyScalar(5650);
+    mgr.moonGroup.position.copy(mgr._moonDir).multiplyScalar(5650 * WORLD_SCALE);
     mgr.moonGroup.lookAt(anchorX, 0, anchorZ);
     mgr.moonCoreMat.opacity = nf;
     mgr.moonCraterMat.opacity = nf * 0.75;

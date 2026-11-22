@@ -11,6 +11,7 @@ import { prewarmAllRuntimeShaders } from './graphics/ShaderWarmupRig.js';
 import { HitchProfiler } from './debug/HitchProfiler.js';
 import { getStaticMinimapCache } from './ui/minimap/MinimapTerrainAndRoadsPainter.js';
 import { CollisionDebugOverlay, isCollisionDebugAllowed } from './world/collision/CollisionDebugOverlay.js';
+import { WORLD_SCALE } from './world/core/WorldLayoutScale.js';
 
 class LegoCityGame {
   constructor() {
@@ -189,7 +190,7 @@ class LegoCityGame {
       60,
       window.innerWidth / window.innerHeight,
       0.65,
-      7800
+      7800 * WORLD_SCALE
     );
 
     // Instancia Destruição Física, Cidade 3D Completa, Minifigura e Controlador 3ª Pessoa
