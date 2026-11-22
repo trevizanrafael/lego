@@ -422,6 +422,7 @@ export const policeVisionAndPerceptionMethods = {
   },
 
   notifyPlayerGunshot(playerPos) {
+    if (this.stars > 0) this._playerHostileActionInPursuit = true;
     if (!playerPos || !Array.isArray(this.footUnits)) return 0;
     let alertedCount = 0;
     for (let i = 0; i < this.footUnits.length; i++) {

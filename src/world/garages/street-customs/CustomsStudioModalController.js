@@ -311,6 +311,8 @@ export class LegoCustomsStudio {
     controller.isTurboActive = false;
     controller.isDrifting = false;
     controller.vehicleHeading = -Math.PI / 2;
+    if (carObj.mesh?.userData) carObj.mesh.userData.puncturedTires = false;
+    if (carObj.maxHp) carObj.hp = carObj.maxHp;
     carObj.mesh.position.set(lift.x, lift.y, lift.z);
     carObj.mesh.rotation.set(0, -Math.PI / 2, 0);
     controller.position.set(lift.x, lift.y, lift.z);

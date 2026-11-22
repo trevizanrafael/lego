@@ -146,6 +146,27 @@ export function getSharedPursuitGeos() {
     makeBarricadeStud(0.6)
   ]);
 
+  // Tapete de Pregos Tático (Spike Strip ~6.4m x 0.09m x 0.42m com 14 dentes angulados em 1 draw call)
+  const spikeStripGeo = (() => {
+    const parts = [
+      makeTranslatedBox(6.4, 0.09, 0.42, 0, 0.045, 0),
+      makeTranslatedBox(0.18, 0.14, 0.48, -3.14, 0.07, 0),
+      makeTranslatedBox(0.18, 0.14, 0.48, 3.14, 0.07, 0)
+    ];
+    const toothCount = 14;
+    for (let i = 0; i < toothCount; i++) {
+      const tx = -2.86 + (i / (toothCount - 1)) * 5.72;
+      const zOff = i % 2 === 0 ? -0.09 : 0.09;
+      const tiltX = i % 2 === 0 ? -0.18 : 0.18;
+      const tooth = new THREE.ConeGeometry(0.068, 0.24, 4);
+      tooth.rotateY(Math.PI * 0.25);
+      tooth.rotateX(tiltX);
+      tooth.translate(tx, 0.19, zOff);
+      parts.push(tooth);
+    }
+    return mergeBufferGeometries(parts);
+  })();
+
   // Míssil Teleguiado, Rede Energética e Projétil Policial
   const missileGeo = (() => {
     const body = new THREE.CylinderGeometry(0.12, 0.14, 1.15, 8);
@@ -183,6 +204,7 @@ export function getSharedPursuitGeos() {
     droneEyeGeo,
     roadblockRampGeo,
     rbBarricadeGeo,
+    spikeStripGeo,
     missileGeo,
     energyNetProjectileGeo,
     energyCageGeo,
@@ -226,6 +248,8 @@ export const policePursuitAssetMethods = {
       }),
       orangePlastic: getLegoMaterial(LEGO_COLORS.orange),
       yellowHazard: getLegoMaterial(LEGO_COLORS.yellow),
+      spikeSteel: getLegoMaterial(0x334155, { metalness: 0.72, roughness: 0.25 }),
+      spikeHazard: getLegoMaterial(0xd97706, { roughness: 0.35 }),
       policeBullet: new THREE.MeshBasicMaterial({ color: 0xfef08a }),
       missileBody: getLegoMaterial(0xe11d48, { emissive: 0xbe123c, emissiveIntensity: 0.5 }),
       energyNetWire: new THREE.MeshBasicMaterial({

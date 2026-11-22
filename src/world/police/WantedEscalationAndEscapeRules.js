@@ -70,6 +70,9 @@ export const wantedEscalationAndEscapeMethods = {
 
   _handlePlayerDamagedObject(obj, dmg) {
     if (!obj || obj.isDriven || this._isFactionWarContext(obj)) return;
+    if (this.stars > 0 && (obj.isPoliceUnit || obj.isCivilianPedestrian || obj.type === 'pedestrian_civilian')) {
+      this._playerHostileActionInPursuit = true;
+    }
 
     if (obj.isCivilianPedestrian || obj.type === 'pedestrian_civilian') {
       this.addChaos(Math.max(26, Math.round(dmg * 0.45)), false);
@@ -232,6 +235,9 @@ export const wantedEscalationAndEscapeMethods = {
     this.escapeDuration = SEARCH_DURATION_BY_STAR[1];
     this._pursuitEngageGraceTimer = 0;
     this._usedDisguiseThisPursuit = false;
+    this._playerHostileActionInPursuit = false;
+    this._arrestProgress = 0;
+    this._shownArrestWarning = false;
     this._witnessAlertTimer = 0;
     this._pendingWitnessChaos = 0;
     this._witnessCrimePos = null;

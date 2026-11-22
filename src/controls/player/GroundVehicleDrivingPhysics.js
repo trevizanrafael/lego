@@ -136,13 +136,16 @@ export const groundVehicleDrivingMethods = {
       this.isTurboActive = false;
     }
 
-    const maxForward = this.isTurboActive
+    const hasPuncturedTires = Boolean(carObj.mesh?.userData?.puncturedTires);
+    const rawMaxForward = this.isTurboActive
       ? spec.turboSpeed
       : this.isDrifting
         ? spec.maxForward * 0.94
         : spec.maxForward;
-    const maxReverse = spec.maxReverse;
-    const accel = this.isTurboActive ? (spec.turboAccel ?? spec.accel * 1.95) : spec.accel;
+    const maxForward = hasPuncturedTires ? rawMaxForward * 0.6 : rawMaxForward;
+    const maxReverse = hasPuncturedTires ? spec.maxReverse * 0.65 : spec.maxReverse;
+    const rawAccel = this.isTurboActive ? (spec.turboAccel ?? spec.accel * 1.95) : spec.accel;
+    const accel = hasPuncturedTires ? rawAccel * 0.72 : rawAccel;
     const brakeDecel = spec.brakeDecel ?? 48.0;
     const baseCoast = spec.coastFriction ?? 12.0;
     const coastFriction = this.isDrifting ? baseCoast * 1.25 : baseCoast;
@@ -170,6 +173,8 @@ export const groundVehicleDrivingMethods = {
     } else {
       if (Math.abs(this.vehicleSpeed) < 0.45) {
         this.vehicleSpeed = 0;
+      } else if (hasPuncturedTires && this.vehicleSpeed > maxForward) {
+        this.vehicleSpeed = Math.max(maxForward, this.vehicleSpeed - brakeDecel * 0.75 * dt);
       } else {
         this.vehicleSpeed -= Math.sign(this.vehicleSpeed) * coastFriction * dt;
       }
@@ -188,6 +193,9 @@ export const groundVehicleDrivingMethods = {
           ? 2.85
           : spec.turnRate;
       this.vehicleHeading += steerInput * turnRate * speedFactor * reverseSign * dt;
+    }
+    if (hasPuncturedTires && Math.abs(this.vehicleSpeed) > 6 && !this.vehicleAirborne) {
+      this.vehicleHeading += Math.sin(performance.now() * 0.014) * 0.16 * dt;
     }
 
     const targetDriftAngle = this.isDrifting && Math.abs(this.vehicleSpeed) > 5.0
@@ -266,7 +274,14 @@ export const groundVehicleDrivingMethods = {
       }
     }
 
-    const curCarY = carObj.mesh.position.y - (this._vehicleWheelieLiftY || 0);
+    let curCarY = carObj.mesh.position.y - (this._vehicleWheelieLiftY || 0);
+    if ((this._hydraulicJumpVelY || 0) > 0) {
+      this.vehicleAirborne = true;
+      this.vehicleAirVelY = Math.max(this.vehicleAirVelY || 0, this._hydraulicJumpVelY);
+      curCarY += this._hydraulicAirOffset || 0.25;
+      this._hydraulicJumpVelY = 0;
+      this._hydraulicAirOffset = 0;
+    }
     const sampleSurface = (sx, sz, refY) =>
       this.world?.getSurfaceHeightAt
         ? this.world.getSurfaceHeightAt(sx, sz, refY)
@@ -427,6 +442,20 @@ export const groundVehicleDrivingMethods = {
           (this.isTurboActive ? 1.25 : 0.85) * Math.min(1.6, spec.nitroFlameScale || 1.0),
           customHex
         );
+      }
+    }
+
+    if (hasPuncturedTires && !this.vehicleAirborne && Math.abs(this.vehicleSpeed) > 6 && this.destructibles?._spawnElectricSparks) {
+      this._rimSparkTimer = (this._rimSparkTimer || 0) - dt;
+      if (this._rimSparkTimer <= 0) {
+        this._rimSparkTimer = 0.28;
+        const sOff = Math.random() < 0.5 ? -0.95 : 0.95;
+        const aOff = Math.random() < 0.5 ? -1.35 : 1.35;
+        this.destructibles._spawnElectricSparks(new THREE.Vector3(
+          finalX + sOff * Math.cos(visualCarYaw) + aOff * Math.sin(visualCarYaw),
+          finalCarY + 0.18,
+          finalZ - sOff * Math.sin(visualCarYaw) + aOff * Math.cos(visualCarYaw)
+        ), 4);
       }
     }
 
