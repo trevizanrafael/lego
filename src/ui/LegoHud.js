@@ -8,8 +8,9 @@ import { installOperatorCombatAndVehicleHud } from './hud/OperatorCombatAndVehic
 import { installHudMapAndWheelBridge } from './hud/HudMapAndWheelBridge.js';
 import { installHudRadioModalBridge } from './hud/HudRadioModalBridge.js';
 import { installConfirmDialog } from './hud/ConfirmDialog.js';
-import { installMenuNavigationController } from './hud/MenuNavigationController.js';
-import { installSettingsTabsController } from './hud/SettingsTabsController.js';
+import { installMenuFocusNavigation } from './hud/MenuFocusNavigation.js';
+import { installPauseMenuController } from './hud/PauseMenuController.js';
+import { installSettingsScreenController } from './hud/SettingsScreenController.js';
 import { installTitleAndSaveSlotsController } from './hud/TitleAndSaveSlotsController.js';
 import { installPauseAndSettingsController } from './hud/PauseAndSettingsController.js';
 
@@ -188,7 +189,8 @@ installOperatorCombatAndVehicleHud(LegoHud);
 installHudMapAndWheelBridge(LegoHud);
 installHudRadioModalBridge(LegoHud);
 installConfirmDialog(LegoHud);
-installMenuNavigationController(LegoHud);
-installSettingsTabsController(LegoHud);
+installMenuFocusNavigation(LegoHud);
+installPauseMenuController(LegoHud);
+installSettingsScreenController(LegoHud);
 installTitleAndSaveSlotsController(LegoHud);
 installPauseAndSettingsController(LegoHud);

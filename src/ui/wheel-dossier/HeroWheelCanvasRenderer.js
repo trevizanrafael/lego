@@ -5,13 +5,29 @@ import { getOp09CatalogEntry, drawOp09Portrait2D } from '../../entities/CustomHe
  * As fichas detalhadas de poderes (`specialty`, `passive`, `controls`) são hidratadas por
  * `HeroDossierModalController.js` mantendo a mesma instância exportada de `HERO_CATALOG`.
  */
+function _enrichOp09CatalogEntry(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const rawName = String(entry.name || 'CIDADÃO COMUM')
+    .split('//')[0]
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .trim();
+  const isCitizen = rawName === 'CIDADÃO COMUM' || String(entry.role || '').includes('CIVIL DA METRÓPOLE');
+  entry.cleanName = rawName || 'CIDADÃO COMUM';
+  entry.cleanRole = isCitizen
+    ? { 'pt-BR': 'CIVIL DA METRÓPOLE', 'en-US': 'METROPOLIS CITIZEN' }
+    : { 'pt-BR': 'OPERADOR PERSONALIZADO', 'en-US': 'CUSTOM OPERATOR' };
+  return entry;
+}
+
 export const HERO_CATALOG = [
   {
     key: 'caveira',
     opCode: 'OP-01',
     shortName: 'CAVEIRA',
     name: 'COMANDANTE CAVEIRA',
+    cleanName: 'COMANDANTE CAVEIRA',
     role: 'OPERAÇÕES ESPECIAIS // BOPE',
+    cleanRole: { 'pt-BR': 'OPERAÇÕES ESPECIAIS BOPE', 'en-US': 'BOPE SPECIAL OPS' },
     accent: '#d99b16',
     icon: 'shield',
     specialty: '',
@@ -23,7 +39,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-02',
     shortName: 'SOLARIS',
     name: 'SOLARIS (REI DO SOL)',
+    cleanName: 'SOLARIS',
     role: 'SOBERANO TERMONUCLEAR // VOO DE COMETA HIPERSÔNICO',
+    cleanRole: { 'pt-BR': 'REI DO SOL', 'en-US': 'SUN KING' },
     accent: '#f97316',
     icon: 'star',
     specialty: '',
@@ -35,7 +53,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-03',
     shortName: 'TITÃ BLINDADO',
     name: 'TITÃ BLINDADO (PMESP)',
+    cleanName: 'TITÃ BLINDADO',
     role: 'PM ROBÔ MUTANTE GIGANTE // CHOQUE PESADO PMESP',
+    cleanRole: { 'pt-BR': 'COLOSSO CIBORGUE', 'en-US': 'CYBORG COLOSSUS' },
     accent: '#ef4444',
     icon: 'shield',
     specialty: '',
@@ -47,7 +67,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-04',
     shortName: 'VINGADOR',
     name: 'VINGADOR DE CHUMBO',
+    cleanName: 'VINGADOR DE CHUMBO',
     role: 'VIGILANTE IMPLACÁVEL (O JUSTICEIRO) // ARSENAL DE DEMOLIÇÃO',
+    cleanRole: { 'pt-BR': 'ARSENAL PESADO', 'en-US': 'HEAVY ARSENAL' },
     accent: '#f8fafc',
     icon: 'crosshair',
     specialty: '',
@@ -59,7 +81,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-05',
     shortName: 'SOMBRA',
     name: 'SOMBRA ESCARLATE',
+    cleanName: 'SOMBRA ESCARLATE',
     role: 'CYBER-SHINOBI MÍSTICO // ASSASSINO DA LUA DE SANGUE',
+    cleanRole: { 'pt-BR': 'SHINOBI DE GANCHO', 'en-US': 'GRAPPLE SHINOBI' },
     accent: '#ef4444',
     icon: 'bolt',
     specialty: '',
@@ -71,7 +95,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-06',
     shortName: 'TURBO FANTASMA',
     name: 'TURBO FANTASMA',
+    cleanName: 'TURBO FANTASMA',
     role: 'MOTOCICLISTA FANTASMA // PLASMA CIANO & MURALHA DE LUZ',
+    cleanRole: { 'pt-BR': 'PILOTO DE PLASMA', 'en-US': 'PLASMA RIDER' },
     accent: '#22d3ee',
     icon: 'bolt',
     specialty: '',
@@ -83,7 +109,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-07',
     shortName: 'VOLTAICO',
     name: 'VOLTAICO (TEMPESTADE)',
+    cleanName: 'VOLTAICO',
     role: 'SENHOR DA TEMPESTADE // ALTA TENSÃO & BOBINAS TESLA',
+    cleanRole: { 'pt-BR': 'SENHOR DA TEMPESTADE', 'en-US': 'STORM LORD' },
     accent: '#38bdf8',
     icon: 'bolt',
     specialty: '',
@@ -95,24 +123,45 @@ export const HERO_CATALOG = [
     opCode: 'OP-08',
     shortName: 'VÓRTEX',
     name: 'VÓRTEX (SIMBIONTE)',
+    cleanName: 'VÓRTEX',
     role: 'COLOSSO SIMBIONTE ABISSAL // METAMORFO BIG-FIG',
+    cleanRole: { 'pt-BR': 'COLOSSO SIMBIONTE', 'en-US': 'SYMBIOTE COLOSSUS' },
     accent: '#a855f7',
     icon: 'shield',
     specialty: '',
     passive: '',
     controls: []
   },
-  getOp09CatalogEntry()
+  _enrichOp09CatalogEntry(getOp09CatalogEntry())
 ];
 
 export function syncOp09CatalogSlot() {
-  HERO_CATALOG[8] = getOp09CatalogEntry();
+  HERO_CATALOG[8] = _enrichOp09CatalogEntry(getOp09CatalogEntry());
   return HERO_CATALOG[8];
 }
 
 export function getHeroInfo(heroKey) {
   syncOp09CatalogSlot();
   return HERO_CATALOG.find((h) => h.key === heroKey) || HERO_CATALOG[0];
+}
+
+export function getCleanHeroDisplayInfo(heroKey, lang = 'pt-BR') {
+  const info = getHeroInfo(heroKey);
+  const locale = lang === 'en-US' ? 'en-US' : 'pt-BR';
+  const isDefaultCitizen = info.key === 'op09' && info.cleanName === 'CIDADÃO COMUM';
+  const name = isDefaultCitizen && locale === 'en-US' ? 'CITIZEN' : (info.cleanName || info.shortName || info.name);
+  const roleMap = info.cleanRole;
+  const role =
+    roleMap && typeof roleMap === 'object'
+      ? roleMap[locale] || roleMap['pt-BR'] || ''
+      : String(roleMap || info.role || '').split('//')[0].trim();
+  return {
+    key: info.key,
+    opCode: info.opCode,
+    name,
+    role,
+    accent: info.accent
+  };
 }
 
 const PORTRAIT_THEMES = {
@@ -227,12 +276,55 @@ function _getCachedPortraitTile(presetKey) {
  * Desenha o retrato 2D Gotham Noir (studless, chiaroscuro e rim-light) de qualquer operador
  */
 export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
+  const isSmallSquare = w <= 110 && h <= 110 && Math.abs(w - h) <= 4;
+
   if (presetKey === 'op09') {
-    drawOp09Portrait2D(ctx, w, h);
+    if (isSmallSquare) {
+      drawOp09Portrait2D(ctx, w, h);
+      return;
+    }
+
+    const side = Math.min(w, h);
+    const offsetX = (w - side) * 0.5;
+    const offsetY = (h - side) * 0.45;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#060911';
+    ctx.fillRect(0, 0, w, h);
+
+    if (typeof ctx.createLinearGradient === 'function') {
+      const outerGrad = ctx.createLinearGradient(0, 0, 0, h);
+      outerGrad.addColorStop(0, '#04060a');
+      outerGrad.addColorStop(0.5, '#060911');
+      outerGrad.addColorStop(1, '#020408');
+      ctx.fillStyle = outerGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(side, 0);
+    ctx.lineTo(side, side);
+    ctx.lineTo(0, side);
+    ctx.closePath();
+    ctx.clip?.();
+    drawOp09Portrait2D(ctx, side, side);
+    ctx.restore();
+
+    if (typeof ctx.createLinearGradient === 'function' && h > w * 1.08) {
+      const blendStart = Math.max(0, offsetY + side - side * 0.14);
+      const bottomBlend = ctx.createLinearGradient(0, blendStart, 0, h);
+      bottomBlend.addColorStop(0, 'rgba(2, 4, 8, 0)');
+      bottomBlend.addColorStop(1, 'rgba(2, 4, 8, 0.92)');
+      ctx.fillStyle = bottomBlend;
+      ctx.fillRect(0, blendStart, w, h - blendStart);
+    }
     return;
   }
 
-  if (typeof ctx?.drawImage === 'function') {
+  if (isSmallSquare && typeof ctx?.drawImage === 'function') {
     const cachedTile = _getCachedPortraitTile(presetKey);
     if (cachedTile) {
       ctx.clearRect(0, 0, w, h);
@@ -246,9 +338,10 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
 
 function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
   const theme = PORTRAIT_THEMES[presetKey] || PORTRAIT_THEMES.caveira;
+  const isTallCard = h > w * 1.08;
   ctx.clearRect(0, 0, w, h);
 
-  // 1. Fundo Gotham Noir Cinematográfico (#04060a -> #0b101b)
+  // 1. Fundo Gotham Noir Cinematográfico (#04060a -> #080c15 -> #0b101b)
   if (typeof ctx.createLinearGradient === 'function') {
     const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
     bgGrad.addColorStop(0, '#04060a');
@@ -260,28 +353,40 @@ function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
   }
   ctx.fillRect(0, 0, w, h);
 
+  const side = Math.min(w, h);
+  const offsetX = (w - side) * 0.5;
+  const offsetY = (h - side) * 0.44;
+  const scale = side / 76;
+
   if (typeof ctx.createRadialGradient === 'function') {
-    const auraGrad = ctx.createRadialGradient(w * 0.44, h * 0.42, w * 0.04, w * 0.5, h * 0.46, w * 0.62);
+    const auraGrad = ctx.createRadialGradient(
+      w * 0.5,
+      h * 0.46,
+      side * 0.04,
+      w * 0.5,
+      h * 0.46,
+      Math.max(w, h) * 0.58
+    );
     auraGrad.addColorStop(0, theme.aura);
     auraGrad.addColorStop(1, 'rgba(4, 6, 10, 0)');
     ctx.fillStyle = auraGrad;
     ctx.fillRect(0, 0, w, h);
   }
 
-  // Linhas táticas diagonais discretas em baixa opacidade
+  // Linhas táticas diagonais discretas em 45° atravessando todo o quadro w × h
   ctx.strokeStyle = theme.diag;
-  ctx.lineWidth = Math.max(1, w * 0.022);
+  ctx.lineWidth = Math.max(1, side * 0.022);
   ctx.beginPath();
   ctx.moveTo(0, h * 0.68);
-  ctx.lineTo(w * 0.68, 0);
+  ctx.lineTo(h * 0.68, 0);
   ctx.moveTo(w * 0.18, h);
-  ctx.lineTo(w, h * 0.18);
+  ctx.lineTo(w, h - w * 0.82);
   ctx.moveTo(w * 0.56, h);
-  ctx.lineTo(w, h * 0.56);
+  ctx.lineTo(w, h - w * 0.44);
   ctx.stroke();
 
-  const scale = w / 76;
   ctx.save();
+  ctx.translate(offsetX, offsetY);
   ctx.scale(scale, scale);
 
   // Aura traseira específica antes da cabeça (Solaris / Turbo / Voltaico)
@@ -372,7 +477,18 @@ function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
   ctx.lineTo(68, 76);
   ctx.closePath();
   ctx.fill();
-  ctx.stroke();
+  if (isTallCard) {
+    ctx.beginPath();
+    ctx.moveTo(8, 76);
+    ctx.lineTo(10, 56);
+    ctx.lineTo(23, 51);
+    ctx.lineTo(53, 51);
+    ctx.lineTo(66, 56);
+    ctx.lineTo(68, 76);
+    ctx.stroke();
+  } else {
+    ctx.stroke();
+  }
 
   // Pescoço sombreado
   ctx.fillStyle = '#04060a';
@@ -996,6 +1112,55 @@ function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
   ctx.stroke();
 
   ctx.restore();
+
+  // 5b. Extensão da silhueta inferior do torso/capa para cards verticais (ex.: 420×520)
+  if (isTallCard) {
+    const joinY = offsetY + side;
+    const extH = h - joinY;
+    const leftTopX = offsetX + 8 * scale;
+    const rightTopX = offsetX + 68 * scale;
+    const flare = extH * 0.1;
+    const leftBotX = leftTopX - flare;
+    const rightBotX = rightTopX + flare;
+    const centerX = offsetX + 38 * scale;
+
+    ctx.fillStyle = theme.torso || '#090d16';
+    ctx.beginPath();
+    ctx.moveTo(leftTopX, joinY - 1.5);
+    ctx.lineTo(rightTopX, joinY - 1.5);
+    ctx.lineTo(rightBotX, h + 2);
+    ctx.lineTo(leftBotX, h + 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#04060a';
+    ctx.lineWidth = 2.2 * scale;
+    ctx.beginPath();
+    ctx.moveTo(leftTopX, joinY - 1);
+    ctx.lineTo(leftBotX, h + 2);
+    ctx.moveTo(rightTopX, joinY - 1);
+    ctx.lineTo(rightBotX, h + 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = theme.diag;
+    ctx.lineWidth = Math.max(1.2, 1.2 * scale);
+    ctx.beginPath();
+    ctx.moveTo(offsetX + 18 * scale, joinY);
+    ctx.lineTo(offsetX + 22 * scale, h);
+    ctx.moveTo(offsetX + 58 * scale, joinY);
+    ctx.lineTo(offsetX + 54 * scale, h);
+    ctx.moveTo(offsetX + 24 * scale, joinY + extH * 0.26);
+    ctx.lineTo(centerX, joinY + extH * 0.5);
+    ctx.lineTo(offsetX + 52 * scale, joinY + extH * 0.26);
+    ctx.stroke();
+
+    ctx.strokeStyle = theme.rim;
+    ctx.lineWidth = 1.7 * scale;
+    ctx.beginPath();
+    ctx.moveTo(offsetX + 9 * scale, offsetY + 73 * scale);
+    ctx.lineTo(leftBotX + 1.4 * scale, h);
+    ctx.stroke();
+  }
 
   // 6. Sombreamento Chiaroscuro Lateral + Vinheta Escura na Base
   if (typeof ctx.createLinearGradient === 'function') {

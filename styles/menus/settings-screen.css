@@ -1,0 +1,367 @@
+/* =========================================================================
+   TELA DE CONFIGURAÇÕES POR ABAS (#settings-subview.settings-screen)
+   ========================================================================= */
+
+/* 1. Shell Vertical da Tela de Configurações */
+#settings-subview, .settings-screen {
+  position: relative;
+  z-index: 2;
+  width: min(86vw, 1020px);
+  height: 100vh;
+  margin: 0 auto;
+  padding: clamp(20px, 3.2vh, 38px) 0 clamp(16px, 2.4vh, 28px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  row-gap: clamp(12px, 1.8vh, 20px);
+  box-sizing: border-box;
+}
+
+.settings-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 10px;
+}
+
+.settings-header-bar h2, .settings-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.1rem, 2.8vw, 2.7rem);
+  font-weight: 700;
+  line-height: 0.9;
+  color: #f8fafc;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin: 0;
+}
+
+#pause-close-btn, #btn-settings-restore-defaults, #settings-subview .tactical-btn {
+  background: #0d121d;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e2e8f0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 8px 16px;
+  cursor: pointer;
+  outline: none;
+  transition: background 90ms ease, border-color 90ms ease, color 90ms ease;
+}
+
+#pause-close-btn:hover, #pause-close-btn:focus-visible, #pause-close-btn.is-nav-focused,
+#btn-settings-restore-defaults:hover, #btn-settings-restore-defaults:focus-visible, #btn-settings-restore-defaults.is-nav-focused,
+#settings-subview .tactical-btn:hover, #settings-subview .tactical-btn:focus-visible, #settings-subview .tactical-btn.is-nav-focused {
+  background: #e7e2d6;
+  border-color: #e7e2d6;
+  color: #04060a;
+}
+
+/* 2. Barra de Abas Superior — Aba Ativa como Lâmina Focada */
+#settings-tabs-bar, .settings-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#settings-tabs-bar.is-nav-focused {
+  outline: 1px solid rgba(var(--pause-accent-rgb, 220, 38, 38), 0.55);
+  outline-offset: 4px;
+  box-shadow: 0 0 18px rgba(var(--pause-accent-rgb, 220, 38, 38), 0.18);
+}
+
+.tab-key-badge, .settings-tab-key {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(13, 18, 29, 0.88);
+  color: #cbd5e1;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.settings-tab-btn {
+  flex: 1;
+  height: 42px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  background: #0d121d;
+  color: #94a3b8;
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 1.6vw, 1.6rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+  transition: background 90ms ease, color 90ms ease;
+}
+
+.settings-tab-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  background: var(--pause-accent, #dc2626);
+  clip-path: polygon(10px 0, 18px 0, 8px 100%, 0 100%);
+  opacity: 0;
+  transition: opacity 90ms ease;
+  pointer-events: none;
+}
+
+.settings-tab-btn:hover:not(.active), .settings-tab-btn:focus-visible:not(.active) {
+  background: #131a29;
+  color: #e2e8f0;
+}
+
+.settings-tab-btn.active, .settings-tab-btn[aria-selected="true"] {
+  background: #e7e2d6;
+  color: #04060a;
+  box-shadow: none;
+}
+
+.settings-tab-btn.active::before, .settings-tab-btn[aria-selected="true"]::before { opacity: 1; }
+
+/* 3. Painéis de Opções & Linhas de Largura Uniforme */
+.settings-panels-wrap, #settings-panels-wrap { min-height: 0; display: flex; flex-direction: column; }
+
+.settings-tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-right: 4px;
+}
+
+.settings-tab-panel::-webkit-scrollbar { width: 5px; }
+.settings-tab-panel::-webkit-scrollbar-track { background: rgba(4, 6, 10, 0.8); }
+.settings-tab-panel::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.28); }
+
+.option-row {
+  width: 100%;
+  min-height: 50px;
+  padding: 10px 16px 10px 20px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  box-sizing: border-box;
+  transition: background 80ms ease;
+}
+
+.option-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--pause-accent, #dc2626);
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+
+.option-row.is-nav-focused { background: rgba(255, 255, 255, 0.06); }
+.option-row.is-nav-focused::before { opacity: 1; }
+
+.option-label-col { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.option-title {
+  font-family: var(--font-tactical);
+  font-size: clamp(0.86rem, 1vw, 0.96rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #e2e8f0;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Coluna Direita de Controles com Largura Fixa Uniforme */
+.option-slider-wrap, .ui-stepper, .option-action-wrap {
+  width: clamp(250px, 28vw, 340px);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tactical-quality-group {
+  width: clamp(250px, 28vw, 340px);
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: center;
+  gap: 4px;
+}
+
+.option-action-wrap > button, .option-action-wrap > .tactical-btn, .option-action-wrap > .tactical-toggle-btn {
+  width: 100%;
+  text-align: center;
+}
+
+.tactical-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.16);
+  border: none;
+  outline: none;
+  accent-color: var(--pause-accent, #dc2626);
+  cursor: pointer;
+}
+
+.tactical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 18px;
+  background: #e7e2d6;
+  border: 2px solid var(--pause-accent, #dc2626);
+  cursor: pointer;
+}
+
+.tactical-slider::-moz-range-thumb {
+  width: 12px;
+  height: 18px;
+  border-radius: 0;
+  background: #e7e2d6;
+  border: 2px solid var(--pause-accent, #dc2626);
+  cursor: pointer;
+}
+
+.option-val {
+  min-width: 52px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stepper-arrow {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d121d;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #cbd5e1;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+  transition: background 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+
+.stepper-arrow:hover, .stepper-arrow:focus-visible { background: #e7e2d6; border-color: #e7e2d6; color: #04060a; }
+
+.stepper-value {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tactical-toggle-btn, .tactical-quality-btn {
+  background: #0d121d;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 6px 4px;
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+  transition: background 80ms ease, border-color 80ms ease, color 80ms ease;
+}
+
+.tactical-toggle-btn:hover, .tactical-quality-btn:hover { border-color: rgba(248, 250, 252, 0.45); color: #f8fafc; }
+
+.tactical-toggle-btn.active, .tactical-quality-btn.active {
+  background: #e7e2d6;
+  border-color: var(--pause-accent, #dc2626);
+  color: #04060a;
+}
+
+/* Grade de Mapeamento de Teclas (Aba Controles) */
+.option-row.option-row-keymap, .option-row-keymap { flex-direction: column; align-items: stretch; gap: 10px; }
+
+.controls-keymap-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+  max-height: min(38vh, 300px);
+  overflow-y: auto;
+  padding-right: 6px;
+  box-sizing: border-box;
+}
+
+.keymap-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.keymap-action { font-family: var(--font-tactical); font-size: 0.82rem; font-weight: 600; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.keymap-keys { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 800; color: #e7e2d6; border: 1px solid rgba(var(--pause-accent-rgb, 220, 38, 38), 0.45); background: rgba(8, 11, 18, 0.88); padding: 2px 8px; white-space: nowrap; flex-shrink: 0; }
+
+/* 4. Rodapé de Configurações & Diálogo de 3 Opções */
+#settings-footer-row { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 10px; }
+.settings-footer-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+#settings-option-desc { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 0.74rem; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#btn-settings-restore-defaults { white-space: nowrap; flex-shrink: 0; }
+
+#settings-keyhints-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: #94a3b8;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#settings-keyhints-row .keyhint-item { margin-right: 0; }
+.confirm-dialog-panel.has-three-options { max-width: 560px; }
