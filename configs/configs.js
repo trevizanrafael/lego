@@ -4,11 +4,17 @@ import {
   STATION_ICONS_SVG,
   getStationIconSvg,
   getTrackCoverUrl,
-  createDefaultSingleStationState,
-  RadioAudioStorageDB,
-  collectMigratedLegacyTracksFromBrowser
+  RadioAudioStorageDB
 } from '../src/audio/radio/RadioDefaultCatalogAndStorage.js';
 import { LiveBroadcastClock } from '../src/audio/radio/LiveBroadcastScheduler.js';
+import {
+  fileToDataUrl,
+  eventHasExternalFiles,
+  ensureServerStatus,
+  persistFullState as syncPersistFullState,
+  bootstrapRadioState,
+  importLocalAudioFiles
+} from './radioUploadAndSync.js';
 
 const SWATCH_COLORS = ['#facc15', '#00f0ff', '#ef4444', '#a855f7', '#22c55e', '#f97316', '#ec4899', '#38bdf8'];
 const ICON_KEYS = Object.keys(STATION_ICONS_SVG).filter((k) => k !== 'off');
@@ -19,6 +25,9 @@ const state = {
   searchQuery: '',
   selectedTrackIds: new Set(),
   dragPayload: null,
+  externalDragDepth: 0,
+  serverApiAvailable: null,
+  previewBlobUrl: null,
   editStationColor: '#facc15',
   editStationIcon: 'antenna',
   pendingTrackCoverDataUrl: null
@@ -40,6 +49,7 @@ const dom = {
   btnYtSubmit: document.getElementById('btn-yt-submit'),
   feedbackEl: document.getElementById('importer-feedback'),
   bulkBar: document.getElementById('bulk-move-bar'),
+  globalDropzone: document.getElementById('mp3-global-dropzone'),
   bulkCountLabel: document.getElementById('bulk-count-label'),
   bulkTargetSelect: document.getElementById('bulk-target-station'),
   btnBulkMove: document.getElementById('btn-bulk-move'),
@@ -90,154 +100,12 @@ function showFeedback(msg, kind = 'info') {
   dom.feedbackEl.classList.remove('hidden');
 }
 
-function fileToDataUrl(fileOrBlob) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(fileOrBlob);
-  });
+function persistFullState() {
+  return syncPersistFullState(state, dom, syncChannel);
 }
 
-function measureAudioDuration(fileOrBlob) {
-  return new Promise((resolve) => {
-    try {
-      const url = URL.createObjectURL(fileOrBlob);
-      const audio = new Audio();
-      const done = (dur) => {
-        URL.revokeObjectURL(url);
-        resolve(Number.isFinite(dur) && dur > 2 ? Math.round(dur * 100) / 100 : 150);
-      };
-      audio.addEventListener('loadedmetadata', () => done(audio.duration), { once: true });
-      audio.addEventListener('error', () => done(150), { once: true });
-      setTimeout(() => done(audio.duration || 150), 4000);
-      audio.src = url;
-    } catch (_) {
-      resolve(150);
-    }
-  });
-}
-
-async function persistFullState() {
-  const payload = {
-    initialized: true,
-    stations: state.stations,
-    tracks: state.tracks
-  };
-  try {
-    localStorage.setItem(RADIO_STORAGE_KEY, JSON.stringify(payload));
-  } catch (_) {
-    // Ignora
-  }
-  try {
-    syncChannel?.postMessage({ type: 'RADIO_CONFIG_UPDATED', state: payload });
-  } catch (_) {
-    // Ignora
-  }
-  try {
-    await fetch('/api/radio/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (_) {
-    // Ignora caso servidor estático
-  }
-}
-
-async function checkServerHealth() {
-  try {
-    const res = await fetch('/api/health', { cache: 'no-store' });
-    if (!res.ok) throw new Error('offline');
-    const data = await res.json();
-    if (data.ok && data.ytDlpAvailable) {
-      dom.ytdlpDot.classList.add('online');
-      dom.ytdlpStatusText.textContent = data.ffmpegAvailable
-        ? 'Python + yt-dlp + FFmpeg ONLINE'
-        : 'Python + yt-dlp ONLINE';
-      return;
-    }
-    dom.ytdlpStatusText.textContent = 'Servidor ativo (yt-dlp ausente)';
-  } catch (_) {
-    dom.ytdlpStatusText.textContent = 'Rode "npm start" p/ ativar YouTube->MP3';
-  }
-}
-
-async function loadInitialRadioState() {
-  try {
-    const res = await fetch('/api/radio/state', { cache: 'no-store' });
-    if (res.ok) {
-      const serverData = await res.json();
-      if (serverData?.initialized && Array.isArray(serverData.stations) && serverData.stations.length > 0) {
-        state.stations = serverData.stations;
-        state.tracks = serverData.tracks || [];
-        renderAll();
-        return;
-      }
-    }
-  } catch (_) {
-    // Tenta localStorage abaixo
-  }
-
-  try {
-    const cached = localStorage.getItem(RADIO_STORAGE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed?.initialized && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
-        state.stations = parsed.stations;
-        state.tracks = parsed.tracks || [];
-        await persistFullState();
-        renderAll();
-        return;
-      }
-    }
-  } catch (_) {
-    // Segue para migração automática
-  }
-
-  // Migra 100% das músicas já salvas hoje no navegador do jogador para 1 única Rádio Padrão!
-  const migrated = await collectMigratedLegacyTracksFromBrowser();
-  const uploaded = [];
-  for (const tr of migrated) {
-    const blob = await RadioAudioStorageDB.getAudioBlob(tr.id);
-    if (blob) {
-      const dur = await measureAudioDuration(blob);
-      const audioDataUrl = await fileToDataUrl(blob);
-      if (audioDataUrl) {
-        try {
-          const up = await fetch('/api/radio/upload-track', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: tr.id,
-              title: tr.title,
-              artist: tr.artist,
-              durationSec: dur,
-              audioDataUrl,
-              coverDataUrl: tr.coverDataUrl || '',
-              source: 'migrated'
-            })
-          });
-          if (up.ok) {
-            const upJson = await up.json();
-            if (upJson?.track) {
-              uploaded.push(upJson.track);
-              continue;
-            }
-          }
-        } catch (_) {
-          // Fallback local
-        }
-      }
-    }
-    uploaded.push(tr);
-  }
-
-  const initial = createDefaultSingleStationState(uploaded);
-  state.stations = initial.stations;
-  state.tracks = initial.tracks;
-  await persistFullState();
-  renderAll();
+function loadInitialRadioState() {
+  return bootstrapRadioState({ state, dom, syncChannel, renderAll });
 }
 
 function renderStationDropdowns() {
@@ -416,6 +284,9 @@ function bindBoardInteractions() {
     const targetStId = col.dataset.dropStation;
     col.addEventListener('dragover', (e) => {
       e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = eventHasExternalFiles(e) ? 'copy' : 'move';
+      }
       col.classList.add('drag-over');
     });
     col.addEventListener('dragleave', (e) => {
@@ -425,7 +296,10 @@ function bindBoardInteractions() {
     });
     col.addEventListener('drop', async (e) => {
       e.preventDefault();
+      e.stopPropagation();
       col.classList.remove('drag-over');
+      state.externalDragDepth = 0;
+      document.body.classList.remove('external-file-dragging');
 
       if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
         await uploadLocalAudioFiles(e.dataTransfer.files, targetStId);
@@ -459,17 +333,28 @@ function bindBoardInteractions() {
   });
 }
 
-function startPreviewTrack(trackId) {
+async function startPreviewTrack(trackId) {
   const tr = state.tracks.find((t) => t.id === trackId);
   if (!tr) return;
   if (!tr.src) {
     showFeedback('Esta faixa usa sintetizador interno do jogo (importe MP3 ou YouTube p/ áudio real).', 'info');
     return;
   }
+  let playSrc = tr.src;
+  if (playSrc.startsWith('idb://')) {
+    const blob = await RadioAudioStorageDB.getAudioBlob(tr.id);
+    if (!blob) {
+      showFeedback('Arquivo local não encontrado no cache do navegador. Reimporte o MP3.', 'error');
+      return;
+    }
+    if (state.previewBlobUrl) URL.revokeObjectURL(state.previewBlobUrl);
+    state.previewBlobUrl = URL.createObjectURL(blob);
+    playSrc = state.previewBlobUrl;
+  }
   dom.previewCover.src = getTrackCoverUrl(tr);
   dom.previewTitle.textContent = tr.title;
   dom.previewArtist.textContent = tr.artist;
-  dom.previewAudio.src = tr.src;
+  dom.previewAudio.src = playSrc;
   dom.previewBar.classList.remove('hidden');
   dom.previewAudio.play().catch(() => {});
 }
@@ -482,14 +367,17 @@ async function deleteTrackFromStationOrAll(trackId, stationId) {
   const stillUsedElsewhere = state.stations.some((s) => (s.trackIds || []).includes(trackId));
   if (!stillUsedElsewhere) {
     state.tracks = state.tracks.filter((t) => t.id !== trackId);
-    try {
-      await fetch('/api/radio/delete-track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackId })
-      });
-    } catch (_) {
-      // Ignora
+    await RadioAudioStorageDB.deleteAudioBlob(trackId);
+    if (state.serverApiAvailable) {
+      try {
+        await fetch('/api/radio/delete-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trackId })
+        });
+      } catch (_) {
+        // Ignora
+      }
     }
   }
   state.selectedTrackIds.delete(trackId);
@@ -513,49 +401,16 @@ function deleteStationSafely(stationId) {
   showFeedback(`Estação "${target.name}" removida. As músicas foram preservadas em "${fallback.name}".`, 'info');
 }
 
-async function uploadLocalAudioFiles(fileList, targetStationId) {
-  const files = Array.from(fileList || []).filter((f) => f && f.type.startsWith('audio/'));
-  if (files.length === 0) return;
-  const stId = targetStationId || dom.ytStationSelect.value || state.stations[0]?.id;
-
-  showFeedback(`Enviando ${files.length} arquivo(s) MP3...`, 'info');
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const cleanTitle = String(file.name || `MP3 ${i + 1}`).replace(/\.[a-z0-9]{2,4}$/i, '');
-    const dur = await measureAudioDuration(file);
-    const audioDataUrl = await fileToDataUrl(file);
-    const id = `mp3_${Date.now()}_${i}`;
-
-    try {
-      const res = await fetch('/api/radio/upload-track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          title: cleanTitle,
-          artist: 'ACERVO LOCAL',
-          durationSec: dur,
-          audioDataUrl,
-          stationId: stId
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.track) {
-          state.tracks.push(data.track);
-          const st = state.stations.find((s) => s.id === stId) || state.stations[0];
-          if (st && !st.trackIds.includes(data.track.id)) st.trackIds.push(data.track.id);
-          continue;
-        }
-      }
-    } catch (_) {
-      // Fallback caso estático
-    }
-  }
-
-  await persistFullState();
-  renderAll();
-  showFeedback(`${files.length} música(s) adicionada(s) com sucesso!`, 'success');
+function uploadLocalAudioFiles(fileList, targetStationId) {
+  return importLocalAudioFiles({
+    fileList,
+    targetStationId,
+    state,
+    dom,
+    syncChannel,
+    showFeedback,
+    renderAll
+  });
 }
 
 function openStationModal(stationId = null) {
@@ -737,30 +592,36 @@ dom.trackForm.addEventListener('submit', async (e) => {
   tr.title = dom.trTitle.value.trim();
   tr.artist = dom.trArtist.value.trim();
   if (state.pendingTrackCoverDataUrl) {
-    try {
-      const up = await fetch('/api/radio/upload-track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: tr.id,
-          title: tr.title,
-          artist: tr.artist,
-          durationSec: tr.durationSec,
-          src: tr.src,
-          coverDataUrl: state.pendingTrackCoverDataUrl
-        })
-      });
-      if (up.ok) {
-        const upJson = await up.json();
-        if (upJson?.track?.coverUrl) {
-          tr.coverUrl = upJson.track.coverUrl;
-          tr.coverDataUrl = upJson.track.coverUrl;
+    const apiReady = await ensureServerStatus(state, dom);
+    if (apiReady) {
+      try {
+        const up = await fetch('/api/radio/upload-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: tr.id,
+            title: tr.title,
+            artist: tr.artist,
+            durationSec: tr.durationSec,
+            src: tr.src,
+            coverDataUrl: state.pendingTrackCoverDataUrl
+          })
+        });
+        if (up.ok) {
+          const upJson = await up.json();
+          if (upJson?.track?.coverUrl) {
+            tr.coverUrl = upJson.track.coverUrl;
+            tr.coverDataUrl = upJson.track.coverUrl;
+          }
+        } else {
+          tr.coverUrl = state.pendingTrackCoverDataUrl;
+          tr.coverDataUrl = state.pendingTrackCoverDataUrl;
         }
-      } else {
+      } catch (_) {
         tr.coverUrl = state.pendingTrackCoverDataUrl;
         tr.coverDataUrl = state.pendingTrackCoverDataUrl;
       }
-    } catch (_) {
+    } else {
       tr.coverUrl = state.pendingTrackCoverDataUrl;
       tr.coverDataUrl = state.pendingTrackCoverDataUrl;
     }
@@ -770,12 +631,87 @@ dom.trackForm.addEventListener('submit', async (e) => {
   renderAll();
 });
 
-// Atualiza a cada 2s o mostrador "NO AR AGORA" em cada coluna de rádio
+// Zona global de Drag & Drop de MP3 (evita navegador abrir o MP3 na aba e aceita soltar em qualquer área)
+if (dom.globalDropzone) {
+  dom.globalDropzone.addEventListener('click', (e) => {
+    if (e.target.closest('#bulk-move-bar')) return;
+    dom.inputLocalMp3.value = '';
+    dom.inputLocalMp3.click();
+  });
+  dom.globalDropzone.addEventListener('dragover', (e) => {
+    if (!eventHasExternalFiles(e)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    dom.globalDropzone.classList.add('drag-over');
+  });
+  dom.globalDropzone.addEventListener('dragleave', (e) => {
+    if (!dom.globalDropzone.contains(e.relatedTarget)) {
+      dom.globalDropzone.classList.remove('drag-over');
+    }
+  });
+  dom.globalDropzone.addEventListener('drop', async (e) => {
+    if (!e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dom.globalDropzone.classList.remove('drag-over');
+    state.externalDragDepth = 0;
+    document.body.classList.remove('external-file-dragging');
+    await uploadLocalAudioFiles(e.dataTransfer.files, dom.ytStationSelect.value || state.stations[0]?.id);
+  });
+}
+
+window.addEventListener('dragenter', (e) => {
+  if (!eventHasExternalFiles(e)) return;
+  e.preventDefault();
+  state.externalDragDepth++;
+  document.body.classList.add('external-file-dragging');
+});
+
+window.addEventListener('dragover', (e) => {
+  if (!eventHasExternalFiles(e)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+});
+
+window.addEventListener('dragleave', (e) => {
+  if (!eventHasExternalFiles(e)) return;
+  state.externalDragDepth = Math.max(0, state.externalDragDepth - 1);
+  if (state.externalDragDepth === 0) {
+    document.body.classList.remove('external-file-dragging');
+    dom.globalDropzone?.classList.remove('drag-over');
+  }
+});
+
+window.addEventListener('drop', async (e) => {
+  state.externalDragDepth = 0;
+  document.body.classList.remove('external-file-dragging');
+  dom.globalDropzone?.classList.remove('drag-over');
+  if (!e.dataTransfer?.files?.length) return;
+  e.preventDefault();
+  await uploadLocalAudioFiles(e.dataTransfer.files, dom.ytStationSelect.value || state.stations[0]?.id);
+});
+
+// Atualiza a cada 2s APENAS o texto "NO AR AGORA" sem destruir o DOM (preserva Drag & Drop e scroll!)
+function updateLiveBroadcastStrips() {
+  if (state.dragPayload || state.externalDragDepth > 0) return;
+  const tracksMap = new Map(state.tracks.map((t) => [t.id, t]));
+  const nowSec = broadcastClock.getNowSec();
+  dom.boardEl.querySelectorAll('.station-column[data-drop-station]').forEach((col) => {
+    const stId = col.dataset.dropStation;
+    const st = state.stations.find((s) => s.id === stId);
+    const liveSpan = col.querySelector('.station-live-now');
+    if (!st || !liveSpan) return;
+    const live = broadcastClock.sampleStationNow(st, tracksMap, nowSec);
+    liveSpan.innerHTML = live?.track
+      ? `NO AR AGORA: <b>${escapeHtml(live.track.title)}</b> (${formatDuration(live.offsetSec)})`
+      : 'ESTAÇÃO SEM PROGRAMAÇÃO ATIVA';
+  });
+}
+
 setInterval(() => {
-  if (!state.dragPayload && dom.stationModal.classList.contains('hidden') && dom.trackModal.classList.contains('hidden')) {
-    renderBoard();
+  if (dom.stationModal.classList.contains('hidden') && dom.trackModal.classList.contains('hidden')) {
+    updateLiveBroadcastStrips();
   }
 }, 2000);
 
-checkServerHealth();
 loadInitialRadioState();

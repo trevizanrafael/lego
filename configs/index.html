@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@500;600;700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/configs/configs.css?v=20261120d" />
+  <link rel="stylesheet" href="/configs/configs.css?v=20261122a" />
 </head>
 <body>
   <div class="configs-layout">
@@ -55,7 +55,7 @@
           <button id="btn-upload-local-mp3" type="button" class="btn-secondary">
             + SUBIR MP3 DO PC
           </button>
-          <input id="input-local-mp3" type="file" accept="audio/*" multiple class="hidden" />
+          <input id="input-local-mp3" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,.webm" multiple class="hidden" />
 
           <button id="btn-new-station" type="button" class="btn-primary">
             + NOVA RÁDIO FM
@@ -87,10 +87,10 @@
         <div id="importer-feedback" class="importer-feedback hidden"></div>
       </section>
 
-      <!-- DICA RÁPIDA DE DRAG & DROP + AÇÃO EM LOTE -->
-      <div class="board-toolbar">
+      <!-- ZONA DE UPLOAD DRAG & DROP DIRETO DO WINDOWS + AÇÃO EM LOTE -->
+      <div id="mp3-global-dropzone" class="board-toolbar mp3-global-dropzone" role="button" tabindex="0" title="Arraste arquivos MP3 aqui ou clique para selecionar do PC">
         <div class="drag-tip">
-          <b>DRAG &amp; DROP ATIVO:</b> Arraste qualquer música (ou selecione várias) de uma rádio e solte direto dentro de outra rádio!
+          <b>SOLTE SEUS MP3 AQUI OU DIRETO EM QUALQUER COLUNA DE RÁDIO:</b> Arraste músicas do PC (`.mp3`, `.wav`, `.m4a`, `.ogg`, `.flac`) para importar na hora, ou arraste cards entre rádios!
         </div>
         <div id="bulk-move-bar" class="bulk-move-bar hidden">
           <span id="bulk-count-label">0 selecionadas</span>
@@ -191,6 +191,6 @@
     </form>
   </div>
 
-  <script type="module" src="/configs/configs.js?v=20261120b"></script>
+  <script type="module" src="/configs/configs.js?v=20261122a"></script>
 </body>
 </html>

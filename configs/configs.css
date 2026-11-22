@@ -350,9 +350,20 @@ body {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 8px 12px;
+  padding: 12px 14px;
   background: var(--bg-panel);
-  border: 1px solid var(--border-dim);
+  border: 1.5px dashed var(--border-titanium);
+  border-left: 4px solid var(--amber);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.board-toolbar:hover,
+.mp3-global-dropzone.drag-over,
+body.external-file-dragging .mp3-global-dropzone {
+  border-color: var(--amber);
+  background: rgba(217, 155, 22, 0.1);
+  box-shadow: 0 0 0 1px var(--amber);
 }
 
 .drag-tip {
