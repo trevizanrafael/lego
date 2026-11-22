@@ -19,7 +19,7 @@ import { soundFX } from '../../audio/SoundFX.js';
 
 const HEAVY_TRACER_GEO = markAsSharedAsset(new THREE.CylinderGeometry(0.068, 0.068, 0.92, 8).rotateX(Math.PI / 2));
 const COMPACT_BULLET_GEO = markAsSharedAsset(new THREE.CylinderGeometry(0.048, 0.048, 0.62, 8).rotateX(Math.PI / 2));
-const DMR_SLUG_GEO = markAsSharedAsset(new THREE.CylinderGeometry(0.052, 0.052, 1.08, 8).rotateX(Math.PI / 2));
+const DMR_SLUG_GEO = markAsSharedAsset(new THREE.CylinderGeometry(0.036, 0.036, 2.35, 8).rotateX(Math.PI / 2));
 const BUCKSHOT_PELLET_GEO = markAsSharedAsset(new THREE.SphereGeometry(0.092, 8, 8));
 const PULSE_BOLT_GEO = markAsSharedAsset(new THREE.CylinderGeometry(0.072, 0.072, 0.96, 8).rotateX(Math.PI / 2));
 const LASER_BEAM_CYL_GEO = markAsSharedAsset(
@@ -29,7 +29,7 @@ const SMOKE_PUFF_GEO = markAsSharedAsset(new THREE.SphereGeometry(0.22, 8, 8));
 
 const MAT_CV_LMG = markAsSharedAsset(getLegoMaterial(0xf59e0b, { emissive: 0xdc2626, emissiveIntensity: 2.2, roughness: 0.12 }));
 const MAT_CV_PISTOL = markAsSharedAsset(getLegoMaterial(0xfef08a, { emissive: 0xf97316, emissiveIntensity: 1.9, roughness: 0.14 }));
-const MAT_PCC_DMR = markAsSharedAsset(getLegoMaterial(0xe0f2fe, { emissive: 0x38bdf8, emissiveIntensity: 2.35, roughness: 0.08 }));
+const MAT_PCC_DMR = markAsSharedAsset(getLegoMaterial(0xfef3c7, { emissive: 0xf59e0b, emissiveIntensity: 2.6, roughness: 0.08 }));
 const MAT_PCC_PELLET = markAsSharedAsset(getLegoMaterial(0xfef08a, { emissive: 0xea580c, emissiveIntensity: 2.2, roughness: 0.15 }));
 const MAT_ARES_PULSE = markAsSharedAsset(getLegoMaterial(0x22d3ee, { emissive: 0xa855f7, emissiveIntensity: 2.65, roughness: 0.08 }));
 const MAT_ARES_LASER = markAsSharedAsset(getLegoMaterial(0xfaf5ff, { emissive: 0xc084fc, emissiveIntensity: 2.9, roughness: 0.06 }));
@@ -37,7 +37,7 @@ const MAT_ARES_LASER = markAsSharedAsset(getLegoMaterial(0xfaf5ff, { emissive: 0
 const PROJ_STYLE_BY_WEAPON = {
   cv_lmg: { geo: HEAVY_TRACER_GEO, mat: MAT_CV_LMG, life: 1.2 },
   cv_pistol: { geo: COMPACT_BULLET_GEO, mat: MAT_CV_PISTOL, life: 1.25 },
-  pcc_dmr: { geo: DMR_SLUG_GEO, mat: MAT_PCC_DMR, life: 1.45 },
+  pcc_dmr: { geo: DMR_SLUG_GEO, mat: MAT_PCC_DMR, life: 0.95 },
   pcc_shotgun12: { geo: BUCKSHOT_PELLET_GEO, mat: MAT_PCC_PELLET, life: 0.44 },
   ares_pulse_minigun: { geo: PULSE_BOLT_GEO, mat: MAT_ARES_PULSE, life: 1.15 },
   ares_charge_rifle: { geo: DMR_SLUG_GEO, mat: MAT_ARES_LASER, life: 1.15 }
@@ -66,6 +66,7 @@ export class OperatorWeaponRuntime {
     this.spinupProgress = 0;
     this.isAiming = false;
     this.isScopedIn = false;
+    this.scopeZoom = 4.0;
     this._scopeRecoilKick = 0;
     this._muzzleScratch = new THREE.Vector3();
     this._dirScratch = new THREE.Vector3();
@@ -257,6 +258,28 @@ export class OperatorWeaponRuntime {
     return true;
   }
 
+  setScopeZoom(nextZoom, playClick = false) {
+    const weaponSpec = this.getActiveWeaponSpec();
+    const minZ = weaponSpec?.scopeMinZoom ?? 1.0;
+    const maxZ = weaponSpec?.scopeMaxZoom ?? 10.0;
+    const raw = Number.isFinite(Number(nextZoom)) ? Number(nextZoom) : (weaponSpec?.scopeDefaultZoom ?? 4.0);
+    const clamped = Math.round(THREE.MathUtils.clamp(raw, minZ, maxZ) * 10) / 10;
+    const changed = Math.abs(clamped - this.scopeZoom) >= 0.05;
+    this.scopeZoom = clamped;
+    if (changed && playClick) soundFX.playScopeZoomClick?.(this.scopeZoom);
+    if (this.isScopedIn) this.syncScopeState(weaponSpec);
+    return changed;
+  }
+
+  handleScopeWheel(deltaY) {
+    if (!this.isScopedIn) return false;
+    const dy = Number(deltaY) || 0;
+    if (dy === 0) return true;
+    const step = this.getActiveWeaponSpec()?.scopeZoomStep ?? 0.5;
+    this.setScopeZoom(this.scopeZoom + (dy < 0 ? step : -step), true);
+    return true;
+  }
+
   _setScopedIn(nextScoped) {
     const active = Boolean(nextScoped);
     const wasScoped = Boolean(this.isScopedIn);
@@ -287,14 +310,20 @@ export class OperatorWeaponRuntime {
       hud.updateSniperScopeHud({ active: false });
       return false;
     }
+    const minZ = weaponSpec.scopeMinZoom ?? 1.0;
+    const maxZ = weaponSpec.scopeMaxZoom ?? 10.0;
+    this.scopeZoom = Math.round(
+      THREE.MathUtils.clamp(Number(this.scopeZoom) || weaponSpec.scopeDefaultZoom || 4.0, minZ, maxZ) * 10
+    ) / 10;
     const aimDist = (ctrl?.destructibles?.getAimTargetPoint && ctrl?.camera)
-      ? ctrl.destructibles.getAimTargetPoint(ctrl.camera, 160).distance
+      ? ctrl.destructibles.getAimTargetPoint(ctrl.camera, 380).distance
       : 0;
     hud.updateSniperScopeHud({
       active: true,
       weaponKey: weaponSpec.key,
       scopeTheme: weaponSpec.scopeTheme || 'pcc_cobalt',
-      zoomLabel: weaponSpec.scopeZoomLabel || '4.0X',
+      zoom: this.scopeZoom,
+      zoomLabel: `${this.scopeZoom.toFixed(1)}X`,
       distanceMeters: Math.round(aimDist),
       inMag: state.magAmmo,
       magSize: weaponSpec.magSize,
@@ -318,7 +347,10 @@ export class OperatorWeaponRuntime {
 
   getAimSensitivityScale() {
     if (!this.isOperatorActive() || this.controller?.currentVehicle) return 1.0;
-    return this.isScopedIn ? (this.getActiveWeaponSpec()?.aimSensitivityScale || 0.5) : (this.isAiming ? 0.75 : 1.0);
+    if (this.isScopedIn) {
+      return THREE.MathUtils.clamp(0.88 / Math.max(1, this.scopeZoom || 4.0), 0.085, 0.88);
+    }
+    return this.isAiming ? 0.75 : 1.0;
   }
 
   getMoveSpeedMultiplier() {
@@ -333,7 +365,18 @@ export class OperatorWeaponRuntime {
     if (this.isOperatorActive() && !this.controller?.currentVehicle && Boolean(this.controller?.mouseButtons?.right)) {
       const weaponSpec = this.getActiveWeaponSpec();
       if (!weaponSpec) return null;
-      if (weaponSpec.hasScope && !this.isScopedIn) return null;
+      if (weaponSpec.hasScope) {
+        if (!this.isScopedIn) return null;
+        const baseUserFov = THREE.MathUtils.clamp(
+          Number(this.controller?.hud?.settings?.fov ?? this.controller?.baseFov ?? 58),
+          50,
+          85
+        );
+        const zoom = THREE.MathUtils.clamp(this.scopeZoom || 4.0, 1.0, 10.0);
+        const halfRad = (baseUserFov * Math.PI) / 360;
+        const zoomedFov = (2 * Math.atan(Math.tan(halfRad) / zoom) * 180) / Math.PI;
+        return Number(zoomedFov.toFixed(3));
+      }
       return weaponSpec.aimFov ?? null;
     }
     return null;
@@ -477,7 +520,7 @@ export class OperatorWeaponRuntime {
     this.controller?.world?.livingCity?.triggerPedestrianPanicNear?.(origin, 32);
 
     const destructibles = this.controller?.destructibles;
-    const maxRange = (Number(weaponSpec.falloffEnd) || 65) + 25;
+    const maxRange = Math.max((Number(weaponSpec.falloffEnd) || 65) + 40, this.isScopedIn ? 380 : 90);
     const aimData = (destructibles?.getAimTargetPoint && this.controller?.camera)
       ? destructibles.getAimTargetPoint(this.controller.camera, maxRange)
       : { point: new THREE.Vector3(pos.x + Math.sin(angle) * 25, pos.y + 1.28, pos.z + Math.cos(angle) * 25), hitObj: null, distance: 25 };
@@ -492,12 +535,20 @@ export class OperatorWeaponRuntime {
     const destructibles = this.controller?.destructibles;
     const wKey = weaponSpec.key;
 
-    if (wKey === 'pcc_shotgun12') { soundFX.playExplosion?.(0.55); soundFX.playRifleShot?.(); }
-    else if (wKey === 'ares_pulse_minigun') soundFX.playMinigunShot?.();
-    else if (wKey === 'ares_charge_rifle') {
+    if (wKey === 'pcc_dmr') {
+      if (typeof soundFX.playSniperBoltShot === 'function') soundFX.playSniperBoltShot();
+      else soundFX.playRifleShot?.();
+    } else if (wKey === 'pcc_shotgun12') {
+      soundFX.playExplosion?.(0.55);
+      soundFX.playRifleShot?.();
+    } else if (wKey === 'ares_pulse_minigun') {
+      soundFX.playMinigunShot?.();
+    } else if (wKey === 'ares_charge_rifle') {
       soundFX.playLaserShot?.();
       if (chargeRatio >= 0.85) soundFX.playExplosion?.(0.35);
-    } else soundFX.playRifleShot?.();
+    } else {
+      soundFX.playRifleShot?.();
+    }
 
     if (!destructibles || !Array.isArray(destructibles.projectiles)) return;
 
@@ -538,6 +589,7 @@ export class OperatorWeaponRuntime {
         mesh,
         type: wKey === 'pcc_shotgun12' ? 'shotgun_pellet' : 'bullet',
         weaponKey: wKey,
+        originPos: origin.clone(),
         vel: shotDir.clone().multiplyScalar(speed),
         life: style.life,
         damage,

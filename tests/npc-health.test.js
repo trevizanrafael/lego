@@ -138,21 +138,56 @@ describe('Wave 2 — Humanoid Health (ALIVE/STAGGER/DOWNED/DEAD), GTA Blood, Cor
     assert.equal(lc.wantedSystem.stars, 0, 'Morte causada por NPC NÃO deve dar procurado ao jogador');
   });
 
-  it('4. Luneta Sniper 4.0X do Contador (PCC Dano-Suporte): ativa no botão direito com zoom FOV 26°, visão limpa 1ª pessoa e telêmetro', () => {
+  it('4. Luneta Sniper Minimalista (1.0X a 10.0X no Scroll) + Bala Supersônica 520 m/s sem Tunneling + Ferrolho Vai-e-Vem', () => {
     world.livingCity.setPlayerFaction('pcc', controller, []);
     controller.switchToHero('pcc_contador', true);
     controller.position.set(0, 0, -110);
     controller.isGrounded = true;
     controller.rollImpulseTimer = 0;
 
-    // Segura botão direito -> entra na luneta 4.0X!
+    const initialDist = controller.targetDistance;
+
+    // Segura botão direito -> entra na luneta minimalista (4.0X inicial)!
     controller.mouseButtons.right = true;
     for (let i = 0; i < 20; i++) controller.update(0.04);
 
     assert.equal(controller.operatorWeapons.isScopedIn, true, 'Contador segurando botão direito deve ativar luneta Sniper');
     assert.equal(minifig.visualRoot.visible, false, 'Modelo 3D do Contador fica oculto em 1ª pessoa dentro da lente');
-    assert.ok(camera.fov <= 28, `FOV da câmera deve aproximar para ~26° na luneta 4.0X (atual=${camera.fov.toFixed(1)}°)`);
     assert.equal(hud.sniperScopeOverlayEl?.classList?.contains('hidden'), false, 'Overlay #sniper-scope-overlay deve ficar visível');
+    assert.equal(hud.sniperScopeZoomEl?.textContent, '4.0X', 'Zoom inicial deve ser 4.0X');
+    assert.ok(camera.fov <= 22, `FOV da câmera deve aproximar em 4.0X (atual=${camera.fov.toFixed(1)}°)`);
+
+    // Scroll para baixo até 1.0X (sem mexer na distância 3ª pessoa!)
+    for (let i = 0; i < 12; i++) controller.operatorWeapons.handleScopeWheel(100);
+    for (let i = 0; i < 18; i++) controller.update(0.04);
+    assert.equal(controller.operatorWeapons.scopeZoom, 1.0, 'Scroll para baixo deve descer até 1.0X');
+    assert.equal(hud.sniperScopeZoomEl?.textContent, '1.0X');
+    assert.ok(camera.fov >= 52, `Em 1.0X o FOV deve abrir para ~58° (atual=${camera.fov.toFixed(1)}°)`);
+
+    // Scroll para cima até 10.0X!
+    for (let i = 0; i < 24; i++) controller.operatorWeapons.handleScopeWheel(-100);
+    for (let i = 0; i < 24; i++) controller.update(0.04);
+    assert.equal(controller.operatorWeapons.scopeZoom, 10.0, 'Scroll para cima deve ir até 10.0X');
+    assert.equal(hud.sniperScopeZoomEl?.textContent, '10.0X');
+    assert.ok(camera.fov <= 8.5, `Em 10.0X o FOV deve fechar para ~6.5° (atual=${camera.fov.toFixed(2)}°)`);
+    assert.equal(controller.targetDistance, initialDist, 'Scroll dentro da luneta não deve alterar targetDistance 3ª pessoa');
+
+    // Disparo supersônico (520 m/s) acerta alvo fino sem tunneling mesmo num passo de 60 FPS (dt = 0.016s -> ~8.3m/frame)
+    const sniperVictim = world.livingCity.pedestrians[30];
+    sniperVictim.visual.root.position.set(0, 0, -145);
+    sniperVictim.destructible.basePos.set(0, 0, -145);
+    sniperVictim.destructible.hp = 100;
+    sniperVictim.destructible.destroyed = false;
+    controller.yaw = 0;
+    controller.pitch = 0;
+    controller.update(0.016);
+
+    controller.operatorWeapons.handlePrimaryMouseDown();
+    controller.operatorWeapons.handlePrimaryMouseUp();
+    const dmrProj = destructibles.projectiles[destructibles.projectiles.length - 1];
+    assert.ok(dmrProj && dmrProj.vel.length() >= 500, 'Projétil da Sniper deve ser supersônico (>= 500 m/s)');
+    for (let f = 0; f < 8; f++) destructibles._updateProjectiles(0.016);
+    assert.ok(sniperVictim.destructible.hp < 100, 'Bala supersônica deve colidir por varredura contínua sem atravessar o pedestre');
 
     // Soltar botão direito restaura imediatamente o modelo 3D e fecha a luneta!
     controller.mouseButtons.right = false;

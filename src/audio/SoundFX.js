@@ -34,7 +34,9 @@ import {
   playHealTickSfx,
   playEmoteJingleSfx,
   playKillConfirmSfx,
-  playHitmarkerTickSfx
+  playHitmarkerTickSfx,
+  playSniperBoltShotSfx,
+  playScopeZoomClickSfx
 } from './sfx/CombatAndUiSoundEffects.js';
 
 /**
@@ -84,6 +86,8 @@ class SoundFX {
   playEmoteJingle(emoteIdx = 0) { return playEmoteJingleSfx(this, emoteIdx); }
   playKillConfirm() { return playKillConfirmSfx(this); }
   playHitmarkerTick() { return playHitmarkerTickSfx(this); }
+  playSniperBoltShot() { return playSniperBoltShotSfx(this); }
+  playScopeZoomClick(zoom = 4.0) { return playScopeZoomClickSfx(this, zoom); }
 }
 
 export const soundFX = new SoundFX();

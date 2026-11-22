@@ -621,3 +621,160 @@ export function playHitmarkerTickSfx(sfx) {
   osc.stop(now + 0.024);
   return true;
 }
+
+function _getBoltNoiseBuffer(sfx, ctx) {
+  if (sfx._boltNoiseBuffer && sfx._boltNoiseCtx === ctx) return sfx._boltNoiseBuffer;
+  if (typeof ctx.createBuffer !== 'function') return null;
+  const sr = Number(ctx.sampleRate) || 44100;
+  const len = Math.max(1, Math.floor(sr * 0.16));
+  const buf = ctx.createBuffer(1, len, sr);
+  const data = typeof buf.getChannelData === 'function' ? buf.getChannelData(0) : null;
+  if (data) {
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  }
+  sfx._boltNoiseBuffer = buf;
+  sfx._boltNoiseCtx = ctx;
+  return buf;
+}
+
+function _spawnFilteredNoise(ctx, dest, buf, t0, dur, filterType, fStart, fEnd, qVal, peakGain, attack = 0) {
+  if (!buf || typeof ctx.createBufferSource !== 'function') return;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  if (attack > 0 && typeof gain.gain?.linearRampToValueAtTime === 'function') {
+    gain.gain.setValueAtTime(0.001, t0);
+    gain.gain.linearRampToValueAtTime(peakGain, t0 + attack);
+  } else {
+    gain.gain.setValueAtTime(peakGain, t0);
+  }
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  if (typeof ctx.createBiquadFilter === 'function') {
+    const flt = ctx.createBiquadFilter();
+    flt.type = filterType;
+    flt.frequency?.setValueAtTime?.(fStart, t0);
+    if (fEnd && fEnd !== fStart) flt.frequency?.exponentialRampToValueAtTime?.(fEnd, t0 + dur);
+    flt.Q?.setValueAtTime?.(qVal, t0);
+    src.connect(flt);
+    flt.connect(gain);
+  } else {
+    src.connect(gain);
+  }
+  gain.connect(dest);
+  src.start?.(t0);
+  src.stop?.(t0 + dur + 0.005);
+}
+
+export function playSniperBoltShotSfx(sfx) {
+  const ctx = sfx._ensureContext();
+  if (!ctx) return false;
+  const now = ctx.currentTime;
+  const dest = sfx.sfxBus || ctx.destination;
+  const noiseBuf = _getBoltNoiseBuffer(sfx, ctx);
+
+  // 1) t = now: Estalo supersônico + sub-grave pesado do disparo
+  _spawnFilteredNoise(ctx, dest, noiseBuf, now, 0.09, 'bandpass', 2400, 780, 1.1, 0.21, 0);
+
+  const crackOsc = ctx.createOscillator();
+  const crackGain = ctx.createGain();
+  crackOsc.type = 'sawtooth';
+  crackOsc.frequency.setValueAtTime(680, now);
+  crackOsc.frequency.exponentialRampToValueAtTime(75, now + 0.09);
+  crackGain.gain.setValueAtTime(0.19, now);
+  crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.092);
+  crackOsc.connect(crackGain);
+  crackGain.connect(dest);
+  crackOsc.start(now);
+  crackOsc.stop(now + 0.096);
+
+  const subOsc = ctx.createOscillator();
+  const subGain = ctx.createGain();
+  subOsc.type = 'triangle';
+  subOsc.frequency.setValueAtTime(135, now);
+  subOsc.frequency.exponentialRampToValueAtTime(34, now + 0.18);
+  subGain.gain.setValueAtTime(0.24, now);
+  subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.185);
+  subOsc.connect(subGain);
+  subGain.connect(dest);
+  subOsc.start(now);
+  subOsc.stop(now + 0.19);
+
+  // 2) t = now + 0.17s..0.30s: "VAI" — Destrave e puxada metálica do ferrolho para trás
+  const liftOsc = ctx.createOscillator();
+  const liftGain = ctx.createGain();
+  liftOsc.type = 'triangle';
+  liftOsc.frequency.setValueAtTime(1900, now + 0.17);
+  liftOsc.frequency.exponentialRampToValueAtTime(950, now + 0.192);
+  liftGain.gain.setValueAtTime(0.095, now + 0.17);
+  liftGain.gain.exponentialRampToValueAtTime(0.001, now + 0.192);
+  liftOsc.connect(liftGain);
+  liftGain.connect(dest);
+  liftOsc.start(now + 0.17);
+  liftOsc.stop(now + 0.196);
+
+  _spawnFilteredNoise(ctx, dest, noiseBuf, now + 0.19, 0.11, 'bandpass', 1050, 2350, 5.5, 0.13, 0.014);
+  const backGlide = ctx.createOscillator();
+  const backGain = ctx.createGain();
+  backGlide.type = 'triangle';
+  backGlide.frequency.setValueAtTime(780, now + 0.19);
+  backGlide.frequency.exponentialRampToValueAtTime(1420, now + 0.30);
+  backGain.gain.setValueAtTime(0.085, now + 0.19);
+  backGain.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+  backGlide.connect(backGain);
+  backGain.connect(dest);
+  backGlide.start(now + 0.19);
+  backGlide.stop(now + 0.305);
+
+  // 3) t = now + 0.37s..0.505s: "VEM" — Empurrada do ferrolho para frente + trancamento seco na câmara
+  _spawnFilteredNoise(ctx, dest, noiseBuf, now + 0.37, 0.10, 'bandpass', 2200, 920, 5.0, 0.125, 0.012);
+  const fwdGlide = ctx.createOscillator();
+  const fwdGain = ctx.createGain();
+  fwdGlide.type = 'triangle';
+  fwdGlide.frequency.setValueAtTime(1350, now + 0.37);
+  fwdGlide.frequency.exponentialRampToValueAtTime(720, now + 0.47);
+  fwdGain.gain.setValueAtTime(0.08, now + 0.37);
+  fwdGain.gain.exponentialRampToValueAtTime(0.001, now + 0.47);
+  fwdGlide.connect(fwdGain);
+  fwdGain.connect(dest);
+  fwdGlide.start(now + 0.37);
+  fwdGlide.stop(now + 0.475);
+
+  const lockBody = ctx.createOscillator();
+  const lockLatch = ctx.createOscillator();
+  const lockGain = ctx.createGain();
+  lockBody.type = 'triangle';
+  lockBody.frequency.setValueAtTime(540, now + 0.47);
+  lockBody.frequency.exponentialRampToValueAtTime(175, now + 0.505);
+  lockLatch.type = 'triangle';
+  lockLatch.frequency.setValueAtTime(2450, now + 0.47);
+  lockLatch.frequency.exponentialRampToValueAtTime(1100, now + 0.49);
+  lockGain.gain.setValueAtTime(0.125, now + 0.47);
+  lockGain.gain.exponentialRampToValueAtTime(0.001, now + 0.505);
+  lockBody.connect(lockGain);
+  lockLatch.connect(lockGain);
+  lockGain.connect(dest);
+  lockBody.start(now + 0.47);
+  lockLatch.start(now + 0.47);
+  lockBody.stop(now + 0.51);
+  lockLatch.stop(now + 0.495);
+  return true;
+}
+
+export function playScopeZoomClickSfx(sfx, zoom = 4.0) {
+  const ctx = sfx._ensureContext();
+  if (!ctx) return false;
+  const now = ctx.currentTime;
+  const z = Math.max(1, Math.min(10, Number(zoom) || 4.0));
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(920 + z * 70, now);
+  osc.frequency.exponentialRampToValueAtTime(480, now + 0.016);
+  gain.gain.setValueAtTime(0.055, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.016);
+  osc.connect(gain);
+  gain.connect(sfx.sfxBus || ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.018);
+  return true;
+}

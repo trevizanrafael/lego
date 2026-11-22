@@ -277,10 +277,10 @@ export const cameraOrbitAndRigMethods = {
               : isAimingBeam
                 ? 53 + fovDelta * 0.5
                 : baseUserFov,
-      20,
+      4.5,
       98
     );
-    const fovLerpRate = this.operatorWeapons?.isScopedIn ? 18 : 10;
+    const fovLerpRate = this.operatorWeapons?.isScopedIn ? 24 : 10;
     if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, desiredFov, Math.min(1, dt * fovLerpRate));
       this.camera.updateProjectionMatrix();

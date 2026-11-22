@@ -174,6 +174,10 @@ export const controllerInputAndEventsMethods = {
         if (e.target && typeof e.target.closest === 'function' && e.target.closest('#fullmap-modal')) {
           return;
         }
+        if (this.operatorWeapons?.isScopedIn && typeof this.operatorWeapons.handleScopeWheel === 'function') {
+          this.operatorWeapons.handleScopeWheel(e.deltaY);
+          return;
+        }
         if (
           this.minifigure?.currentHeroKey === 'vingador' &&
           !this.currentVehicle && !this.hud?.isDossierOpen && !this.hud?.isHeroWheelOpen
