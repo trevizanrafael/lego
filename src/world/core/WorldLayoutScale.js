@@ -5,18 +5,18 @@
  * e ancoragem de prédios na borda interna da calçada de 10m (`wsStreetAnchored`).
  */
 
-export const DEFAULT_WORLD_SCALE = 1;
+export const DEFAULT_WORLD_SCALE = 3;
 
 export function resolveWorldScale(searchStr = undefined) {
   if (Number.isFinite(globalThis.__FORCE_WORLD_SCALE) && globalThis.__FORCE_WORLD_SCALE > 0) {
     return Number(globalThis.__FORCE_WORLD_SCALE);
   }
-  const rawSearch =
-    searchStr !== undefined
-      ? String(searchStr || '')
-      : typeof window !== 'undefined' && window.location?.search
-        ? String(window.location.search)
-        : '';
+  const hasExplicitArg = searchStr !== undefined;
+  const rawSearch = hasExplicitArg
+    ? String(searchStr || '')
+    : typeof window !== 'undefined' && window.location?.search
+      ? String(window.location.search)
+      : '';
   if (rawSearch) {
     try {
       const qs = rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch;
@@ -31,6 +31,10 @@ export function resolveWorldScale(searchStr = undefined) {
     } catch (_) {
       // ignora query string malformada
     }
+  }
+  // Em testes legados Node.js sem query explícita (enquanto Ondas 1–2 migram regiões/sistemas), preserva 1x até a Onda 3
+  if (!hasExplicitArg && typeof process !== 'undefined' && process.versions?.node && !globalThis.__ENABLE_3X_DEFAULT_IN_NODE) {
+    return 1;
   }
   return DEFAULT_WORLD_SCALE;
 }

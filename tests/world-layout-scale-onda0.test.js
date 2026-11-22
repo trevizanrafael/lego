@@ -1,8 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 import { setupTestEnvironment } from './setup-env.js';
 
-setupTestEnvironment();
+globalThis.__ENABLE_3X_DEFAULT_IN_NODE = true;
+setupTestEnvironment({ search: '' });
 
 const {
   DEFAULT_WORLD_SCALE,
@@ -22,6 +24,10 @@ const {
   computeStreetAnchoredCoord,
   wsStreetAnchored
 } = await import('../src/world/core/WorldLayoutScale.js');
+const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
+const { DestructibleManager } = await import('../src/world/DestructibleManager.js');
+const { LegoHud } = await import('../src/ui/LegoHud.js');
+const { STATIC_MAP_SPAN } = await import('../src/ui/minimap/MinimapTerrainAndRoadsPainter.js');
 
 const {
   migrateSaveSlotToWorldScale,
@@ -30,36 +36,49 @@ const {
   SAVE_STORAGE_KEY
 } = await import('../src/ui/FactionIconsAndSaveSystem.js');
 
-describe('ONDA 0 — WorldLayoutScale, Grade Viária Unificada, Calçada 10m & Migração de Save', () => {
-  it('1. resolveWorldScale lê query string (?worldScale=1 e ?worldScale=3) e respeita limites seguros', () => {
-    assert.equal(DEFAULT_WORLD_SCALE, 1, 'Step 0A mantém DEFAULT_WORLD_SCALE = 1');
+describe('ONDA 0 — WorldLayoutScale (3x Ativo), Grade Viária Unificada, Calçada 10m & Migração de Save', () => {
+  it('1. resolveWorldScale usa DEFAULT_WORLD_SCALE = 3 por padrão e aceita ?worldScale=1 como override', () => {
+    assert.equal(DEFAULT_WORLD_SCALE, 3, 'Step 0B ativa DEFAULT_WORLD_SCALE = 3');
+    assert.equal(WORLD_SCALE, 3);
+    assert.equal(IS_SCALED_WORLD, true);
     assert.equal(resolveWorldScale('?worldScale=1'), 1);
     assert.equal(resolveWorldScale('?worldScale=3'), 3);
     assert.equal(resolveWorldScale('worldScale=2.5&foo=bar'), 2.5);
     assert.equal(resolveWorldScale('?worldScale=0'), DEFAULT_WORLD_SCALE);
     assert.equal(resolveWorldScale('?worldScale=99'), DEFAULT_WORLD_SCALE);
     assert.equal(resolveWorldScale('?worldScale=abc'), DEFAULT_WORLD_SCALE);
-    assert.equal(resolveWorldScale(''), DEFAULT_WORLD_SCALE);
+    assert.equal(resolveWorldScale(''), 3);
   });
 
-  it('2. Em WORLD_SCALE === 1, todos os helpers (ws, wsPos3, wsBounds, wsStreetAnchored) são 100% identidade', () => {
-    assert.equal(WORLD_SCALE, 1);
-    assert.equal(IS_SCALED_WORLD, false);
-    assert.equal(ws(120), 120);
-    assert.equal(ws(-384), -384);
+  it('2. Em WORLD_SCALE === 3, ws/wsPos3/wsBounds escalam X/Z em 3x (preservando Y em 1x) e constroem calçadas reais de 10m', () => {
+    assert.equal(ws(120), 360);
+    assert.equal(ws(-384), -1152);
     assert.equal(ws(0), 0);
-    assert.equal(fromWs(360), 360);
-    assert.deepEqual(wsP(-252, 402), { x: -252, z: 402 });
-    assert.deepEqual(wsPos3({ x: -324, y: 310.85, z: -168 }), { x: -324, y: 310.85, z: -168 });
+    assert.equal(fromWs(360), 120);
+    assert.deepEqual(wsP(-252, 402), { x: -756, z: 1206 });
+    assert.deepEqual(wsPos3({ x: -324, y: 310.85, z: -168 }), { x: -972, y: 310.85, z: -504 });
     assert.deepEqual(
       wsBounds({ minX: -520, maxX: 520, minZ: -440, maxZ: 140, minY: 0, maxY: 250 }),
-      { minX: -520, maxX: 520, minZ: -440, maxZ: 140, minY: 0, maxY: 250 }
+      { minX: -1560, maxX: 1560, minZ: -1320, maxZ: 420, minY: 0, maxY: 250 }
     );
-    assert.deepEqual(wsStreetAnchored(-221, -150, { halfW: 14, halfD: 12 }), { x: -221, z: -150 });
-    assert.equal(ROAD.mainWidth, 28);
-    assert.equal(ROAD.secondaryWidth, 24);
-    assert.equal(ROAD.sidewalk, 0);
-    assert.equal(ROAD.curbHeight, 0.28);
+    assert.deepEqual(ROAD, {
+      mainWidth: 34,
+      secondaryWidth: 26,
+      sidewalk: 10,
+      curbHeight: 0.18
+    });
+    assert.equal(STATIC_MAP_SPAN, 22200);
+
+    const scene = new THREE.Scene();
+    const hud = new LegoHud(0);
+    const destructibles = new DestructibleManager(scene, hud);
+    const world = new TestBlockWorld(scene, destructibles);
+    assert.ok(world.sidewalkCorridors.length >= 400, `Corredores de calçada de 10m gerados: ${world.sidewalkCorridors.length}`);
+    assert.ok(world.crosswalkZones.length >= 400, `Faixas de pedestre geradas: ${world.crosswalkZones.length}`);
+    // Na Av. X = 0 (meia-largura 17m -> meio-fio em X=17, calçada X=17..27), cota na rua = 0 e no meio da calçada (X=22, Z=-300) = +0.18m!
+    const roadY = world.getTerrainHeightAt(0, -300);
+    const swY = world.getTerrainHeightAt(22, -300);
+    assert.ok(Math.abs((swY - roadY) - 0.18) < 0.025, `Degrau do meio-fio da calçada de 10m deve ser ~0.18m (obtido ${(swY - roadY).toFixed(3)}m)`);
   });
 
   it('3. Em scaleOverride = 3 (Avenidas 34m, Ruas 26m, Calçadas 10m), wsStreetAnchored cola o prédio na calçada e deixa o miolo livre', () => {
