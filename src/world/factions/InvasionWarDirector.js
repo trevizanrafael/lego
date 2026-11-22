@@ -6,6 +6,10 @@ import {
   FACTION_THEME,
   getTerritoryZoneAt
 } from './TerritoryZonesAndConfigs.js';
+import {
+  unlockDefeatedBossExtra,
+  EXTRAS_CATALOG
+} from '../../progression/RosterAndUnlocks.js';
 
 // ============================================================================
 // DIRETOR DA INVASÃO EM SEQUÊNCIA (P1 -> P2 -> P3 -> CHEFE), RELÓGIO, ANEL
@@ -265,12 +269,24 @@ export const invasionWarDirectorMethods = {
       );
     }
 
+    const bossRes = unlockDefeatedBossExtra(zoneState.id, this.hud?.unlockedExtras || []);
+    if (bossRes.ok && this.hud) {
+      this.hud.unlockedExtras = bossRes.unlockedExtras;
+    }
+    const bossLabel =
+      EXTRAS_CATALOG[bossRes.bossKey]?.name?.['pt-BR']?.toUpperCase() ||
+      FACTION_THEME[zoneState.id]?.bossTitle ||
+      'CHEFE SECRETO';
+    const bannerSubtitle = bossRes.ok && bossRes.newlyUnlocked
+      ? `${zoneState.spec.title} // ${bossLabel} LIBERADO NA GRADE [TAB]!`
+      : `${zoneState.spec.title} // FIQUE DE OLHO: ELES VÃO VOLTAR`;
+
     this.objectiveHud?.hide();
     this.hud?.showWantedBanner?.(
       'TERRITÓRIO CONQUISTADO!',
-      `${zoneState.spec.title} // FIQUE DE OLHO: ELES VÃO VOLTAR`,
+      bannerSubtitle,
       'escaped',
-      3800
+      bossRes.newlyUnlocked ? 4600 : 3800
     );
 
     // Restaura os 4 Corações LEGO, salva a conquista e transforma o território em QG Aliado!

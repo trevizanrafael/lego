@@ -1,9 +1,12 @@
 import { soundFX } from '../../audio/SoundFX.js';
 import { getActiveCustomHero } from '../../entities/CustomHeroSystem.js';
+import { formatRoleTitle } from '../../entities/operators/RoleBaselines.js';
+import { EXTRAS_CATALOG } from '../../progression/RosterAndUnlocks.js';
 import { getHeroInfo, syncOp09CatalogSlot, drawHeroLegoPortrait } from '../HeroWheelAndDossier.js';
 import { FACTION_DATA, UI_TEXTS, getFactionLogoSvg } from '../FactionIconsAndSaveSystem.js';
 import { definePrototypeMethods } from './HudConstantsAndPortraits.js';
 import { playMenuConfirmSound } from './ConfirmDialog.js';
+import { installCharacterStoreSubview } from './CharacterStoreSubview.js';
 
 const PAUSE_FACTION_PALETTES = {
   cv: { accent: '#dc2626', rgb: '220, 38, 38', dark: '#24070b', short: 'CV' },
@@ -15,7 +18,7 @@ const PAUSE_FACTION_PALETTES = {
 const BLADE_SPECS = [
   ['btn-pause-resume', ['tactical-btn', 'pause-blade-btn', 'pause-main-btn'], 'CONTINUAR'],
   ['btn-pause-map', ['tactical-btn', 'pause-blade-btn'], 'MAPA'],
-  ['btn-pause-heroes', ['tactical-btn', 'pause-blade-btn'], 'HERÓIS'],
+  ['btn-pause-heroes', ['tactical-btn', 'pause-blade-btn'], 'PERSONAGENS'],
   ['btn-pause-open-settings', ['tactical-btn', 'pause-blade-btn'], 'CONFIGURAÇÕES'],
   ['btn-pause-save', ['tactical-btn', 'pause-blade-btn'], 'SALVAR JOGO'],
   ['btn-pause-switch-faction', ['tactical-btn', 'pause-blade-btn'], 'TROCAR FACÇÃO'],
@@ -56,6 +59,9 @@ function formatGameClockHM(timeHours) {
 }
 
 export function installPauseMenuController(LegoHud) {
+  if (typeof LegoHud.prototype.openCharacterStoreSubview !== 'function') {
+    installCharacterStoreSubview(LegoHud);
+  }
   definePrototypeMethods(LegoHud, {
     _initPauseMenuDom() {
       if (typeof document === 'undefined') return;
@@ -140,6 +146,7 @@ export function installPauseMenuController(LegoHud) {
         if (this.pauseKeyhintsRowEl) this.pauseBottomBarEl.appendChild?.(this.pauseKeyhintsRowEl);
       }
       if (this.pauseMainViewEl && this.pauseBottomBarEl && !this.pauseBottomBarEl.parentNode) this.pauseMainViewEl.appendChild?.(this.pauseBottomBarEl);
+      this._ensureCharacterStoreDom?.();
 
       byId('hud-esc-hint-pill')?.addEventListener?.('click', () => {
         if (!this.isTitleScreenActive && !this.isLoadingActive) this.setPauseMenuOpen(true, this._lastController);
@@ -149,15 +156,18 @@ export function installPauseMenuController(LegoHud) {
     _bindPauseMenuEvents() {
       if (this._pauseMenuEventsBound) return;
       this._pauseMenuEventsBound = true;
-      const openHeroesDossier = () => { this.setPauseMenuOpen(false, this._lastController, true); this.setHeroDossierOpen?.(true, this._lastController); };
+      const openCharacterStore = () => {
+        this._pauseReturnBladeId = 'btn-pause-heroes';
+        this.openCharacterStoreSubview?.(this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey);
+      };
 
       byId('btn-pause-resume')?.addEventListener?.('click', () => this.setPauseMenuOpen(false, this._lastController));
       byId('btn-pause-map')?.addEventListener?.('click', () => {
         this.setPauseMenuOpen(false, this._lastController, true);
         this.setFullMapOpen?.(true, this._lastController?.world, this._lastController);
       });
-      byId('btn-pause-heroes')?.addEventListener?.('click', openHeroesDossier);
-      this.pauseHeroCardEl?.addEventListener?.('click', () => { playMenuConfirmSound(); openHeroesDossier(); });
+      byId('btn-pause-heroes')?.addEventListener?.('click', openCharacterStore);
+      this.pauseHeroCardEl?.addEventListener?.('click', () => { playMenuConfirmSound(); openCharacterStore(); });
       byId('btn-pause-open-settings')?.addEventListener?.('click', () => {
         this._pauseReturnBladeId = 'btn-pause-open-settings';
         this.openSettingsSubview?.(this._activeSettingsTab || 'audio');
@@ -263,10 +273,14 @@ export function installPauseMenuController(LegoHud) {
 
       let heroName = '';
       let heroRole = '';
+      const extraSpec = EXTRAS_CATALOG[heroKey];
       if (heroKey === 'op09') {
         const customCfg = getActiveCustomHero();
         heroName = String(info?.name || (isEn ? 'ORDINARY CITIZEN' : 'CIDADÃO COMUM')).toUpperCase();
         heroRole = customCfg?.isCreated ? (isEn ? 'CUSTOM OPERATOR' : 'OPERADOR CUSTOMIZADO') : (isEn ? 'ORDINARY CITIZEN' : 'CIDADÃO COMUM');
+      } else if (extraSpec?.category === 'secret_boss') {
+        heroName = String(extraSpec.name?.[lang] || extraSpec.name?.['pt-BR'] || heroKey).toUpperCase();
+        heroRole = formatRoleTitle(extraSpec.roles, lang).toUpperCase();
       } else {
         heroName = String(info?.cleanName || info?.shortName || info?.name || 'COMANDANTE CAVEIRA').toUpperCase();
         const roleFromMap = info?.cleanRole && typeof info.cleanRole === 'object' ? info.cleanRole[lang] : info?.cleanRole;
@@ -290,7 +304,7 @@ export function installPauseMenuController(LegoHud) {
       const t = UI_TEXTS[lang] || UI_TEXTS['pt-BR'];
       for (const [id, val] of [
         ['btn-pause-resume', t.resumeBtn || (isEn ? 'RESUME' : 'CONTINUAR')], ['btn-pause-map', t.mapBtn || (isEn ? 'MAP' : 'MAPA')],
-        ['btn-pause-heroes', t.heroesBtn || (isEn ? 'HEROES' : 'HERÓIS')], ['btn-pause-open-settings', t.settingsBtn || (isEn ? 'SETTINGS' : 'CONFIGURAÇÕES')],
+        ['btn-pause-heroes', t.heroesBtn || (isEn ? 'CHARACTERS' : 'PERSONAGENS')], ['btn-pause-open-settings', t.settingsBtn || (isEn ? 'SETTINGS' : 'CONFIGURAÇÕES')],
         ['btn-pause-save', t.saveNowBtn || (isEn ? 'SAVE GAME' : 'SALVAR JOGO')], ['btn-pause-switch-faction', t.switchFactionBtn || (isEn ? 'CHANGE FACTION' : 'TROCAR FACÇÃO')],
         ['btn-pause-save-quit', t.saveQuitBtn || (isEn ? 'QUIT TO MENU' : 'SAIR PARA O MENU')],
         ['lbl-pause-stat-bricks', t.pauseStats?.goldenBricks || (isEn ? 'GOLDEN BRICKS' : 'BLOCOS DOURADOS')],
@@ -299,6 +313,7 @@ export function installPauseMenuController(LegoHud) {
       ]) { const el = byId(id); if (el && val !== undefined) el.textContent = val; }
       const fb = this.pauseSaveFeedbackEl || byId('pause-save-feedback');
       if (fb && fb.classList?.contains('hidden')) fb.textContent = isEn ? 'GAME SAVED' : 'JOGO SALVO';
+      if (this.charactersSubviewEl) this._refreshCharacterStoreUI?.(false);
     },
 
     _showPauseFeedbackBanner(message, durationMs = 1800) {
@@ -313,6 +328,7 @@ export function installPauseMenuController(LegoHud) {
 
     openPauseMainView(focusBladeId = null) {
       this.settingsSubviewEl?.classList?.add('hidden');
+      this.charactersSubviewEl?.classList?.add('hidden');
       this.pauseMainViewEl?.classList?.remove('hidden');
       this.pauseIngameActionsEl?.classList?.remove('hidden');
       this._updatePauseContextPanel();
@@ -345,6 +361,7 @@ export function installPauseMenuController(LegoHud) {
       soundFX.baileFunkMix = 0;
       soundFX.baileBeatPulse = 0;
       soundFX.stopWarMusic();
+      this.charactersSubviewEl?.classList?.add('hidden');
       this.setPauseMenuOpen(false, this._lastController, true);
       this.isTitleScreenActive = true;
       document.body?.classList?.remove('is-paused', 'game-paused', 'settings-over-title');

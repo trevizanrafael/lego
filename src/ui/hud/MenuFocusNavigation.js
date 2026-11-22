@@ -46,7 +46,7 @@ export function installMenuFocusNavigation(LegoHud) {
 
       if (typeof document !== 'undefined') {
         if (globalThis.__testEnvReady) {
-          for (const id of ['settings-subview', 'title-credits-panel', 'title-faction-panel', 'title-slots-panel']) {
+          for (const id of ['settings-subview', 'characters-subview', 'title-credits-panel', 'title-faction-panel', 'title-slots-panel']) {
             const el = byId(id);
             if (el && !el.children?.length && el.innerHTML === '' && !(id === 'title-slots-panel' && this._slotsMode)) el.classList?.add('hidden');
           }
@@ -78,6 +78,7 @@ export function installMenuFocusNavigation(LegoHud) {
       if (this.isLoadingActive) return 'loading';
       if (this.isConfirmDialogOpen) return 'dialog';
       if (this.isPauseMenuOpen) {
+        if (this._isPanelVisible(this.charactersSubviewEl, 'characters-subview')) return 'pause-characters';
         if (this._isPanelVisible(this.settingsSubviewEl, 'settings-subview')) return 'settings';
         if (this.isTitleScreenActive && hasCls(this.pauseIngameActionsEl, 'hidden')) return 'settings';
         return 'pause-main';
@@ -113,6 +114,10 @@ export function installMenuFocusNavigation(LegoHud) {
       }
       if (screen === 'title-credits') return [byId('btn-credits-back')].filter((el) => Boolean(el) && isVisibleEnabled(el));
       if (screen === 'pause-main') return queryEnabled(this.pauseIngameActionsEl || byId('pause-ingame-actions'), 'button', (el) => el.tagName === 'BUTTON');
+      if (screen === 'pause-characters') {
+        const grid = this.charStoreGridEl || byId('char-store-grid');
+        return queryEnabled(grid, '.char-store-card', (el) => hasCls(el, 'char-store-card'));
+      }
       if (screen === 'settings') {
         const root = this.settingsSubviewEl || (this._isPanelVisible(null, 'settings-subview') && byId('settings-subview')) || this.pauseModalEl || byId('pause-options-modal');
         const tabs = querySubtree(root, '.settings-tab-panel', (el) => hasCls(el, 'settings-tab-panel') && !hasCls(el, 'hidden'));
@@ -146,6 +151,7 @@ export function installMenuFocusNavigation(LegoHud) {
       this._trackedFocusedEls.push(targetEl);
       if (scroll) targetEl?.scrollIntoView?.({ block: 'nearest' });
       this._updateFocusedOptionDescription?.(targetEl);
+      if (targetEl?.dataset?.charKey) this._syncCharacterStoreHoverFocus?.(targetEl.dataset.charKey);
       if (withSound && changed) playMenuMoveSound();
       return targetEl;
     },
@@ -203,9 +209,11 @@ export function installMenuFocusNavigation(LegoHud) {
       if (!focusedEl) return;
       if (screen === 'pause-main') {
         if (focusedEl.id === 'btn-pause-open-settings') this._pauseReturnBladeId = 'btn-pause-open-settings';
+        if (focusedEl.id === 'btn-pause-heroes') this._pauseReturnBladeId = 'btn-pause-heroes';
         playMenuConfirmSound();
         return focusedEl.click?.();
       }
+      if (screen === 'pause-characters') return this.triggerCharacterStorePrimaryAction?.();
       if (screen === 'title-main' || screen === 'title-credits') { playMenuConfirmSound(); return focusedEl.click?.(); }
       if (screen === 'title-slots') {
         playMenuConfirmSound();
@@ -239,6 +247,7 @@ export function installMenuFocusNavigation(LegoHud) {
         this.setPauseMenuOpen?.(true, this._lastController);
         return this.openPauseMainView?.('btn-pause-switch-faction');
       }
+      if (screen === 'pause-characters') return this.openPauseMainView?.(this._pauseReturnBladeId || 'btn-pause-heroes');
       if (screen === 'settings') {
         if (this.isTitleScreenActive) {
           this.setPauseMenuOpen?.(false, this._lastController, true);
@@ -278,6 +287,35 @@ export function installMenuFocusNavigation(LegoHud) {
         else if (code === 'ArrowRight' || code === 'KeyD' || code === 'ArrowDown' || code === 'KeyS' || code === 'Tab') this.stepConfirmDialogFocus?.(1);
         else if ((code === 'Enter' || code === 'Space') && !e.repeat) this.acceptConfirmDialog?.();
         else if ((code === 'Escape' || code === 'Backspace') && !e.repeat) { this._lastPauseToggleTime = nowMs; this.cancelConfirmDialog?.(); }
+        return;
+      }
+
+      if (screen === 'pause-characters') {
+        if (code === 'KeyQ' || code === 'PageUp' || code === 'KeyE' || code === 'PageDown') {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          if (!e.repeat) this.stepCharacterStoreCategory?.(code === 'KeyQ' || code === 'PageUp' ? -1 : 1);
+          return;
+        }
+        if (code === 'ArrowLeft' || code === 'KeyA' || code === 'ArrowRight' || code === 'KeyD' || code === 'ArrowUp' || code === 'KeyW' || code === 'ArrowDown' || code === 'KeyS') {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          const dx = code === 'ArrowLeft' || code === 'KeyA' ? -1 : code === 'ArrowRight' || code === 'KeyD' ? 1 : 0;
+          const dy = code === 'ArrowUp' || code === 'KeyW' ? -1 : code === 'ArrowDown' || code === 'KeyS' ? 1 : 0;
+          this.stepCharacterStoreFocus?.(dx, dy);
+          return;
+        }
+        if (code === 'Enter' || code === 'Space') {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          if (!e.repeat) this.triggerCharacterStorePrimaryAction?.();
+          return;
+        }
+        if (code === 'Escape' || code === 'Backspace') {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          if (!e.repeat) this._handleMenuBackNavigation('pause-characters', nowMs);
+        }
         return;
       }
 
@@ -344,7 +382,12 @@ export function installMenuFocusNavigation(LegoHud) {
       if (screen === 'dialog') { this._setConfirmDialogFocusIndex?.(this._confirmFocusIdx ?? 0, false); return this.refreshMenuKeyHints(); }
       if (resetIndex || this._activeMenuContext !== screen) this._menuFocusIndex = 0;
       this._activeMenuContext = screen;
-      this._applyNavFocusToItems(this._getNavigableItems(screen), this._menuFocusIndex, false, false);
+      const items = this._getNavigableItems(screen);
+      if (screen === 'pause-characters' && this._selectedCharStoreKey) {
+        const foundIdx = items.findIndex((el) => el?.dataset?.charKey === this._selectedCharStoreKey);
+        if (foundIdx !== -1) this._menuFocusIndex = foundIdx;
+      }
+      this._applyNavFocusToItems(items, this._menuFocusIndex, false, false);
       this.refreshMenuKeyHints();
     },
 
@@ -352,7 +395,7 @@ export function installMenuFocusNavigation(LegoHud) {
       const barEl = this.menuKeyHintsBarEl || byId('menu-keyhints-bar');
       if (!barEl) return;
       const screen = this._resolveActiveMenuScreen();
-      if (!screen || screen === 'loading' || screen === 'pause-main' || screen === 'settings') { barEl.classList?.add('hidden'); return; }
+      if (!screen || screen === 'loading' || screen === 'pause-main' || screen === 'settings' || screen === 'pause-characters') { barEl.classList?.add('hidden'); return; }
       barEl.classList?.remove('hidden');
       const lang = this.settings?.language || 'pt-BR';
       const isEn = lang === 'en-US';

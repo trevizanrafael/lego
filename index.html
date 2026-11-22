@@ -12,7 +12,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=20261122a" />
+  <link rel="stylesheet" href="./style.css?v=20261122b" />
   <script type="importmap">
     {
       "imports": {
@@ -39,27 +39,8 @@
     </div>
   </div>
 
-  <!-- Overlay da Roda de Seleção de Personagem Estilo GTA V (Câmera Lenta + Filtro Tático + Giro em WASD) -->
-  <div id="hero-wheel-overlay" class="hidden">
-    <div class="wheel-scanlines"></div>
-    <div class="wheel-vignette"></div>
-    <div class="sat-reticle">
-      <div class="sat-corner sat-tl"></div>
-      <div class="sat-corner sat-tr"></div>
-      <div class="sat-corner sat-bl"></div>
-      <div class="sat-corner sat-br"></div>
-    </div>
-    <div class="hero-wheel-center-wrap">
-      <div class="wheel-top-tag">SELETOR TÁTICO DE OPERADOR // CÂMERA LENTA ATIVA</div>
-      <canvas id="hero-wheel-canvas" width="460" height="460"></canvas>
-      <div id="wheel-hero-info" class="wheel-hero-info">
-        <div id="wheel-hero-title" class="wheel-hero-title">COMANDANTE CAVEIRA</div>
-        <div id="wheel-hero-role" class="wheel-hero-role">OPERAÇÕES ESPECIAIS // BOPE</div>
-        <div id="wheel-hero-spec" class="wheel-hero-spec">Combate Tático Urbano, Explosivos de Impulso & Patrulha
-          Blindada</div>
-      </div>
-    </div>
-  </div>
+  <!-- Grade de Seleção de Personagens Estilo Jogos LEGO ([TAB] Toggle em Câmera Lenta 12%) -->
+  <div id="character-grid-overlay" class="character-grid-overlay hidden" role="dialog" aria-modal="true" aria-label="Grade de Personagens"></div>
 
   <!-- Mira Central Tática Estilo Valorant / Fortnite -->
   <div id="crosshair" data-hero="caveira">
@@ -465,14 +446,14 @@
           <nav id="pause-ingame-actions" class="pause-blades-col pause-actions-grid" aria-label="Menu de Pausa">
             <button type="button" id="btn-pause-resume" class="tactical-btn pause-blade-btn pause-main-btn" style="--blade-idx: 0">CONTINUAR</button>
             <button type="button" id="btn-pause-map" class="tactical-btn pause-blade-btn" style="--blade-idx: 1">MAPA</button>
-            <button type="button" id="btn-pause-heroes" class="tactical-btn pause-blade-btn" style="--blade-idx: 2">HERÓIS</button>
+            <button type="button" id="btn-pause-heroes" class="tactical-btn pause-blade-btn" style="--blade-idx: 2">PERSONAGENS</button>
             <button type="button" id="btn-pause-open-settings" class="tactical-btn pause-blade-btn" style="--blade-idx: 3">CONFIGURAÇÕES</button>
             <button type="button" id="btn-pause-save" class="tactical-btn pause-blade-btn" style="--blade-idx: 4">SALVAR JOGO</button>
             <button type="button" id="btn-pause-switch-faction" class="tactical-btn pause-blade-btn" style="--blade-idx: 5">TROCAR FACÇÃO</button>
             <button type="button" id="btn-pause-save-quit" class="tactical-btn pause-blade-btn pause-blade-danger danger-btn" style="--blade-idx: 6">SAIR PARA O MENU</button>
           </nav>
 
-          <div id="pause-hero-card" class="pause-hero-card" role="button" tabindex="-1" aria-label="Abrir dossiê e trocar herói">
+          <div id="pause-hero-card" class="pause-hero-card" role="button" tabindex="-1" aria-label="Abrir loja e vitrine de personagens">
             <div class="pause-hero-card-inner">
               <div class="pause-hero-portrait-wrap">
                 <canvas id="pause-hero-card-canvas" width="420" height="520"></canvas>
@@ -1078,7 +1059,7 @@
     <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
   </div>
 
-  <script type="module" src="./src/main.js?v=20261122a"></script>
+  <script type="module" src="./src/main.js?v=20261122b"></script>
 </body>
 
 </html>

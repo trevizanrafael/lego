@@ -123,7 +123,8 @@ export function installHudMapAndWheelBridge(LegoHud) {
       if (this.isFullMapOpen) {
         this._lastController?.resetHeldInputs?.();
         if (this.isDossierOpen) this.setHeroDossierOpen(false);
-        if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+        if (this.isCharacterGridOpen) this.setCharacterGridOpen?.(false, this._lastController, false);
+        else if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
         if (this.isTikTokRadioOpen) this.setTikTokRadioOpen(false);
         const promptEl = document.getElementById('pointer-prompt');
         if (promptEl) {

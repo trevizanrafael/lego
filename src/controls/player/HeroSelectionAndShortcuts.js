@@ -21,6 +21,9 @@ const CLASSIC_HERO_SWAP_COLORS = {
   turbo: 0x22d3ee,
   voltaico: 0x38bdf8,
   vortex: 0xa855f7,
+  boss_cv: 0xdc2626,
+  boss_pcc: 0x2563eb,
+  boss_ares: 0x9333ea,
   op09: 0x00f0ff
 };
 
@@ -253,6 +256,12 @@ export const heroSelectionAndShortcutsMethods = {
             this._triggerVoltaicoEmp();
           } else if (hero === 'vortex') {
             this._triggerVortexEruption();
+          } else if (hero === 'boss_cv') {
+            this._triggerBossCvBarrage();
+          } else if (hero === 'boss_pcc') {
+            this._throwCaveiraGrenade();
+          } else if (hero === 'boss_ares') {
+            this._triggerBossAresCollapse();
           } else if (hero === 'op09') {
             this.customHeroPowers?.triggerSuperAbility();
           }
@@ -288,6 +297,12 @@ export const heroSelectionAndShortcutsMethods = {
               this._triggerVoltaicoLightningBlink();
             } else if (hero === 'vortex') {
               this._toggleVortexMonsterForm();
+            } else if (hero === 'boss_cv') {
+              this._triggerBossCvWarCry();
+            } else if (hero === 'boss_pcc') {
+              this._triggerBossPccOvercharge();
+            } else if (hero === 'boss_ares') {
+              this._triggerTitaRocketPunch();
             } else if (hero === 'op09') {
               this.customHeroPowers?.triggerMobilityKey();
             }

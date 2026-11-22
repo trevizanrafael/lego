@@ -15,6 +15,10 @@ export function isOperatorPortraitKey(presetKey) {
   return OPERATOR_PORTRAIT_SET.has(presetKey);
 }
 
+export function isOperatorOrBossPortraitKey(presetKey) {
+  return OPERATOR_PORTRAIT_SET.has(presetKey);
+}
+
 const OPERATOR_THEMES = {
   cv_marretao: { rim: 'rgba(220, 38, 38, 0.68)', diag: 'rgba(220, 38, 38, 0.16)', aura: 'rgba(185, 28, 28, 0.22)', head: '#8c6239', headShade: '#5f3f22', torso: '#14171c' },
   cv_fogueteira: { rim: 'rgba(239, 68, 68, 0.66)', diag: 'rgba(185, 28, 28, 0.15)', aura: 'rgba(220, 38, 38, 0.2)', head: '#9c6b43', headShade: '#6e4728', torso: '#18181b' },
@@ -22,9 +26,9 @@ const OPERATOR_THEMES = {
   pcc_muralha: { rim: 'rgba(59, 130, 246, 0.66)', diag: 'rgba(29, 78, 216, 0.18)', aura: 'rgba(30, 64, 175, 0.24)', head: '#07090e', headShade: '#030407', torso: '#07090e' },
   ares_bastiao: { rim: 'rgba(168, 85, 247, 0.7)', diag: 'rgba(147, 51, 234, 0.18)', aura: 'rgba(126, 34, 206, 0.24)', head: '#475569', headShade: '#334155', torso: '#0d0a18' },
   ares_agulha: { rim: 'rgba(192, 132, 252, 0.7)', diag: 'rgba(168, 85, 247, 0.17)', aura: 'rgba(147, 51, 234, 0.22)', head: '#1e2436', headShade: '#0f1320', torso: '#090b14' },
-  boss_cv: { rim: 'rgba(239, 68, 68, 0.76)', diag: 'rgba(217, 155, 22, 0.18)', aura: 'rgba(185, 28, 28, 0.28)', head: '#855834', headShade: '#59371d', torso: '#1c080a' },
-  boss_pcc: { rim: 'rgba(56, 189, 248, 0.74)', diag: 'rgba(56, 189, 248, 0.18)', aura: 'rgba(29, 78, 216, 0.28)', head: '#1f2937', headShade: '#111827', torso: '#090e1a' },
-  boss_ares: { rim: 'rgba(192, 132, 252, 0.78)', diag: 'rgba(168, 85, 247, 0.2)', aura: 'rgba(126, 34, 206, 0.3)', head: '#334155', headShade: '#1e293b', torso: '#110b1f' }
+  boss_cv: { rim: 'rgba(239, 68, 68, 0.8)', diag: 'rgba(127, 29, 29, 0.24)', aura: 'rgba(127, 29, 29, 0.32)', head: '#855834', headShade: '#59371d', torso: '#090a0d' },
+  boss_pcc: { rim: 'rgba(59, 130, 246, 0.78)', diag: 'rgba(29, 78, 216, 0.22)', aura: 'rgba(29, 78, 216, 0.3)', head: '#070b14', headShade: '#04060c', torso: '#070b14' },
+  boss_ares: { rim: 'rgba(192, 132, 252, 0.82)', diag: 'rgba(147, 51, 234, 0.24)', aura: 'rgba(147, 51, 234, 0.34)', head: '#1e2436', headShade: '#111624', torso: '#1e2436' }
 };
 
 function fillBox(ctx, color, x, y, w, h) {
@@ -74,9 +78,10 @@ function _getCachedOperatorTile(presetKey) {
   return tileCanvas;
 }
 
-export function drawOperatorNoirPortrait(ctx, w, h, presetKey) {
+export function drawOperatorNoirPortrait(ctx, w, h, presetKey, opts = null) {
   if (!ctx) return;
-  const isSmallSquare = w <= 110 && h <= 110 && Math.abs(w - h) <= 4;
+  const foregroundOnly = Boolean(opts?.foregroundOnly);
+  const isSmallSquare = !foregroundOnly && w <= 110 && h <= 110 && Math.abs(w - h) <= 4;
   if (isSmallSquare && typeof ctx.drawImage === 'function') {
     const cached = _getCachedOperatorTile(presetKey);
     if (cached) {
@@ -85,54 +90,56 @@ export function drawOperatorNoirPortrait(ctx, w, h, presetKey) {
       return;
     }
   }
-  _renderOperatorPortraitDirect(ctx, w, h, presetKey);
+  _renderOperatorPortraitDirect(ctx, w, h, presetKey, foregroundOnly);
 }
 
-function _renderOperatorPortraitDirect(ctx, w, h, presetKey) {
+function _renderOperatorPortraitDirect(ctx, w, h, presetKey, foregroundOnly = false) {
   const theme = OPERATOR_THEMES[presetKey] || OPERATOR_THEMES.cv_marretao;
   const isTallCard = h > w * 1.08;
-  ctx.clearRect(0, 0, w, h);
-
-  if (typeof ctx.createLinearGradient === 'function') {
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-    bgGrad.addColorStop(0, '#04060a');
-    bgGrad.addColorStop(0.58, '#080c15');
-    bgGrad.addColorStop(1, '#0b101b');
-    ctx.fillStyle = bgGrad;
-  } else {
-    ctx.fillStyle = '#060911';
-  }
-  ctx.fillRect(0, 0, w, h);
+  ctx.clearRect?.(0, 0, w, h);
 
   const side = Math.min(w, h);
   const offsetX = (w - side) * 0.5;
   const offsetY = (h - side) * 0.44;
   const scale = side / 76;
 
-  if (typeof ctx.createRadialGradient === 'function') {
-    const auraGrad = ctx.createRadialGradient(w * 0.5, h * 0.46, side * 0.04, w * 0.5, h * 0.46, Math.max(w, h) * 0.58);
-    auraGrad.addColorStop(0, theme.aura);
-    auraGrad.addColorStop(1, 'rgba(4, 6, 10, 0)');
-    ctx.fillStyle = auraGrad;
+  if (!foregroundOnly) {
+    if (typeof ctx.createLinearGradient === 'function') {
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+      bgGrad.addColorStop(0, '#04060a');
+      bgGrad.addColorStop(0.58, '#080c15');
+      bgGrad.addColorStop(1, '#0b101b');
+      ctx.fillStyle = bgGrad;
+    } else {
+      ctx.fillStyle = '#060911';
+    }
     ctx.fillRect(0, 0, w, h);
+
+    if (typeof ctx.createRadialGradient === 'function') {
+      const auraGrad = ctx.createRadialGradient(w * 0.5, h * 0.46, side * 0.04, w * 0.5, h * 0.46, Math.max(w, h) * 0.58);
+      auraGrad.addColorStop(0, theme.aura);
+      auraGrad.addColorStop(1, 'rgba(4, 6, 10, 0)');
+      ctx.fillStyle = auraGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    ctx.strokeStyle = theme.diag;
+    ctx.lineWidth = Math.max(1, side * 0.022);
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.68);
+    ctx.lineTo(h * 0.68, 0);
+    ctx.moveTo(w * 0.18, h);
+    ctx.lineTo(w, h - w * 0.82);
+    ctx.moveTo(w * 0.56, h);
+    ctx.lineTo(w, h - w * 0.44);
+    ctx.stroke();
   }
 
-  ctx.strokeStyle = theme.diag;
-  ctx.lineWidth = Math.max(1, side * 0.022);
-  ctx.beginPath();
-  ctx.moveTo(0, h * 0.68);
-  ctx.lineTo(h * 0.68, 0);
-  ctx.moveTo(w * 0.18, h);
-  ctx.lineTo(w, h - w * 0.82);
-  ctx.moveTo(w * 0.56, h);
-  ctx.lineTo(w, h - w * 0.44);
-  ctx.stroke();
+  ctx.save?.();
+  ctx.translate?.(offsetX, offsetY);
+  ctx.scale?.(scale, scale);
 
-  ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
-
-  // Silhueta dorsal projetada atrás dos ombros (RPG / antena + morteiros / drone / canhões)
+  // Silhueta dorsal projetada atrás dos ombros (RPG / antena + morteiros / drone / capa / canhões)
   if (presetKey === 'cv_marretao') {
     fillPoly(ctx, '#36422e', [[52, 48], [64, 12], [69, 15], [58, 52]]);
     fillPoly(ctx, '#991b1b', [[62, 14], [69, 4], [71, 16]]);
@@ -153,11 +160,13 @@ function _renderOperatorPortraitDirect(ctx, w, h, presetKey) {
     ctx.beginPath();
     ctx.arc(58, 44, 7.5, 0, Math.PI * 2);
     ctx.stroke();
+  } else if (presetKey === 'boss_cv') {
+    fillPoly(ctx, '#140708', [[5, 76], [12, 46], [64, 46], [71, 76]]);
   } else if (presetKey === 'boss_ares') {
-    fillBox(ctx, '#475569', 10, 38, 7, 18);
-    fillBox(ctx, '#475569', 59, 38, 7, 18);
-    fillDisc(ctx, '#c084fc', 13.5, 38, 3.4);
-    fillDisc(ctx, '#c084fc', 62.5, 38, 3.4);
+    fillBox(ctx, '#334155', 8, 34, 8, 20);
+    fillBox(ctx, '#334155', 60, 34, 8, 20);
+    fillDisc(ctx, '#9333ea', 12, 34, 3.8);
+    fillDisc(ctx, '#9333ea', 64, 34, 3.8);
   }
 
   // Ombros / Torso Angular Studless + Pescoço + Cabeça Esculpida Studless
@@ -294,37 +303,45 @@ function _renderOperatorPortraitDirect(ctx, w, h, presetKey) {
     ctx.lineTo(44, 74);
     ctx.stroke();
   } else if (presetKey === 'boss_cv') {
-    ctx.fillStyle = '#b91c1c';
+    fillPoly(ctx, '#7f1d1d', [[6, 56], [22, 49], [24, 62], [8, 66]]);
+    fillPoly(ctx, '#7f1d1d', [[70, 56], [54, 49], [52, 62], [68, 66]]);
+    ctx.fillStyle = '#7f1d1d';
     ctx.beginPath();
-    ctx.ellipse(36, 14, 25, 8, -0.14, 0, Math.PI * 2);
+    ctx.ellipse(36, 13.5, 25.5, 8.2, -0.14, 0, Math.PI * 2);
     ctx.fill();
-    fillBox(ctx, '#d99b16', 18, 18.5, 38, 2.8);
-    fillBox(ctx, '#05070b', 20, 26, 16, 8);
-    fillBox(ctx, '#05070b', 40, 26, 16, 8);
-    fillBox(ctx, '#d99b16', 22, 27.5, 7, 2);
-    fillBox(ctx, '#d99b16', 42, 27.5, 7, 2);
-    fillRound(ctx, '#140c08', 21, 38.5, 34, 13, 4);
-    ctx.strokeStyle = '#d99b16';
-    ctx.lineWidth = 2.6;
-    ctx.beginPath();
-    ctx.arc(38, 54, 12, 0.15 * Math.PI, 0.85 * Math.PI);
-    ctx.arc(38, 58, 15, 0.15 * Math.PI, 0.85 * Math.PI);
-    ctx.stroke();
+    fillBox(ctx, '#090a0d', 17, 18, 42, 4);
+    fillPoly(ctx, '#d97706', [[38, 9], [42, 16], [38, 21], [34, 16]]);
+    fillBox(ctx, '#090a0d', 19, 25.5, 17, 8.5);
+    fillBox(ctx, '#090a0d', 40, 25.5, 17, 8.5);
+    fillBox(ctx, '#dc2626', 21, 27.5, 8.5, 2.4);
+    fillBox(ctx, '#dc2626', 42, 27.5, 8.5, 2.4);
+    fillRound(ctx, '#090a0d', 20.5, 38.5, 35, 13, 4);
+    fillBox(ctx, '#7f1d1d', 20, 53.5, 36, 19);
+    fillBox(ctx, '#dc2626', 34, 57, 8, 12);
   } else if (presetKey === 'boss_pcc') {
-    fillBox(ctx, '#38bdf8', 35, 7, 6, 10);
-    fillBox(ctx, '#090d16', 18, 25.5, 40, 11);
-    fillBox(ctx, '#38bdf8', 20, 28, 36, 6);
-    fillBox(ctx, '#e0f2fe', 24, 29.5, 28, 2.4);
-    fillBox(ctx, '#1f2937', 16, 54, 44, 20);
-    fillBox(ctx, '#38bdf8', 24, 61, 28, 4.5);
+    fillPoly(ctx, '#0f172a', [[7, 56], [22, 50], [24, 62], [9, 65]]);
+    fillPoly(ctx, '#0f172a', [[69, 56], [54, 50], [52, 62], [67, 65]]);
+    fillBox(ctx, '#1d4ed8', 17, 14, 42, 6);
+    fillBox(ctx, '#070b14', 18, 23, 40, 28);
+    fillBox(ctx, '#1d4ed8', 19.5, 26.5, 37, 8);
+    fillBox(ctx, '#38bdf8', 23, 28.5, 30, 3);
+    for (let gx = 26; gx <= 48; gx += 5.5) fillBox(ctx, '#1e293b', gx, 38.5, 2.8, 9);
+    fillPoly(ctx, '#1e293b', [[22, 52], [38, 68], [30, 52]]);
+    fillPoly(ctx, '#1e293b', [[54, 52], [38, 68], [46, 52]]);
+    fillPoly(ctx, '#1d4ed8', [[35, 53], [41, 53], [40, 74], [36, 74]]);
   } else if (presetKey === 'boss_ares') {
-    fillPoly(ctx, '#a855f7', [[18, 17], [11, 4], [24, 14]]);
-    fillPoly(ctx, '#a855f7', [[58, 17], [65, 4], [52, 14]]);
-    fillBox(ctx, '#070510', 18, 25, 40, 11);
-    fillBox(ctx, '#c084fc', 19.5, 27.5, 37, 6);
-    fillBox(ctx, '#faf5ff', 25, 29, 26, 2.5);
-    fillDisc(ctx, '#a855f7', 38, 64, 6.5);
-    fillDisc(ctx, '#faf5ff', 38, 64, 3.2);
+    fillPoly(ctx, '#1e2436', [[4, 55], [22, 48], [24, 66], [6, 70]]);
+    fillPoly(ctx, '#1e2436', [[72, 55], [54, 48], [52, 66], [70, 70]]);
+    fillBox(ctx, '#9333ea', 6, 54, 15, 3.2);
+    fillBox(ctx, '#9333ea', 55, 54, 15, 3.2);
+    fillPoly(ctx, '#9333ea', [[18, 18], [9, 2], [25, 14]]);
+    fillPoly(ctx, '#9333ea', [[58, 18], [67, 2], [51, 14]]);
+    fillBox(ctx, '#090b14', 18, 24.5, 40, 12);
+    fillBox(ctx, '#9333ea', 19.5, 27, 37, 7);
+    fillBox(ctx, '#f3e8ff', 24, 29, 28, 2.6);
+    fillBox(ctx, '#090b14', 23, 39, 30, 11);
+    fillPoly(ctx, '#9333ea', [[38, 56], [45, 62], [42, 71], [34, 71], [31, 62]]);
+    fillDisc(ctx, '#f3e8ff', 38, 63.5, 3.2);
   }
 
   ctx.strokeStyle = theme.rim;
@@ -337,7 +354,7 @@ function _renderOperatorPortraitDirect(ctx, w, h, presetKey) {
   ctx.lineTo(10.5, 56.5);
   ctx.lineTo(9, 73);
   ctx.stroke();
-  ctx.restore();
+  ctx.restore?.();
 
   // Extensão da silhueta inferior do colete tático para cards verticais (ex.: 420×520)
   if (isTallCard) {
@@ -380,7 +397,7 @@ function _renderOperatorPortraitDirect(ctx, w, h, presetKey) {
     ctx.stroke();
   }
 
-  if (typeof ctx.createLinearGradient === 'function') {
+  if (!foregroundOnly && typeof ctx.createLinearGradient === 'function') {
     const chiaro = ctx.createLinearGradient(0, 0, w, 0);
     chiaro.addColorStop(0, 'rgba(255, 255, 255, 0.03)');
     chiaro.addColorStop(0.45, 'rgba(4, 6, 10, 0)');

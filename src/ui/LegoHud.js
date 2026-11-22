@@ -7,10 +7,12 @@ import { installHudConstantsAndPortraits } from './hud/HudConstantsAndPortraits.
 import { installOperatorCombatAndVehicleHud } from './hud/OperatorCombatAndVehicleHud.js';
 import { installAbilityCooldownHud } from './hud/AbilityCooldownHud.js';
 import { installHudMapAndWheelBridge } from './hud/HudMapAndWheelBridge.js';
+import { installCharacterGridOverlay } from './character-grid/CharacterGridOverlay.js';
 import { installHudRadioModalBridge } from './hud/HudRadioModalBridge.js';
 import { installConfirmDialog } from './hud/ConfirmDialog.js';
 import { installMenuFocusNavigation } from './hud/MenuFocusNavigation.js';
 import { installPauseMenuController } from './hud/PauseMenuController.js';
+import { installCharacterStoreSubview } from './hud/CharacterStoreSubview.js';
 import { installSettingsScreenController } from './hud/SettingsScreenController.js';
 import { installTitleAndSaveSlotsController } from './hud/TitleAndSaveSlotsController.js';
 import { installPauseAndSettingsController } from './hud/PauseAndSettingsController.js';
@@ -27,8 +29,9 @@ export class LegoHud {
     this.maxHearts = 4;
     this.playerHp = 250;
     this.playerMaxHp = 250;
-    this.currentHeroKey = 'caveira';
+    this.currentHeroKey = 'cv_marretao';
     this.playerFaction = 'cv';
+    this.unlockedExtras = [];
     this.activeSaveSlot = 0;
     this.pendingSlotIndex = 0;
     this.sessionPlayTimeSec = 0;
@@ -99,13 +102,11 @@ export class LegoHud {
     this.dossierModalEl = document.getElementById('hero-dossier-modal');
     this.dossierCloseBtn = document.getElementById('dossier-close-btn');
     this.isDossierOpen = false;
-    this.wheelOverlayEl = document.getElementById('hero-wheel-overlay');
-    this.wheelCanvasEl = document.getElementById('hero-wheel-canvas');
-    this.wheelTitleEl = document.getElementById('wheel-hero-title');
-    this.wheelRoleEl = document.getElementById('wheel-hero-role');
-    this.wheelSpecEl = document.getElementById('wheel-hero-spec');
+    this.characterGridOverlayEl = document.getElementById('character-grid-overlay');
+    this.isCharacterGridOpen = false;
     this.isHeroWheelOpen = false;
-    this.wheelSelectedHeroKey = 'caveira';
+    this.gridSelectedCharKey = 'cv_marretao';
+    this.wheelSelectedHeroKey = 'cv_marretao';
 
     this.regionToastEl = document.getElementById('region-toast');
     this.regionToastCodeEl = document.getElementById('region-toast-code');
@@ -154,10 +155,11 @@ export class LegoHud {
     this._initHearts();
     this._initSpeedometerBars();
     this._initAbilityCooldownHud?.();
+    this._ensureCharacterGridDom?.();
     this._initTikTokRadioModal();
     this._initTitleScreenAndPauseMenu();
-    this.setCharacterPortrait('caveira', 'COMANDANTE CAVEIRA');
-    this.setPlayerHealth(250, 250, false);
+    this.setCharacterPortrait('cv_marretao', 'MARRETÃO');
+    this.setPlayerHealth(380, 380, false);
     this.setPlayerFaction(this.playerFaction);
   }
 
@@ -190,10 +192,12 @@ installHudConstantsAndPortraits(LegoHud);
 installOperatorCombatAndVehicleHud(LegoHud);
 installAbilityCooldownHud(LegoHud);
 installHudMapAndWheelBridge(LegoHud);
+installCharacterGridOverlay(LegoHud);
 installHudRadioModalBridge(LegoHud);
 installConfirmDialog(LegoHud);
 installMenuFocusNavigation(LegoHud);
 installPauseMenuController(LegoHud);
+installCharacterStoreSubview(LegoHud);
 installSettingsScreenController(LegoHud);
 installTitleAndSaveSlotsController(LegoHud);
 installPauseAndSettingsController(LegoHud);

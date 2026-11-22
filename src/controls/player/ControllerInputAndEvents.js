@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { isFactionOperatorKey } from '../../entities/operators/OperatorCatalog.js';
+import {
+  isFactionOperatorKey,
+  getFactionPairOperators
+} from '../../entities/operators/OperatorCatalog.js';
 
 export const controllerInputAndEventsMethods = {
   _bindEvents() {
@@ -12,7 +15,7 @@ export const controllerInputAndEventsMethods = {
         this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen ||
         this.hud?.isCreatorOpen || this.hud?.isCustomsOpen ||
         this.hud?.isAircraftStudioOpen || this.hud?.isTikTokRadioOpen ||
-        this.hud?.isCharacterGridOpen
+        this.hud?.isCharacterGridOpen || this.hud?.isHeroWheelOpen
       ) {
         return;
       }
@@ -21,11 +24,6 @@ export const controllerInputAndEventsMethods = {
       const promptEl = document.getElementById('pointer-prompt');
       const promptWasVisible = Boolean(promptEl?.classList?.contains?.('visible'));
       if (promptEl) promptEl.classList.remove('visible');
-
-      if (this.hud?.isHeroWheelOpen) {
-        if (e.button === 0) this.hud.setHeroWheelOpen(false, this, true);
-        return;
-      }
 
       if (!document.pointerLockElement && this.domElement.requestPointerLock) {
         this.relockPointer();
@@ -334,32 +332,51 @@ export const controllerInputAndEventsMethods = {
       return;
     }
 
-    if (this.hud?.isHeroWheelOpen) {
+    if (this.hud?.isCharacterGridOpen || this.hud?.isHeroWheelOpen) {
+      const closeGrid = (confirm = false) => {
+        if (typeof this.hud.setCharacterGridOpen === 'function') this.hud.setCharacterGridOpen(false, this, confirm);
+        else this.hud.setHeroWheelOpen?.(false, this, confirm);
+      };
+      const stepGrid = (dx, dy) => {
+        if (typeof this.hud.stepCharacterGridSelection === 'function') this.hud.stepCharacterGridSelection(dx, dy);
+        else this.hud.stepHeroWheelSelection?.(dx || dy);
+      };
       if (e.code === 'Tab') {
-        e.preventDefault();
-        if (isDown && !e.repeat) {
-          this.hud.setHeroWheelOpen(false, this, true);
-        } else if (!isDown) {
-          const heldMs = nowMs - (this._tabOpenTimestamp || 0);
-          if (heldMs > 220) this.hud.setHeroWheelOpen(false, this, true);
+        e.preventDefault?.();
+        if (isDown && !e.repeat) closeGrid(false);
+        return;
+      }
+      if (!isDown || e.repeat) return;
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault?.(); return void stepGrid(-1, 0); }
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault?.(); return void stepGrid(1, 0); }
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault?.(); return void stepGrid(0, -1); }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault?.(); return void stepGrid(0, 1); }
+      if (e.code === 'Digit1' || e.code === 'Digit2') {
+        e.preventDefault?.();
+        const slotIdx = e.code === 'Digit1' ? 0 : 1;
+        const pairKey = this.hud._gridNavMatrix?.[0]?.[slotIdx];
+        if (pairKey && typeof this.hud.confirmCharacterGridSelection === 'function') {
+          this.hud.confirmCharacterGridSelection(pairKey);
+        } else {
+          const activeFaction = this.hud?.playerFaction || this.world?.livingCity?.playerFaction || 'cv';
+          const pair = getFactionPairOperators(activeFaction);
+          if (pair?.[slotIdx]) this.switchToHero(pair[slotIdx].key);
+          closeGrid(false);
         }
         return;
       }
-      if (isDown && !e.repeat) {
-        if (e.code === 'KeyD' || e.code === 'ArrowRight' || e.code === 'KeyW' || e.code === 'ArrowUp') {
-          this.hud.stepHeroWheelSelection(1);
-          return;
-        }
-        if (e.code === 'KeyA' || e.code === 'ArrowLeft' || e.code === 'KeyS' || e.code === 'ArrowDown') {
-          this.hud.stepHeroWheelSelection(-1);
-          return;
-        }
-        if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
-          if (e.code === 'Escape') this.hud._lastPauseToggleTime = nowMs;
-          this.hud.setHeroWheelOpen(false, this, true);
-          return;
-        }
+      if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+        e.preventDefault?.();
+        if (typeof this.hud.confirmCharacterGridSelection === 'function') this.hud.confirmCharacterGridSelection();
+        else closeGrid(true);
+        return;
       }
+      if (e.code === 'Escape') {
+        e.preventDefault?.();
+        this.hud._lastPauseToggleTime = nowMs;
+        closeGrid(false);
+      }
+      return;
     }
 
     switch (e.code) {
@@ -376,7 +393,7 @@ export const controllerInputAndEventsMethods = {
             this.hud.setFullMapOpen(false, this.world, this);
           } else if (this.hud?.isHeroWheelOpen) {
             this.hud._lastPauseToggleTime = nowMs;
-            this.hud.setHeroWheelOpen(false, this, true);
+            this.hud.setHeroWheelOpen(false, this, false);
           } else if (this.hud && pauseToggleReady) {
             this.hud.setPauseMenuOpen(!this.hud.isPauseMenuOpen, this);
           }
@@ -423,11 +440,16 @@ export const controllerInputAndEventsMethods = {
         }
         break;
       case 'Tab':
-        e.preventDefault();
+        e.preventDefault?.();
         if (isDown && !e.repeat) {
           if (this.hud) {
-            this._tabOpenTimestamp = performance.now();
-            this.hud.setHeroWheelOpen(true, this);
+            if (typeof this.hud.toggleCharacterGrid === 'function') {
+              this.hud.toggleCharacterGrid(this);
+            } else if (typeof this.hud.setCharacterGridOpen === 'function') {
+              this.hud.setCharacterGridOpen(!this.hud.isCharacterGridOpen, this, false);
+            } else {
+              this.hud.setHeroWheelOpen(!this.hud.isHeroWheelOpen, this, false);
+            }
           } else {
             this.toggleHero();
           }

@@ -31,6 +31,7 @@ export function installPauseAndSettingsController(LegoHud) {
     _initTitleScreenAndPauseMenu() {
       this._initTitleAndLoadingDom?.();
       this._initPauseMenuDom?.();
+      this._ensureCharacterStoreDom?.();
       this._initSettingsTabsDom?.();
       this._initFavelaBackgroundCanvas?.();
       soundFX.setVolumes({
@@ -89,7 +90,8 @@ export function installPauseAndSettingsController(LegoHud) {
         this._lastController?.resetHeldInputs?.();
         if (this.isFullMapOpen) this.setFullMapOpen(false);
         if (this.isDossierOpen) this.setHeroDossierOpen(false);
-        if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
+        if (this.isCharacterGridOpen) this.setCharacterGridOpen?.(false, this._lastController, false);
+        else if (this.isHeroWheelOpen) this.setHeroWheelOpen(false);
         if (this.isTikTokRadioOpen) this.setTikTokRadioOpen(false);
         if (this.isRadioWheelOpen) this.setRadioWheelOpen?.(false, this._lastController);
         this._refreshLanguageAndOptionsUI();
@@ -107,6 +109,7 @@ export function installPauseAndSettingsController(LegoHud) {
         }
       } else {
         this.settingsSubviewEl?.classList?.add('hidden');
+        this.charactersSubviewEl?.classList?.add('hidden');
         this.pauseModalEl?.classList?.remove('pause-anim-in');
         document.body?.classList?.remove('is-paused', 'game-paused', 'settings-over-title');
         if (!this.isTitleScreenActive && !this.isLoadingActive && !keepTitleState) {
@@ -144,6 +147,9 @@ export function installPauseAndSettingsController(LegoHud) {
       this._refreshTitleLanguageUI?.();
       this._refreshPauseMenuLabels?.();
       this._refreshSettingsTabsUI?.();
+      if (this.charactersSubviewEl && !this.charactersSubviewEl.classList?.contains('hidden')) {
+        this._refreshCharacterStoreUI?.(false);
+      }
       if (this.isPauseMenuOpen && !this.isTitleScreenActive) this._updatePauseContextPanel?.();
       this.refreshMenuKeyHints?.();
     }
