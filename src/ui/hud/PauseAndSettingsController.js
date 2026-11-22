@@ -87,6 +87,7 @@ export function installPauseAndSettingsController(LegoHud) {
       this.pauseModalEl?.classList?.toggle('hidden', !this.isPauseMenuOpen);
 
       if (this.isPauseMenuOpen) {
+        soundFX.stopPursuitAudio?.();
         this._lastController?.resetHeldInputs?.();
         if (this.isFullMapOpen) this.setFullMapOpen(false);
         if (this.isDossierOpen) this.setHeroDossierOpen(false);

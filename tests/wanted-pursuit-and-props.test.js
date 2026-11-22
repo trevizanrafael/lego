@@ -151,21 +151,13 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
     );
     assert.equal(hasHeavyBope, true, '4★ despacha Caveirão Blindado / Picape de Choque');
 
-    // 5 ESTRELAS (Divisão Especial "CAÇADORES ANTI-HERÓI": Blindados, Drones, Exoesqueletos, Redes & Mísseis!)
+    // 5 ESTRELAS (FORÇA MÁXIMA REALISTA: BOPE + até 2 Helicópteros Águia, sem Exo-Drones sci-fi!)
     ws.setWantedStars(5);
     ws._spawnPursuitVehicle(controller.position);
-    ws._spawnHunterDrone(controller.position);
-    const exo = ws._spawnFootTrooper({ x: 8, y: 0.4, z: -172 }, 5);
-    assert.ok(ws.hunterDrones.length >= 1, '5★ despacha Drones Rápidos Caçadores');
-    assert.equal(exo.isExo, true, '5★ despacha Exoesqueleto Caçador de Super-Humanos');
-
-    // Dispara Rede Energética e Míssil Teleguiado
-    ws._spawnPursuitProjectile(new THREE.Vector3(0, 1.5, -174), new THREE.Vector3(0, 1.2, -172), 'energy_net');
-    ws._spawnPursuitProjectile(new THREE.Vector3(0, 4.5, -195), new THREE.Vector3(0, 1.2, -172), 'missile');
-    for (let step = 0; step < 8; step++) {
-      ws.update(0.05, new THREE.Vector3(0, 0.5, -172), controller);
-    }
-    assert.ok(controller.energyNetSlowTimer > 0, 'Rede energética dos Caçadores Anti-Herói desacelera temporariamente');
+    const bopeElite = ws._spawnFootTrooper({ x: 8, y: 0.4, z: -172 }, 5);
+    assert.equal(ws.hunterDrones.length, 0, '5★ realista não despacha mais drones sci-fi');
+    assert.ok(ws.policeHelicopters.length >= 2, '5★ despacha até 2 Helicópteros Águia das bases');
+    assert.equal(bopeElite.faction, 'bope', '5★ despacha tropa tática de elite do BOPE');
 
     // Radar renderiza viaturas, bloqueios e Águia sem erros
     const reg = world.getRegionAt(0, 0.5, -172);
@@ -175,7 +167,7 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
   it('3. Mecânicas Reais de Fuga (Túnel do Metrô, Embaixo de Viaduto, Pintura na LEGO Customs) + Regeneração 6s e "DETIDO"', () => {
     const ws = world.livingCity.wantedSystem;
 
-    // A) TRUQUE 1 + COOLDOWN DE 18s: Entrar nos Túneis Subterrâneos do Metrô corta visão do Águia na hora!
+    // A) TRUQUE 1 + COOLDOWN DE 55s EM 3★ (GTA V): Entrar nos Túneis Subterrâneos do Metrô corta visão do Águia na hora!
     ws.clearWanted('reset');
     ws.setWantedStars(3);
     ws._spawnEagleHelicopter(new THREE.Vector3(0, 0.5, -100));
@@ -186,9 +178,9 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
     assert.equal(hud.wantedPanelEl.classList.contains('escaping-mode'), true);
 
     const studsBeforeEscape = hud.totalStuds;
-    // Mantém-se fora de visão pelos 18 segundos completos!
-    ws.update(18.0, undergroundPos, controller);
-    assert.equal(ws.stars, 0, 'Após 18s sem visão, despista a polícia para 0 Estrelas!');
+    // Mantém-se fora de visão pelos 55 segundos completos de 3★!
+    ws.update(55.0, undergroundPos, controller);
+    assert.equal(ws.stars, 0, 'Após 55s sem visão em 3★, despista a polícia para 0 Estrelas!');
     assert.ok(hud.totalStuds > studsBeforeEscape, 'Recebe Bônus de Studs de Fuga Perfeita!');
     assert.equal(hud.wantedPanelEl.classList.contains('hidden'), true);
 
@@ -271,20 +263,19 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
       destructibles.damageObject(streetTargets[idx], 999, streetTargets[idx].basePos);
       idx++;
     }
-    assert.equal(ws.stars, 5, 'Combo de destruição de objetos de rua escala até 5★ (Caçadores Anti-Herói)');
+    assert.equal(ws.stars, 5, 'Combo de destruição de objetos de rua escala até 5★ (Força Máxima)');
     assert.ok(ws.eagleHeli, 'Helicóptero Águia presente na escalada imediata');
-    assert.ok(ws.hunterDrones.length >= 1, 'Drones Caçadores presentes no Frame 0 de 5★');
+    assert.ok(ws.policeHelicopters.length >= 2, 'Até 2 Helicópteros Águia ativos em 5★');
 
-    // Reposicionamento automático de viatura policial presa (stuckTimer > 2.2s)
+    // Manobra local de destravamento sem teletransporte injusto quando stuckTimer > 2.8s
     const pv = ws.pursuitVehicles.find((v) => !v.carObj.destroyed && !v.retreating) || ws._spawnPursuitVehicle(controller.position);
-    pv.stuckTimer = 2.5;
-    const oldX = pv.carObj.mesh.position.x;
-    const oldZ = pv.carObj.mesh.position.z;
+    pv.carObj.mesh.position.set(controller.position.x + 190, 0.4, controller.position.z);
+    pv.stuckTimer = 3.0;
     ws.update(0.1, controller.position, controller);
-    assert.equal(pv.stuckTimer, 0, 'Viatura policial presa reseta stuckTimer e reposiciona na avenida');
+    assert.equal(pv.stuckTimer, 0, 'Viatura policial presa destrava localmente e reseta stuckTimer');
     assert.ok(
-      Math.hypot(pv.carObj.mesh.position.x - oldX, pv.carObj.mesh.position.z - oldZ) > 1.0,
-      'Viatura policial presa foi reposicionada para continuar a perseguição'
+      Math.hypot(pv.carObj.mesh.position.x - controller.position.x, pv.carObj.mesh.position.z - controller.position.z) > 150,
+      'Viatura que ficou longe NUNCA teletransporta para perto do jogador'
     );
 
     ws.clearWanted('reset');

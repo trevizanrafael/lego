@@ -112,6 +112,7 @@ export const heroSelectionAndShortcutsMethods = {
 
     this.operatorWeapons?.onCharacterSwitched?.(heroKey);
     this.operatorAbilities?.onCharacterSwitched?.(heroKey);
+    this.world?.livingCity?.wantedSystem?.notifyPlayerOperatorSwapped?.(heroKey);
   },
 
   toggleHero() {

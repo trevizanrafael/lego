@@ -17,7 +17,7 @@ export const WANTED_TIER_INFO = {
   2: { stars: 2, label: 'CERCO URBANO', division: 'INTERCEPTOR V8 // PIT' },
   3: { stars: 3, label: 'BLOQUEIO & ÁGUIA', division: 'GRUPAMENTO AÉREO ÁGUIA' },
   4: { stars: 4, label: 'CHOQUE PESADO', division: 'BOPE // CAVEIRÃO BLINDADO' },
-  5: { stars: 5, label: 'CAÇADORES ANTI-HERÓI', division: 'DIVISÃO ESPECIAL // EXO-DRONES' }
+  5: { stars: 5, label: 'FORÇA MÁXIMA', division: 'EXÉRCITO // BOPE • ÁGUIA • TANQUES' }
 };
 
 let SHARED_PURSUIT_GEOS = null;

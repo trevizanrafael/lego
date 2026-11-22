@@ -38,6 +38,10 @@ import {
   playSniperBoltShotSfx,
   playScopeZoomClickSfx
 } from './sfx/CombatAndUiSoundEffects.js';
+import {
+  updatePursuitSirenAndRotorAudio,
+  stopPursuitSirenAndRotorAudio
+} from './sfx/PoliceSirenAndRotorAudio.js';
 
 /**
  * Fachada fina do sintetizador de efeitos sonoros estilo LEGO via Web Audio API (zero dependências externas).
@@ -48,7 +52,7 @@ class SoundFX {
     initSoundFXState(this);
   }
 
-  // Núcleo WebAudio, Barramentos de Ganho e Loops Contínuos / Veículos / Metrô
+  // Núcleo WebAudio, Barramentos de Ganho e Loops Contínuos / Veículos / Metrô / Perseguição
   _ensureContext() { return ensureWebAudioContext(this); }
   _applyBusVolumes() { return applySoundBusVolumes(this); }
   setVolumes(opts = {}) { return setSoundVolumes(this, opts); }
@@ -60,6 +64,8 @@ class SoundFX {
   stopWarMusic() { return stopWarMusicLoop(this); }
   setBossMusicIntensity(active) { return setBossMusicIntensityState(this, active); }
   updateBaileSpatialProximity(distanceMeters, dt = 0.016) { return updateBaileSpatialProximityLoop(this, distanceMeters, dt); }
+  updatePursuitAudio(payload = {}) { return updatePursuitSirenAndRotorAudio(this, payload); }
+  stopPursuitAudio() { return stopPursuitSirenAndRotorAudio(this); }
   setAmbienceContext(meta = {}) { return this.urbanAmbience?.setContext(meta); }
   setAmbienceRegion(regionId) { return this.urbanAmbience?.setRegion(regionId); }
 
