@@ -5,6 +5,7 @@ import { AircraftCustomStudio } from '../world/AircraftCustomGarage.js';
 import { loadGameSettings } from './FactionIconsAndSaveSystem.js';
 import { installHudConstantsAndPortraits } from './hud/HudConstantsAndPortraits.js';
 import { installOperatorCombatAndVehicleHud } from './hud/OperatorCombatAndVehicleHud.js';
+import { installAbilityCooldownHud } from './hud/AbilityCooldownHud.js';
 import { installHudMapAndWheelBridge } from './hud/HudMapAndWheelBridge.js';
 import { installHudRadioModalBridge } from './hud/HudRadioModalBridge.js';
 import { installConfirmDialog } from './hud/ConfirmDialog.js';
@@ -152,6 +153,7 @@ export class LegoHud {
     this._tiktokToastTimeout = null;
     this._initHearts();
     this._initSpeedometerBars();
+    this._initAbilityCooldownHud?.();
     this._initTikTokRadioModal();
     this._initTitleScreenAndPauseMenu();
     this.setCharacterPortrait('caveira', 'COMANDANTE CAVEIRA');
@@ -186,6 +188,7 @@ export class LegoHud {
 
 installHudConstantsAndPortraits(LegoHud);
 installOperatorCombatAndVehicleHud(LegoHud);
+installAbilityCooldownHud(LegoHud);
 installHudMapAndWheelBridge(LegoHud);
 installHudRadioModalBridge(LegoHud);
 installConfirmDialog(LegoHud);

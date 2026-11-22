@@ -1,4 +1,7 @@
 import { getOp09CatalogEntry, drawOp09Portrait2D } from '../../entities/CustomHeroSystem.js';
+import { isOperatorPortraitKey, drawOperatorNoirPortrait } from './OperatorPortraitsPainter.js';
+import { isFactionOperatorKey, getOperatorSpec } from '../../entities/operators/OperatorCatalog.js';
+import { formatRoleTitle } from '../../entities/operators/RoleBaselines.js';
 
 /**
  * Metadados oficiais dos Operadores Jogáveis para a Roda Tática [TAB] e Ficha Individual [H].
@@ -140,7 +143,31 @@ export function syncOp09CatalogSlot() {
   return HERO_CATALOG[8];
 }
 
+const FACTION_ACCENTS = { cv: '#dc2626', pcc: '#3b82f6', ares: '#a855f7' };
+
 export function getHeroInfo(heroKey) {
+  if (isFactionOperatorKey(heroKey)) {
+    const op = getOperatorSpec(heroKey);
+    const rolePt = formatRoleTitle(op.roles, 'pt-BR').toUpperCase();
+    const roleEn = formatRoleTitle(op.roles, 'en-US').toUpperCase();
+    return {
+      key: op.key,
+      opCode: op.faction.toUpperCase(),
+      shortName: op.name,
+      name: op.name,
+      cleanName: op.name,
+      role: rolePt,
+      cleanRole: { 'pt-BR': rolePt, 'en-US': roleEn },
+      accent: FACTION_ACCENTS[op.faction] || '#c28e2b',
+      icon: 'crosshair',
+      specialty: `${op.abilities.q.name['pt-BR']} [Q] • ${op.abilities.e.name['pt-BR']} [E]`,
+      passive: rolePt,
+      controls: [
+        { key: 'Q', title: op.abilities.q.name['pt-BR'].toUpperCase(), desc: op.abilities.q.desc?.['pt-BR'] || '' },
+        { key: 'E', title: op.abilities.e.name['pt-BR'].toUpperCase(), desc: op.abilities.e.desc?.['pt-BR'] || '' }
+      ]
+    };
+  }
   syncOp09CatalogSlot();
   return HERO_CATALOG.find((h) => h.key === heroKey) || HERO_CATALOG[0];
 }
@@ -276,6 +303,10 @@ function _getCachedPortraitTile(presetKey) {
  * Desenha o retrato 2D Gotham Noir (studless, chiaroscuro e rim-light) de qualquer operador
  */
 export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
+  if (isOperatorPortraitKey(presetKey)) {
+    drawOperatorNoirPortrait(ctx, w, h, presetKey);
+    return;
+  }
   const isSmallSquare = w <= 110 && h <= 110 && Math.abs(w - h) <= 4;
 
   if (presetKey === 'op09') {

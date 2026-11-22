@@ -24,6 +24,12 @@ import { attachSombraHoodHeadgear } from './outfits/SombraShinobiOutfit.js';
 import { attachTurboSkullHeadgear } from './outfits/TurboGhostRiderOutfit.js';
 import { attachVoltaicoCrownHeadgear } from './outfits/VoltaicoStormlordOutfit.js';
 import { attachVortexSymbioteHeadgear } from './outfits/VortexSymbioteOutfit.js';
+import { attachCvMarretaoHeadgear } from './outfits/CvMarretaoOutfit.js';
+import { attachCvFogueteiraHeadgear } from './outfits/CvFogueteiraOutfit.js';
+import { attachPccContadorHeadgear } from './outfits/PccContadorOutfit.js';
+import { attachPccMuralhaHeadgear } from './outfits/PccMuralhaOutfit.js';
+import { attachAresBastiaoHeadgear } from './outfits/AresBastiaoOutfit.js';
+import { attachAresAgulhaHeadgear } from './outfits/AresAgulhaOutfit.js';
 
 /**
  * Cria a geometria trapezoidal clássica do tronco de uma Minifigura LEGO
@@ -66,6 +72,18 @@ function attachHeroHeadgear(minifig, headgearKey) {
     attachVoltaicoCrownHeadgear(minifig);
   } else if (headgearKey === 'symbiote_crest') {
     attachVortexSymbioteHeadgear(minifig);
+  } else if (headgearKey === 'cv_marretao_cap') {
+    attachCvMarretaoHeadgear(minifig);
+  } else if (headgearKey === 'cv_fogueteira_visor') {
+    attachCvFogueteiraHeadgear(minifig);
+  } else if (headgearKey === 'pcc_contador_balaclava') {
+    attachPccContadorHeadgear(minifig);
+  } else if (headgearKey === 'pcc_muralha_helmet') {
+    attachPccMuralhaHeadgear(minifig);
+  } else if (headgearKey === 'ares_bastiao_helmet') {
+    attachAresBastiaoHeadgear(minifig);
+  } else if (headgearKey === 'ares_agulha_visor') {
+    attachAresAgulhaHeadgear(minifig);
   }
 }
 
@@ -407,6 +425,18 @@ export const baseRigMethods = {
       this._attachVoltaicoTeslaRig(this.leftHandGroup, this.rightHandGroup);
     } else if (preset.weapon === 'vortex_tentacles') {
       this._attachVortexSymbioteRig(this.leftHandGroup, this.rightHandGroup);
+    } else if (preset.weapon === 'cv_lmg') {
+      this._attachCvMarretaoRig();
+    } else if (preset.weapon === 'cv_pistol') {
+      this._attachCvFogueteiraRig();
+    } else if (preset.weapon === 'pcc_dmr') {
+      this._attachPccContadorRig();
+    } else if (preset.weapon === 'pcc_shotgun12') {
+      this._attachPccMuralhaRig();
+    } else if (preset.weapon === 'ares_pulse_minigun') {
+      this._attachAresBastiaoRig();
+    } else if (preset.weapon === 'ares_charge_rifle') {
+      this._attachAresAgulhaRig();
     }
 
     if (preset.fireAura) {

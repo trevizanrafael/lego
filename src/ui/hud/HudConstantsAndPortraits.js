@@ -65,6 +65,7 @@ export function installHudConstantsAndPortraits(LegoHud) {
         drawHeroLegoPortrait(ctx, this.portraitCanvas.width, this.portraitCanvas.height, presetKey);
       }
       this.updateVingadorWeaponHud();
+      this.configureAbilityHudForCharacter?.(presetKey);
       if (this.isDossierOpen) {
         renderHeroDossierModal(this, presetKey);
       }
@@ -101,6 +102,7 @@ export function installHudConstantsAndPortraits(LegoHud) {
     setPlayerFaction(factionKey = 'cv', notifyWorld = true, conqueredTerritories = null) {
       const fData = FACTION_DATA[factionKey] || FACTION_DATA.cv;
       this.playerFaction = fData.id;
+      this.configureAbilityHudForCharacter?.(this.currentHeroKey || 'caveira');
       if (notifyWorld && typeof this.onSelectFaction === 'function' && !this._isSyncingFaction) {
         this._isSyncingFaction = true;
         try {
