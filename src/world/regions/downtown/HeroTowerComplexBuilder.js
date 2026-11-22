@@ -792,7 +792,7 @@ export function buildHeroTowerComplex(world) {
     depth: 0.36,
     rotY: Math.PI / 2,
     title: 'CRIADOR BIO-GENÉTICO // OP-09',
-    subText: 'APERTE [E] NO CONSOLE PARA CUSTOMIZAR HERÓI E PODERES',
+    subText: 'APERTE [F] NO CONSOLE PARA CUSTOMIZAR HERÓI E PODERES',
     bgColor: '#090a0d',
     borderColor: '#facc15',
     topStripeColor: '#00f0ff',

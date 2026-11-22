@@ -7,6 +7,8 @@ import {
   FACTION_DATA, UI_TEXTS, getFactionLogoSvg, loadAllSaveSlots, writeSaveSlot,
   deleteSaveSlot, findMostRecentSaveSlot, formatRelativeSaveDate, computeSlotProgressPct
 } from '../FactionIconsAndSaveSystem.js';
+import { getDefaultHybridOperatorKey, getOperatorSpec, resolveCombatantSheet } from '../../entities/operators/OperatorCatalog.js';
+import { migrateSaveSlotRoster, resolveFactionSwitchRoster } from '../../progression/RosterAndUnlocks.js';
 import { definePrototypeMethods } from './HudConstantsAndPortraits.js';
 import { installConfirmDialog, playMenuConfirmSound, playMenuBackSound } from './ConfirmDialog.js';
 
@@ -21,10 +23,14 @@ function renderSaveSlotCard(s, idx, mode, lang, t) {
     const act = isLoad ? '' : `<div class="slot-actions-row"><button type="button" class="tactical-btn" data-slot-action="start-new" data-slot="${idx}">${t.startSlotBtn}</button></div>`;
     return `<div class="save-slot-card empty-slot-card${isLoad ? ' slot-disabled' : ''}" data-slot-index="${idx}"><span class="slot-ghost-num">${slotNum}</span><span class="slot-empty-title">${t.emptySlot}</span>${act}</div>`;
   }
-  const heroKey = s.heroKey || 'caveira';
-  const heroDisplayName = heroKey === 'op09' ? (s.customHero?.isCreated ? s.customHero.name : getHeroInfo('op09').name) : getHeroInfo(heroKey).name;
   const fKey = FACTION_DATA[s.faction] ? s.faction : 'cv';
   const fData = FACTION_DATA[fKey];
+  const heroKey = s.operatorKey || s.heroKey || getDefaultHybridOperatorKey(fKey);
+  const opSpec = getOperatorSpec(heroKey);
+  const heroInfoObj = typeof getHeroInfo === 'function' ? getHeroInfo(heroKey) : null;
+  const heroDisplayName = heroKey === 'op09'
+    ? (s.customHero?.isCreated ? s.customHero.name : (heroInfoObj?.name || 'OP-09'))
+    : (opSpec ? (opSpec.displayName?.[lang] || opSpec.name) : (heroInfoObj?.name || heroKey));
   const conqCount = Math.min(3, Array.isArray(s.conqueredTerritories) ? new Set([fKey, ...s.conqueredTerritories.filter(Boolean)]).size : 1);
   const actType = mode === 'new' ? 'start-new' : 'load';
   const actLabel = mode === 'new' ? t.overwriteSlotBtn : t.loadSlotBtn;
@@ -272,7 +278,23 @@ export function installTitleAndSaveSlotsController(LegoHud) {
       this.factionCardsGridEl.innerHTML = ['cv', 'pcc', 'ares'].map((fKey) => renderFactionCard(fKey, lang, t)).join('');
 
       const applyIngameFactionSwitch = (chosenFaction) => {
+        const currentOpKey = this.currentHeroKey || this._lastController?.minifigure?.currentHeroKey;
+        const nextRoster = resolveFactionSwitchRoster(
+          chosenFaction,
+          currentOpKey,
+          Array.isArray(this.unlockedExtras) ? this.unlockedExtras : []
+        );
+        this.unlockedExtras = nextRoster.unlockedExtras;
+        this.currentHeroKey = nextRoster.operatorKey;
         this.setPlayerFaction(chosenFaction, true);
+        this._lastController?.switchToHero?.(nextRoster.operatorKey, true);
+        const lc = this._lastController?.world?.livingCity;
+        if (lc?.syncPlayerCharacterStats) {
+          lc.syncPlayerCharacterStats(nextRoster.operatorKey, chosenFaction, true);
+        } else {
+          const sheet = resolveCombatantSheet(nextRoster.operatorKey, chosenFaction);
+          this.setPlayerHealth?.(sheet.hp, sheet.hp, false);
+        }
         this.saveCurrentProgress();
         this._refreshTitleContinueAndLoadState();
         this.titleOverlayEl?.classList.add('hidden');
@@ -291,6 +313,9 @@ export function installTitleAndSaveSlotsController(LegoHud) {
             danger: false, defaultFocus: 'confirm', onConfirm: () => applyIngameFactionSwitch(chosenFaction)
           });
         }
+        const starterOp = getDefaultHybridOperatorKey(chosenFaction);
+        this.unlockedExtras = [];
+        this.currentHeroKey = starterOp;
         const defaultCustom = createDefaultCustomHeroState();
         const defaultGarage = createDefaultGarageSaveData();
         const defaultAircraft = createDefaultAircraftSaveData();
@@ -300,8 +325,16 @@ export function installTitleAndSaveSlotsController(LegoHud) {
         syncOp09CatalogSlot();
         this.tiktokRadio?.importSaveState(null);
         const slotData = writeSaveSlot(this.activeSaveSlot, {
-          faction: chosenFaction, studs: 0, heroKey: 'caveira', conqueredTerritories: [], playTimeSec: 0,
-          customHero: defaultCustom, customGarage: defaultGarage, aircraftCustom: defaultAircraft,
+          faction: chosenFaction,
+          studs: 0,
+          operatorKey: starterOp,
+          heroKey: starterOp,
+          unlockedExtras: [],
+          conqueredTerritories: [],
+          playTimeSec: 0,
+          customHero: defaultCustom,
+          customGarage: defaultGarage,
+          aircraftCustom: defaultAircraft,
           radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null
         });
         this._refreshTitleContinueAndLoadState();
@@ -384,6 +417,14 @@ export function installTitleAndSaveSlotsController(LegoHud) {
 
       const hydrateWorldState = () => {
         try {
+          const migrated = migrateSaveSlotRoster(slotData || { faction: chosenFaction }) || {
+            faction: chosenFaction,
+            unlockedExtras: [],
+            operatorKey: getDefaultHybridOperatorKey(chosenFaction),
+            heroKey: getDefaultHybridOperatorKey(chosenFaction)
+          };
+          this.unlockedExtras = migrated.unlockedExtras;
+          this.currentHeroKey = migrated.operatorKey;
           setActiveCustomHero(slotData?.customHero || createDefaultCustomHeroState());
           setActiveGarageSaveData(slotData?.customGarage || createDefaultGarageSaveData());
           setActiveAircraftSaveData(slotData?.aircraftCustom || createDefaultAircraftSaveData());
@@ -392,14 +433,19 @@ export function installTitleAndSaveSlotsController(LegoHud) {
           this.totalStuds = Number(slotData?.studs || 0);
           this.displayedStuds = this.totalStuds;
           if (this.studCountEl) this.studCountEl.textContent = this.totalStuds.toLocaleString(lang);
-          const initialHeroKey = slotData?.heroKey || 'caveira';
-          this._lastController?.switchToHero?.(initialHeroKey);
-          if (initialHeroKey === 'op09') this.syncOp09UI();
           this.setPlayerFaction(chosenFaction, true, Array.isArray(slotData?.conqueredTerritories) ? slotData.conqueredTerritories : []);
+          this._lastController?.switchToHero?.(migrated.operatorKey, true);
+          if (migrated.operatorKey === 'op09') this.syncOp09UI();
           this.onApplyTerritoryMeta?.(slotData?.territoryMeta || null);
           this.goldenBricks = Number(slotData?.goldenBricks || 0);
           this._lastController?.world?.livingCity?.wantedSystem?.clearWanted?.('reset');
-          this.setPlayerHealth(250, 250, false);
+          const lc = this._lastController?.world?.livingCity;
+          if (lc?.syncPlayerCharacterStats) {
+            lc.syncPlayerCharacterStats(migrated.operatorKey, chosenFaction, true);
+          } else {
+            const sheet = resolveCombatantSheet(migrated.operatorKey, chosenFaction);
+            this.setPlayerHealth(sheet.hp, sheet.hp, false);
+          }
         } catch (err) { console.warn('[Loading Stage 1]', err); }
       };
 

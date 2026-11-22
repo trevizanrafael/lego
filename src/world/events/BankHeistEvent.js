@@ -227,7 +227,7 @@ export class BankHeistEvent {
     soundFX.playTrueHeroFanfare();
     fw.hud?.showWantedBanner?.(
       'ANDAR LIMPO!',
-      `SUBA PELA RAMPA OU ELEVADOR [E] // REFORÇO NO ${this.floor + 1}º ANDAR`,
+      `SUBA PELA RAMPA OU ELEVADOR [F] // REFORÇO NO ${this.floor + 1}º ANDAR`,
       'escaped',
       2800
     );

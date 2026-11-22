@@ -5,6 +5,7 @@
 
 import { createDefaultCustomHeroState } from '../entities/CustomHeroSystem.js';
 import { createDefaultGarageSaveData } from '../world/StreetCustomGarage.js';
+import { getDefaultHybridOperatorKey } from '../entities/operators/OperatorCatalog.js';
 
 export const SAVE_STORAGE_KEY = 'lego_cdd_saves_v1';
 export const SETTINGS_STORAGE_KEY = 'lego_cdd_settings_v1';
@@ -90,11 +91,11 @@ export const UI_TEXTS = {
       light: 'Ajustando clima e iluminação...', stream: 'Carregando quarteirões vizinhos...', ready: 'Pronto para jogar'
     },
     loadingTips: [
-      'Pressione [E] perto de carros, motos, barcos ou aeronaves para assumir a direção.',
-      'Segure [TAB] a qualquer momento para abrir a roda de heróis e trocar de personagem.',
+      'Pressione [F] perto de carros, motos, barcos ou aeronaves para assumir a direção.',
+      'Use [1] e [2] para trocar entre os 2 operadores da sua facção ou [TAB] para abrir a grade de personagens.',
+      'Pressione [Q] e [E] para usar habilidades táticas (ou poderes extras) e [R] para recarregar.',
       'Abra o mapa com [M] para marcar destinos ou usar a viagem rápida pelas estações.',
       'Segure [Z] para sintonizar a rádio ao vivo ou use [ e ] para mudar de estação.',
-      'Pressione [H] para consultar os poderes, armas e habilidades especiais do seu herói.',
       'Invada bases de facções rivais e derrote o líder local para conquistar o território.'
     ],
     pauseTag: 'JOGO PAUSADO',
@@ -134,11 +135,13 @@ export const UI_TEXTS = {
     controlsSectionTitle: 'LISTA DE CONTROLES',
     controlsList: [
       ['W A S D', 'Mover personagem / veículo'], ['MOUSE', 'Câmera e mira'],
-      ['BOTÃO ESQ.', 'Atacar / disparar'], ['BOTÃO DIR.', 'Mira / poder secundário'],
+      ['BOTÃO ESQ.', 'Atacar / disparar'], ['BOTÃO DIR.', 'Mirar com zoom / poder secundário'],
       ['ESPAÇO', 'Pular / voar (duplo toque)'], ['SHIFT', 'Correr / voo supersônico'],
-      ['E', 'Entrar ou sair de veículo'], ['Q / F', 'Poderes especiais do herói'],
-      ['TAB', 'Roda de heróis'], ['M', 'Mapa e viagem rápida'],
-      ['Z / [ ]', 'Rádio ao vivo e estações'], ['H', 'Ficha do herói'], ['ESC', 'Pausar jogo']
+      ['F', 'Entrar ou sair de veículo / interagir'], ['1 / 2', 'Trocar entre os 2 operadores da facção'],
+      ['Q / E', 'Habilidades táticas (ou poderes extras)'], ['R', 'Recarregar arma'],
+      ['G', 'Poder extra / invocação'], ['TAB', 'Grade de personagens'],
+      ['M', 'Mapa e viagem rápida'], ['Z / [ ]', 'Rádio ao vivo e estações'],
+      ['H', 'Ficha do herói'], ['ESC', 'Pausar jogo']
     ],
     langLabel: 'IDIOMA',
     langModes: { 'pt-BR': 'PORTUGUÊS', 'en-US': 'ENGLISH' },
@@ -227,11 +230,11 @@ export const UI_TEXTS = {
       light: 'Adjusting weather and lighting...', stream: 'Loading nearby blocks...', ready: 'Ready to play'
     },
     loadingTips: [
-      'Press [E] near cars, bikes, boats, or aircraft to take the wheel.',
-      'Hold [TAB] anytime to open the hero wheel and switch characters.',
+      'Press [F] near cars, bikes, boats, or aircraft to take the wheel.',
+      'Use [1] and [2] to switch between your 2 faction operators or [TAB] to open the character grid.',
+      'Press [Q] and [E] for tactical abilities (or extra powers) and [R] to reload.',
       'Open the map with [M] to set waypoints or fast travel between stations.',
       'Hold [Z] to tune into live radio or press [ and ] to switch stations.',
-      'Press [H] to check your current hero powers, weapons, and special abilities.',
       'Raid rival faction bases and defeat their leader to conquer the territory.'
     ],
     pauseTag: 'GAME PAUSED',
@@ -271,11 +274,13 @@ export const UI_TEXTS = {
     controlsSectionTitle: 'CONTROLS LIST',
     controlsList: [
       ['W A S D', 'Move character / vehicle'], ['MOUSE', 'Camera and aim'],
-      ['LEFT CLICK', 'Attack / fire'], ['RIGHT CLICK', 'Aim / secondary power'],
+      ['LEFT CLICK', 'Attack / fire'], ['RIGHT CLICK', 'Aim zoom / secondary power'],
       ['SPACE', 'Jump / fly (double tap)'], ['SHIFT', 'Sprint / supersonic flight'],
-      ['E', 'Enter or exit vehicle'], ['Q / F', 'Hero special powers'],
-      ['TAB', 'Hero wheel'], ['M', 'Map and fast travel'],
-      ['Z / [ ]', 'Live radio and stations'], ['H', 'Hero profile'], ['ESC', 'Pause game']
+      ['F', 'Enter or exit vehicle / interact'], ['1 / 2', 'Switch between your 2 faction operators'],
+      ['Q / E', 'Tactical abilities (or extra powers)'], ['R', 'Reload weapon'],
+      ['G', 'Extra power / summon'], ['TAB', 'Character grid'],
+      ['M', 'Map and fast travel'], ['Z / [ ]', 'Live radio and stations'],
+      ['H', 'Hero profile'], ['ESC', 'Pause game']
     ],
     langLabel: 'LANGUAGE',
     langModes: { 'pt-BR': 'PORTUGUÊS', 'en-US': 'ENGLISH' },
@@ -444,12 +449,25 @@ export function writeSaveSlot(slotIndex, data = {}) {
   const savedAtMs = Number.isFinite(rawSavedAt) && rawSavedAt > 0 ? rawSavedAt : Date.now();
   const rawPlayTime = Number(data.playTimeSec ?? prev?.playTimeSec ?? 0);
   const playTimeSec = Number.isFinite(rawPlayTime) ? Math.max(0, Math.floor(rawPlayTime)) : 0;
+  const activeCharKey =
+    data.operatorKey ||
+    data.heroKey ||
+    prev?.operatorKey ||
+    prev?.heroKey ||
+    getDefaultHybridOperatorKey(validFaction);
+  const unlockedExtras = Array.isArray(data.unlockedExtras)
+    ? [...new Set(data.unlockedExtras)]
+    : Array.isArray(prev?.unlockedExtras)
+      ? [...new Set(prev.unlockedExtras)]
+      : [];
 
   slots[slotIndex] = {
     slotIndex,
     faction: validFaction,
     studs: Number(data.studs || 0),
-    heroKey: data.heroKey || 'caveira',
+    operatorKey: activeCharKey,
+    heroKey: activeCharKey,
+    unlockedExtras,
     conqueredTerritories: Array.isArray(data.conqueredTerritories) ? data.conqueredTerritories : [],
     goldenBricks: Number(data.goldenBricks ?? prev?.goldenBricks ?? 0),
     territoryMeta: data.territoryMeta && typeof data.territoryMeta === 'object'

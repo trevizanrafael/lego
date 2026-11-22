@@ -18,6 +18,10 @@ export const heroCombatAndSpecialPowersMethods = {
       this._fireVehicleWeapon();
       return;
     }
+    if (this.operatorWeapons?.isOperatorActive()) {
+      this.operatorWeapons.handlePrimaryMouseDown();
+      return;
+    }
     if (this.primaryCooldown > 0) return;
 
     const hero = this.minifigure.currentHeroKey;
@@ -31,11 +35,7 @@ export const heroCombatAndSpecialPowersMethods = {
 
     if (!this.destructibles) return;
     const aimData = this.destructibles.getAimTargetPoint(this.camera, 85);
-    const rightVec = new THREE.Vector3(
-      -Math.cos(this.facingAngle),
-      0,
-      Math.sin(this.facingAngle)
-    );
+    const rightVec = new THREE.Vector3(-Math.cos(this.facingAngle), 0, Math.sin(this.facingAngle));
 
     if (hero === 'caveira') {
       this.minifigure.triggerShoot();
@@ -69,9 +69,7 @@ export const heroCombatAndSpecialPowersMethods = {
       const wKey = this.minifigure.vingadorWeapon || 'dual_smg';
       if (wKey === 'dual_smg') {
         this.primaryCooldown = 0.065 * furorMult;
-        const recoilSide = this.minifigure.triggerVingadorDualRecoil
-          ? this.minifigure.triggerVingadorDualRecoil()
-          : 0;
+        const recoilSide = this.minifigure.triggerVingadorDualRecoil ? this.minifigure.triggerVingadorDualRecoil() : 0;
         const leftMuzzle = new THREE.Vector3(
           this.position.x + Math.sin(this.facingAngle) * 0.98 - rightVec.x * 0.48,
           this.position.y + 1.28,
@@ -100,11 +98,7 @@ export const heroCombatAndSpecialPowersMethods = {
           this.isGrounded = false;
           this.position.y += 0.24;
           this.velocity.y = Math.max(this.velocity.y * 0.35 + recoilDir.y * 16.5, 13.5);
-          this.blastVelocity.set(
-            this.velocity.x * 0.55 + recoilDir.x * 16.5,
-            0,
-            this.velocity.z * 0.55 + recoilDir.z * 16.5
-          );
+          this.blastVelocity.set(this.velocity.x * 0.55 + recoilDir.x * 16.5, 0, this.velocity.z * 0.55 + recoilDir.z * 16.5);
           this.blastJumpTimer = Math.max(this.blastJumpTimer, 0.52);
           this.velocity.x = this.blastVelocity.x;
           this.velocity.z = this.blastVelocity.z;
@@ -141,12 +135,7 @@ export const heroCombatAndSpecialPowersMethods = {
     } else if (hero === 'vortex') {
       this.primaryCooldown = 0.25;
       this.minifigure.triggerPunch();
-      this.destructibles.performVortexTentacleStrike(
-        this.position,
-        this.facingAngle,
-        this.minifigure.isVortexMonster,
-        aimData.point
-      );
+      this.destructibles.performVortexTentacleStrike(this.position, this.facingAngle, this.minifigure.isVortexMonster, aimData.point);
     } else if (hero === 'op09') {
       this.customHeroPowers?.firePrimary(aimData.point);
     }

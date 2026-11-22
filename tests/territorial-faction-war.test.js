@@ -279,7 +279,7 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
     assert.equal(livingCity.factionWar.activeMode, 'PEACEFUL_CITY');
     assert.equal(livingCity.factionWar.isInvasionActive, false);
     assert.equal(livingCity.combatNpcs.length, 0, 'Soldados recolhidos ao sair do território');
-    assert.equal(livingCity.playerHp, 250, 'Vida restaurada na paz civil');
+    assert.equal(livingCity.playerHp, livingCity.playerMaxHp, 'Vida restaurada na paz civil');
 
     // Testa Resetar Territórios e Renderização do Minimapa e Mapa Completo [M]
     livingCity.resetTerritories();

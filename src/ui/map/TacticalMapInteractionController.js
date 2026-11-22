@@ -35,7 +35,7 @@ export function getInteractiveRegionsList(world) {
     num: 'QG',
     name: 'TORRE DOS HEROIS (QG TERREO ENTRAVEL)',
     shortName: 'TORRE DOS HEROIS (QG TERREO)',
-    sub: 'Hall of Armor, Mesa Holografica, Bacta Pods & Elevador [E]',
+    sub: 'Hall of Armor, Mesa Holografica, Bacta Pods & Elevador [F]',
     bounds: { minX: -375, maxX: -260, minZ: -235, maxZ: -125, minY: 0, maxY: 36 },
     spawn: { x: -318, y: 0.5, z: -138 },
     color: '#38bdf8',

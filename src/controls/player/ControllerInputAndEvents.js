@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { isFactionOperatorKey } from '../../entities/operators/OperatorCatalog.js';
 
 export const controllerInputAndEventsMethods = {
   _bindEvents() {
@@ -10,7 +11,8 @@ export const controllerInputAndEventsMethods = {
       if (
         this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen ||
         this.hud?.isCreatorOpen || this.hud?.isCustomsOpen ||
-        this.hud?.isAircraftStudioOpen || this.hud?.isTikTokRadioOpen
+        this.hud?.isAircraftStudioOpen || this.hud?.isTikTokRadioOpen ||
+        this.hud?.isCharacterGridOpen
       ) {
         return;
       }
@@ -40,6 +42,8 @@ export const controllerInputAndEventsMethods = {
         if (this.activeRide) return;
         if (this.currentVehicle) {
           this._fireVehicleWeapon();
+        } else if (this.operatorWeapons?.isOperatorActive()) {
+          this.operatorWeapons.handlePrimaryMouseDown();
         } else {
           this._firePrimaryAction();
         }
@@ -48,6 +52,7 @@ export const controllerInputAndEventsMethods = {
         this.minifigure?.stopEmote?.();
         if (this.activeRide) return;
         const hero = this.minifigure.currentHeroKey;
+        if (isFactionOperatorKey(hero)) return;
         if (this.currentVehicle) {
           if (hero === 'turbo') this._summonAndMountTurboGhostBike();
         } else if (hero === 'caveira') {
@@ -74,6 +79,7 @@ export const controllerInputAndEventsMethods = {
       if (e.button === 0) {
         this.isDraggingMouse = false;
         this.mouseButtons.left = false;
+        this.operatorWeapons?.handlePrimaryMouseUp?.();
       } else if (e.button === 2) {
         this.mouseButtons.right = false;
       }
@@ -98,6 +104,7 @@ export const controllerInputAndEventsMethods = {
         this.hasEnteredGame && !this.hud?.isTitleScreenActive &&
         !this.hud?.isPauseMenuOpen && !this.hud?.isFullMapOpen &&
         !this.hud?.isDossierOpen && !this.hud?.isHeroWheelOpen &&
+        !this.hud?.isCharacterGridOpen &&
         !this.hud?.isCreatorOpen && !this.hud?.isCustomsOpen &&
         !this.hud?.isAircraftStudioOpen && !this.hud?.isTikTokRadioOpen &&
         !this.fastTravelState?.active
@@ -110,7 +117,8 @@ export const controllerInputAndEventsMethods = {
           !this.isPointerLocked && !this.hasEnteredGame &&
           !this.hud?.isTitleScreenActive && !this.hud?.isPauseMenuOpen &&
           !this.hud?.isFullMapOpen && !this.hud?.isDossierOpen &&
-          !this.hud?.isHeroWheelOpen && !this.hud?.isCreatorOpen &&
+          !this.hud?.isHeroWheelOpen && !this.hud?.isCharacterGridOpen &&
+          !this.hud?.isCreatorOpen &&
           !this.hud?.isCustomsOpen && !this.hud?.isAircraftStudioOpen &&
           !this.hud?.isTikTokRadioOpen;
         promptEl.classList.toggle('visible', shouldShowPrompt);
@@ -121,6 +129,7 @@ export const controllerInputAndEventsMethods = {
       if (
         this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen ||
         this.hud?.isFullMapOpen || this.hud?.isDossierOpen ||
+        this.hud?.isCharacterGridOpen ||
         this.hud?.isCreatorOpen || this.hud?.isCustomsOpen ||
         this.hud?.isAircraftStudioOpen || this.fastTravelState?.active
       ) {
@@ -148,7 +157,8 @@ export const controllerInputAndEventsMethods = {
       'wheel',
       (e) => {
         if (
-          this.hud?.isFullMapOpen || this.hud?.isCreatorOpen ||
+          this.hud?.isFullMapOpen || this.hud?.isCharacterGridOpen ||
+          this.hud?.isCreatorOpen ||
           this.hud?.isCustomsOpen || this.hud?.isAircraftStudioOpen ||
           this.fastTravelState?.active
         ) {
@@ -189,6 +199,7 @@ export const controllerInputAndEventsMethods = {
     this.isDrifting = false;
     this.isTurboActive = false;
     this.turboOverdriveActive = false;
+    this.operatorWeapons?.resetHeldState?.();
     if (this.titaJumpCharging) {
       this.titaJumpCharging = false;
       this.titaJumpChargeTime = 0;
@@ -354,7 +365,10 @@ export const controllerInputAndEventsMethods = {
     switch (e.code) {
       case 'Escape':
         if (isDown && !e.repeat) {
-          if (this.hud?.isDossierOpen) {
+          if (this.hud?.isCharacterGridOpen && typeof this.hud.setCharacterGridOpen === 'function') {
+            this.hud._lastPauseToggleTime = nowMs;
+            this.hud.setCharacterGridOpen(false, this);
+          } else if (this.hud?.isDossierOpen) {
             this.hud._lastPauseToggleTime = nowMs;
             this.hud.setHeroDossierOpen(false, this);
           } else if (this.hud?.isFullMapOpen) {
@@ -419,7 +433,7 @@ export const controllerInputAndEventsMethods = {
           }
         }
         break;
-      case 'KeyE':
+      case 'KeyF':
         if (isDown && !e.repeat) this.toggleVehicleInteraction();
         break;
       case 'KeyK':

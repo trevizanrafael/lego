@@ -225,7 +225,7 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
     ws.setWantedStars(2);
     ws.playerHitIFrameTimer = 0;
     ws.applyPursuitDamageToPlayer(80, controller);
-    assert.ok(world.livingCity.playerHp < 250, 'Tiros policiais tiram vida durante perseguição');
+    assert.ok(world.livingCity.playerHp < world.livingCity.playerMaxHp, 'Tiros policiais tiram vida durante perseguição');
     const damagedHp = world.livingCity.playerHp;
 
     // 6.5s sem tomar tiro regenera vida automaticamente!
@@ -237,9 +237,9 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
     hud.totalStuds = 5000;
     ws.playerHitIFrameTimer = 0;
     world.livingCity.playerHp = 10;
-    ws.applyPursuitDamageToPlayer(50, controller);
+    ws.applyPursuitDamageToPlayer(200, controller);
     assert.equal(ws.stars, 0, 'DETIDO limpa nível de procurado para 0★');
-    assert.equal(world.livingCity.playerHp, 250, 'DETIDO restaura os 4 Corações LEGO cheios');
+    assert.equal(world.livingCity.playerHp, world.livingCity.playerMaxHp, 'DETIDO restaura os 4 Corações LEGO cheios');
     assert.ok(hud.totalStuds > 0 && hud.totalStuds < 5000, 'DETIDO desconta apenas alguns Studs de fiança');
     assert.ok(Math.hypot(controller.position.x - 0, controller.position.z - -88) < 2.0, 'Renasce limpo na Praça/Delegacia Central');
   });

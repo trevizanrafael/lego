@@ -161,11 +161,15 @@ export const DEBRIS_AND_STUD_MAGNET_METHODS = {
   },
 
   _spawnDebris(obj, count, scaleFactor = 1.0) {
+    if (!obj?.basePos) return;
     const center = obj.basePos.clone();
-    center.y += Math.min(1.2, obj.height * 0.45);
+    const objHeight = Number(obj.height) || 1.6;
+    const objRadius = Number(obj.radius) || 0.8;
+    const palette = Array.isArray(obj.debrisColors) && obj.debrisColors.length > 0 ? obj.debrisColors : [0x64748b];
+    center.y += Math.min(1.2, objHeight * 0.45);
 
     for (let i = 0; i < count; i++) {
-      const colorHex = obj.debrisColors[i % obj.debrisColors.length];
+      const colorHex = palette[i % palette.length];
       const mat = getLegoMaterial(colorHex, { roughness: 0.22, clearcoat: 0.45 });
       const geo = DEBRIS_GEOS[i % DEBRIS_GEOS.length];
 
@@ -184,9 +188,9 @@ export const DEBRIS_AND_STUD_MAGNET_METHODS = {
       const horizSpeed = (2.2 + Math.random() * 5.8) * scaleFactor;
 
       pieceGroup.position.set(
-        center.x + (Math.random() - 0.5) * obj.radius * 0.8,
+        center.x + (Math.random() - 0.5) * objRadius * 0.8,
         center.y + Math.random() * 0.6,
-        center.z + (Math.random() - 0.5) * obj.radius * 0.8
+        center.z + (Math.random() - 0.5) * objRadius * 0.8
       );
 
       this.scene.add(pieceGroup);

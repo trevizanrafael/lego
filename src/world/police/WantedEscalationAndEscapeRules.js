@@ -362,16 +362,20 @@ export const wantedEscalationAndEscapeMethods = {
     );
   },
 
-  applyPursuitDamageToPlayer(amount, controller = null) {
-    if (this.stars <= 0 || !this.livingCity) return;
+  applyPursuitDamageToPlayer(amount, controller = null, opts = {}) {
+    if (this.stars <= 0 || !this.livingCity || amount <= 0) return;
     if (this.playerHitIFrameTimer > 0) return;
     if (controller?.rollTimer > 0) return;
+    if (controller?.operatorAbilities?.isStealthed?.() && !opts?.isCollision) return;
 
     this.playerHitIFrameTimer = 0.35;
     this.timeSinceLastDamage = 0;
 
     const inVehicleMult = controller?.currentVehicle ? 0.65 : 1.0;
-    const finalDmg = Math.max(2, Math.round(amount * inVehicleMult));
+    const rawScaled = amount * inVehicleMult;
+    const finalDmg = this.livingCity.applyMitigatedDamageToPlayer
+      ? this.livingCity.applyMitigatedDamageToPlayer(rawScaled, controller, opts)
+      : Math.max(2, Math.round(rawScaled));
 
     this.livingCity.playerHp = Math.max(0, this.livingCity.playerHp - finalDmg);
     this.hud?.setPlayerHealth?.(this.livingCity.playerHp, this.livingCity.playerMaxHp, false);
@@ -493,7 +497,7 @@ export const wantedEscalationAndEscapeMethods = {
 
   _computeLineOfSight(playerPos, controller) {
     if (!playerPos || this.stars <= 0) return false;
-    if ((controller?.stealthTimer || 0) > 0) return false;
+    if ((controller?.stealthTimer || 0) > 0 || controller?.operatorAbilities?.isStealthed?.()) return false;
 
     const cloudCeiling = this.stars >= 5 ? 235.0 : 185.0;
     if (playerPos.y > cloudCeiling) return false;

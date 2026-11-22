@@ -165,7 +165,7 @@ export function buildInteractiveMetroMapTotem(world, stationIndex) {
         ctx.fill();
       }
 
-      fitAndDrawText(ctx, '[E] PRÓX. ESTAÇÃO', W * 0.5, H * 0.82, maxTextW, 24, {
+      fitAndDrawText(ctx, '[F] PRÓX. ESTAÇÃO', W * 0.5, H * 0.82, maxTextW, 24, {
         color: '#facc15'
       });
       fitAndDrawText(ctx, nextSt.shortName, W * 0.5, H * 0.91, maxTextW, 20, {

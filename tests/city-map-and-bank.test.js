@@ -259,14 +259,14 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     }
   });
 
-  it('6. Tecla [E] entra e sai de carros próximos (sem disparar granada/raio) e permite dirigir pelas avenidas', () => {
+  it('6. Tecla [F] entra e sai de carros próximos (sem disparar granada/raio) e permite dirigir pelas avenidas', () => {
     const { destructibles, controller, minifig } = createFullCityHarness();
 
-    // 1) Longe de qualquer carro, apertar E não arremessa granada nem entra em carro
+    // 1) Longe de qualquer carro, apertar F não arremessa granada nem entra em carro
     controller.position.set(0, 2.2, 250); // No Parque Central
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.equal(destructibles.grenades.length, 0, 'Tecla E não deve mais lançar granada (exclusivo do Mouse 2)');
-    assert.ok(controller.currentVehicle === null, 'Longe de carros, E não deve entrar em veículo');
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.equal(destructibles.grenades.length, 0, 'Tecla F não deve lançar granada (exclusivo do Mouse 2)');
+    assert.ok(controller.currentVehicle === null, 'Longe de carros, F não deve entrar em veículo');
 
     // 1.5) Verifica se todos os modelos de veículos terrestres existem na cidade
     //      (desde o reset do mundo livre eles ficam distribuídos pelas regiões, não mais enfileirados na frente do Banco)
@@ -335,8 +335,8 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const initialCarPos = targetCar.mesh.position.clone();
 
     controller.position.set(targetCar.mesh.position.x + 1.8, 0, targetCar.mesh.position.z);
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.ok(controller.currentVehicle === targetCar, 'Apertar E perto do carro deve entrar nele');
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.ok(controller.currentVehicle === targetCar, 'Apertar F perto do carro deve entrar nele');
 
     // 3) Acelera o carro com W por 1 segundo (simulando o loop real: controller.update + destructibles.update)
     controller.keys.forward = true;
@@ -389,9 +389,9 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     controller.keys.left = false;
     controller._onKey({ code: 'ShiftLeft', repeat: false }, false);
 
-    // 5) Aperta E novamente para sair do carro
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.ok(controller.currentVehicle === null, 'Apertar E dirigindo deve sair do veículo');
+    // 5) Aperta F novamente para sair do carro
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.ok(controller.currentVehicle === null, 'Apertar F dirigindo deve sair do veículo');
     assert.equal(minifig.root.scale.y, 1.0, 'Ao sair do carro, a minifigura volta à escala em pé normal (1.0)');
     assert.equal(minifig.root.scale.y, 1.0, 'Ao sair do carro, a minifigura volta à escala em pé normal (1.0)');
     assert.equal(targetCar.colliders[0].disabled, false, 'Colisores do carro devem ser reativados na nova posição ao sair');
@@ -474,12 +474,12 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       `Jogador deve entrar livremente pelo Portal Sul Aberto no Saguão do QG da Torre dos Heróis (z=${controller.position.z.toFixed(2)})`
     );
 
-    // Posiciona na Plataforma do Elevador Quântico do Térreo (X=-318, Z=-204) e aperta [E]
+    // Posiciona na Plataforma do Elevador Quântico do Térreo (X=-318, Z=-204) e aperta [F]
     controller.position.set(-318, 0.5, -204);
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
     assert.ok(
       controller.position.y >= 310.5,
-      `Elevador Quântico [E] deve transportar o herói do Saguão Térreo direto para o Heliponto do Topo a 310m (y=${controller.position.y.toFixed(2)})`
+      `Elevador Quântico [F] deve transportar o herói do Saguão Térreo direto para o Heliponto do Topo a 310m (y=${controller.position.y.toFixed(2)})`
     );
     controller.position.set(0, 0, -104);
 
@@ -664,8 +664,8 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(swanBoat, 'Deve existir Pedalinho Cisne pilotável no Lago do Parque Central');
     const startBoatX = swanBoat.mesh.position.x;
     controller.position.set(swanBoat.mesh.position.x - 3.5, 0.65, swanBoat.mesh.position.z);
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.ok(controller.currentVehicle === swanBoat, 'Deve conseguir subir no Pedalinho Cisne direto do Píer com [E]');
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.ok(controller.currentVehicle === swanBoat, 'Deve conseguir subir no Pedalinho Cisne direto do Píer com [F]');
     controller.keys.forward = true;
     for (let i = 0; i < 30; i++) {
       controller.update(1 / 30);
@@ -903,14 +903,14 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       0.35,
       semiTruck.mesh.position.z - sideX * Math.sin(truckYaw) + alongZ * Math.cos(truckYaw)
     );
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.ok(controller.currentVehicle === semiTruck, 'Jogador deve conseguir entrar no Caminhão-Carreta Portuário com [E]');
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.ok(controller.currentVehicle === semiTruck, 'Jogador deve conseguir entrar no Caminhão-Carreta Portuário com [F]');
     controller.keys.forward = true;
     for (let i = 0; i < 25; i++) controller.update(1 / 30);
     controller.keys.forward = false;
     assert.ok(semiTruck.mesh.position.distanceTo(startTruckPos) > 3.0, 'Caminhão-Carreta Portuário deve acelerar e andar pelas vias do Porto com [W]');
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.ok(controller.currentVehicle === null, 'Jogador deve conseguir sair do Caminhão-Carreta com [E]');
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.ok(controller.currentVehicle === null, 'Jogador deve conseguir sair do Caminhão-Carreta com [F]');
 
     const cargoShips = destructibles.objects.filter(
       (o) => o.mesh.userData?.carType === 'navio_cargueiro' || o.mesh.userData?.carType === 'navio_ares'
@@ -920,8 +920,8 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const eastCargoShip = cargoShips.find((s) => s.mesh.userData?.carType === 'navio_cargueiro');
     const startShipZ = eastCargoShip.mesh.position.z;
     controller.position.set(eastCargoShip.mesh.position.x, 9.45, eastCargoShip.mesh.position.z);
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.ok(controller.currentVehicle === eastCargoShip, 'Jogador no convés/rampa deve conseguir assumir o comando do Navio Cargueiro com [E]');
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.ok(controller.currentVehicle === eastCargoShip, 'Jogador no convés/rampa deve conseguir assumir o comando do Navio Cargueiro com [F]');
     controller.keys.forward = true;
     for (let i = 0; i < 30; i++) controller.update(1 / 30);
     controller.keys.forward = false;
@@ -929,8 +929,8 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       eastCargoShip.mesh.position.z > startShipZ + 5.0,
       `Navio Cargueiro deve navegar pelo oceano ao acelerar com [W] (z=${eastCargoShip.mesh.position.z.toFixed(2)})`
     );
-    controller._onKey({ code: 'KeyE', repeat: false }, true);
-    assert.ok(controller.currentVehicle === null, 'Apertar [E] deve sair do comando do Navio Cargueiro');
+    controller._onKey({ code: 'KeyF', repeat: false }, true);
+    assert.ok(controller.currentVehicle === null, 'Apertar [F] deve sair do comando do Navio Cargueiro');
     for (let i = 0; i < 15; i++) controller.update(1 / 30);
     assert.ok(
       controller.position.y >= 9.0 && controller.position.y <= 10.2,

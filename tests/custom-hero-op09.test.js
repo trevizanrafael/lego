@@ -86,13 +86,13 @@ describe('LABORATÓRIO SUBTERRÂNEO DA TORRE DOS HERÓIS + OPERADOR CUSTOMIZÁVE
     assert.equal(hud.isCreatorOpen, false);
   });
 
-  it('2. OP-09 começa como CIDADÃO COMUM (9 slots na Roda [TAB], Digit9, zero superpoderes, dirige veículos)', () => {
+  it('2. OP-09 começa como CIDADÃO COMUM (9 slots no catálogo legado, troca direta para op09, zero superpoderes, dirige veículos)', () => {
     setActiveCustomHero(createDefaultCustomHeroState());
-    assert.equal(HERO_CATALOG.length, 9, 'Roda de Heróis e Ficha [H] expandidas para 9 personagens (OP-01..OP-09)');
+    assert.equal(HERO_CATALOG.length, 9, 'Catálogo base expandido para 9 heróis (OP-01..OP-09)');
     assert.equal(HERO_CATALOG[8].key, 'op09');
 
-    // Atalho numérico Digit9 troca para OP-09
-    controller._onKey({ code: 'Digit9', repeat: false, preventDefault() {} }, true);
+    // Troca para OP-09 (atalhos Digit3..Digit9 foram removidos; OP-09 é selecionado na Grade/Loja)
+    controller.switchToHero('op09');
     assert.equal(minifig.currentHeroKey, 'op09');
 
     const info = getHeroInfo('op09');

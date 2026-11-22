@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Minifigure } from './entities/Minifigure.js';
+import { getDefaultHybridOperatorKey } from './entities/operators/OperatorCatalog.js';
 import { TestBlockWorld } from './world/TestBlockWorld.js';
 import { DestructibleManager } from './world/DestructibleManager.js';
 import { ThirdPersonController } from './controls/ThirdPersonController.js';
@@ -182,7 +183,8 @@ class LegoCityGame {
     this.destructibles = new DestructibleManager(this.scene, this.hud);
     this.world = new TestBlockWorld(this.scene, this.destructibles);
 
-    this.playerMinifig = new Minifigure('caveira');
+    const starterKey = getDefaultHybridOperatorKey(this.hud?.playerFaction || 'cv');
+    this.playerMinifig = new Minifigure(starterKey);
     this.scene.add(this.playerMinifig.root);
 
     this.controller = new ThirdPersonController(
@@ -193,6 +195,7 @@ class LegoCityGame {
       this.destructibles,
       this.hud
     );
+    this.controller.switchToHero(starterKey, true);
     this.hud._lastController = this.controller;
     const initialQuality =
       this._pendingGraphicsQuality || this.hud?.settings?.graphicsQuality || 'auto';
@@ -379,7 +382,8 @@ class LegoCityGame {
     }
     this._renderedPauseFrame = false;
 
-    const timeScale = this.hud.isHeroWheelOpen ? 0.18 : 1.0;
+    const isSelectorOpen = Boolean(this.hud.isHeroWheelOpen || this.hud.isCharacterGridOpen);
+    const timeScale = isSelectorOpen ? 0.12 : 1.0;
     const dt = baseDt * timeScale;
 
     if (dt > 0) {

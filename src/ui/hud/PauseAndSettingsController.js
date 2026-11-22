@@ -3,6 +3,7 @@ import { getActiveCustomHero } from '../../entities/CustomHeroSystem.js';
 import { getActiveGarageSaveData } from '../../world/StreetCustomGarage.js';
 import { getActiveAircraftSaveData } from '../../world/AircraftCustomGarage.js';
 import { FACTION_DATA, UI_TEXTS, writeSaveSlot, saveGameSettings } from '../FactionIconsAndSaveSystem.js';
+import { getDefaultHybridOperatorKey } from '../../entities/operators/OperatorCatalog.js';
 import { definePrototypeMethods } from './HudConstantsAndPortraits.js';
 import { installConfirmDialog } from './ConfirmDialog.js';
 import { installMenuFocusNavigation, installMenuNavigationController } from './MenuFocusNavigation.js';
@@ -48,11 +49,18 @@ export function installPauseAndSettingsController(LegoHud) {
     },
 
     saveCurrentProgress() {
+      const validFaction = FACTION_DATA[this.playerFaction] ? this.playerFaction : 'cv';
+      const activeCharKey =
+        this.currentHeroKey ||
+        this._lastController?.minifigure?.currentHeroKey ||
+        getDefaultHybridOperatorKey(validFaction);
       writeSaveSlot(this.activeSaveSlot || 0, {
         goldenBricks: this.goldenBricks || 0,
-        faction: FACTION_DATA[this.playerFaction] ? this.playerFaction : 'cv',
+        faction: validFaction,
         studs: this.totalStuds || 0,
-        heroKey: this._lastController?.minifigure?.currentHeroKey || this.currentHeroKey || 'caveira',
+        operatorKey: activeCharKey,
+        heroKey: activeCharKey,
+        unlockedExtras: Array.isArray(this.unlockedExtras) ? [...this.unlockedExtras] : [],
         conqueredTerritories: typeof this.getConqueredTerritories === 'function' ? this.getConqueredTerritories() : [],
         territoryMeta: typeof this.getTerritoryMeta === 'function' ? this.getTerritoryMeta() : {},
         customHero: { ...getActiveCustomHero() },

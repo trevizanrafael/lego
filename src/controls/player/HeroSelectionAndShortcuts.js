@@ -1,13 +1,37 @@
 import { soundFX } from '../../audio/SoundFX.js';
+import {
+  isFactionOperatorKey,
+  getOperatorSpec,
+  getFactionPairOperators,
+  resolveCombatantSheet
+} from '../../entities/operators/OperatorCatalog.js';
+
+const FACTION_OPERATOR_SWAP_COLORS = {
+  cv: 0xdc2626,
+  pcc: 0x2563eb,
+  ares: 0x9333ea
+};
+
+const CLASSIC_HERO_SWAP_COLORS = {
+  caveira: 0xe2e8f0,
+  solaris: 0xf97316,
+  tita: 0xef4444,
+  vingador: 0x94a3b8,
+  sombra: 0xff1e42,
+  turbo: 0x22d3ee,
+  voltaico: 0x38bdf8,
+  vortex: 0xa855f7,
+  op09: 0x00f0ff
+};
 
 export const heroSelectionAndShortcutsMethods = {
   /**
-   * Troca instantaneamente entre os Heróis Jogáveis (Caveira, Solaris, Titã Blindado, Vingador de Chumbo, Sombra Escarlate, Turbo, Voltaico, Vórtex e OP-09)
+   * Troca instantaneamente entre os Operadores de Facção (CV, PCC, A.R.E.S.), Heróis Extras Clássicos e OP-09
    */
-  switchToHero(heroKey) {
-    if (this.minifigure.currentHeroKey === heroKey && heroKey !== 'op09') return;
+  switchToHero(heroKey, forceRefresh = false) {
+    if (!forceRefresh && this.minifigure.currentHeroKey === heroKey && heroKey !== 'op09') return;
 
-    // Limpa estados especiais do herói anterior
+    // Limpa estados especiais do personagem anterior
     if (this.grabbedCar) {
       this._releaseGrabbedCarOnGround();
     }
@@ -35,7 +59,7 @@ export const heroSelectionAndShortcutsMethods = {
       this.minifigure.setSeatedInVehicle(true, this.vehicleSteerAngle, Boolean(this.activeRide));
     }
 
-    // Se trocou para qualquer herói terrestre no meio do voo, desativa voo e entra em queda livre imediata!
+    // Se trocou para qualquer personagem terrestre no meio do voo, desativa voo e entra em queda livre imediata!
     if (heroKey !== 'solaris' && this.isFlying) {
       this.isFlying = false;
       this.isSupersonic = false;
@@ -49,38 +73,51 @@ export const heroSelectionAndShortcutsMethods = {
       this.destructibles.updateSupernovaChargeVisual(false, this.position);
     }
 
-    const swapColors = {
-      caveira: 0xfacc15,
-      solaris: 0xf97316,
-      tita: 0xef4444,
-      vingador: 0x94a3b8,
-      sombra: 0xff1e42,
-      turbo: 0x22d3ee,
-      voltaico: 0x38bdf8,
-      vortex: 0xa855f7,
-      op09: 0x00f0ff
-    };
+    const opSpec = isFactionOperatorKey(heroKey) ? getOperatorSpec(heroKey) : null;
+    const opFaction =
+      opSpec?.faction ||
+      (String(heroKey).startsWith('pcc') ? 'pcc' : String(heroKey).startsWith('ares') ? 'ares' : 'cv');
+    const swapHex = isFactionOperatorKey(heroKey)
+      ? (FACTION_OPERATOR_SWAP_COLORS[opFaction] || 0xdc2626)
+      : (CLASSIC_HERO_SWAP_COLORS[heroKey] || 0x94a3b8);
 
     if (this.destructibles) {
       this.destructibles.updateSolarBeam(false);
-      this.destructibles.spawnHeroSwapEffect(
-        this.position,
-        swapColors[heroKey] || 0xfacc15
-      );
+      this.destructibles.spawnHeroSwapEffect(this.position, swapHex);
+    }
+
+    const activeFaction = this.hud?.playerFaction || this.world?.livingCity?.playerFaction || 'cv';
+    if (typeof this.world?.livingCity?.syncPlayerCharacterStats === 'function') {
+      this.world.livingCity.syncPlayerCharacterStats(heroKey, activeFaction);
+    } else {
+      const sheet = resolveCombatantSheet(heroKey, activeFaction);
+      if (sheet) {
+        this.hud?.setPlayerHealth?.(sheet.hp, sheet.hp, false);
+      }
     }
 
     if (this.hud) {
-      this.hud.setCharacterPortrait(preset.key, preset.name, preset.subtitle);
+      const pKey = preset?.key || heroKey;
+      const pName = preset?.name || opSpec?.name || heroKey;
+      const pSub = preset?.subtitle || opSpec?.subtitle || '';
+      this.hud.setCharacterPortrait(pKey, pName, pSub);
       if (this.hud.updateVingadorWeaponHud) {
         this.hud.updateVingadorWeaponHud(this.minifigure.vingadorWeapon || 'dual_smg', false);
       }
+      this.hud.setCharacterCombatHudMode?.(heroKey);
     }
+
+    this.operatorWeapons?.onCharacterSwitched?.(heroKey);
+    this.operatorAbilities?.onCharacterSwitched?.(heroKey);
   },
 
   toggleHero() {
-    const heroOrder = ['caveira', 'solaris', 'tita', 'vingador', 'sombra', 'turbo', 'voltaico', 'vortex', 'op09'];
-    const idx = heroOrder.indexOf(this.minifigure.currentHeroKey);
-    const next = heroOrder[(idx + 1) % heroOrder.length];
+    const activeFaction = this.hud?.playerFaction || this.world?.livingCity?.playerFaction || 'cv';
+    const pair = getFactionPairOperators(activeFaction);
+    if (!Array.isArray(pair) || pair.length === 0) return;
+    const firstKey = pair[0]?.key || pair[0];
+    const secondKey = pair[1]?.key || pair[1] || firstKey;
+    const next = this.minifigure.currentHeroKey === firstKey ? secondKey : firstKey;
     this.switchToHero(next);
   },
 
@@ -160,36 +197,26 @@ export const heroSelectionAndShortcutsMethods = {
         }
         this.keys.jump = isDown;
         break;
-      case 'Digit1':
-        if (isDown && !e.repeat) this.switchToHero('caveira');
+      case 'Digit1': {
+        if (isDown && !e.repeat) {
+          const activeFaction = this.hud?.playerFaction || this.world?.livingCity?.playerFaction || 'cv';
+          const pair = getFactionPairOperators(activeFaction);
+          if (pair?.[0]) this.switchToHero(pair[0].key);
+        }
         break;
-      case 'Digit2':
-        if (isDown && !e.repeat) this.switchToHero('solaris');
+      }
+      case 'Digit2': {
+        if (isDown && !e.repeat) {
+          const activeFaction = this.hud?.playerFaction || this.world?.livingCity?.playerFaction || 'cv';
+          const pair = getFactionPairOperators(activeFaction);
+          if (pair?.[1]) this.switchToHero(pair[1].key);
+        }
         break;
-      case 'Digit3':
-        if (isDown && !e.repeat) this.switchToHero('tita');
-        break;
-      case 'Digit4':
-        if (isDown && !e.repeat) this.switchToHero('vingador');
-        break;
-      case 'Digit5':
-        if (isDown && !e.repeat) this.switchToHero('sombra');
-        break;
-      case 'Digit6':
-        if (isDown && !e.repeat) this.switchToHero('turbo');
-        break;
-      case 'Digit7':
-        if (isDown && !e.repeat) this.switchToHero('voltaico');
-        break;
-      case 'Digit8':
-        if (isDown && !e.repeat) this.switchToHero('vortex');
-        break;
-      case 'Digit9':
-        if (isDown && !e.repeat) this.switchToHero('op09');
-        break;
-      case 'KeyQ':
+      }
+      case 'KeyQ': {
         this.keys.turbo = isDown;
-        if (this.minifigure.currentHeroKey === 'turbo') {
+        const hero = this.minifigure.currentHeroKey;
+        if (hero === 'turbo') {
           // No Turbo Fantasma, [Q] funciona igual Turbo de Carro: ativo enquanto segura [Q], desliga ao soltar!
           if (isDown && !e.repeat) {
             this._triggerTurboOverdrive(true);
@@ -203,14 +230,17 @@ export const heroSelectionAndShortcutsMethods = {
             this.keys.sprint = false;
             this.isDrifting = false;
           }
-        } else if (this.minifigure.currentHeroKey === 'solaris') {
+        } else if (isFactionOperatorKey(hero)) {
+          if (isDown && !e.repeat) {
+            this.operatorAbilities?.triggerAbility('q');
+          }
+        } else if (hero === 'solaris') {
           if (isDown && !e.repeat) {
             this._startSolarisSupernovaCharge();
           } else if (!isDown) {
             this._releaseSolarisSupernovaCharge();
           }
         } else if (isDown && !e.repeat) {
-          const hero = this.minifigure.currentHeroKey;
           if (hero === 'caveira') {
             this._triggerTacticalRoll();
           } else if (hero === 'tita') {
@@ -228,24 +258,17 @@ export const heroSelectionAndShortcutsMethods = {
           }
         }
         break;
-      case 'KeyF':
+      }
+      case 'KeyE':
         if (isDown && !e.repeat) {
           const hero = this.minifigure.currentHeroKey;
-          if (!this.currentVehicle && hero === 'tita') {
-            // No Titã Blindado, [F] agarra/arremessa qualquer veículo (para dirigir, usa [E])!
-            this._toggleTitaCarGrabOrThrow();
-          } else if (!this.currentVehicle && hero === 'vortex') {
-            // No Vórtex, [F] alterna em tempo real entre Forma Normal Ágil e Forma Big-Fig Monstruosa!
-            this._toggleVortexMonsterForm();
-          } else if (!this.currentVehicle && hero === 'voltaico') {
-            // No Voltaico, [F] aciona o Teleporte Elétrico (Lightning Blink)!
-            this._triggerVoltaicoLightningBlink();
+          if (isFactionOperatorKey(hero)) {
+            if (!this.currentVehicle) {
+              this.operatorAbilities?.triggerAbility('e');
+            }
           } else if (hero === 'turbo') {
-            // No Turbo Fantasma, [F] SEMPRE invoca e monta (ou desmonta) a Moto Energética!
             this._summonAndMountTurboGhostBike();
-          } else if (this.currentVehicle || this.findNearbyVehicle()) {
-            this.toggleVehicleInteraction();
-          } else {
+          } else if (!this.currentVehicle) {
             if (hero === 'caveira') {
               this._triggerTacticalRoll();
             } else if (hero === 'solaris') {
@@ -255,10 +278,16 @@ export const heroSelectionAndShortcutsMethods = {
               } else {
                 this._activateSolarisFlight();
               }
+            } else if (hero === 'tita') {
+              this._triggerTitaRocketPunch();
             } else if (hero === 'vingador') {
               this._cycleVingadorWeapon();
             } else if (hero === 'sombra') {
               this._triggerSombraGrapple();
+            } else if (hero === 'voltaico') {
+              this._triggerVoltaicoLightningBlink();
+            } else if (hero === 'vortex') {
+              this._toggleVortexMonsterForm();
             } else if (hero === 'op09') {
               this.customHeroPowers?.triggerMobilityKey();
             }
@@ -268,21 +297,22 @@ export const heroSelectionAndShortcutsMethods = {
       case 'KeyG':
         if (isDown && !e.repeat) {
           const hero = this.minifigure.currentHeroKey;
+          if (isFactionOperatorKey(hero)) break;
           if (hero === 'turbo') {
             this._summonAndMountTurboGhostBike();
           } else if (!this.currentVehicle) {
-            if (hero === 'caveira') {
-              this.world?.livingCity?.triggerCaveiraRadioCommand(this.position, this.facingAngle);
-            } else if (hero === 'tita') {
+            if (hero === 'tita') {
               this._toggleTitaCarGrabOrThrow();
+            } else if (hero === 'vortex') {
+              this._toggleVortexMonsterForm();
+            } else if (hero === 'voltaico') {
+              this._triggerVoltaicoLightningBlink();
+            } else if (hero === 'caveira') {
+              this.world?.livingCity?.triggerCaveiraRadioCommand(this.position, this.facingAngle);
             } else if (hero === 'sombra') {
               this._triggerSombraMagneticPull();
             } else if (hero === 'vingador') {
               this._cycleVingadorWeapon();
-            } else if (hero === 'voltaico') {
-              this._triggerVoltaicoLightningBlink();
-            } else if (hero === 'vortex') {
-              this._triggerVortexAbyssalLasso();
             } else if (hero === 'op09') {
               this.customHeroPowers?.triggerMobilityKey();
             }
@@ -316,18 +346,14 @@ export const heroSelectionAndShortcutsMethods = {
         }
         break;
       case 'KeyR':
-        if (isDown && !e.repeat) {
-          if (!this.currentVehicle && this.minifigure.currentHeroKey === 'vingador') {
-            // No Vingador de Chumbo, [R] alterna entre Duas SMGs, Escopeta de Impacto e Bazuca RPG!
+        if (isDown && !e.repeat && !this.currentVehicle) {
+          const hero = this.minifigure.currentHeroKey;
+          if (isFactionOperatorKey(hero)) {
+            this.operatorWeapons?.startReload();
+          } else if (hero === 'vingador') {
             this._cycleVingadorWeapon();
-          } else if (!this.currentVehicle && this.minifigure.currentHeroKey === 'vortex') {
-            // No Vórtex, [R] também alterna entre Forma Ágil e Forma Big-Fig Monstruosa!
+          } else if (hero === 'vortex') {
             this._toggleVortexMonsterForm();
-          } else if (this.destructibles) {
-            if (this.currentVehicle) {
-              this.exitVehicle();
-            }
-            this.destructibles.rebuildAll();
           }
         }
         break;

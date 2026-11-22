@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
+import { isFactionOperatorKey, getOperatorSpec } from '../../entities/operators/OperatorCatalog.js';
 import { getWorldSoftBoundaryForce } from '../../world/CoastlineProfile.js';
 import { lerpAngle } from './CameraOrbitAndRig.js';
 
@@ -85,6 +86,8 @@ export const footSwimAndCollisionMethods = {
 
   _updateFootAndGlideLocomotion(dt, moveInput, hasInput, isUsingSolarBeam) {
     const hero = this.minifigure.currentHeroKey;
+    const isOperator = isFactionOperatorKey(hero);
+    const opSpec = isOperator ? getOperatorSpec(hero) : null;
     const isCaveira = hero === 'caveira';
     const isSombra = hero === 'sombra';
     const isVingador = hero === 'vingador';
@@ -97,25 +100,33 @@ export const footSwimAndCollisionMethods = {
     const isOp09Hoverboard = Boolean(isOp09 && this.customHeroPowers?.hoverboardActive);
     this.turboOverdriveActive = isTurboHoldingQ;
 
+    const opSpeedMult = isOperator
+      ? (opSpec?.speedMultiplier ?? 1.0) *
+        (this.operatorWeapons?.getMoveSpeedMultiplier?.() ?? 1.0) *
+        (this.operatorAbilities?.getMoveSpeedMultiplier?.() ?? 1.0)
+      : 1.0;
+
     const heroWalkSpeed =
-      isSombra ? 15.5 :
-        isTurbo ? 16.0 :
-          isVoltaico ? (isVoltaicoGliding ? 28.0 : 15.5) :
-            isVortex ? (this.minifigure.isVortexMonster ? 14.5 : 16.5) :
-              isVingador ? 13.5 :
-                isCaveira ? 13.0 :
-                  isOp09 ? 9.5 :
-                    this.walkSpeed;
+      isOperator ? 13.0 * opSpeedMult :
+        isSombra ? 15.5 :
+          isTurbo ? 16.0 :
+            isVoltaico ? (isVoltaicoGliding ? 28.0 : 15.5) :
+              isVortex ? (this.minifigure.isVortexMonster ? 14.5 : 16.5) :
+                isVingador ? 13.5 :
+                  isCaveira ? 13.0 :
+                    isOp09 ? 9.5 :
+                      this.walkSpeed;
 
     const heroRunSpeed =
-      isSombra ? 32.0 :
-        isTurbo ? (isTurboHoldingQ ? 54.0 : 32.0) :
-          isVoltaico ? (isVoltaicoGliding ? 38.0 : 30.0) :
-            isVortex ? (this.minifigure.isVortexMonster ? 28.0 : 33.0) :
-              isVingador ? (this.vingadorFurorTimer > 0 ? 32.0 : 26.0) :
-                isCaveira ? 27.5 :
-                  isOp09 ? 14.2 :
-                    this.runSpeed;
+      isOperator ? 27.5 * opSpeedMult :
+        isSombra ? 32.0 :
+          isTurbo ? (isTurboHoldingQ ? 54.0 : 32.0) :
+            isVoltaico ? (isVoltaicoGliding ? 38.0 : 30.0) :
+              isVortex ? (this.minifigure.isVortexMonster ? 28.0 : 33.0) :
+                isVingador ? (this.vingadorFurorTimer > 0 ? 32.0 : 26.0) :
+                  isCaveira ? 27.5 :
+                    isOp09 ? 14.2 :
+                      this.runSpeed;
 
     const stealthMult = this.stealthTimer > 0 ? (38.0 / 32.0) : 1.0;
     const netSlowMult = this.energyNetSlowTimer > 0 ? 0.55 : 1.0;
@@ -166,6 +177,8 @@ export const footSwimAndCollisionMethods = {
       }
     }
 
+    const isOperatorAimingOrFiring = isOperator && Boolean(this.mouseButtons.right || this.mouseButtons.left);
+
     if (hasInput || (isTurbo && this.turboOverdriveActive)) {
       const moveDir = hasInput
         ? moveInput
@@ -173,7 +186,7 @@ export const footSwimAndCollisionMethods = {
       this.velocity.x = moveDir.x * this.currentSpeed;
       this.velocity.z = moveDir.z * this.currentSpeed;
 
-      if (hasInput && !isUsingSolarBeam && !this.mouseButtons.left) {
+      if (hasInput && !isUsingSolarBeam && !this.mouseButtons.left && !isOperatorAimingOrFiring) {
         const desiredAngle = Math.atan2(moveInput.x, moveInput.z);
         this.facingAngle = lerpAngle(this.facingAngle, desiredAngle, Math.min(1, dt * 16));
         this.minifigure.root.rotation.y = this.facingAngle;
@@ -181,6 +194,12 @@ export const footSwimAndCollisionMethods = {
     } else {
       this.velocity.x = THREE.MathUtils.lerp(this.velocity.x, 0, Math.min(1, dt * 18));
       this.velocity.z = THREE.MathUtils.lerp(this.velocity.z, 0, Math.min(1, dt * 18));
+    }
+
+    if (isOperatorAimingOrFiring) {
+      const aimAngle = Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw));
+      this.facingAngle = lerpAngle(this.facingAngle, aimAngle, Math.min(1, dt * 22));
+      this.minifigure.root.rotation.y = this.facingAngle;
     }
   },
 
