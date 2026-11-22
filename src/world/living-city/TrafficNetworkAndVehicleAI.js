@@ -4,6 +4,7 @@ import {
   SHARED_BRAKE_LIGHT_OFF_MAT,
   SHARED_BRAKE_LIGHT_ON_MAT
 } from './TrafficRouteSpecsAndSpawner.js';
+import { disembarkOccupants } from '../vehicles/VehicleOccupants.js';
 
 function syncTrafficObbCollider(world, col, cx, cz, halfX, halfZ, yaw, minY, maxY) {
   if (!col) return;
@@ -80,6 +81,9 @@ export const trafficNetworkAndVehicleAIMethods = {
    * o motorista sai sempre como um civil surpreso correndo para a calçada (zero inimigo armado!).
    */
   _ejectDriverOnCarjack(tv) {
+    if (tv?.destructible) {
+      disembarkOccupants(tv.destructible, Infinity);
+    }
     const pos = tv.mesh.position;
     const rotY = tv.mesh.rotation.y;
     const leftX = pos.x - Math.cos(rotY) * 2.35;
@@ -176,6 +180,7 @@ export const trafficNetworkAndVehicleAIMethods = {
     for (const tv of this.trafficVehicles) {
       const obj = tv.destructible;
       if (!obj || obj.destroyed) continue;
+      obj._aiCurrentSpeed = Math.abs(tv.currentSpeed || 0);
 
       tv.hornCooldown = Math.max(0, tv.hornCooldown - dt);
       tv.panicTimer = Math.max(0, tv.panicTimer - dt);
@@ -184,6 +189,7 @@ export const trafficNetworkAndVehicleAIMethods = {
       }
 
       if (obj.isDriven || obj.isGrabbed) {
+        if (obj.occupants?.length) disembarkOccupants(obj, Infinity);
         if (!tv.hijackedByPlayer) {
           tv.hijackedByPlayer = true;
           this._ejectDriverOnCarjack(tv);
@@ -211,6 +217,29 @@ export const trafficNetworkAndVehicleAIMethods = {
           }
         } else {
           tv.abandonedTimer = 0;
+        }
+        continue;
+      }
+
+      if (obj.driverKilled) {
+        tv.currentSpeed = THREE.MathUtils.lerp(tv.currentSpeed, 0, Math.min(1, dt * 6.5));
+        if (tv.currentSpeed < 0.08) tv.currentSpeed = 0;
+        if (!tv.isBraking) {
+          tv.isBraking = true;
+          for (const bl of tv.brakeLights) bl.material = SHARED_BRAKE_LIGHT_ON_MAT;
+        }
+        if (tv.currentSpeed > 0.04) {
+          tv.posAlong += tv.dir * tv.currentSpeed * dt;
+          const nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
+          const nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
+          tv.mesh.position.x = nx;
+          tv.mesh.position.z = nz;
+          obj.basePos.copy(tv.mesh.position);
+        }
+        syncTrafficVehicleColliders(this.world, tv);
+        if (playerPos && Math.hypot(playerPos.x - tv.mesh.position.x, playerPos.z - tv.mesh.position.z) > 78.0) {
+          this._relocateStuckTrafficVehicle(tv, playerPos);
+          syncTrafficVehicleColliders(this.world, tv);
         }
         continue;
       }
@@ -331,7 +360,10 @@ export const trafficNetworkAndVehicleAIMethods = {
         }
       }
 
-      const desiredCruise = tv.panicTimer > 0 ? tv.cruiseSpeed * 1.45 : tv.cruiseSpeed;
+      const engineMult = this.destructibles?.getVehicleEngineSpeedMultiplier
+        ? this.destructibles.getVehicleEngineSpeedMultiplier(obj)
+        : 1.0;
+      const desiredCruise = (tv.panicTimer > 0 ? tv.cruiseSpeed * 1.45 : tv.cruiseSpeed) * engineMult;
       const targetSpeed = obstacleAhead ? 0 : desiredCruise;
       const accelRate = obstacleAhead ? 46.0 : 16.0;
       tv.currentSpeed = THREE.MathUtils.lerp(

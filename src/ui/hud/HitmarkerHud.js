@@ -2,10 +2,45 @@ import { soundFX } from '../../audio/SoundFX.js';
 import { definePrototypeMethods } from './HudConstantsAndPortraits.js';
 
 export const HITMARKER_NORMAL_DURATION_MS = 120;
+export const HITMARKER_HEADSHOT_DURATION_MS = 165;
 export const HITMARKER_KILL_DURATION_MS = 220;
 export const KILL_FLASH_FALLBACK_DURATION_MS = 180;
+export const KILL_CATEGORIES = Object.freeze(['police', 'civilian', 'cv', 'pcc', 'ares']);
 
 const SPOKE_CLASSES = ['hm-tl', 'hm-tr', 'hm-bl', 'hm-br'];
+
+export function classifyKillCategory(victim) {
+  if (typeof victim === 'string') {
+    const norm = victim.trim().toLowerCase();
+    if (KILL_CATEGORIES.includes(norm)) return norm;
+    if (norm === 'guard') return 'police';
+    return 'civilian';
+  }
+  const fac = String(victim?.faction || victim?.npcRef?.faction || '').trim().toLowerCase();
+  if (fac === 'cv' || fac === 'pcc' || fac === 'ares') return fac;
+  if (fac === 'guard' || fac === 'police') return 'police';
+  if (
+    victim?.isPoliceUnit ||
+    victim?.npcRef?.isPoliceUnit ||
+    victim?.kind === 'police' ||
+    victim?.npcRef?.kind === 'police' ||
+    victim?.type === 'police_helicopter' ||
+    victim?.type === 'police_car' ||
+    victim?.type === 'police_officer'
+  ) {
+    return 'police';
+  }
+  if (
+    victim?.isCivilianPedestrian ||
+    victim?.npcRef?.isCivilianPedestrian ||
+    victim?.type === 'pedestrian_civilian' ||
+    victim?.kind === 'civilian' ||
+    victim?.npcRef?.kind === 'civilian'
+  ) {
+    return 'civilian';
+  }
+  return 'civilian';
+}
 
 function getDocById(id) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') {
@@ -48,8 +83,61 @@ function ensureSpokesOnHitmarker(hitmarkerEl) {
  */
 export function installHitmarkerHud(LegoHud) {
   definePrototypeMethods(LegoHud, {
+    _ensureSessionKills() {
+      if (!this.sessionKills || typeof this.sessionKills !== 'object') {
+        this.sessionKills = { total: 0, police: 0, civilian: 0, cv: 0, pcc: 0, ares: 0 };
+      } else {
+        for (const cat of KILL_CATEGORIES) {
+          const v = Number(this.sessionKills[cat]);
+          this.sessionKills[cat] = Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+        }
+        const sum =
+          this.sessionKills.police +
+          this.sessionKills.civilian +
+          this.sessionKills.cv +
+          this.sessionKills.pcc +
+          this.sessionKills.ares;
+        const rawTotal = Number(this.sessionKills.total);
+        this.sessionKills.total = Number.isFinite(rawTotal) && rawTotal >= sum ? Math.floor(rawTotal) : sum;
+      }
+      return this.sessionKills;
+    },
+
+    resetSessionKills(initial = null) {
+      const src = initial && typeof initial === 'object' ? initial : null;
+      const next = { total: 0, police: 0, civilian: 0, cv: 0, pcc: 0, ares: 0 };
+      if (src) {
+        for (const cat of KILL_CATEGORIES) {
+          const v = Number(src[cat]);
+          next[cat] = Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+        }
+        const sum = next.police + next.civilian + next.cv + next.pcc + next.ares;
+        const rawTotal = Number(src.total);
+        next.total = Number.isFinite(rawTotal) && rawTotal >= sum ? Math.floor(rawTotal) : sum;
+      }
+      this.sessionKills = next;
+      this._playerKillCount = next.total;
+      if (this.isPauseMenuOpen) this._updatePauseHeroCard?.();
+      return { ...this.sessionKills };
+    },
+
+    getSessionKills() {
+      return { ...this._ensureSessionKills() };
+    },
+
+    recordPlayerKill(victimOrCategory, count = 1) {
+      const stats = this._ensureSessionKills();
+      const cat = classifyKillCategory(victimOrCategory);
+      const n = Math.max(1, Math.floor(Number(count) || 1));
+      stats[cat] = (stats[cat] || 0) + n;
+      stats.total = (stats.total || 0) + n;
+      this._playerKillCount = stats.total;
+      return { category: cat, added: n, total: stats.total };
+    },
+
     _initHitmarkerHud() {
-      if (typeof this._playerKillCount !== 'number') this._playerKillCount = 0;
+      const stats = this._ensureSessionKills();
+      if (typeof this._playerKillCount !== 'number') this._playerKillCount = stats.total;
       if (typeof this._hitmarkerRemainingSec !== 'number') this._hitmarkerRemainingSec = 0;
       if (typeof this._hitmarkerTotalSec !== 'number') this._hitmarkerTotalSec = 0;
       if (typeof this._killFlashCssRemainingSec !== 'number') this._killFlashCssRemainingSec = 0;
@@ -101,7 +189,7 @@ export function installHitmarkerHud(LegoHud) {
       this.hitmarkerVariant = null;
       const el = this.hitmarkerEl;
       if (!el) return;
-      el.classList?.remove('is-visible', 'is-hit', 'is-kill');
+      el.classList?.remove('is-visible', 'is-hit', 'is-headshot', 'is-kill');
       if (el.dataset) el.dataset.variant = '';
       if (el.style) {
         el.style.opacity = '0';
@@ -109,10 +197,16 @@ export function installHitmarkerHud(LegoHud) {
       }
     },
 
-    triggerHitmarker(isKill = false) {
+    triggerHitmarker(isKill = false, opts = {}) {
       this._initHitmarkerHud();
       const kill = Boolean(isKill);
-      const durationMs = kill ? HITMARKER_KILL_DURATION_MS : HITMARKER_NORMAL_DURATION_MS;
+      const isHeadshot = Boolean(opts?.isHeadshot) && !kill;
+      const variant = kill ? 'kill' : isHeadshot ? 'headshot' : 'hit';
+      const durationMs = kill
+        ? HITMARKER_KILL_DURATION_MS
+        : isHeadshot
+          ? HITMARKER_HEADSHOT_DURATION_MS
+          : HITMARKER_NORMAL_DURATION_MS;
 
       // Reinicia o timer sem somar/acumular em rajadas rápidas
       if (this._hitmarkerTimeout) {
@@ -123,24 +217,32 @@ export function installHitmarkerHud(LegoHud) {
       this._hitmarkerRemainingSec = durationMs / 1000;
       this._hitmarkerTotalSec = this._hitmarkerRemainingSec;
       this.isHitmarkerVisible = true;
-      this.hitmarkerVariant = kill ? 'kill' : 'hit';
+      this.hitmarkerVariant = variant;
 
       const el = this.hitmarkerEl;
       if (el) {
-        el.classList?.remove('hidden', 'is-hit', 'is-kill');
-        el.classList?.add('is-visible', kill ? 'is-kill' : 'is-hit');
+        el.classList?.remove('hidden', 'is-hit', 'is-headshot', 'is-kill');
+        el.classList?.add('is-visible', `is-${variant}`);
         if (el.dataset) {
-          el.dataset.variant = kill ? 'kill' : 'hit';
+          el.dataset.variant = variant;
         }
         if (el.style) {
           el.style.opacity = '1';
           el.style.transform = kill
             ? 'translate(-50%, -50%) scale(1.38)'
-            : 'translate(-50%, -50%) scale(1)';
+            : isHeadshot
+              ? 'translate(-50%, -50%) scale(1.24)'
+              : 'translate(-50%, -50%) scale(1)';
         }
       }
 
-      if (!kill) {
+      if (isHeadshot) {
+        if (typeof soundFX.playHeadshotTink === 'function') {
+          soundFX.playHeadshotTink();
+        } else {
+          soundFX.playHitmarkerTick?.();
+        }
+      } else if (!kill) {
         soundFX.playHitmarkerTick?.();
       }
 
@@ -193,16 +295,24 @@ export function installHitmarkerHud(LegoHud) {
       if (el.style) el.style.opacity = '0';
     },
 
-    triggerPlayerKillFeedback(victimObj = null) {
+    triggerPlayerKillFeedback(victimObj = null, opts = {}) {
       this._initHitmarkerHud();
-      this._playerKillCount = (this._playerKillCount || 0) + 1;
+      if (Array.isArray(opts?.categories) && opts.categories.length > 0) {
+        for (const cat of opts.categories) {
+          this.recordPlayerKill(cat, 1);
+        }
+      } else {
+        this.recordPlayerKill(victimObj, Math.max(1, Math.floor(Number(opts?.killCount) || 1)));
+      }
       this._lastKilledVictim = victimObj || null;
+      this._lastKillWasHeadshot = Boolean(opts?.isHeadshot);
 
-      // Hitmarker vermelho arterial sempre aparece no centro da mira ao eliminar
-      this.triggerHitmarker(true);
+      // Hitmarker vermelho arterial sempre aparece no centro da mira ao eliminar (1x por evento)
+      this.triggerHitmarker(true, opts);
 
       const fxEnabled = this.settings?.killEffect !== false;
       if (fxEnabled) {
+        if (opts?.isHeadshot) soundFX.playHeadshotTink?.();
         soundFX.playKillConfirm?.();
         if (typeof this.onTriggerKillFlash === 'function') {
           this.onTriggerKillFlash(victimObj);
@@ -211,6 +321,9 @@ export function installHitmarkerHud(LegoHud) {
         }
       } else {
         this._clearCssKillFlashFallback();
+      }
+      if (this.isPauseMenuOpen) {
+        this._updatePauseHeroCard?.();
       }
       return fxEnabled;
     },

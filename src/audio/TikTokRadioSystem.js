@@ -83,6 +83,8 @@ export class TikTokRadioSystem {
     this._loadedAudioSrc = '';
     this._pendingSeekOffsetSec = null;
     this._syncChannel = null;
+    this._serverApiAvailable = null;
+    this._idbObjectUrls = new Map();
 
     this._rebuildTracksMap();
     this._initLiveSyncAndMigration();
@@ -168,9 +170,16 @@ export class TikTokRadioSystem {
     if (typeof fetch !== 'function' || !String(window?.location?.protocol || '').startsWith('http')) {
       return;
     }
+    if (this._serverApiAvailable === false) return;
     try {
       const res = await fetch('/api/radio/state', { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) {
+        if (res.status === 404 || res.status === 501 || res.status === 405) {
+          this._serverApiAvailable = false;
+        }
+        return;
+      }
+      this._serverApiAvailable = true;
       const serverState = await res.json();
       if (serverState?.initialized && Array.isArray(serverState.stations)) {
         this.applyExternalRadioConfig(serverState, false);
@@ -183,7 +192,11 @@ export class TikTokRadioSystem {
   async _bootstrapWithServer() {
     try {
       const res = await fetch('/api/radio/state', { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) {
+        this._serverApiAvailable = false;
+        return;
+      }
+      this._serverApiAvailable = true;
       const serverState = await res.json();
       if (serverState?.initialized && Array.isArray(serverState.stations) && serverState.stations.length > 0) {
         this.applyExternalRadioConfig(serverState, false);
@@ -294,6 +307,7 @@ export class TikTokRadioSystem {
       // Ignora
     }
     if (
+      this._serverApiAvailable === true &&
       typeof window !== 'undefined' &&
       typeof fetch === 'function' &&
       String(window.location?.protocol || '').startsWith('http')
@@ -578,6 +592,27 @@ export class TikTokRadioSystem {
 
   _startOrSeekTrackAudio(track, offsetSec = 0) {
     if (!track) return;
+    if (
+      typeof track.src === 'string' &&
+      track.src.startsWith('idb://') &&
+      typeof window !== 'undefined' &&
+      typeof URL?.createObjectURL === 'function'
+    ) {
+      const cachedUrl = this._idbObjectUrls.get(track.id);
+      if (cachedUrl) {
+        this._startOrSeekTrackAudio({ ...track, src: cachedUrl }, offsetSec);
+        return;
+      }
+      RadioAudioStorageDB.getAudioBlob(track.id).then((blob) => {
+        if (!blob || this._playingTrackId !== track.id) return;
+        const objUrl = URL.createObjectURL(blob);
+        this._idbObjectUrls.set(track.id, objUrl);
+        const liveNow = this.activeStationId ? this.getStationLiveNow(this.activeStationId) : null;
+        this._startOrSeekTrackAudio({ ...track, src: objUrl }, liveNow ? liveNow.offsetSec : offsetSec);
+      });
+      return;
+    }
+
     const canUseHtmlAudio =
       Boolean(track.src) &&
       (track.isCustomFile || track.src.startsWith('/data/radio/') || track.src.startsWith('blob:') || track.src.startsWith('data:audio')) &&

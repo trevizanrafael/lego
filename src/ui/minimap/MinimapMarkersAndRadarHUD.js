@@ -2,6 +2,19 @@ import { getSvgIcon, drawCanvasVectorIcon } from '../TacticalIcons.js';
 import { TERRITORY_ZONES, FACTION_THEME } from '../../world/FactionWarSystem.js';
 import { soundFX } from '../../audio/SoundFX.js';
 
+const CLOCK_SVG_OPEN =
+  '<svg class="minimap-clock-svg" viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+
+const CLOCK_PHASE_SVGS = {
+  day: `${CLOCK_SVG_OPEN}<circle cx="8" cy="8" r="3.1"/><path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/></svg>`,
+  dusk: `${CLOCK_SVG_OPEN}<path d="M1.5 11.5h13"/><path d="M4.2 11.5a3.8 3.8 0 0 1 7.6 0"/><path d="M8 3.2v2.1M3.4 6.2l1.4 1.4M12.6 6.2l-1.4 1.4"/></svg>`,
+  night: `${CLOCK_SVG_OPEN}<path d="M10.9 2.4a5.4 5.4 0 1 0 2.7 9.7A4.6 4.6 0 0 1 10.9 2.4z"/></svg>`
+};
+
+export function getClockPhaseSvg(iconKey = 'day') {
+  return CLOCK_PHASE_SVGS[iconKey] || CLOCK_PHASE_SVGS.day;
+}
+
 export function normalizeAngleDiff(a, b) {
   let d = (a - b) % (Math.PI * 2);
   if (d > Math.PI) d -= Math.PI * 2;
@@ -37,7 +50,7 @@ export function updateMinimapHeaderAndTelemetry(
     if (hud.minimapNumEl) hud.minimapNumEl.textContent = `R-${codeNum}`;
     if (hud.minimapNameEl) {
       const regionTitle = currentRegion.shortName || currentRegion.name;
-      const svgMarkup = getSvgIcon(currentRegion.icon || 'pin', currentRegion.color || '#facc15', 13);
+      const svgMarkup = getSvgIcon(currentRegion.icon || 'pin', currentRegion.color || '#d99b16', 13);
       hud.minimapNameEl.innerHTML = `${svgMarkup}<span>${regionTitle}</span>`;
     }
 
@@ -46,20 +59,33 @@ export function updateMinimapHeaderAndTelemetry(
     }
   }
 
-  // Barra de Status Tática no Rodapé: Relógio Urbano + Coordenadas (X, Z) + Altitude / Velocidade
+  // Barra de Status Tática no Rodapé: Relógio Urbano SVG + Coordenadas (X, Z) + Altitude / Velocidade
   if (hud.minimapSubEl && playerPos) {
     const rx = Math.round(playerPos.x);
     const rz = Math.round(playerPos.z);
     const alt = Math.round(playerPos.y);
     const kmh = Math.round(playerSpeed * 3.6);
-    const clockTag = world?.atmosphere ? `${world.atmosphere.getFormattedClock().display} // ` : '';
-    const nextSub =
+    const clock = world?.atmosphere ? world.atmosphere.getFormattedClock() : null;
+    const iconKey = clock ? clock.iconKey || 'day' : '';
+    const clockTag = clock ? `${clock.timeStr} // ` : '';
+    const nextTelemetryText =
       kmh >= 25
         ? `${clockTag}X:${rx} Z:${rz} // ${kmh} KM/H`
         : `${clockTag}X:${rx} Z:${rz} // ALT:${alt}m`;
-    if (hud._lastMinimapSubText !== nextSub) {
-      hud._lastMinimapSubText = nextSub;
-      hud.minimapSubEl.textContent = nextSub;
+
+    if (hud._lastMinimapSubText !== nextTelemetryText || hud._lastMinimapClockIcon !== iconKey) {
+      hud._lastMinimapSubText = nextTelemetryText;
+      hud._lastMinimapClockIcon = iconKey;
+      const iconSvg = iconKey ? getClockPhaseSvg(iconKey) : '';
+      if (typeof Element === 'undefined' || !(hud.minimapSubEl instanceof Element)) {
+        hud.minimapSubEl.textContent = nextTelemetryText;
+      }
+      hud.minimapSubEl.innerHTML = iconSvg
+        ? `${iconSvg}<span>${nextTelemetryText}</span>`
+        : `<span>${nextTelemetryText}</span>`;
+      if (hud.minimapSubEl.dataset) {
+        hud.minimapSubEl.dataset.clockIcon = iconKey;
+      }
     }
   }
 }

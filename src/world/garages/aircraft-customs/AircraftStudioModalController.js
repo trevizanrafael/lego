@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { soundFX } from '../../../audio/SoundFX.js';
+import { getLegoMaterial, markAsSharedAsset } from '../../../materials/LegoMaterials.js';
 import { createNavalOrAircraftMesh } from '../../NavalAndAirFleetBuilder.js';
 import {
   CUSTOMS_PAINT_PALETTE,
@@ -22,6 +23,33 @@ import {
   applySavedAircraftConfigsToCarrier,
   spawnCustomizedCarrierAircraft
 } from './AircraftCatalogAndApplier.js';
+
+// Geometrias e materiais compartilhados do pedestal giratório do Hangar (0 alocações / 0 PointLights extras!)
+export const SHARED_HANGAR_TURNTABLE_GEO = markAsSharedAsset(
+  new THREE.CylinderGeometry(6.8, 7.2, 0.36, 36)
+);
+export const SHARED_HANGAR_TURNTABLE_RING_GEO = markAsSharedAsset(
+  new THREE.TorusGeometry(6.85, 0.11, 8, 48).rotateX(Math.PI / 2)
+);
+export const SHARED_HANGAR_TURNTABLE_MAT = markAsSharedAsset(
+  getLegoMaterial(0x111827, { roughness: 0.36, metalness: 0.62, clearcoat: 0.28 })
+);
+export const SHARED_HANGAR_TURNTABLE_RING_MAT = markAsSharedAsset(
+  getLegoMaterial(0x38bdf8, { roughness: 0.14, metalness: 0.2, emissive: 0x0ea5e9, emissiveIntensity: 1.45 })
+);
+
+const CAM_PRESETS = {
+  front: [0.0, 0.24, 16.5],
+  wing: [Math.PI * 0.5, 0.28, 18.0],
+  tail: [Math.PI, 0.26, 16.5],
+  top: [0.3, 0.96, 20.0]
+};
+
+const STUDIO_TABS = [
+  { id: 'paint', label: 'AERONAVE & PINTURA' },
+  { id: 'livery', label: 'PADRÕES & INSÍGNIAS' },
+  { id: 'parts', label: 'ARMAMENTO & PEÇAS' }
+];
 
 export class AircraftCustomStudio {
   constructor(hud) {
@@ -72,9 +100,7 @@ export class AircraftCustomStudio {
     this.launchBtn?.addEventListener('click', () => this.saveAndLaunch());
     this.spinBtn?.addEventListener('click', () => {
       this.autoSpin = !this.autoSpin;
-      if (this.spinBtn) {
-        this.spinBtn.textContent = this.autoSpin ? 'GIRO AUTO: ON' : 'GIRO AUTO: OFF';
-      }
+      if (this.spinBtn) this.spinBtn.textContent = this.autoSpin ? 'GIRO AUTO: ON' : 'GIRO AUTO: OFF';
     });
     this.thrustBtn?.addEventListener('click', () => {
       this.thrustersPreview = !this.thrustersPreview;
@@ -92,24 +118,8 @@ export class AircraftCustomStudio {
 
     this.modalEl?.querySelectorAll('[data-cam-preset]')?.forEach((btn) => {
       btn.addEventListener('click', () => {
-        const p = btn.dataset.camPreset;
-        if (p === 'front') {
-          this.targetYaw = 0.0;
-          this.targetPitch = 0.24;
-          this.targetDist = 16.5;
-        } else if (p === 'wing') {
-          this.targetYaw = Math.PI * 0.5;
-          this.targetPitch = 0.28;
-          this.targetDist = 18.0;
-        } else if (p === 'tail') {
-          this.targetYaw = Math.PI;
-          this.targetPitch = 0.26;
-          this.targetDist = 16.5;
-        } else if (p === 'top') {
-          this.targetYaw = 0.3;
-          this.targetPitch = 0.96;
-          this.targetDist = 20.0;
-        }
+        const preset = CAM_PRESETS[btn.dataset.camPreset];
+        if (preset) [this.targetYaw, this.targetPitch, this.targetDist] = preset;
       });
     });
 
@@ -134,13 +144,9 @@ export class AircraftCustomStudio {
 
     if (controller) {
       controller.resetHeldInputs?.();
-      if (controller.minifigure?.root) {
-        controller.minifigure.root.visible = false;
-      }
+      if (controller.minifigure?.root) controller.minifigure.root.visible = false;
     }
-    if (world?.helicarrierShowcaseHolo) {
-      world.helicarrierShowcaseHolo.visible = false;
-    }
+    if (world?.helicarrierShowcaseHolo) world.helicarrierShowcaseHolo.visible = false;
     if (document.pointerLockElement && document.exitPointerLock) {
       try {
         document.exitPointerLock();
@@ -168,25 +174,18 @@ export class AircraftCustomStudio {
     this._isDragging = false;
     this.thrustersPreview = false;
 
-    if (this._previewGroup && this._world?.scene) {
-      this._world.scene.remove(this._previewGroup);
-    }
-    this._previewGroup = null;
+    if (this._previewMesh && this._previewGroup) this._previewGroup.remove(this._previewMesh);
     this._previewMesh = null;
+    if (this._previewGroup?.parent) this._previewGroup.parent.remove(this._previewGroup);
 
     if (this._controller?.minifigure?.root && !this._controller.currentVehicle) {
       this._controller.minifigure.root.visible = true;
     }
-    if (this._world?.helicarrierShowcaseHolo) {
-      this._world.helicarrierShowcaseHolo.visible = true;
-    }
+    if (this._world?.helicarrierShowcaseHolo) this._world.helicarrierShowcaseHolo.visible = true;
 
     document.body?.classList.remove('aircraft-studio-open');
     this.modalEl?.classList.add('hidden');
-
-    if (relockPointer && typeof this._controller?.relockPointer === 'function') {
-      this._controller.relockPointer();
-    }
+    if (relockPointer) this._controller?.relockPointer?.();
   }
 
   selectAircraftType(aircraftType) {
@@ -198,22 +197,32 @@ export class AircraftCustomStudio {
     soundFX.playMenuClick?.();
   }
 
+  _ensurePooledShowroomGroup() {
+    if (this._previewGroup) return this._previewGroup;
+    const group = markAsSharedAsset(new THREE.Group());
+    group.name = 'AircraftStudioShowroomGroup';
+
+    const padMesh = markAsSharedAsset(new THREE.Mesh(SHARED_HANGAR_TURNTABLE_GEO, SHARED_HANGAR_TURNTABLE_MAT));
+    padMesh.position.set(0, -1.27, 0);
+    padMesh.receiveShadow = true;
+
+    const rimMesh = markAsSharedAsset(new THREE.Mesh(SHARED_HANGAR_TURNTABLE_RING_GEO, SHARED_HANGAR_TURNTABLE_RING_MAT));
+    rimMesh.position.set(0, -1.08, 0);
+
+    group.add(padMesh, rimMesh);
+    this._previewGroup = group;
+    return group;
+  }
+
   rebuildPreviewMesh() {
     if (!this._world?.scene) return;
-    if (!this._previewGroup) {
-      this._previewGroup = new THREE.Group();
-      this._previewGroup.position.copy(this._padPos);
-      this._previewGroup.position.y += 1.45;
-      const keyLight = new THREE.PointLight(0xffffff, 2.2, 42);
-      keyLight.position.set(8, 12, 10);
-      const rimLight = new THREE.PointLight(0x38bdf8, 1.8, 36);
-      rimLight.position.set(-10, 6, -10);
-      this._previewGroup.add(keyLight, rimLight);
-      this._world.scene.add(this._previewGroup);
-    }
+    const group = this._ensurePooledShowroomGroup();
+    group.position.set(this._padPos.x, this._padPos.y + 1.45, this._padPos.z);
+    if (group.parent !== this._world.scene) this._world.scene.add(group);
 
     if (this._previewMesh) {
-      this._previewGroup.remove(this._previewMesh);
+      group.remove(this._previewMesh);
+      this._previewMesh = null;
     }
     const mesh = createNavalOrAircraftMesh({
       type: this.draftConfig.aircraftType,
@@ -225,15 +234,19 @@ export class AircraftCustomStudio {
     if (!mesh) return;
     applyAircraftCustomization(mesh, this.draftConfig);
     this._previewMesh = mesh;
-    this._previewGroup.add(mesh);
+    group.add(mesh);
   }
 
-  applyToWorldOnly() {
+  _persistDraftToWorld() {
     const saveData = getActiveAircraftSaveData();
     saveData.selectedAircraftType = this.draftConfig.aircraftType;
     saveData.configsByType[this.draftConfig.aircraftType] = { ...this.draftConfig };
     setActiveAircraftSaveData(saveData);
     applySavedAircraftConfigsToCarrier(this._world);
+  }
+
+  applyToWorldOnly() {
+    this._persistDraftToWorld();
     this.hud?.showWantedBanner?.(
       'PERSONALIZAÇÃO APLICADA',
       `${this.draftConfig.aircraftType.toUpperCase()} #${this.draftConfig.tailNumber} ATUALIZADA NO CONVÉS`,
@@ -244,13 +257,8 @@ export class AircraftCustomStudio {
   }
 
   saveCurrentConfig(showToast = false) {
-    const saveData = getActiveAircraftSaveData();
-    saveData.selectedAircraftType = this.draftConfig.aircraftType;
-    saveData.configsByType[this.draftConfig.aircraftType] = { ...this.draftConfig };
-    setActiveAircraftSaveData(saveData);
-    applySavedAircraftConfigsToCarrier(this._world);
+    this._persistDraftToWorld();
     this.hud?.saveCurrentProgress?.();
-
     if (showToast) {
       this.hud?.showWantedBanner?.(
         'AERONAVE SALVA NO HANGAR',
@@ -270,7 +278,7 @@ export class AircraftCustomStudio {
     this.close(false);
 
     const vehicle = spawnCustomizedCarrierAircraft(world, cfg);
-    if (vehicle && ctrl && typeof ctrl.enterVehicle === 'function') {
+    if (vehicle && typeof ctrl?.enterVehicle === 'function') {
       ctrl.enterVehicle(vehicle);
       ctrl.relockPointer?.();
     }
@@ -284,9 +292,7 @@ export class AircraftCustomStudio {
   }
 
   handleMouseDown(e) {
-    if (!this.isOpen) return;
-    const target = e.target;
-    if (target?.closest?.('.aircraft-studio-panel, .aircraft-studio-topbar, button')) return;
+    if (!this.isOpen || e.target?.closest?.('.aircraft-studio-panel, .aircraft-studio-topbar, button')) return;
     this._isDragging = true;
     this._lastMouseX = e.clientX;
     this._lastMouseY = e.clientY;
@@ -314,10 +320,8 @@ export class AircraftCustomStudio {
   updateStudioCamera(dt, camera) {
     if (!this.isOpen) return;
     const safeDt = Math.min(dt || 0.016, 0.05);
+    if (this.autoSpin && !this._isDragging) this._spinAngle += safeDt * 0.55;
 
-    if (this.autoSpin && !this._isDragging) {
-      this._spinAngle += safeDt * 0.55;
-    }
     if (this._previewMesh) {
       this._previewMesh.rotation.y = this._spinAngle;
       const ud = this._previewMesh.userData || {};
@@ -332,9 +336,10 @@ export class AircraftCustomStudio {
     }
 
     if (!camera) return;
-    this.camYaw += (this.targetYaw - this.camYaw) * Math.min(1, safeDt * 10);
-    this.camPitch += (this.targetPitch - this.camPitch) * Math.min(1, safeDt * 10);
-    this.camDist += (this.targetDist - this.camDist) * Math.min(1, safeDt * 10);
+    const blend = Math.min(1, safeDt * 10);
+    this.camYaw += (this.targetYaw - this.camYaw) * blend;
+    this.camPitch += (this.targetPitch - this.camPitch) * blend;
+    this.camDist += (this.targetDist - this.camDist) * blend;
 
     const cx = this._padPos.x;
     const cy = this._padPos.y + 2.0;
@@ -351,8 +356,7 @@ export class AircraftCustomStudio {
   render() {
     const spec = computeCustomAircraftStats(this.draftConfig.aircraftType, this.draftConfig);
     const typeEntry =
-      AIRCRAFT_STUDIO_TYPES.find((t) => t.id === this.draftConfig.aircraftType) ||
-      AIRCRAFT_STUDIO_TYPES[0];
+      AIRCRAFT_STUDIO_TYPES.find((t) => t.id === this.draftConfig.aircraftType) || AIRCRAFT_STUDIO_TYPES[0];
     if (this.titleEl) {
       this.titleEl.textContent = `${typeEntry.label.toUpperCase()} • #${this.draftConfig.tailNumber}`;
     }
@@ -367,17 +371,10 @@ export class AircraftCustomStudio {
     }
 
     if (this.tabsContainer) {
-      const tabs = [
-        { id: 'paint', label: 'AERONAVE & PINTURA' },
-        { id: 'livery', label: 'PADRÕES & INSÍGNIAS' },
-        { id: 'parts', label: 'ARMAMENTO & PEÇAS' }
-      ];
-      this.tabsContainer.innerHTML = tabs
-        .map(
-          (t) =>
-            `<button type="button" class="aircraft-tab-btn ${this.activeTab === t.id ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`
-        )
-        .join('');
+      this.tabsContainer.innerHTML = STUDIO_TABS.map(
+        (t) =>
+          `<button type="button" class="aircraft-tab-btn ${this.activeTab === t.id ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`
+      ).join('');
       this.tabsContainer.querySelectorAll('.aircraft-tab-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           this.activeTab = btn.dataset.tab;
@@ -394,14 +391,10 @@ export class AircraftCustomStudio {
         <div class="aircraft-field-label">${label}</div>
         <div class="aircraft-swatch-grid">
           ${CUSTOMS_PAINT_PALETTE.map(
-            (p) => `
-            <button type="button" class="aircraft-swatch-btn ${this.draftConfig[field] === p.id ? 'active' : ''}"
-              data-field="${field}" data-val="${p.id}" title="${p.name}"
-              style="background:${p.css};"></button>`
+            (p) => `<button type="button" class="aircraft-swatch-btn ${this.draftConfig[field] === p.id ? 'active' : ''}" data-field="${field}" data-val="${p.id}" title="${p.name}" style="background:${p.css};"></button>`
           ).join('')}
         </div>
-      </div>
-    `;
+      </div>`;
 
     const chipRow = (field, label, items, keyField = 'id', textField = 'name') => `
       <div class="aircraft-field-block">
@@ -409,32 +402,17 @@ export class AircraftCustomStudio {
         <div class="aircraft-chip-grid">
           ${items
             .map(
-              (item) => `
-              <button type="button" class="aircraft-chip-btn ${this.draftConfig[field] === item[keyField] ? 'active' : ''}"
-                data-field="${field}" data-val="${item[keyField]}">${item[textField]}</button>`
+              (item) => `<button type="button" class="aircraft-chip-btn ${this.draftConfig[field] === item[keyField] ? 'active' : ''}" data-field="${field}" data-val="${item[keyField]}">${item[textField]}</button>`
             )
             .join('')}
         </div>
-      </div>
-    `;
+      </div>`;
 
     let html = '';
     if (this.activeTab === 'paint') {
-      html += `
-        <div class="aircraft-field-block">
-          <div class="aircraft-field-label">ESCOLHER AERONAVE DO HANGAR</div>
-          <div class="aircraft-type-grid">
-            ${AIRCRAFT_STUDIO_TYPES.map(
-              (t) => `
-              <button type="button" class="aircraft-type-btn ${this.draftConfig.aircraftType === t.id ? 'active' : ''}"
-                data-aircraft-type="${t.id}">
-                <strong>${t.label}</strong>
-                <small>${t.role}</small>
-              </button>`
-            ).join('')}
-          </div>
-        </div>
-      `;
+      html += `<div class="aircraft-field-block"><div class="aircraft-field-label">ESCOLHER AERONAVE DO HANGAR</div><div class="aircraft-type-grid">${AIRCRAFT_STUDIO_TYPES.map(
+        (t) => `<button type="button" class="aircraft-type-btn ${this.draftConfig.aircraftType === t.id ? 'active' : ''}" data-aircraft-type="${t.id}"><strong>${t.label}</strong><small>${t.role}</small></button>`
+      ).join('')}</div></div>`;
       html += swatchRow('primaryColor', 'COR DA FUSELAGEM PRINCIPAL');
       html += swatchRow('secondaryColor', 'COR SECUNDÁRIA & DETALHES');
       html += swatchRow('wingColor', 'COR DAS ASAS & CAUDA');
@@ -443,18 +421,9 @@ export class AircraftCustomStudio {
     } else if (this.activeTab === 'livery') {
       html += chipRow('pattern', 'PADRÃO DE PINTURA / CAMUFLAGEM', AIRCRAFT_PATTERNS);
       html += chipRow('insignia', 'INSÍGNIA / ADESIVO DE ESQUADRÃO', AIRCRAFT_INSIGNIAS);
-      html += `
-        <div class="aircraft-field-block">
-          <div class="aircraft-field-label">NÚMERO TÁTICO</div>
-          <div class="aircraft-chip-grid">
-            ${AIRCRAFT_TAIL_NUMBERS.map(
-              (num) => `
-              <button type="button" class="aircraft-chip-btn ${this.draftConfig.tailNumber === num ? 'active' : ''}"
-                data-field="tailNumber" data-val="${num}">#${num}</button>`
-            ).join('')}
-          </div>
-        </div>
-      `;
+      html += `<div class="aircraft-field-block"><div class="aircraft-field-label">NÚMERO TÁTICO</div><div class="aircraft-chip-grid">${AIRCRAFT_TAIL_NUMBERS.map(
+        (num) => `<button type="button" class="aircraft-chip-btn ${this.draftConfig.tailNumber === num ? 'active' : ''}" data-field="tailNumber" data-val="${num}">#${num}</button>`
+      ).join('')}</div></div>`;
     } else {
       html += chipRow('weaponMod', 'ARMAMENTO & CASULOS', AIRCRAFT_WEAPON_MODS);
       html += chipRow('wingMod', 'ASAS, WINGLETS & RADAR', AIRCRAFT_WING_MODS);
@@ -468,9 +437,7 @@ export class AircraftCustomStudio {
     });
     this.bodyContainer.querySelectorAll('[data-field]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const field = btn.dataset.field;
-        const val = btn.dataset.val;
-        this.draftConfig[field] = val;
+        this.draftConfig[btn.dataset.field] = btn.dataset.val;
         this.rebuildPreviewMesh();
         this.render();
         soundFX.playMenuClick?.();

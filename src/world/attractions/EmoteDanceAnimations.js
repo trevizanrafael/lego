@@ -7,22 +7,22 @@ export const HERO_EMOTES = [
   {
     id: 'passinho',
     name: 'PASSINHO DO BAILE',
-    label: '🕺 PASSINHO DO BAILE'
+    label: 'PASSINHO DO BAILE'
   },
   {
     id: 'breakdance',
     name: 'MORTAL / BREAKDANCE LEGO',
-    label: '🤸 MORTAL / BREAKDANCE LEGO'
+    label: 'MORTAL / BREAKDANCE LEGO'
   },
   {
     id: 'hero_pose',
     name: 'POSE SUPREMA DE HERÓI',
-    label: '💪 POSE SUPREMA DE HERÓI'
+    label: 'POSE SUPREMA DE HERÓI'
   },
   {
     id: 'air_guitar',
     name: 'AIR GUITAR / COMEMORAÇÃO LEGO',
-    label: '🎸 AIR GUITAR / COMEMORAÇÃO LEGO'
+    label: 'AIR GUITAR / COMEMORAÇÃO LEGO'
   }
 ];
 

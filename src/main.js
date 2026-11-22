@@ -7,6 +7,8 @@ import { DestructibleManager } from './world/DestructibleManager.js';
 import { ThirdPersonController } from './controls/ThirdPersonController.js';
 import { LegoHud } from './ui/LegoHud.js';
 import { GraphicsPipeline } from './graphics/GraphicsPipeline.js';
+import { prewarmAllRuntimeShaders } from './graphics/ShaderWarmupRig.js';
+import { HitchProfiler } from './debug/HitchProfiler.js';
 import { getStaticMinimapCache } from './ui/minimap/MinimapTerrainAndRoadsPainter.js';
 import { CollisionDebugOverlay, isCollisionDebugAllowed } from './world/collision/CollisionDebugOverlay.js';
 
@@ -218,7 +220,9 @@ class LegoCityGame {
       initialQuality
     );
     this.graphicsPipeline.setKillEffectEnabled?.(this.hud?.settings?.killEffect !== false);
+    this.hitchProfiler = new HitchProfiler(this.renderer);
     this.controller.onToggleFullMap = () => {
+      this.hitchProfiler?.markAction('toggle_full_map');
       this.hud.toggleFullMap(this.world, this.controller);
     };
     this.controller.onToggleCollisionDebug = () => {
@@ -357,7 +361,8 @@ class LegoCityGame {
       this.destructibles.update(0.016, this.controller.position);
       this.scene.updateMatrixWorld(true);
     } else if (stage === 'compile_shaders') {
-      this.renderer.compile(this.scene, this.camera);
+      prewarmAllRuntimeShaders(this.renderer, this.scene, this.camera, this.world, this.destructibles);
+      this.hitchProfiler?.markWarmupComplete(this.renderer);
     } else if (stage === 'render_360') {
       const p = this.controller.position;
       const ang = (stepIdx / 4) * Math.PI * 2;
@@ -377,6 +382,38 @@ class LegoCityGame {
     return true;
   }
 
+  _trackProfilerActions(now) {
+    const p = this.hitchProfiler;
+    if (!p?.enabled || !this.controller || !this.hud) return;
+    const veh = this.controller.currentVehicle || null;
+    if (veh !== this._profPrevVeh) {
+      p.markAction(veh ? 'enter_vehicle' : 'exit_vehicle', now);
+      this._profPrevVeh = veh;
+    }
+    const heroKey = this.controller.minifigure?.currentHeroKey || '';
+    if (heroKey && heroKey !== this._profPrevHero) {
+      if (this._profPrevHero) p.markAction(`switch_hero:${heroKey}`, now);
+      this._profPrevHero = heroKey;
+    }
+    const rightDown = Boolean(this.controller.mouseButtons?.right);
+    if (rightDown && !this._profPrevRightBtn) {
+      p.markAction(`right_click:${heroKey}`, now);
+    }
+    this._profPrevRightBtn = rightDown;
+
+    const modalKey =
+      (this.hud.isPauseMenuOpen && 'pause_menu') ||
+      (this.hud.isCharacterGridOpen && 'character_grid') ||
+      (this.hud.isAircraftStudioOpen && 'aircraft_hangar') ||
+      (this.hud.isCustomsOpen && 'street_customs') ||
+      (this.hud.isCreatorOpen && 'op09_lab') ||
+      '';
+    if (modalKey !== (this._profPrevModal || '')) {
+      p.markAction(modalKey ? `open_${modalKey}` : `close_${this._profPrevModal}`, now);
+      this._profPrevModal = modalKey;
+    }
+  }
+
   _animate(now) {
     requestAnimationFrame(this._animate);
 
@@ -386,17 +423,21 @@ class LegoCityGame {
 
     // Na Tela Inicial ou na Tela de Loading, NÃO roda nem renderiza o mundo 3D em tempo real
     if (this.hud.isTitleScreenActive || this.hud.isLoadingActive || !this._engineReady) {
-      this.hud.update(baseDt);
+      this.hud.update(baseDt, this.camera);
       return;
     }
 
+    this._trackProfilerActions(now);
+    this.hud.recordRenderFrameTiming?.(rawDt);
+
     const isPausedInGame = this.hud.isPauseMenuOpen && !this.hud.isTitleScreenActive;
     if (isPausedInGame) {
-      this.hud.update(baseDt);
+      this.hud.update(baseDt, this.camera);
       if (!this._renderedPauseFrame) {
         this._renderedPauseFrame = true;
         this._renderScene(0.016);
       }
+      this.hitchProfiler?.recordFrame(rawDt * 1000, this.renderer, now);
       return;
     }
     this._renderedPauseFrame = false;
@@ -415,7 +456,7 @@ class LegoCityGame {
       this.world.update(dt, pos, this.controller);
       this.collisionDebugOverlay?.update(dt, this.world, pos, this.controller);
     }
-    this.hud.update(baseDt);
+    this.hud.update(baseDt, this.camera);
 
     const pos = this.controller.position;
     if (this.hud.isFullMapOpen) {
@@ -433,6 +474,7 @@ class LegoCityGame {
         this._lastMapHover = this.hud.hoveredRegionId;
         this.hud.renderFullMap(this.world, pos, this.controller.facingAngle, this.controller);
       }
+      this.hitchProfiler?.recordFrame(rawDt * 1000, this.renderer, now);
       return;
     }
 
@@ -441,6 +483,7 @@ class LegoCityGame {
     this.hud.updateMinimap(pos, this.controller.facingAngle, this.controller.yaw, currentRegion, this.world, speed, baseDt);
 
     this._renderScene(baseDt);
+    this.hitchProfiler?.recordFrame(rawDt * 1000, this.renderer, now);
   }
 }
 

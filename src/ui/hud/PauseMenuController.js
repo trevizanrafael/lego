@@ -25,6 +25,14 @@ const BLADE_SPECS = [
   ['btn-pause-save-quit', ['tactical-btn', 'pause-blade-btn', 'pause-blade-danger', 'danger-btn'], 'SAIR PARA O MENU']
 ];
 
+const KILLBOARD_SPECS = [
+  ['police', 'POL'],
+  ['civilian', 'CIV'],
+  ['cv', 'CV'],
+  ['pcc', 'PCC'],
+  ['ares', 'ARES']
+];
+
 const byId = (id) => (typeof document !== 'undefined' && typeof document.getElementById === 'function' ? document.getElementById(id) : null);
 
 function obtainPauseEl(tag, id = '', classes = [], text = '') {
@@ -109,7 +117,7 @@ export function installPauseMenuController(LegoHud) {
       this.pauseHeroCardCanvasEl = obtainPauseEl('canvas', 'pause-hero-card-canvas', []);
       this.pauseHeroCardNameEl = obtainPauseEl('div', 'pause-hero-card-name', [], 'COMANDANTE CAVEIRA');
       this.pauseHeroCardRoleEl = obtainPauseEl('div', 'pause-hero-card-role', [], 'OPERAÇÕES ESPECIAIS');
-      if (this.pauseHeroCardEl && !this.pauseHeroCardCanvasEl?.parentNode) {
+      if (this.pauseHeroCardEl && !this.pauseHeroCardCanvasEl?.parentNode && !this.pauseHeroCardEl.children?.length) {
         const inner = obtainPauseEl('div', '', ['pause-hero-card-inner']);
         const wrap = obtainPauseEl('div', '', ['pause-hero-portrait-wrap']);
         const plate = obtainPauseEl('div', '', ['pause-hero-nameplate']);
@@ -120,6 +128,7 @@ export function installPauseMenuController(LegoHud) {
         if (plate) inner?.appendChild?.(plate);
         if (inner) this.pauseHeroCardEl.appendChild?.(inner);
       }
+      this._ensurePauseHeroKillboardDom();
 
       if (this.pauseMainViewEl && (!this.pauseIngameActionsEl?.parentNode || !this.pauseHeroCardEl?.parentNode)) {
         const centerStage = obtainPauseEl('div', '', ['pause-center-stage']);
@@ -253,6 +262,103 @@ export function installPauseMenuController(LegoHud) {
       }
     },
 
+    _ensurePauseHeroKillboardDom() {
+      if (typeof document === 'undefined') return null;
+      const cardEl = this.pauseHeroCardEl || byId('pause-hero-card');
+      if (!cardEl) return null;
+      let inner = typeof cardEl.querySelector === 'function' ? cardEl.querySelector('.pause-hero-card-inner') : null;
+      if (!inner && Array.isArray(cardEl.children)) {
+        inner = cardEl.children.find((ch) => ch?.classList?.contains?.('pause-hero-card-inner')) || null;
+      }
+      if (!inner) return null;
+
+      const kbEl = obtainPauseEl('div', 'pause-hero-killboard', ['pause-hero-killboard']);
+      if (!kbEl) return null;
+
+      if (!this._pkbRefs || !kbEl.children?.length) {
+        clearChildren(kbEl);
+        const headerEl = obtainPauseEl('div', '', ['pkb-header']);
+        const titleEl = obtainPauseEl('span', 'pkb-title', ['pkb-title'], 'BAIXAS');
+        const totalEl = obtainPauseEl('b', 'pkb-total-val', ['pkb-total'], '0');
+        if (totalEl?.dataset) totalEl.dataset.zero = 'true';
+        totalEl?.setAttribute?.('data-zero', 'true');
+        if (titleEl) headerEl?.appendChild?.(titleEl);
+        if (totalEl) headerEl?.appendChild?.(totalEl);
+
+        const gridEl = obtainPauseEl('div', '', ['pkb-grid']);
+        const cells = {};
+        for (const [cat, defLbl] of KILLBOARD_SPECS) {
+          const cellEl = obtainPauseEl('div', '', ['pkb-cell']);
+          if (cellEl?.dataset) {
+            cellEl.dataset.cat = cat;
+            cellEl.dataset.zero = 'true';
+          }
+          cellEl?.setAttribute?.('data-cat', cat);
+          cellEl?.setAttribute?.('data-zero', 'true');
+          const catEl = obtainPauseEl('span', `pkb-cat-${cat}`, ['pkb-cat'], defLbl);
+          const valEl = obtainPauseEl('b', `pkb-val-${cat}`, ['pkb-val'], '0');
+          if (catEl) cellEl?.appendChild?.(catEl);
+          if (valEl) cellEl?.appendChild?.(valEl);
+          if (cellEl) gridEl?.appendChild?.(cellEl);
+          cells[cat] = { cellEl, catEl, valEl };
+        }
+        if (headerEl) kbEl.appendChild?.(headerEl);
+        if (gridEl) kbEl.appendChild?.(gridEl);
+        this._pkbRefs = { kbEl, headerEl, titleEl, totalEl, gridEl, cells };
+      }
+
+      if (typeof inner.insertBefore === 'function') {
+        const plate = typeof inner.querySelector === 'function' ? inner.querySelector('.pause-hero-nameplate') : null;
+        if (kbEl.parentNode !== inner) {
+          if (plate) inner.insertBefore(kbEl, plate);
+          else inner.appendChild(kbEl);
+        }
+      } else if (Array.isArray(inner.children) && !inner.children.includes(kbEl)) {
+        const plateIdx = inner.children.findIndex((ch) => ch?.classList?.contains?.('pause-hero-nameplate'));
+        if (plateIdx >= 0) inner.children.splice(plateIdx, 0, kbEl);
+        else inner.appendChild?.(kbEl);
+      }
+
+      this.pauseHeroKillboardEl = kbEl;
+      return kbEl;
+    },
+
+    _updatePauseHeroKillboard(lang = 'pt-BR') {
+      this._ensurePauseHeroKillboardDom();
+      const isEn = lang === 'en-US';
+      const kbTexts = (UI_TEXTS[lang] || UI_TEXTS['pt-BR']).pauseKillboard || UI_TEXTS['pt-BR'].pauseKillboard;
+      const kills = typeof this.getSessionKills === 'function'
+        ? this.getSessionKills()
+        : { total: 0, police: 0, civilian: 0, cv: 0, pcc: 0, ares: 0 };
+
+      const titleEl = this._pkbRefs?.titleEl || byId('pkb-title');
+      if (titleEl) titleEl.textContent = kbTexts?.title || (isEn ? 'KILLS' : 'BAIXAS');
+
+      const totalVal = Math.max(0, Math.floor(Number(kills.total) || 0));
+      const totalZero = totalVal === 0 ? 'true' : 'false';
+      const totalEl = this._pkbRefs?.totalEl || byId('pkb-total-val');
+      if (totalEl) {
+        totalEl.textContent = String(totalVal);
+        if (totalEl.dataset) totalEl.dataset.zero = totalZero;
+        totalEl.setAttribute?.('data-zero', totalZero);
+      }
+
+      for (const [cat, defLbl] of KILLBOARD_SPECS) {
+        const count = Math.max(0, Math.floor(Number(kills[cat]) || 0));
+        const zeroStr = count === 0 ? 'true' : 'false';
+        const ref = this._pkbRefs?.cells?.[cat];
+        const catEl = ref?.catEl || byId(`pkb-cat-${cat}`);
+        if (catEl) catEl.textContent = kbTexts?.[cat] || defLbl;
+        const valEl = ref?.valEl || byId(`pkb-val-${cat}`);
+        if (valEl) valEl.textContent = String(count);
+        const cellEl = ref?.cellEl;
+        if (cellEl) {
+          if (cellEl.dataset) cellEl.dataset.zero = zeroStr;
+          cellEl.setAttribute?.('data-zero', zeroStr);
+        }
+      }
+    },
+
     _updatePauseHeroCard() {
       const lang = this.settings?.language || 'pt-BR';
       const isEn = lang === 'en-US';
@@ -290,6 +396,7 @@ export function installPauseMenuController(LegoHud) {
       if (nameEl) nameEl.textContent = heroName;
       const roleEl = this.pauseHeroCardRoleEl || byId('pause-hero-card-role');
       if (roleEl) roleEl.textContent = heroRole;
+      this._updatePauseHeroKillboard(lang);
     },
 
     _updatePauseContextPanel() {
@@ -313,6 +420,7 @@ export function installPauseMenuController(LegoHud) {
       ]) { const el = byId(id); if (el && val !== undefined) el.textContent = val; }
       const fb = this.pauseSaveFeedbackEl || byId('pause-save-feedback');
       if (fb && fb.classList?.contains('hidden')) fb.textContent = isEn ? 'GAME SAVED' : 'JOGO SALVO';
+      this._updatePauseHeroKillboard?.(lang);
       if (this.charactersSubviewEl) this._refreshCharacterStoreUI?.(false);
     },
 

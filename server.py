@@ -98,6 +98,75 @@ def sanitize_id(raw: str, prefix: str = "trk") -> str:
     return cleaned[:64] if cleaned else f"{prefix}_{int(time.time() * 1000)}"
 
 
+def guess_audio_extension(mime: str = "", filename: str = "") -> str:
+    ext_from_name = Path(str(filename or "")).suffix.lower()
+    if ext_from_name in (".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac", ".opus", ".webm"):
+        return ext_from_name
+    m = str(mime or "").lower()
+    if "wav" in m:
+        return ".wav"
+    if "ogg" in m:
+        return ".ogg"
+    if "opus" in m:
+        return ".opus"
+    if "flac" in m:
+        return ".flac"
+    if "aac" in m:
+        return ".aac"
+    if "mp4" in m or "m4a" in m:
+        return ".m4a"
+    if "webm" in m:
+        return ".webm"
+    return ".mp3"
+
+
+def upsert_track_into_state(track_obj: dict, station_id: str | None, persist_if_new: bool = True) -> dict:
+    state = load_radio_state()
+    track_id = track_obj["id"]
+    if not state.get("initialized") or not state.get("stations"):
+        if not persist_if_new:
+            return state
+        target_st_id = sanitize_id(station_id, "station") if station_id else "station_padrao"
+        state = {
+            "initialized": True,
+            "stations": [
+                {
+                    "id": target_st_id,
+                    "name": "RÁDIO PADRÃO",
+                    "freq": "101.5 FM",
+                    "genre": "MINHAS MÚSICAS",
+                    "color": "#facc15",
+                    "icon": "antenna",
+                    "trackIds": [track_id],
+                }
+            ],
+            "tracks": [track_obj],
+        }
+        return save_radio_state(state)
+
+    existing_ids = {t.get("id") for t in state["tracks"]}
+    if track_id not in existing_ids:
+        state["tracks"].append(track_obj)
+    else:
+        state["tracks"] = [track_obj if t.get("id") == track_id else t for t in state["tracks"]]
+
+    if station_id is not None:
+        placed = False
+        if station_id:
+            for st in state["stations"]:
+                if st.get("id") == station_id:
+                    if track_id not in st.setdefault("trackIds", []):
+                        st["trackIds"].append(track_id)
+                    placed = True
+                    break
+        if not placed and state["stations"]:
+            already_any = any(track_id in (s.get("trackIds") or []) for s in state["stations"])
+            if not already_any:
+                state["stations"][0].setdefault("trackIds", []).append(track_id)
+
+    return save_radio_state(state)
+
+
 def decode_data_url(data_url: str) -> tuple[bytes, str] | None:
     if not data_url or not isinstance(data_url, str):
         return None
@@ -282,7 +351,9 @@ class LegoGameRequestHandler(SimpleHTTPRequestHandler):
 
         # Suporte HTTP Range (206 Partial Content) para arquivos de áudio/mídia (seek instantâneo!)
         range_header = self.headers.get("Range")
-        if range_header and clean_path.lower().endswith((".mp3", ".wav", ".ogg", ".m4a", ".webm")):
+        if range_header and clean_path.lower().endswith(
+            (".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac", ".opus", ".webm")
+        ):
             fs_path = Path(self.translate_path(self.path))
             if fs_path.is_file():
                 self._serve_range_file(fs_path, range_header)
@@ -336,6 +407,40 @@ class LegoGameRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": True, "state": saved})
                 return
 
+            if clean_path == "/api/radio/upload-file":
+                length = int(self.headers.get("Content-Length") or 0)
+                if length <= 0:
+                    raise ValueError("Arquivo de áudio vazio.")
+                raw_bytes = self.rfile.read(length)
+                meta_raw = unquote(self.headers.get("X-Radio-Meta") or "{}")
+                try:
+                    meta = json.loads(meta_raw)
+                except Exception:
+                    meta = {}
+
+                track_id = sanitize_id(meta.get("id") or f"mp3_{int(time.time() * 1000)}", "mp3")
+                mime = str(meta.get("mimeType") or self.headers.get("Content-Type") or "audio/mpeg")
+                ext = guess_audio_extension(mime, str(meta.get("fileName") or ""))
+                audio_file = MEDIA_DIR / f"{track_id}{ext}"
+                audio_file.write_bytes(raw_bytes)
+                src_url = f"/data/radio/media/{audio_file.name}"
+
+                track_obj = {
+                    "id": track_id,
+                    "title": str(meta.get("title") or "FAIXA IMPORTADA").strip(),
+                    "artist": str(meta.get("artist") or "ACERVO LOCAL").strip(),
+                    "durationSec": max(5.0, float(meta.get("durationSec") or 150.0)),
+                    "src": src_url,
+                    "coverUrl": "",
+                    "coverDataUrl": None,
+                    "source": str(meta.get("source") or "upload"),
+                    "isCustomFile": True,
+                }
+                station_id = meta.get("stationId") if "stationId" in meta else ""
+                saved_state = upsert_track_into_state(track_obj, station_id, persist_if_new=True)
+                self._send_json({"ok": True, "track": track_obj, "state": saved_state})
+                return
+
             if clean_path == "/api/radio/upload-track":
                 body = self._read_json_body()
                 track_id = sanitize_id(body.get("id") or f"mp3_{int(time.time() * 1000)}", "mp3")
@@ -343,7 +448,7 @@ class LegoGameRequestHandler(SimpleHTTPRequestHandler):
                 src_url = str(body.get("src") or "")
                 if audio_data:
                     raw_bytes, mime = audio_data
-                    ext = ".wav" if "wav" in mime else ".ogg" if "ogg" in mime else ".mp3"
+                    ext = guess_audio_extension(mime, str(body.get("fileName") or ""))
                     audio_file = MEDIA_DIR / f"{track_id}{ext}"
                     audio_file.write_bytes(raw_bytes)
                     src_url = f"/data/radio/media/{audio_file.name}"
@@ -370,18 +475,13 @@ class LegoGameRequestHandler(SimpleHTTPRequestHandler):
                     "isCustomFile": True,
                 }
 
-                station_id = body.get("stationId")
-                state = load_radio_state()
-                if state.get("initialized") and station_id:
-                    existing_ids = {t.get("id") for t in state["tracks"]}
-                    if track_id not in existing_ids:
-                        state["tracks"].append(track_obj)
-                    else:
-                        state["tracks"] = [track_obj if t.get("id") == track_id else t for t in state["tracks"]]
-                    for st in state["stations"]:
-                        if st.get("id") == station_id and track_id not in st.setdefault("trackIds", []):
-                            st["trackIds"].append(track_id)
-                    state = save_radio_state(state)
+                has_station = "stationId" in body
+                station_id = body.get("stationId") if has_station else None
+                state = upsert_track_into_state(
+                    track_obj,
+                    station_id,
+                    persist_if_new=bool(has_station and station_id),
+                )
 
                 self._send_json({"ok": True, "track": track_obj, "state": state})
                 return

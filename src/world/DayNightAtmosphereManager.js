@@ -46,6 +46,7 @@ export class DayNightAtmosphereManager {
     this.dayCycleDurationSec = 720.0; // 12 minutos reais = 24h no jogo
     this.timeMode = 'auto';
     this.nightFactor = 0.0;
+    this.isNight = true;
     this._animTime = 0;
 
     this._sampled = {
@@ -96,6 +97,8 @@ export class DayNightAtmosphereManager {
     } else if (valid === 'night') {
       this.timeHours = 22.0;
     }
+    const h = ((this.timeHours % 24) + 24) % 24;
+    this.isNight = h >= 18.75 || h < 5.0;
   }
 
   cycleTimeMode() {
@@ -109,22 +112,27 @@ export class DayNightAtmosphereManager {
   }
 
   getFormattedClock() {
-    const wrapped = ((this.timeHours % 24) + 24) % 24;
-    const hh = Math.floor(wrapped);
-    const mm = Math.floor((wrapped - hh) * 60);
-    const timeStr = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    const h = ((this.timeHours % 24) + 24) % 24;
+    const hhNum = Math.floor(h);
+    const mmNum = Math.floor((h - hhNum) * 60);
+    const hh = String(hhNum).padStart(2, '0');
+    const mm = String(mmNum).padStart(2, '0');
+    const timeStr = `${hh}:${mm}`;
 
-    let icon = '☀';
-    if (wrapped >= 18.75 || wrapped < 5.5) {
-      icon = '🌙';
-    } else if ((wrapped >= 5.5 && wrapped < 7.5) || (wrapped >= 16.75 && wrapped < 18.75)) {
-      icon = '🌅';
+    let iconKey = 'day';
+    if ((h >= 5.0 && h < 6.5) || (h >= 17.25 && h < 18.75)) {
+      iconKey = 'dusk';
+    } else if (h >= 18.75 || h < 5.0) {
+      iconKey = 'night';
     }
+
     return {
-      hours: wrapped,
+      hours: hh,
+      minutes: mm,
+      iconKey,
+      icon: '',
       timeStr,
-      icon,
-      display: `${icon} ${timeStr}`
+      display: timeStr
     };
   }
 
@@ -165,6 +173,8 @@ export class DayNightAtmosphereManager {
 
     sampleAtmosphereAtHour(this.timeHours, this._sampled);
     this.nightFactor = this._sampled.nightFactor;
+    const wrappedHour = ((this.timeHours % 24) + 24) % 24;
+    this.isNight = wrappedHour >= 18.75 || wrappedHour < 5.0;
     const nf = this.nightFactor;
 
     updateCelestialAndSunShadow(this, dt, playerPos, controller);

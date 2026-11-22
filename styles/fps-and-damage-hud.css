@@ -1,0 +1,132 @@
+/* ============================================================================
+   TELEMETRIA FRAMELESS DE FPS, ÍCONE SVG DO RELÓGIO & NÚMEROS DE DANO FLUTUANTES
+   Estética AAA Frameless Dark UI (IDV.md) — Zero caixas, zero pílulas, zero amarelo brinquedo
+   ============================================================================ */
+
+#hud-fps-counter,
+.hud-fps-counter {
+  align-self: flex-end;
+  margin-top: 2px;
+  padding: 0 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(203, 213, 225, 0.86);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: 1px 1px 0 #04060a, 0 0 3px rgba(4, 6, 10, 0.75);
+  pointer-events: none;
+  user-select: none;
+}
+
+#hud-fps-counter[data-tier="good"],
+.hud-fps-counter[data-tier="good"] {
+  color: rgba(203, 213, 225, 0.86);
+}
+
+#hud-fps-counter[data-tier="warn"],
+.hud-fps-counter[data-tier="warn"] {
+  color: #d99b16;
+}
+
+#hud-fps-counter[data-tier="bad"],
+.hud-fps-counter[data-tier="bad"] {
+  color: #dc2626;
+}
+
+#hud-fps-counter.hidden,
+.hud-fps-counter.hidden,
+body.title-or-loading-active #hud-fps-counter,
+body.title-or-loading-active .hud-fps-counter,
+body.satellite-transition #hud-fps-counter,
+body.satellite-transition .hud-fps-counter {
+  display: none !important;
+}
+
+/* Ícone Vetorial Fino do Relógio Urbano no Rodapé do Minimapa */
+.minimap-clock-svg {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  vertical-align: -1.5px;
+  margin-right: 4px;
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
+}
+
+/* Camada Full-Bleed de Números de Dano Flutuantes 3D -> 2D */
+#damage-numbers-layer,
+.damage-numbers-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 5;
+}
+
+#damage-numbers-layer.hidden,
+.damage-numbers-layer.hidden,
+body.title-or-loading-active #damage-numbers-layer,
+body.title-or-loading-active .damage-numbers-layer,
+body.satellite-transition #damage-numbers-layer,
+body.satellite-transition .damage-numbers-layer {
+  display: none !important;
+}
+
+.dmg-float-num {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  user-select: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #f8fafc;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  text-shadow: 1px 1px 0 #04060a, -1px -1px 0 #04060a, 0 1px 3px rgba(4, 6, 10, 0.85);
+  will-change: transform, opacity;
+  opacity: 0;
+}
+
+.dmg-float-num.is-body {
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.dmg-float-num.is-headshot {
+  color: #f59e0b;
+  font-size: 13px;
+  text-shadow: 1px 1px 0 #04060a, 0 0 6px rgba(217, 155, 22, 0.45);
+}
+
+.dmg-float-num.is-limb {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.dmg-float-num.is-kill {
+  color: #ef4444;
+  font-size: 13.5px;
+  text-shadow: 1px 1px 0 #04060a, 0 0 6px rgba(220, 38, 38, 0.55);
+}
+
+.dmg-float-num.is-vehicle {
+  color: #cbd5e1;
+  font-size: 10px;
+  opacity: 0.9;
+}

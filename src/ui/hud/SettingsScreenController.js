@@ -29,9 +29,9 @@ function mkEl(tag, id = '', cls = [], attrs = {}, kids = []) {
 
 const PANEL_SPECS = {
   audio: [['s', 'masterVol', 'lbl-master-vol', 'slider-master-vol', 'val-master-vol', 0, 100, 5, 85], ['s', 'musicVol', 'lbl-music-vol', 'slider-music-vol', 'val-music-vol', 0, 100, 5, 55], ['s', 'sfxVol', 'lbl-sfx-vol', 'slider-sfx-vol', 'val-sfx-vol', 0, 100, 5, 90]],
-  video: [['st', 'graphicsQuality', 'lbl-graphics-quality', 'graphicsQuality', 'val-graphics-quality'], ['s', 'fov', 'lbl-fov', 'slider-fov', 'val-fov', 50, 85, 1, 60], ['st', 'fullscreen', 'lbl-fullscreen', 'fullscreen', 'val-fullscreen'], ['st', 'timeMode', 'lbl-time-mode', 'timeMode', 'btn-pause-time-mode'], ['st', 'killEffect', 'lbl-kill-effect', 'killEffect', 'val-kill-effect']],
+  video: [['st', 'graphicsQuality', 'lbl-graphics-quality', 'graphicsQuality', 'val-graphics-quality'], ['s', 'fov', 'lbl-fov', 'slider-fov', 'val-fov', 50, 85, 1, 60], ['st', 'fullscreen', 'lbl-fullscreen', 'fullscreen', 'val-fullscreen'], ['st', 'timeMode', 'lbl-time-mode', 'timeMode', 'btn-pause-time-mode'], ['st', 'killEffect', 'lbl-kill-effect', 'killEffect', 'val-kill-effect'], ['st', 'showFps', 'lbl-show-fps', 'showFps', 'val-show-fps']],
   controls: [['s', 'mouseSens', 'lbl-mouse-sens', 'slider-mouse-sens', 'val-mouse-sens', 20, 250, 5, 100], ['st', 'invertY', 'lbl-invert-y', 'invertY', 'val-invert-y'], ['km', 'controlsList', 'lbl-controls-list', 'controls-keymap-grid']],
-  game: [['st', 'language', 'lbl-lang-select', 'language', 'btn-pause-language'], ['st', 'regionToast', 'lbl-region-toast', 'regionToast', 'btn-toggle-region-toast'], ['a', 'row-reset-territories', 'resetTerritories', 'lbl-reset-territories', 'btn-pause-reset-territories', 'resetTerritories', 1]]
+  game: [['st', 'language', 'lbl-lang-select', 'language', 'btn-pause-language'], ['st', 'regionToast', 'lbl-region-toast', 'regionToast', 'btn-toggle-region-toast'], ['st', 'damageNumbers', 'lbl-damage-numbers', 'damageNumbers', 'val-damage-numbers'], ['a', 'row-reset-territories', 'resetTerritories', 'lbl-reset-territories', 'btn-pause-reset-territories', 'resetTerritories', 1]]
 };
 
 function buildSettingSpecRow([kind, a, b, c, d, e, f, g, h]) {
@@ -87,11 +87,14 @@ export function installSettingsScreenController(LegoHud) {
       this.settingsTabBtns = SETTINGS_TABS.map((t) => byId(`tab-btn-${t}`)).filter(Boolean);
       this.settingsTabPanels = Object.fromEntries(SETTINGS_TABS.map((t) => [t, byId(`settings-panel-${t}`)]));
       ensurePanelHasRow(this.settingsTabPanels.video, 'killEffect', ['st', 'killEffect', 'lbl-kill-effect', 'killEffect', 'val-kill-effect']);
+      ensurePanelHasRow(this.settingsTabPanels.video, 'showFps', ['st', 'showFps', 'lbl-show-fps', 'showFps', 'val-show-fps']);
+      ensurePanelHasRow(this.settingsTabPanels.game, 'damageNumbers', ['st', 'damageNumbers', 'lbl-damage-numbers', 'damageNumbers', 'val-damage-numbers']);
       for (const [prop, id] of [
         ['settingsTabsBarEl', 'settings-tabs-bar'], ['sliderMasterEl', 'slider-master-vol'], ['sliderMusicEl', 'slider-music-vol'],
         ['sliderSfxEl', 'slider-sfx-vol'], ['valMasterEl', 'val-master-vol'], ['valMusicEl', 'val-music-vol'], ['valSfxEl', 'val-sfx-vol'],
         ['valGraphicsQualityEl', 'val-graphics-quality'], ['sliderFovEl', 'slider-fov'], ['valFovEl', 'val-fov'],
         ['valFullscreenEl', 'val-fullscreen'], ['btnPauseTimeModeEl', 'btn-pause-time-mode'], ['valKillEffectEl', 'val-kill-effect'],
+        ['valShowFpsEl', 'val-show-fps'], ['valDamageNumbersEl', 'val-damage-numbers'],
         ['sliderMouseSensEl', 'slider-mouse-sens'], ['valMouseSensEl', 'val-mouse-sens'], ['valInvertYEl', 'val-invert-y'],
         ['controlsKeymapGridEl', 'controls-keymap-grid'], ['btnPauseLangEl', 'btn-pause-language'], ['btnToggleRegionToastEl', 'btn-toggle-region-toast'],
         ['rowResetTerritoriesEl', 'row-reset-territories'], ['settingsOptionDescEl', 'settings-option-desc'],
@@ -171,7 +174,7 @@ export function installSettingsScreenController(LegoHud) {
       for (const node of stepperNodes) {
         if (!node._stepperBound) { node._stepperBound = true; node.addEventListener?.('click', () => this._stepSettingValue(node.dataset.stepper, Number(node.dataset?.dir) < 0 ? -1 : 1)); }
       }
-      for (const [node, key] of [[this.valGraphicsQualityEl, 'graphicsQuality'], [this.valFullscreenEl, 'fullscreen'], [this.btnPauseTimeModeEl, 'timeMode'], [this.valKillEffectEl, 'killEffect'], [this.valInvertYEl, 'invertY'], [this.btnPauseLangEl, 'language'], [this.btnToggleRegionToastEl, 'regionToast']]) {
+      for (const [node, key] of [[this.valGraphicsQualityEl, 'graphicsQuality'], [this.valFullscreenEl, 'fullscreen'], [this.btnPauseTimeModeEl, 'timeMode'], [this.valKillEffectEl, 'killEffect'], [this.valShowFpsEl, 'showFps'], [this.valInvertYEl, 'invertY'], [this.btnPauseLangEl, 'language'], [this.btnToggleRegionToastEl, 'regionToast'], [this.valDamageNumbersEl, 'damageNumbers']]) {
         if (node && !node._stepperBound) { node._stepperBound = true; node.addEventListener?.('click', () => this._stepSettingValue(key, 1)); }
       }
       for (const btn of this.graphicsQualityButtons || []) btn.addEventListener?.('click', () => this.setGraphicsQuality(btn.dataset?.quality || 'auto'));
@@ -270,6 +273,22 @@ export function installSettingsScreenController(LegoHud) {
         this.onChangeKillEffect?.(this.settings.killEffect);
         return this._refreshSettingsTabsUI();
       }
+      if (stepperKey === 'showFps') {
+        const nextFps = this.settings.showFps === false;
+        this.settings.showFps = nextFps;
+        this.setShowFpsEnabled?.(nextFps);
+        saveGameSettings(this.settings);
+        soundFX.playPlasticHit();
+        return this._refreshSettingsTabsUI();
+      }
+      if (stepperKey === 'damageNumbers') {
+        const nextDmg = this.settings.damageNumbers === false;
+        this.settings.damageNumbers = nextDmg;
+        this.setDamageNumbersEnabled?.(nextDmg);
+        saveGameSettings(this.settings);
+        soundFX.playPlasticHit();
+        return this._refreshSettingsTabsUI();
+      }
       if (stepperKey === 'invertY') { this.settings.invertY = !this.settings.invertY; saveGameSettings(this.settings); soundFX.playPlasticHit(); return this._refreshSettingsTabsUI(); }
       if (stepperKey === 'language') { if (cycle(LANG_ORDER, this.settings.language || 'pt-BR', dir) !== this.settings.language) this._toggleLanguage?.(); return; }
       if (stepperKey === 'regionToast') {
@@ -288,17 +307,19 @@ export function installSettingsScreenController(LegoHud) {
         Object.assign(this.settings, { masterVolume: d.masterVolume, musicVolume: d.musicVolume, sfxVolume: d.sfxVolume });
         soundFX.setVolumes({ masterVolume: d.masterVolume, musicVolume: d.musicVolume, sfxVolume: d.sfxVolume });
       } else if (tab === 'video') {
-        Object.assign(this.settings, { graphicsQuality: d.graphicsQuality, fov: d.fov, timeMode: d.timeMode, killEffect: d.killEffect });
+        Object.assign(this.settings, { graphicsQuality: d.graphicsQuality, fov: d.fov, timeMode: d.timeMode, killEffect: d.killEffect, showFps: d.showFps });
         if (this._isFullscreenActive()) { this._isFullscreenFallback = false; document?.fullscreenElement && document.exitFullscreen?.()?.catch?.(() => {}); }
         this.onChangeGraphicsQuality?.(d.graphicsQuality);
         this.onChangeTimeMode?.(d.timeMode);
         this.onChangeKillEffect?.(d.killEffect);
+        this.setShowFpsEnabled?.(d.showFps);
         if (this._lastController?.camera) { this._lastController.camera.fov = d.fov; this._lastController.camera.updateProjectionMatrix?.(); }
       } else if (tab === 'controls') {
         Object.assign(this.settings, { mouseSensitivity: d.mouseSensitivity, invertY: d.invertY });
       } else if (tab === 'game') {
         const prevLang = this.settings.language;
-        Object.assign(this.settings, { language: d.language, showRegionToast: d.showRegionToast });
+        Object.assign(this.settings, { language: d.language, showRegionToast: d.showRegionToast, damageNumbers: d.damageNumbers });
+        this.setDamageNumbersEnabled?.(d.damageNumbers);
         if (prevLang !== d.language) this.setPlayerFaction?.(this.playerFaction, false);
       }
       saveGameSettings(this.settings);
@@ -327,8 +348,9 @@ export function installSettingsScreenController(LegoHud) {
         ['tab-btn-video', t.settingsTabs?.video], ['tab-btn-controls', t.settingsTabs?.controls], ['tab-btn-game', t.settingsTabs?.game],
         ['lbl-master-vol', t.masterVol], ['lbl-music-vol', t.musicVol], ['lbl-sfx-vol', t.sfxVol],
         ['lbl-graphics-quality', t.graphicsQualityLabel], ['lbl-fov', t.fovLabel], ['lbl-fullscreen', t.fullscreenLabel],
-        ['lbl-time-mode', t.timeOfDayLabel], ['lbl-kill-effect', t.killEffectLabel], ['lbl-mouse-sens', t.mouseSensLabel], ['lbl-invert-y', t.invertYLabel],
+        ['lbl-time-mode', t.timeOfDayLabel], ['lbl-kill-effect', t.killEffectLabel], ['lbl-show-fps', t.showFpsLabel], ['lbl-mouse-sens', t.mouseSensLabel], ['lbl-invert-y', t.invertYLabel],
         ['lbl-controls-list', t.controlsSectionTitle], ['lbl-lang-select', t.langLabel], ['lbl-region-toast', t.regionToastToggle],
+        ['lbl-damage-numbers', t.damageNumbersLabel],
         ['lbl-reset-territories', t.resetTerritoriesBtn], ['btn-pause-reset-territories', t.resetTerritoriesBtn],
         ['btn-settings-restore-defaults', t.restoreDefaultsBtn]
       ]) { const el = byId(id); if (el && val !== undefined) el.textContent = val; }
@@ -359,6 +381,16 @@ export function installSettingsScreenController(LegoHud) {
         const killOn = this.settings.killEffect !== false;
         this.valKillEffectEl.textContent = killOn ? t.toggleOn : t.toggleOff;
         this.valKillEffectEl.classList?.toggle('active', killOn);
+      }
+      if (this.valShowFpsEl) {
+        const fpsOn = this.settings.showFps !== false;
+        this.valShowFpsEl.textContent = fpsOn ? t.toggleOn : t.toggleOff;
+        this.valShowFpsEl.classList?.toggle('active', fpsOn);
+      }
+      if (this.valDamageNumbersEl) {
+        const dmgOn = this.settings.damageNumbers !== false;
+        this.valDamageNumbersEl.textContent = dmgOn ? t.toggleOn : t.toggleOff;
+        this.valDamageNumbersEl.classList?.toggle('active', dmgOn);
       }
       if (this.valInvertYEl) this.valInvertYEl.textContent = this.settings.invertY ? t.toggleOn : t.toggleOff;
       if (this.btnPauseLangEl) this.btnPauseLangEl.textContent = t.langModes?.[lang] || (isEn ? 'ENGLISH' : 'PORTUGUÊS');

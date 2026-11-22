@@ -12,7 +12,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=20261122j" />
+  <link rel="stylesheet" href="./style.css?v=20261122l" />
   <script type="importmap">
     {
       "imports": {
@@ -53,6 +53,7 @@
 
   <!-- Interface Tática Urbana Angular (Tela Limpa de Jogo Real) -->
   <div id="ui-overlay">
+    <div id="damage-numbers-layer" class="damage-numbers-layer" aria-hidden="true"></div>
     <div id="top-bar">
       <!-- Canto Superior Esquerdo: Chassi Tático Dark-Tech do Operador (Retrato + Blindagem/HP + Skills + Espólios) -->
       <div id="lego-classic-hud" class="gotham-operator-chassis">
@@ -238,6 +239,8 @@
             <span id="tiktok-toast-artist" class="tiktok-toast-artist"></span>
           </div>
         </div>
+
+        <div id="hud-fps-counter" class="hud-fps-counter" aria-hidden="true"></div>
 
         <!-- Canto Superior Direito: Velocímetro Dark-Tuner Digital (Aparece APENAS ao Dirigir/Pilotar Veículo) -->
         <div id="vehicle-speedometer" class="hidden">
@@ -575,6 +578,14 @@
                 <button type="button" class="stepper-arrow stepper-next" data-stepper="killEffect" data-dir="1">▸</button>
               </div>
             </div>
+            <div class="option-row" data-desc-key="showFps">
+              <span id="lbl-show-fps" class="option-title">MOSTRAR FPS</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="showFps" data-dir="-1">◂</button>
+                <span id="val-show-fps" class="stepper-value" data-stepper="showFps">LIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="showFps" data-dir="1">▸</button>
+              </div>
+            </div>
           </div>
 
           <!-- Aba 3: Controles -->
@@ -616,6 +627,14 @@
                 <button type="button" class="stepper-arrow stepper-prev" data-stepper="regionToast" data-dir="-1">◂</button>
                 <span id="btn-toggle-region-toast" class="stepper-value" data-stepper="regionToast">LIGADO</span>
                 <button type="button" class="stepper-arrow stepper-next" data-stepper="regionToast" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="damageNumbers">
+              <span id="lbl-damage-numbers" class="option-title">NÚMEROS DE DANO</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="damageNumbers" data-dir="-1">◂</button>
+                <span id="val-damage-numbers" class="stepper-value" data-stepper="damageNumbers">LIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="damageNumbers" data-dir="1">▸</button>
               </div>
             </div>
             <div id="row-reset-territories" class="option-row ingame-only-setting" data-desc-key="resetTerritories">

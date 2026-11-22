@@ -1,8 +1,8 @@
 import { soundFX } from '../../audio/SoundFX.js';
 import { getHeroInfo, syncOp09CatalogSlot, drawHeroLegoPortrait } from '../HeroWheelAndDossier.js';
-import { createDefaultCustomHeroState, setActiveCustomHero } from '../../entities/CustomHeroSystem.js';
-import { createDefaultGarageSaveData, setActiveGarageSaveData } from '../../world/StreetCustomGarage.js';
-import { createDefaultAircraftSaveData, setActiveAircraftSaveData, applySavedAircraftConfigsToCarrier } from '../../world/AircraftCustomGarage.js';
+import { createDefaultCustomHeroState, setActiveCustomHero, getActiveCustomHero } from '../../entities/CustomHeroSystem.js';
+import { createDefaultGarageSaveData, setActiveGarageSaveData, getActiveGarageSaveData } from '../../world/StreetCustomGarage.js';
+import { createDefaultAircraftSaveData, setActiveAircraftSaveData, applySavedAircraftConfigsToCarrier, getActiveAircraftSaveData } from '../../world/AircraftCustomGarage.js';
 import {
   FACTION_DATA, UI_TEXTS, getFactionLogoSvg, loadAllSaveSlots, writeSaveSlot,
   deleteSaveSlot, findMostRecentSaveSlot, formatRelativeSaveDate, computeSlotProgressPct
@@ -76,11 +76,47 @@ function paintLoadingStormCanvas(hud) {
   }
 }
 
+function saveCurrentProgressWithKills() {
+  const validFaction = FACTION_DATA[this.playerFaction] ? this.playerFaction : 'cv';
+  const activeCharKey =
+    this.currentHeroKey ||
+    this._lastController?.minifigure?.currentHeroKey ||
+    getDefaultHybridOperatorKey(validFaction);
+  return writeSaveSlot(this.activeSaveSlot || 0, {
+    goldenBricks: this.goldenBricks || 0,
+    faction: validFaction,
+    studs: this.totalStuds || 0,
+    operatorKey: activeCharKey,
+    heroKey: activeCharKey,
+    unlockedExtras: Array.isArray(this.unlockedExtras) ? [...this.unlockedExtras] : [],
+    conqueredTerritories: typeof this.getConqueredTerritories === 'function' ? this.getConqueredTerritories() : [],
+    territoryMeta: typeof this.getTerritoryMeta === 'function' ? this.getTerritoryMeta() : {},
+    customHero: { ...getActiveCustomHero() },
+    customGarage: getActiveGarageSaveData(),
+    aircraftCustom: getActiveAircraftSaveData(),
+    radioState: this.tiktokRadio ? this.tiktokRadio.exportSaveState() : null,
+    playTimeSec: Math.floor(this.sessionPlayTimeSec || 0),
+    sessionKills: this.getSessionKills?.()
+  });
+}
+saveCurrentProgressWithKills.__withSessionKills = true;
+
 export function installTitleAndSaveSlotsController(LegoHud) {
   if (typeof LegoHud?.prototype?.openConfirmDialog !== 'function') installConfirmDialog(LegoHud);
 
   definePrototypeMethods(LegoHud, {
+    saveCurrentProgress: saveCurrentProgressWithKills,
+
     _initTitleAndLoadingDom() {
+      const proto = Object.getPrototypeOf(this);
+      if (proto && !proto.saveCurrentProgress?.__withSessionKills) {
+        Object.defineProperty(proto, 'saveCurrentProgress', {
+          value: saveCurrentProgressWithKills,
+          writable: true,
+          configurable: true,
+          enumerable: false
+        });
+      }
       this.sessionPlayTimeSec = Number(this.sessionPlayTimeSec || 0);
       const domMap = {
         titleOverlayEl: 'title-screen-overlay', favelaCanvasEl: 'title-favela-bg-canvas', titleMainPanelEl: 'title-main-panel',
@@ -316,6 +352,7 @@ export function installTitleAndSaveSlotsController(LegoHud) {
         const starterOp = getDefaultHybridOperatorKey(chosenFaction);
         this.unlockedExtras = [];
         this.currentHeroKey = starterOp;
+        this.resetSessionKills?.();
         const defaultCustom = createDefaultCustomHeroState();
         const defaultGarage = createDefaultGarageSaveData();
         const defaultAircraft = createDefaultAircraftSaveData();
@@ -332,6 +369,7 @@ export function installTitleAndSaveSlotsController(LegoHud) {
           unlockedExtras: [],
           conqueredTerritories: [],
           playTimeSec: 0,
+          sessionKills: this.getSessionKills?.(),
           customHero: defaultCustom,
           customGarage: defaultGarage,
           aircraftCustom: defaultAircraft,
@@ -364,6 +402,11 @@ export function installTitleAndSaveSlotsController(LegoHud) {
 
     startLoadingSequence(slotData, isNewOrSwitch = false) {
       this.sessionPlayTimeSec = Number(slotData?.playTimeSec || 0);
+      if (isNewOrSwitch) {
+        this.resetSessionKills?.();
+      } else {
+        this.resetSessionKills?.(slotData?.sessionKills || null);
+      }
       this.isTitleScreenActive = false;
       this.isLoadingActive = true;
       document.body?.classList.add('title-or-loading-active');

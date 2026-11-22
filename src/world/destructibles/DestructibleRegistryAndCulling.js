@@ -4,6 +4,7 @@ import {
   markAsSharedAsset
 } from '../../materials/LegoMaterials.js';
 import { optimizeStaticGroupMeshes } from '../BuildingGenerator.js';
+import { restoreDefaultOccupants, disembarkOccupants } from '../vehicles/VehicleOccupants.js';
 
 export const FIREBALL_GEO = markAsSharedAsset(new THREE.SphereGeometry(0.34, 14, 14));
 export const TRAIL_CUBE_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.24, 0.24, 0.24));
@@ -48,7 +49,10 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
       type !== 'police_helicopter' &&
       type !== 'hunter_drone'
     ) {
-      optimizeStaticGroupMeshes(mesh, []);
+      optimizeStaticGroupMeshes(
+        mesh,
+        mesh.userData?._occupantsGroup ? [mesh.userData._occupantsGroup] : []
+      );
     }
     if (isStreetProp && mesh) {
       mesh.traverse((c) => {
@@ -88,6 +92,14 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
       _isDynamicIndexed: isDynamic,
       _spatialCellKey: null,
       heatLevel: 0,
+      occupants: [],
+      _occupantsGroup: null,
+      driverKilled: false,
+      isBurning: false,
+      engineFireTimer: 0,
+      isBurnedWreck: false,
+      wreckTimer: 0,
+      damageStage: 'intact',
       basePos,
       baseRot,
       destroyed: false,
@@ -171,6 +183,7 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
 
   unregisterDestructible(item) {
     if (!item) return;
+    this._clearVehicleBurnedWreckState?.(item, true);
     item.destroyed = true;
     item.noAutoRespawn = true;
     if (Array.isArray(item.colliders)) {
@@ -243,14 +256,21 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
   },
 
   _restoreObject(obj) {
+    this._clearVehicleBurnedWreckState?.(obj, false);
     obj.destroyed = false;
     obj.hp = obj.maxHp;
     obj.heatLevel = 0;
     obj.shakeTimer = 0;
+    obj.driverKilled = false;
+    obj._lastDamagedByPlayer = false;
+    obj._bailedOutFromFire = false;
     obj.mesh.visible = true;
     obj.mesh.position.copy(obj.basePos);
     obj.mesh.rotation.copy(obj.baseRot);
     obj.mesh.scale.set(1, 1, 1);
+    if (obj._defaultOccupantOpts) {
+      restoreDefaultOccupants(obj);
+    }
     if (obj._isDynamicIndexed) {
       obj.mesh.matrixWorldAutoUpdate = true;
     } else if (this.scene?.matrixAutoUpdate === false) {
@@ -276,7 +296,7 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
     for (let oi = 0; oi < totalObjs; oi++) {
       const obj = this.objects[oi];
       if (obj.destroyed) {
-        if (obj.noAutoRespawn) continue;
+        if (obj.isBurnedWreck || obj.noAutoRespawn) continue;
         if (obj.isStreetProp && playerPosition) {
           const dx = obj.basePos.x - playerPosition.x;
           const dz = obj.basePos.z - playerPosition.z;
@@ -302,6 +322,9 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
       }
 
       if (obj.isDriven || obj.isGrabbed) {
+        if (obj.occupants && obj.occupants.length > 0) {
+          disembarkOccupants(obj, Infinity);
+        }
         obj.mesh.visible = true;
         if (obj._isDynamicIndexed) obj.mesh.matrixWorldAutoUpdate = true;
         continue;

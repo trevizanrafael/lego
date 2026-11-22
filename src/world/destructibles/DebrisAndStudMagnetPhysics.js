@@ -165,7 +165,10 @@ export const DEBRIS_AND_STUD_MAGNET_METHODS = {
     const center = obj.basePos.clone();
     const objHeight = Number(obj.height) || 1.6;
     const objRadius = Number(obj.radius) || 0.8;
-    const palette = Array.isArray(obj.debrisColors) && obj.debrisColors.length > 0 ? obj.debrisColors : [0x64748b];
+    const rawPalette = Array.isArray(obj.debrisColors) && obj.debrisColors.length > 0 ? obj.debrisColors : [0x64748b];
+    const palette = obj.type === 'car' && obj.destroyed
+      ? [0x18181b, 0x27272a, rawPalette[0], 0xd97706]
+      : rawPalette;
     center.y += Math.min(1.2, objHeight * 0.45);
 
     for (let i = 0; i < count; i++) {
@@ -223,7 +226,8 @@ export const DEBRIS_AND_STUD_MAGNET_METHODS = {
   },
 
   _spawnStudShower(obj) {
-    const drops = obj.studDrops;
+    const drops = obj?.studDrops;
+    if (!drops || !obj?.basePos) return;
     const tiersToSpawn = [];
 
     for (const [tierKey, count] of Object.entries(drops)) {

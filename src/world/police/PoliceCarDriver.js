@@ -6,6 +6,7 @@ import { projectSlideVelocity2D } from '../collision/CollisionQueries.js';
 import { DISPATCH_RULES } from './PursuitTuning.js';
 import { ensurePoliceRoadGraph, findNearestRoadNode, findRoadPathAStar } from './PoliceRoadGraph.js';
 import { getCameraForward2D, despawnIfLostBeyondHorizon } from './PoliceDispatchDirector.js';
+import { getAliveOccupantCount, disembarkOccupants } from '../vehicles/VehicleOccupants.js';
 
 /**
  * PoliceCarDriver.js
@@ -97,15 +98,21 @@ function updateAStarWaypointTarget(graph, pv, unitIndex, dt, pos, goalX, goalZ) 
 }
 function deployShelteredFootOfficers(sys, pv, pos, playerPos, dist) {
   if (pv.deployedTroops || pv.isTank || sys.stars <= 0) return;
+  const aliveInside = getAliveOccupantCount(pv.carObj);
+  if (aliveInside <= 0) {
+    pv.deployedTroops = true;
+    return;
+  }
   const availableSlots = (sys._getDesiredFootCount ? sys._getDesiredFootCount() : 4) - sys.footUnits.length;
   if (availableSlots <= 0) return;
   pv.deployedTroops = true;
-  const count = Math.min(availableSlots, sys.stars >= 3 ? 2 : 1);
+  const count = Math.min(availableSlots, aliveInside);
+  disembarkOccupants(pv.carObj, count);
   const awayX = dist > 1e-4 ? -(playerPos.x - pos.x) / dist : -Math.sin(pv.heading);
   const awayZ = dist > 1e-4 ? -(playerPos.z - pos.z) / dist : -Math.cos(pv.heading);
   const carFwdX = Math.sin(pv.heading), carFwdZ = Math.cos(pv.heading);
   for (let k = 0; k < count; k++) {
-    const along = count === 1 ? 0 : (k === 0 ? -0.95 : 0.95);
+    const along = count === 1 ? 0 : THREE.MathUtils.lerp(-0.95, 0.95, k / (count - 1));
     const sx = pos.x + awayX * 2.05 + carFwdX * along, sz = pos.z + awayZ * 2.05 + carFwdZ * along;
     const trooper = sys._spawnFootTrooper({ x: sx, y: sys.world?.getTerrainHeightAt ? sys.world.getTerrainHeightAt(sx, sz) : pos.y, z: sz }, sys.stars);
     if (trooper?.mesh) trooper.mesh.rotation.y = Math.atan2(playerPos.x - sx, playerPos.z - sz);
@@ -305,9 +312,13 @@ export const policeCarDriverMethods = {
     for (let i = this.pursuitVehicles.length - 1; i >= 0; i--) {
       const pv = this.pursuitVehicles[i], carObj = pv.carObj;
       if (!carObj || carObj.destroyed || carObj.isDriven) {
+        if (carObj?.isDriven && carObj.occupants?.length) {
+          disembarkOccupants(carObj, Infinity);
+        }
         this.pursuitVehicles.splice(i, 1);
         continue;
       }
+      carObj._aiCurrentSpeed = Math.abs(pv.speed || 0);
       const pos = carObj.mesh.position;
       const dist = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
 
@@ -393,11 +404,19 @@ export const policeCarDriverMethods = {
         }
       }
 
+      const engineMult = this.destructibles?.getVehicleEngineSpeedMultiplier
+        ? this.destructibles.getVehicleEngineSpeedMultiplier(carObj)
+        : (carObj.driverKilled ? 0 : 1.0);
+      const isEmptiedCruiser = pv.deployedTroops && !pv.isTank && getAliveOccupantCount(carObj) === 0;
       const canUseCatchup = dist > 55.0 && !this.isEscaping && !blockedToPlayer && !inUnderground && !pv.isTank;
-      const effectiveMaxSpd = canUseCatchup ? pv.maxSpeed * (1.0 + DISPATCH_RULES.maxCatchupBonus) : pv.maxSpeed;
+      const effectiveMaxSpd = (canUseCatchup ? pv.maxSpeed * (1.0 + DISPATCH_RULES.maxCatchupBonus) : pv.maxSpeed) * engineMult;
       let desiredSpd = effectiveMaxSpd;
 
-      if (broadsideStop) {
+      if (carObj.driverKilled || (isEmptiedCruiser && !broadsideStop)) {
+        pv.speed = THREE.MathUtils.lerp(pv.speed, 0, Math.min(1, dt * 6.5));
+        if (pv.speed < 0.35) pv.speed = 0;
+        pv.driftSlip = THREE.MathUtils.lerp(pv.driftSlip || 0, 0, Math.min(1, dt * 6.0));
+      } else if (broadsideStop) {
         const desiredParkHeading = wrapAnglePi(Math.atan2(playerPos.x - pos.x, playerPos.z - pos.z) + (slotIdx % 2 === 0 ? 1.35 : -1.35));
         pv.heading = wrapAnglePi(pv.heading + THREE.MathUtils.clamp(wrapAnglePi(desiredParkHeading - pv.heading), -3.8 * dt, 3.8 * dt));
         pv.speed = THREE.MathUtils.lerp(pv.speed, 0, Math.min(1, dt * 8.5));
@@ -452,7 +471,9 @@ export const policeCarDriverMethods = {
       syncPoliceVehicleCollider(this.world, pv, pos);
       const dist = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
       handleVehicleContactManeuvers(this, pv, pos, playerPos, dist, controller, vehFrame);
-      tickArmyTankCannon(this, pv, dt, pos, playerPos, dist, this._isSegmentBlockedByBuilding(pos.x, pos.z, playerPos.x, playerPos.z), controller, vehFrame);
+      if (!pv.carObj.driverKilled && getAliveOccupantCount(pv.carObj) > 0) {
+        tickArmyTankCannon(this, pv, dt, pos, playerPos, dist, this._isSegmentBlockedByBuilding(pos.x, pos.z, playerPos.x, playerPos.z), controller, vehFrame);
+      }
     }
   }
 };

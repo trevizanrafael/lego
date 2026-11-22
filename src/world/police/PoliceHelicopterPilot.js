@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { getSharedPursuitGeos } from './PolicePursuitAssets.js';
+import { attachVehicleOccupants } from '../vehicles/VehicleOccupants.js';
 
 // ============================================================================
 // PILOTO DO HELICÓPTERO POLICIAL "ÁGUIA" (ESTILO GTA V POLICE MAVERICK)
@@ -207,6 +208,7 @@ export function spawnPoliceHelicopter(sys, playerPos) {
     studDrops: { silver: 0, gold: 12, blue: 8, purple: 2 },
     groundY: 0, isPoliceUnit: true, noAutoRespawn: true
   });
+  attachVehicleOccupants(obj, { source: 'police_heli', vehicleKind: 'police_helicopter' });
 
   const initLookX = base.x + Math.sin(initialHeading) * 26.0;
   const initLookZ = base.z + Math.cos(initialHeading) * 26.0;

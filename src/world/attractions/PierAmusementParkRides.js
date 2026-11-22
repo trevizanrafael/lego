@@ -108,11 +108,11 @@ export function initOceanRollerCoaster(mgr) {
     height: 2.4,
     depth: 0.4,
     rotY: Math.PI / 2,
-    title: '🎢 MONTANHA-RUSSA OCEÂNICA',
+    title: 'MONTANHA-RUSSA OCEÂNICA',
     subText: 'QUEDA DE 38m SOBRE O MAR • EMBARQUE [F]',
     bgColor: '#090a0d',
     borderColor: '#ef4444',
-    textColor: '#facc15',
+    textColor: '#d99b16',
     subColor: '#00f0ff'
   });
   mgr.scene.add(coasterSign);
@@ -209,11 +209,11 @@ export function initFerrisWheelLevelingAndPlatform(mgr) {
     height: 2.4,
     depth: 0.42,
     rotY: Math.PI,
-    title: '🎡 RODA-GIGANTE COLOSSAL (73m)',
+    title: 'RODA-GIGANTE COLOSSAL (73m)',
     subText: '16 CABINES PANORÂMICAS NIVELADAS • EMBARQUE [F]',
     bgColor: '#090a0d',
     borderColor: '#00f0ff',
-    textColor: '#facc15',
+    textColor: '#d99b16',
     subColor: '#f8fafc'
   });
   mgr.scene.add(ferrisSign);
@@ -266,11 +266,11 @@ export function initBigDropTowerGondola(mgr) {
     height: 2.2,
     depth: 0.4,
     rotY: Math.PI,
-    title: '🗼 BIG DROP TOWER (58m)',
+    title: 'BIG DROP TOWER (58m)',
     subText: 'SUSPENSE NO TOPO & QUEDA LIVRE • [F]',
     bgColor: '#090a0d',
     borderColor: '#ec4899',
-    textColor: '#facc15',
+    textColor: '#d99b16',
     subColor: '#00f0ff'
   });
   mgr.scene.add(dropSign);

@@ -4,6 +4,7 @@ import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
 import { STAR_FORCE_BUDGET, DISPATCH_RULES, HELI_TUNING } from './PursuitTuning.js';
 import { ensurePoliceRoadGraph } from './PoliceRoadGraph.js';
+import { attachVehicleOccupants } from '../vehicles/VehicleOccupants.js';
 
 /**
  * PoliceDispatchDirector.js
@@ -297,6 +298,11 @@ export const policeDispatchMethods = {
       studDrops: { silver: 4, gold: 8, blue: 3, purple: this.stars >= 5 ? 1 : 0 },
       groundY: spawn.y, isPoliceUnit: true, noAutoRespawn: true
     });
+    attachVehicleOccupants(carObj, {
+      source: 'police_pursuit',
+      role: cfg.role,
+      carType: cfg.vType
+    });
 
     const unit = {
       carObj, col, isTank: false, role: cfg.role, maxSpeed: cfg.speed, speed: cfg.speed * 0.72,
@@ -332,6 +338,12 @@ export const policeDispatchMethods = {
       debrisColors: [0x2b3620, 0x1c2415, 0x334155, 0xf59e0b],
       studDrops: { silver: 6, gold: 12, blue: 8, purple: 3 },
       groundY: spawn.y, isPoliceUnit: true, noAutoRespawn: true
+    });
+    attachVehicleOccupants(carObj, {
+      source: 'police_pursuit',
+      role: 'army_tank',
+      carType: 'tanque_titan',
+      isTank: true
     });
 
     const tankUnit = {

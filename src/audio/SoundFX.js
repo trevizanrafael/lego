@@ -53,6 +53,9 @@ class SoundFX {
   }
 
   // Núcleo WebAudio, Barramentos de Ganho e Loops Contínuos / Veículos / Metrô / Perseguição
+  _canPlaySfx() {
+    return (this.masterVolume ?? 1) > 0.001 && (this.sfxVolume ?? 1) > 0.001;
+  }
   _ensureContext() { return ensureWebAudioContext(this); }
   _applyBusVolumes() { return applySoundBusVolumes(this); }
   setVolumes(opts = {}) { return setSoundVolumes(this, opts); }
@@ -92,6 +95,45 @@ class SoundFX {
   playEmoteJingle(emoteIdx = 0) { return playEmoteJingleSfx(this, emoteIdx); }
   playKillConfirm() { return playKillConfirmSfx(this); }
   playHitmarkerTick() { return playHitmarkerTickSfx(this); }
+  playHeadshotTink() {
+    if (!this._canPlaySfx()) return false;
+    const ctx = this._ensureContext();
+    if (!ctx) return false;
+    const now = ctx.currentTime;
+    const dest = this.sfxBus || ctx.destination;
+
+    const pingOsc = ctx.createOscillator();
+    const harmOsc = ctx.createOscillator();
+    const pingGain = ctx.createGain();
+    pingOsc.type = 'sine';
+    pingOsc.frequency.setValueAtTime(1850, now);
+    pingOsc.frequency.exponentialRampToValueAtTime(2450, now + 0.075);
+    harmOsc.type = 'triangle';
+    harmOsc.frequency.setValueAtTime(2450, now);
+    harmOsc.frequency.exponentialRampToValueAtTime(3080, now + 0.07);
+    pingGain.gain.setValueAtTime(0.115, now);
+    pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+    pingOsc.connect(pingGain);
+    harmOsc.connect(pingGain);
+    pingGain.connect(dest);
+    pingOsc.start(now);
+    harmOsc.start(now);
+    pingOsc.stop(now + 0.078);
+    harmOsc.stop(now + 0.074);
+
+    const transOsc = ctx.createOscillator();
+    const transGain = ctx.createGain();
+    transOsc.type = 'triangle';
+    transOsc.frequency.setValueAtTime(3200, now);
+    transOsc.frequency.exponentialRampToValueAtTime(1950, now + 0.022);
+    transGain.gain.setValueAtTime(0.075, now);
+    transGain.gain.exponentialRampToValueAtTime(0.001, now + 0.022);
+    transOsc.connect(transGain);
+    transGain.connect(dest);
+    transOsc.start(now);
+    transOsc.stop(now + 0.025);
+    return true;
+  }
   playSniperBoltShot() { return playSniperBoltShotSfx(this); }
   playScopeZoomClick(zoom = 4.0) { return playScopeZoomClickSfx(this, zoom); }
 }

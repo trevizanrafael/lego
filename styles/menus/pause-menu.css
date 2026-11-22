@@ -280,6 +280,105 @@ body.settings-over-title #pause-options-modal { background: rgba(3, 5, 9, 0.96);
 
 #pause-hero-card-canvas { width: 100%; height: 100%; display: block; }
 
+/* Placar Categorizado de Baixas da Sessão (#pause-hero-killboard) */
+#pause-hero-killboard,
+.pause-hero-killboard {
+  background: linear-gradient(180deg, rgba(5, 7, 12, 0.94) 0%, #070a12 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 7px 12px 8px;
+  pointer-events: none;
+  user-select: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.pkb-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding-bottom: 3px;
+}
+
+.pkb-title {
+  color: #94a3b8;
+}
+
+.pkb-total {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: #ef4444;
+  font-variant-numeric: tabular-nums;
+}
+
+.pkb-total[data-zero="true"] {
+  color: #64748b;
+}
+
+.pkb-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.pkb-cell {
+  --pkb-accent: #475569;
+  background: rgba(15, 20, 32, 0.85);
+  border-left: 2px solid var(--pkb-accent, #475569);
+  padding: 3px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.pkb-cell[data-cat="police"] { --pkb-accent: #38bdf8; }
+.pkb-cell[data-cat="civilian"] { --pkb-accent: #cbd5e1; }
+.pkb-cell[data-cat="cv"] { --pkb-accent: #dc2626; }
+.pkb-cell[data-cat="pcc"] { --pkb-accent: #3b82f6; }
+.pkb-cell[data-cat="ares"] { --pkb-accent: #a855f7; }
+
+.pkb-cell[data-zero="true"] {
+  opacity: 0.48;
+}
+
+.pkb-cat {
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  color: var(--pkb-accent, #94a3b8);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pkb-val {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.15;
+  margin-top: 1px;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pkb-cell[data-zero="true"] .pkb-val {
+  color: #94a3b8;
+}
+
 .pause-hero-nameplate {
   background: var(--pause-accent, #dc2626);
   padding: clamp(8px, 1.2vh, 13px) 14px;
