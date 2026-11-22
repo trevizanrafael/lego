@@ -526,6 +526,7 @@ export class OperatorWeaponRuntime {
       );
     }
     this.controller?.world?.livingCity?.triggerPedestrianPanicNear?.(origin, 32);
+    this.controller?.world?.livingCity?.wantedSystem?.notifyPlayerGunshot?.(origin);
 
     const destructibles = this.controller?.destructibles;
     const maxRange = Math.max((Number(weaponSpec.falloffEnd) || 65) + 40, this.isScopedIn ? 380 : 90);

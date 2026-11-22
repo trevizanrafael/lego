@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { soundFX } from '../audio/SoundFX.js';
 import {
   WANTED_STAR_THRESHOLDS,
   WANTED_TIER_INFO,
@@ -50,9 +51,12 @@ export class WantedPursuitSystem {
     this.playerHitIFrameTimer = 0;
 
     // Forças Policiais & Anti-Herói Ativas
+    this.pursuitState = 'CLEAN';
+    this._usedDisguiseThisPursuit = false;
     this.pursuitVehicles = [];
     this.footUnits = [];
     this.roadblocks = [];
+    this.policeHelicopters = [];
     this.eagleHeli = null;
     this.eagleHeliRespawnCooldown = 0;
     this.hunterDrones = [];
@@ -70,6 +74,9 @@ export class WantedPursuitSystem {
     this._lastPlayerPos = new THREE.Vector3();
     this._lastKnownPlayerPos = new THREE.Vector3();
     this._playerVelDir = new THREE.Vector3(0, 0, 1);
+    this._playerVelVec = new THREE.Vector3();
+    this._camRightScratch = new THREE.Vector3(1, 0, 0);
+    this._pursuitAudioRunning = false;
 
     this._initSharedMaterials();
     this._bindDestructibleChaosHooks();
@@ -115,6 +122,10 @@ export class WantedPursuitSystem {
     }
 
     if (this.stars === 0) {
+      if (this._pursuitAudioRunning) {
+        soundFX.stopPursuitAudio?.();
+        this._pursuitAudioRunning = false;
+      }
       if (this.chaosScore > 0) {
         this.chaosScore = Math.max(0, this.chaosScore - dt * 14.0);
       }
@@ -134,7 +145,29 @@ export class WantedPursuitSystem {
     this._updateRoadblocks(dt, playerPos, controller);
     this._updateEnemyProjectiles(dt, playerPos, controller);
 
-    tickPursuitEscapeAndHud(this, dt, playerPos, controller);
+    const escapedNow = tickPursuitEscapeAndHud(this, dt, playerPos, controller);
+    if (!escapedNow && this.stars > 0) {
+      const invDt = dt > 0.0001 ? 1 / dt : 0;
+      this._playerVelVec.set(moveDx * invDt, 0, moveDz * invDt);
+      const yaw = Number(controller?.yaw) || 0;
+      this._camRightScratch.set(Math.cos(yaw), 0, -Math.sin(yaw));
+      this._pursuitAudioRunning = true;
+      soundFX.updatePursuitAudio?.({
+        dt,
+        active: true,
+        stars: this.stars,
+        isSearching: Boolean(this.isEscaping),
+        inTunnel: this._isPlayerInUndergroundTunnel(playerPos),
+        playerPos,
+        playerVel: this._playerVelVec,
+        cameraRight: this._camRightScratch,
+        vehicles: this.pursuitVehicles,
+        helicopters:
+          this.policeHelicopters.length > 0
+            ? this.policeHelicopters
+            : (this.eagleHeli ? [this.eagleHeli] : [])
+      });
+    }
   }
 }
 
