@@ -1,0 +1,287 @@
+/* =========================================================================
+   HUD DE COOLDOWNS Q/E & CONTADOR DE MUNIÇÃO (AAA FRAMELESS DARK UI)
+   Alinhado à IDV: chanfros 45° studless, zero caixotes web, zero pílulas
+   ========================================================================= */
+
+#hud-ability-strip,
+.hud-ability-strip,
+.hud-bottom-left-shortcuts,
+.hud-bottom-shortcuts,
+#hud-shortcuts-bar,
+#hud-controls-strip {
+  display: none !important;
+}
+
+.hud-qe-row {
+  --qe-accent: #dc2626;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Blocos Quadrados Chanfrados 45° para Habilidades Táticas [Q] e [E] */
+.qe-ability-box {
+  width: 38px;
+  height: 38px;
+  position: relative;
+  clip-path: polygon(
+    6px 0,
+    100% 0,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    0 100%,
+    0 6px
+  );
+  background: rgba(6, 9, 15, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition:
+    transform 0.12s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.14s ease,
+    filter 0.14s ease;
+}
+
+.qe-cooldown-sweep {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.qe-icon-wrap {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--qe-accent, #dc2626);
+  transition: opacity 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+
+.qe-svg-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+/* Estado PRONTO: Fio capilar interno + ícone aceso no acento da facção */
+.qe-ability-box.is-ready {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 -2px 0 0 var(--qe-accent, #dc2626);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
+}
+
+.qe-ability-box.is-ready .qe-icon-wrap {
+  opacity: 1;
+  color: var(--qe-accent, #dc2626);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
+}
+
+/* Estado RECARREGANDO: Sweep radial horário + ícone escurecido + segundos */
+.qe-ability-box.is-cooling {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.85));
+}
+
+.qe-ability-box.is-cooling .qe-cooldown-sweep {
+  opacity: 1;
+  background: conic-gradient(
+    rgba(231, 226, 214, 0.22) var(--cd-pct, 0%),
+    rgba(4, 6, 10, 0.82) 0
+  );
+}
+
+.qe-ability-box.is-cooling .qe-icon-wrap {
+  opacity: 0.28;
+  color: #94a3b8;
+}
+
+/* Estado CANALIZANDO / BUFF ATIVO: Borda ciano-glacial / bronze cirúrgico */
+.qe-ability-box.is-active-buff {
+  box-shadow:
+    inset 0 0 0 1px #7dd3fc,
+    inset 0 -2px 0 0 #d99b16,
+    inset 0 0 10px rgba(125, 211, 252, 0.24);
+}
+
+.qe-ability-box.is-active-buff .qe-icon-wrap {
+  opacity: 1;
+  color: #f8fafc;
+  transform: scale(1.06);
+}
+
+/* Segundos Restantes Centralizados (Tabulares) */
+.qe-timer-txt {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px #000000, 0 0 2px #000000;
+  pointer-events: none;
+}
+
+.qe-ability-box.is-ready .qe-timer-txt {
+  display: none;
+}
+
+/* Etiqueta Angular da Tecla no Canto Inferior Direito (Q / E) */
+.qe-key-tag {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  z-index: 4;
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #e7e2d6;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-shadow: 0 1px 3px #000000, 0 0 2px #000000;
+}
+
+.qe-ability-box.is-cooling .qe-key-tag {
+  opacity: 0.62;
+}
+
+/* Pulso Tático Curto (260ms) na Transição Cooldown -> Pronto */
+.qe-ability-box.just-ready-pulse {
+  animation: qeReadyPulse 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes qeReadyPulse {
+  0% {
+    transform: scale(0.94);
+    filter: brightness(1.85) drop-shadow(0 0 10px rgba(248, 250, 252, 0.75));
+  }
+  52% {
+    transform: scale(1.12);
+    filter: brightness(1.45) drop-shadow(0 0 8px var(--qe-accent, #dc2626));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
+  }
+}
+
+/* =========================================================================
+   LEITOR FRAMELESS DE MUNIÇÃO DA ARMA ATUAL (PENTE / RESERVA + CARGA)
+   ========================================================================= */
+.hud-ammo-counter {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  margin-left: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-width: 68px;
+}
+
+.hud-ammo-counter.hidden,
+.hud-ammo-counter.is-energy-infinite {
+  display: none !important;
+}
+
+.ammo-digits-row {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  line-height: 1;
+}
+
+.ammo-mag {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 0.84;
+  letter-spacing: 0.03em;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95), 0 1px 2px #000000;
+  transition: color 0.12s ease;
+}
+
+.ammo-sep,
+.ammo-reserve {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 2px #000000;
+}
+
+.hud-ammo-counter.low-ammo .ammo-mag {
+  color: #ef4444;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.55), 0 2px 6px #000000;
+}
+
+.ammo-reload-tag {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #d99b16;
+  text-shadow: 0 1px 3px #000000;
+}
+
+.hud-ammo-counter.is-reloading .ammo-reload-tag {
+  display: block;
+  animation: ammoReloadBlink 0.48s infinite alternate;
+}
+
+.hud-ammo-counter.is-reloading .ammo-mag {
+  opacity: 0.46;
+}
+
+.ammo-micro-bar {
+  display: none;
+  width: 56px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.hud-ammo-counter.is-reloading .ammo-micro-bar,
+.hud-ammo-counter.is-charging .ammo-micro-bar {
+  display: block;
+}
+
+.ammo-micro-fill {
+  width: var(--ammo-bar-pct, 0%);
+  height: 100%;
+  background: #38bdf8;
+  transition: width 0.06s linear;
+}
+
+.hud-ammo-counter.is-reloading .ammo-micro-fill {
+  background: #d99b16;
+  animation: ammoReloadBlink 0.48s infinite alternate;
+}
+
+@keyframes ammoReloadBlink {
+  from { opacity: 0.45; }
+  to   { opacity: 1; }
+}

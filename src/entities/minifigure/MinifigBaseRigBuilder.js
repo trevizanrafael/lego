@@ -24,6 +24,12 @@ import { attachSombraHoodHeadgear } from './outfits/SombraShinobiOutfit.js';
 import { attachTurboSkullHeadgear } from './outfits/TurboGhostRiderOutfit.js';
 import { attachVoltaicoCrownHeadgear } from './outfits/VoltaicoStormlordOutfit.js';
 import { attachVortexSymbioteHeadgear } from './outfits/VortexSymbioteOutfit.js';
+import { attachCvMarretaoHeadgear } from './outfits/CvMarretaoOutfit.js';
+import { attachCvFogueteiraHeadgear } from './outfits/CvFogueteiraOutfit.js';
+import { attachPccContadorHeadgear } from './outfits/PccContadorOutfit.js';
+import { attachPccMuralhaHeadgear } from './outfits/PccMuralhaOutfit.js';
+import { attachAresBastiaoHeadgear } from './outfits/AresBastiaoOutfit.js';
+import { attachAresAgulhaHeadgear } from './outfits/AresAgulhaOutfit.js';
 
 /**
  * Cria a geometria trapezoidal clássica do tronco de uma Minifigura LEGO
@@ -49,24 +55,110 @@ export function createTrapezoidTorsoGeometry(
   return geom;
 }
 
-function attachHeroHeadgear(minifig, headgearKey) {
-  if (headgearKey === 'beret') {
-    attachCaveiraBeretHeadgear(minifig);
-  } else if (headgearKey === 'visor_crown') {
-    attachSolarisCrownHeadgear(minifig);
-  } else if (headgearKey === 'mecha_helmet') {
-    attachTitaMechaHelmet(minifig);
-  } else if (headgearKey === 'tactical_bandana') {
-    attachVingadorBandanaHeadgear(minifig);
-  } else if (headgearKey === 'ninja_hood') {
-    attachSombraHoodHeadgear(minifig);
-  } else if (headgearKey === 'ghost_flame_skull') {
-    attachTurboSkullHeadgear(minifig);
-  } else if (headgearKey === 'tesla_crown') {
-    attachVoltaicoCrownHeadgear(minifig);
-  } else if (headgearKey === 'symbiote_crest') {
-    attachVortexSymbioteHeadgear(minifig);
+const HEADGEAR_BUILDERS = {
+  beret: attachCaveiraBeretHeadgear,
+  visor_crown: attachSolarisCrownHeadgear,
+  mecha_helmet: attachTitaMechaHelmet,
+  tactical_bandana: attachVingadorBandanaHeadgear,
+  ninja_hood: attachSombraHoodHeadgear,
+  ghost_flame_skull: attachTurboSkullHeadgear,
+  tesla_crown: attachVoltaicoCrownHeadgear,
+  symbiote_crest: attachVortexSymbioteHeadgear,
+  cv_marretao_cap: attachCvMarretaoHeadgear,
+  cv_fogueteira_visor: attachCvFogueteiraHeadgear,
+  pcc_contador_balaclava: attachPccContadorHeadgear,
+  pcc_muralha_helmet: attachPccMuralhaHeadgear,
+  ares_bastiao_helmet: attachAresBastiaoHeadgear,
+  ares_agulha_visor: attachAresAgulhaHeadgear,
+  boss_cv_crown: (m) => attachSecretBossHeadgear(m, 'boss_cv_crown'),
+  boss_pcc_mask: (m) => attachSecretBossHeadgear(m, 'boss_pcc_mask'),
+  boss_ares_helm: (m) => attachSecretBossHeadgear(m, 'boss_ares_helm')
+};
+
+function attachSecretBossHeadgear(minifig, headgearKey) {
+  const hg = new THREE.Group();
+  if (headgearKey === 'boss_cv_crown') {
+    const crimson = getLegoMaterial(0x7f1d1d, { roughness: 0.34, clearcoat: 0.35 });
+    const obsidian = getLegoMaterial(0x090a0d, { roughness: 0.3, metalness: 0.45 });
+    const bronze = getLegoMaterial(0xd97706, { roughness: 0.22, metalness: 0.72, emissive: 0x991b1b, emissiveIntensity: 0.4 });
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.37, 0.16, 20), crimson);
+    crown.position.set(-0.03, 0.61, 0);
+    crown.rotation.z = -0.14;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.375, 0.375, 0.08, 20), obsidian);
+    band.position.set(0, 0.54, 0);
+    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.06), bronze);
+    crest.position.set(0, 0.58, 0.37);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.12, 0.14), obsidian);
+    visor.position.set(0, 0.36, 0.31);
+    hg.add(crown, band, crest, visor);
+  } else if (headgearKey === 'boss_pcc_mask') {
+    const suitBlack = getLegoMaterial(0x070b14, { roughness: 0.28, metalness: 0.5 });
+    const cobalt = getLegoMaterial(0x1d4ed8, { roughness: 0.2, emissive: 0x2563eb, emissiveIntensity: 1.5 });
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.38, 0.52, 20), suitBlack);
+    shell.position.set(0, 0.36, 0);
+    const faceplate = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.42, 0.16), suitBlack);
+    faceplate.position.set(0, 0.33, 0.31);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.1, 0.06), cobalt);
+    visor.position.set(0, 0.38, 0.39);
+    hg.add(shell, faceplate, visor);
+  } else if (headgearKey === 'boss_ares_helm') {
+    const steel = getLegoMaterial(0x1e2436, { roughness: 0.24, metalness: 0.68 });
+    const neonPurple = getLegoMaterial(0x9333ea, { roughness: 0.15, emissive: 0xa855f7, emissiveIntensity: 2.0 });
+    const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.44, 0.52, 16), steel);
+    helm.position.set(0, 0.39, 0);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.12, 0.14), neonPurple);
+    visor.position.set(0, 0.37, 0.37);
+    for (const s of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 0.16), neonPurple);
+      horn.position.set(s * 0.38, 0.64, -0.02);
+      horn.rotation.z = -s * 0.28;
+      hg.add(horn);
+    }
+    hg.add(helm, visor);
   }
+  minifig.headGroup.add(hg);
+}
+
+function attachSecretBossArmorRig(minifig, preset) {
+  const key = preset.key;
+  if (key !== 'boss_cv' && key !== 'boss_pcc' && key !== 'boss_ares') return;
+  const cfg = key === 'boss_cv'
+    ? { main: 0x7f1d1d, trim: 0x090a0d, glow: 0xdc2626 }
+    : key === 'boss_pcc'
+      ? { main: 0x070b14, trim: 0x1d4ed8, glow: 0x38bdf8 }
+      : { main: 0x1e2436, trim: 0x9333ea, glow: 0xa855f7 };
+  const mainMat = getLegoMaterial(cfg.main, { roughness: 0.28, metalness: 0.52 });
+  const trimMat = getLegoMaterial(cfg.trim, { roughness: 0.22, metalness: 0.45 });
+  const glowMat = getLegoMaterial(cfg.glow, { roughness: 0.16, emissive: cfg.glow, emissiveIntensity: 1.7 });
+
+  for (const [pivot, s] of [[minifig.leftArmPivot, 1], [minifig.rightArmPivot, -1]]) {
+    if (!pivot) continue;
+    const pauldron = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.48), mainMat);
+    pauldron.position.set(s * 0.08, 0.09, 0);
+    pauldron.rotation.z = -s * 0.24;
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.5), key === 'boss_cv' ? trimMat : glowMat);
+    edge.position.set(s * 0.09, 0.17, 0);
+    edge.rotation.z = -s * 0.24;
+    pivot.add(pauldron, edge);
+  }
+  const core = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.09), glowMat);
+  core.position.set(0, 0.46, 0.25);
+  minifig.upperBodyGroup.add(core);
+  if (key === 'boss_cv' && minifig.capeMesh) {
+    minifig.capeMesh.material = getLegoMaterial(0x140708, { roughness: 0.42, emissive: 0x7f1d1d, emissiveIntensity: 0.18 });
+  } else if (key === 'boss_ares') {
+    minifig.leftArmPivot.position.x = 0.62;
+    minifig.rightArmPivot.position.x = -0.62;
+    for (const s of [-1, 1]) {
+      const pod = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.38, 0.24), mainMat);
+      pod.position.set(s * 0.34, 0.72, -0.24);
+      minifig.upperBodyGroup.add(pod);
+    }
+  }
+}
+
+function attachHeroHeadgear(minifig, headgearKey) {
+  HEADGEAR_BUILDERS[headgearKey]?.(minifig);
 }
 
 const NON_RIG_INSTANCE_KEYS = new Set([
@@ -163,7 +255,6 @@ export function resetActiveRigTransientState(minifig, preset) {
     minifig.headGroup.position.set(0, 0.76, 0);
     minifig.headGroup.rotation.set(0, 0, 0);
   }
-
   const shoulderX = minifig.isBigFig ? 0.62 : 0.49;
   if (minifig.leftArmPivot) {
     minifig.leftArmPivot.position.set(shoulderX, 0.66, 0);
@@ -189,7 +280,6 @@ export function resetActiveRigTransientState(minifig, preset) {
     minifig.rightLegPivot.position.set(-0.21, 0, 0);
     minifig.rightLegPivot.rotation.set(0, 0, 0);
   }
-
   if (minifig.rifleGroup) minifig.rifleGroup.visible = true;
   if (minifig.capeMesh) {
     minifig.capeMesh.visible = true;
@@ -199,9 +289,7 @@ export function resetActiveRigTransientState(minifig, preset) {
   if (minifig.muzzleFlashMesh) minifig.muzzleFlashMesh.visible = false;
   if (minifig.leftMuzzleFlashMesh) minifig.leftMuzzleFlashMesh.visible = false;
   if (minifig.titaDashFlameMeshes) {
-    for (let i = 0; i < minifig.titaDashFlameMeshes.length; i++) {
-      minifig.titaDashFlameMeshes[i].visible = false;
-    }
+    for (let i = 0; i < minifig.titaDashFlameMeshes.length; i++) minifig.titaDashFlameMeshes[i].visible = false;
   }
   if (minifig.op09JetFlames) {
     for (let i = 0; i < minifig.op09JetFlames.length; i++) minifig.op09JetFlames[i].visible = false;
@@ -268,9 +356,7 @@ export function applyCachedHeroPreset(minifig, presetKey) {
 export const baseRigMethods = {
   buildModel(presetInput) {
     const preset = resolveHeroPreset(presetInput);
-    if (this.isStealth) {
-      this.setStealthVisual(false);
-    }
+    if (this.isStealth) this.setStealthVisual(false);
     let isCachedVisualRoot = false;
     if (this._rigCache) {
       for (const entry of this._rigCache.values()) {
@@ -301,9 +387,6 @@ export const baseRigMethods = {
     const hipMat = getLegoMaterial(preset.hipColor, { roughness: 0.26, clearcoat: 0.4 });
     const legMat = getLegoMaterial(preset.legColor, { roughness: 0.25, clearcoat: 0.42 });
 
-    // ==========================================
-    // 1. QUADRIL / PELVE & PERNAS ARTICULADAS
-    // ==========================================
     this.hipGroup = new THREE.Group();
     this.hipGroup.position.set(0, 0.72, 0);
     this.visualRoot.add(this.hipGroup);
@@ -312,24 +395,15 @@ export const baseRigMethods = {
     waistMesh.position.set(0, 0.07, 0);
     waistMesh.castShadow = true;
     waistMesh.receiveShadow = true;
-    this.hipGroup.add(waistMesh);
-
     const crotchMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.4), hipMat);
     crotchMesh.position.set(0, -0.06, 0);
     crotchMesh.castShadow = true;
-    this.hipGroup.add(crotchMesh);
-
     this.leftLegPivot = this._createLeg(legMat);
     this.leftLegPivot.position.set(0.21, 0, 0);
-    this.hipGroup.add(this.leftLegPivot);
-
     this.rightLegPivot = this._createLeg(legMat);
     this.rightLegPivot.position.set(-0.21, 0, 0);
-    this.hipGroup.add(this.rightLegPivot);
+    this.hipGroup.add(waistMesh, crotchMesh, this.leftLegPivot, this.rightLegPivot);
 
-    // ==========================================
-    // 2. TRONCO TRAPEZOIDAL (UPPER BODY)
-    // ==========================================
     this.upperBodyGroup = new THREE.Group();
     this.upperBodyGroup.position.set(0, 0.86, 0);
     this.visualRoot.add(this.upperBodyGroup);
@@ -339,31 +413,21 @@ export const baseRigMethods = {
     this.torsoMesh.position.set(0, 0.38, 0);
     this.torsoMesh.castShadow = true;
     this.torsoMesh.receiveShadow = true;
-    this.upperBodyGroup.add(this.torsoMesh);
-
-    const torsoTex =
-      preset.key === 'op09'
-        ? createCustomTorsoTexture(preset.customCfg)
-        : createMinifigTorsoTexture(preset.torsoPreset);
-    const chestDecalGeo = createTrapezoidTorsoGeometry(0.74, 0.88, 0.72, 0.01);
-    const chestDecalMat = getLegoMaterial(0xffffff, {
-      map: torsoTex,
-      roughness: 0.22,
-      clearcoat: 0.45
-    });
-    const chestDecal = new THREE.Mesh(chestDecalGeo, chestDecalMat);
+    const torsoTex = preset.key === 'op09'
+      ? createCustomTorsoTexture(preset.customCfg)
+      : createMinifigTorsoTexture(preset.torsoPreset);
+    const chestDecal = new THREE.Mesh(
+      createTrapezoidTorsoGeometry(0.74, 0.88, 0.72, 0.01),
+      getLegoMaterial(0xffffff, { map: torsoTex, roughness: 0.22, clearcoat: 0.45 })
+    );
     chestDecal.position.set(0, 0.38, 0.221);
-    this.upperBodyGroup.add(chestDecal);
+    this.upperBodyGroup.add(this.torsoMesh, chestDecal);
 
     if (preset.capeColor) {
       const capeMat = getLegoMaterial(preset.capeColor, {
-        roughness: 0.35,
-        clearcoat: 0.2,
-        emissive: 0xea580c,
-        emissiveIntensity: 0.22
+        roughness: 0.35, clearcoat: 0.2, emissive: 0xea580c, emissiveIntensity: 0.22
       });
-      const capeGeo = createTrapezoidTorsoGeometry(1.08, 0.76, 1.18, 0.03);
-      this.capeMesh = new THREE.Mesh(capeGeo, capeMat);
+      this.capeMesh = new THREE.Mesh(createTrapezoidTorsoGeometry(1.08, 0.76, 1.18, 0.03), capeMat);
       this.capeMesh.position.set(0, 0.22, -0.25);
       this.capeMesh.rotation.x = 0.12;
       this.capeMesh.castShadow = true;
@@ -407,11 +471,29 @@ export const baseRigMethods = {
       this._attachVoltaicoTeslaRig(this.leftHandGroup, this.rightHandGroup);
     } else if (preset.weapon === 'vortex_tentacles') {
       this._attachVortexSymbioteRig(this.leftHandGroup, this.rightHandGroup);
+    } else if (preset.weapon === 'cv_lmg') {
+      this._attachCvMarretaoRig();
+    } else if (preset.weapon === 'cv_pistol') {
+      this._attachCvFogueteiraRig();
+    } else if (preset.weapon === 'pcc_dmr') {
+      this._attachPccContadorRig();
+    } else if (preset.weapon === 'pcc_shotgun12') {
+      this._attachPccMuralhaRig();
+    } else if (preset.weapon === 'ares_pulse_minigun') {
+      this._attachAresBastiaoRig();
+    } else if (preset.weapon === 'ares_charge_rifle') {
+      this._attachAresAgulhaRig();
+    } else if (preset.weapon === 'tita_minigun') {
+      this._attachAresBastiaoRig();
+      if (this.rifleGroup) {
+        this.rifleGroup.scale.setScalar(1.26);
+        this.titaCannonGroup = this.rifleGroup;
+      }
+      this.titaMinigunBarrelGroup = this.operatorBarrelCluster;
     }
+    attachSecretBossArmorRig(this, preset);
 
-    if (preset.fireAura) {
-      this._buildSolarAuraParticles(preset.key);
-    }
+    if (preset.fireAura) this._buildSolarAuraParticles(preset.key);
 
     // ==========================================
     // 4. PESCOÇO, CABEÇA CILÍNDRICA & PINO LEGO
@@ -420,20 +502,14 @@ export const baseRigMethods = {
     this.headGroup.position.set(0, 0.76, 0);
     this.upperBodyGroup.add(this.headGroup);
 
-    const neckMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.18, 0.1, 20),
-      headMat
-    );
+    const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.1, 20), headMat);
     neckMesh.position.set(0, 0.04, 0);
     neckMesh.castShadow = true;
     this.headGroup.add(neckMesh);
 
     const headHeight = 0.52;
     const headRadius = 0.35;
-    const headCylinder = new THREE.Mesh(
-      new THREE.CylinderGeometry(headRadius, headRadius, headHeight, 32),
-      headMat
-    );
+    const headCylinder = new THREE.Mesh(new THREE.CylinderGeometry(headRadius, headRadius, headHeight, 32), headMat);
     headCylinder.position.set(0, 0.33, 0);
     headCylinder.castShadow = true;
     headCylinder.receiveShadow = true;
@@ -449,124 +525,73 @@ export const baseRigMethods = {
     botRim.position.set(0, 0.33 - headHeight * 0.5, 0);
     this.headGroup.add(botRim);
 
-    const faceTex =
-      preset.key === 'op09'
-        ? createCustomFaceTexture(preset.customCfg)
-        : createMinifigFaceTexture(preset.facePreset);
-    const faceMat = new THREE.MeshPhysicalMaterial({
-      map: faceTex,
-      roughness: 0.2,
-      clearcoat: 0.45
-    });
+    const faceTex = preset.key === 'op09'
+      ? createCustomFaceTexture(preset.customCfg)
+      : createMinifigFaceTexture(preset.facePreset);
+    const faceMat = new THREE.MeshPhysicalMaterial({ map: faceTex, roughness: 0.2, clearcoat: 0.45 });
     const faceShellGeo = new THREE.CylinderGeometry(
-      headRadius + 0.003,
-      headRadius + 0.003,
-      headHeight * 0.9,
-      32,
-      1,
-      true,
-      -Math.PI * 0.45,
-      Math.PI * 0.9
+      headRadius + 0.003, headRadius + 0.003, headHeight * 0.9, 32, 1, true, -Math.PI * 0.45, Math.PI * 0.9
     );
     const faceShell = new THREE.Mesh(faceShellGeo, faceMat);
     faceShell.position.set(0, 0.33, 0);
     this.headGroup.add(faceShell);
 
-    const headStud = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.18, 0.13, 24),
-      headMat
-    );
+    const headStud = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.13, 24), headMat);
     headStud.position.set(0, 0.33 + headHeight * 0.5 + 0.065, 0);
     headStud.castShadow = true;
     headStud.receiveShadow = true;
     this.headGroup.add(headStud);
 
-    if (preset.key === 'op09') {
-      attachOp09CustomRigToMinifigure(this, preset.customCfg);
-    }
-
+    if (preset.key === 'op09') attachOp09CustomRigToMinifigure(this, preset.customCfg);
     attachHeroHeadgear(this, preset.headgear);
   },
 
   _createLeg(legMat) {
     const pivot = new THREE.Group();
-
-    const hipRoll = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.17, 0.17, 0.35, 18),
-      legMat
-    );
+    const hipRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.35, 18), legMat);
     hipRoll.rotation.z = Math.PI / 2;
     hipRoll.castShadow = true;
-    pivot.add(hipRoll);
-
-    const legShaft = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, 0.54, 0.38),
-      legMat
-    );
+    const legShaft = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.54, 0.38), legMat);
     legShaft.position.set(0, -0.31, 0);
     legShaft.castShadow = true;
     legShaft.receiveShadow = true;
-    pivot.add(legShaft);
-
-    const footMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, 0.16, 0.52),
-      legMat
-    );
+    const footMesh = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.16, 0.52), legMat);
     footMesh.position.set(0, -0.64, 0.07);
     footMesh.castShadow = true;
     footMesh.receiveShadow = true;
-    pivot.add(footMesh);
-
+    pivot.add(hipRoll, legShaft, footMesh);
     return pivot;
   },
 
   _createArm(armMat, handMat, sideSign) {
     const shoulderPivot = new THREE.Group();
-
     const armBody = new THREE.Group();
     armBody.rotation.z = sideSign * 0.13;
     shoulderPivot.add(armBody);
 
     const shoulderCap = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), armMat);
     shoulderCap.castShadow = true;
-    armBody.add(shoulderCap);
-
-    const upperArm = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.13, 0.12, 0.34, 18),
-      armMat
-    );
+    const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.12, 0.34, 18), armMat);
     upperArm.position.set(0, -0.17, 0);
     upperArm.castShadow = true;
-    armBody.add(upperArm);
+    armBody.add(shoulderCap, upperArm);
 
     const forearmGroup = new THREE.Group();
     forearmGroup.position.set(0, -0.32, 0);
     forearmGroup.rotation.x = -0.22;
     armBody.add(forearmGroup);
 
-    const forearm = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.11, 0.24, 18),
-      armMat
-    );
+    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.24, 18), armMat);
     forearm.position.set(0, -0.11, 0);
     forearm.castShadow = true;
-    forearmGroup.add(forearm);
-
-    const wrist = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.065, 0.065, 0.1, 14),
-      handMat
-    );
+    const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.1, 14), handMat);
     wrist.position.set(0, -0.25, 0);
-    forearmGroup.add(wrist);
-
-    const clawGeo = new THREE.TorusGeometry(0.095, 0.042, 12, 20, Math.PI * 1.48);
-    const clawMesh = new THREE.Mesh(clawGeo, handMat);
+    const clawMesh = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.042, 12, 20, Math.PI * 1.48), handMat);
     clawMesh.position.set(0, -0.34, 0.02);
     clawMesh.rotation.y = Math.PI / 2;
     clawMesh.rotation.z = -Math.PI * 0.65;
     clawMesh.castShadow = true;
-    forearmGroup.add(clawMesh);
-
+    forearmGroup.add(forearm, wrist, clawMesh);
     return { shoulderPivot, forearmGroup };
   }
 };

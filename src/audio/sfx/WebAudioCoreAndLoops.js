@@ -3,6 +3,8 @@
  * geradores auxiliares de osciladores/ruído e loops contínuos (música urbana/baile, motores, sirenes e metrô).
  */
 
+import { UrbanAmbienceSoundtrack } from '../UrbanAmbienceSoundtrack.js';
+
 export function initSoundFXState(sfx) {
   sfx.ctx = null;
   sfx.sfxBus = null;
@@ -17,6 +19,37 @@ export function initSoundFXState(sfx) {
   sfx.baileFunkMix = 0;
   sfx.baileBeatPulse = 0;
   sfx.tiktokRadioActive = false;
+  sfx.urbanAmbience = new UrbanAmbienceSoundtrack(sfx);
+
+  // Desbloqueia automaticamente o WebAudio e inicia a ambiência sombria no 1º gesto do usuário no navegador
+  if (!globalThis.__testEnvReady && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    const unlockOnce = () => {
+      const ctx = ensureWebAudioContext(sfx);
+      if (ctx && ctx.state === 'running') {
+        if (!sfx.isMusicPlaying) {
+          startWarMusicLoop(sfx);
+        } else {
+          sfx.urbanAmbience?._onContextUnlocked?.();
+        }
+        window.removeEventListener('pointerdown', unlockOnce, true);
+        window.removeEventListener('keydown', unlockOnce, true);
+      } else if (ctx && typeof ctx.resume === 'function') {
+        ctx.resume().then(() => {
+          if (!sfx.isMusicPlaying) {
+            startWarMusicLoop(sfx);
+          } else {
+            sfx.urbanAmbience?._onContextUnlocked?.();
+          }
+          if (ctx.state === 'running') {
+            window.removeEventListener('pointerdown', unlockOnce, true);
+            window.removeEventListener('keydown', unlockOnce, true);
+          }
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('pointerdown', unlockOnce, true);
+    window.addEventListener('keydown', unlockOnce, true);
+  }
 }
 
 export function ensureWebAudioContext(sfx) {
@@ -38,7 +71,7 @@ export function ensureWebAudioContext(sfx) {
     }
   }
   if (sfx.ctx && sfx.ctx.state === 'suspended' && typeof sfx.ctx.resume === 'function') {
-    sfx.ctx.resume().catch(() => {});
+    sfx.ctx.resume().catch(() => { });
   }
   return sfx.ctx;
 }
@@ -229,21 +262,34 @@ export function playMetroDingDongLoop(sfx, volume = 0.65) {
 }
 
 /**
- * GROOVE URBANO SOLAR & HEROICO ESTILO LEGO MARVEL ("MANHATTAN FREE ROAM THEME")
- * Sequenciador leve em Dó Maior / Sol Mixolídio (115 BPM) + Batidão Funk Espacial da CDD!
+ * TRILHA SONORA NATIVA DARK AMBIENT POR BAIRRO (10 MINUTOS CADA) + PAREDÃO ESPACIAL DO BAILE (75m)
+ * Substitui integralmente o antigo loop alegre em Dó Maior por composições sombrias exclusivas de cada região.
  */
 export function startWarMusicLoop(sfx) {
+  if (!sfx.urbanAmbience) {
+    sfx.urbanAmbience = new UrbanAmbienceSoundtrack(sfx);
+  }
+  sfx.urbanAmbience.start();
+
   if (sfx.isMusicPlaying) return;
   sfx.isMusicPlaying = true;
   sfx._musicStep = 0;
 
   if (sfx._musicInterval) {
     clearInterval(sfx._musicInterval);
+    sfx._musicInterval = null;
   }
 
-  // 115 BPM -> semicolcheia suave a cada 130ms
+  if (globalThis.__testEnvReady) return;
+
+  // Sequenciador dedicado exclusivamente ao Paredão Espacial do Baile Funk na CDD (só dispara se baileMix > 0.02!)
   sfx._musicInterval = setInterval(() => {
     if (!sfx.isMusicPlaying || sfx.masterVolume * sfx.musicVolume <= 0.01) return;
+    if (sfx.tiktokRadioActive) return;
+
+    const baileMix = Math.max(0, Math.min(1, sfx.baileFunkMix || 0));
+    if (baileMix <= 0.02) return;
+
     const ctx = sfx._ensureContext();
     if (!ctx || ctx.state !== 'running') return;
 
@@ -251,183 +297,47 @@ export function startWarMusicLoop(sfx) {
     sfx._musicStep++;
     const now = ctx.currentTime;
     const dest = sfx.musicBus || ctx.destination;
+    const s16 = step % 16;
 
-    if (sfx.tiktokRadioActive) return;
+    // 1. Bumbo Grave 808 Encorpado do Paredão ("BOOM ... BOOM-BOOM")
+    if (s16 === 0 || s16 === 6 || s16 === 10 || s16 === 14) {
+      sfx.baileBeatPulse = 1.0;
+      const subOsc = ctx.createOscillator();
+      const punchOsc = ctx.createOscillator();
+      const subGain = ctx.createGain();
+      subOsc.type = 'sine';
+      punchOsc.type = 'triangle';
+      const root808 = step < 16 ? 55.0 : 49.0; // A1 -> G1
+      subOsc.frequency.setValueAtTime(142, now);
+      subOsc.frequency.exponentialRampToValueAtTime(root808, now + 0.055);
+      punchOsc.frequency.setValueAtTime(195, now);
+      punchOsc.frequency.exponentialRampToValueAtTime(root808 * 1.5, now + 0.045);
 
-    const baileMix = Math.max(0, Math.min(1, sfx.baileFunkMix || 0));
-    const cityMix = Math.max(0, 1.0 - baileMix * 0.92);
-
-    // A) BATIDÃO INSTRUMENTAL FUNK CARIOCA LEGO (PAREDÃO DA CDD — ATÉ 75m!)
-    if (baileMix > 0.02) {
-      const s16 = step % 16;
-
-      // 1. Bumbo Grave 808 Encorpado do Paredão ("BOOM ... BOOM-BOOM")
-      if (s16 === 0 || s16 === 6 || s16 === 10 || s16 === 14) {
-        sfx.baileBeatPulse = 1.0;
-        const subOsc = ctx.createOscillator();
-        const punchOsc = ctx.createOscillator();
-        const subGain = ctx.createGain();
-        subOsc.type = 'sine';
-        punchOsc.type = 'triangle';
-        const root808 = step < 16 ? 55.0 : 49.0; // A1 -> G1
-        subOsc.frequency.setValueAtTime(142, now);
-        subOsc.frequency.exponentialRampToValueAtTime(root808, now + 0.055);
-        punchOsc.frequency.setValueAtTime(195, now);
-        punchOsc.frequency.exponentialRampToValueAtTime(root808 * 1.5, now + 0.045);
-
-        subGain.gain.setValueAtTime(0.32 * baileMix, now);
-        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.21);
-        subOsc.connect(subGain);
-        punchOsc.connect(subGain);
-        subGain.connect(dest);
-        subOsc.start(now);
-        punchOsc.start(now);
-        subOsc.stop(now + 0.22);
-        punchOsc.stop(now + 0.08);
-      }
-
-      // 2. Tamborim Carioca Sincopado ("Telecoteco" clássico do Tamborzão!)
-      if (s16 === 2 || s16 === 3 || s16 === 7 || s16 === 11 || s16 === 12 || s16 === 15) {
-        const tambOsc = ctx.createOscillator();
-        const tambGain = ctx.createGain();
-        tambOsc.type = s16 % 2 === 0 ? 'square' : 'triangle';
-        const fStart = s16 === 3 || s16 === 12 ? 880 : 740;
-        tambOsc.frequency.setValueAtTime(fStart, now);
-        tambOsc.frequency.exponentialRampToValueAtTime(360, now + 0.048);
-        tambGain.gain.setValueAtTime(0.11 * baileMix, now);
-        tambGain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
-        tambOsc.connect(tambGain);
-        tambGain.connect(dest);
-        tambOsc.start(now);
-        tambOsc.stop(now + 0.06);
-      }
-
-      // 3. Riff de Metais / Synth Funk Carioca Divertido Estilo LEGO
-      const funkHook = [
-        440.0, 0, 0, 523.25, 0, 0, 587.33, 0,
-        523.25, 0, 440.0, 0, 392.0, 0, 440.0, 0
-      ];
-      const hookFreq = funkHook[s16];
-      if (hookFreq > 0) {
-        const hOsc = ctx.createOscillator();
-        const hGain = ctx.createGain();
-        hOsc.type = 'sawtooth';
-        hOsc.frequency.setValueAtTime(hookFreq, now);
-        hGain.gain.setValueAtTime(0.068 * baileMix, now);
-        hGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-        hOsc.connect(hGain);
-        hGain.connect(dest);
-        hOsc.start(now);
-        hOsc.stop(now + 0.13);
-      }
+      subGain.gain.setValueAtTime(0.28 * baileMix, now);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.21);
+      subOsc.connect(subGain);
+      punchOsc.connect(subGain);
+      subGain.connect(dest);
+      subOsc.start(now);
+      punchOsc.start(now);
+      subOsc.stop(now + 0.22);
+      punchOsc.stop(now + 0.08);
     }
 
-    if (cityMix <= 0.03) return;
-
-    // 1. Batida Urbana Suave (Groove leve de passeio sem peso militar)
-    if (step === 0 || step === 6 || step === 10 || step === 16 || step === 22 || step === 26) {
-      const kickOsc = ctx.createOscillator();
-      const kickGain = ctx.createGain();
-      kickOsc.type = 'sine';
-      kickOsc.frequency.setValueAtTime(108, now);
-      kickOsc.frequency.exponentialRampToValueAtTime(42, now + 0.095);
-      kickGain.gain.setValueAtTime(0.13 * cityMix, now);
-      kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.105);
-      kickOsc.connect(kickGain);
-      kickGain.connect(dest);
-      kickOsc.start(now);
-      kickOsc.stop(now + 0.11);
-    }
-
-    // Rim / Clap suave nos tempos 4, 12, 20, 28 + Hi-hat leve nos pares
-    if (step % 8 === 4) {
-      const rimOsc = ctx.createOscillator();
-      const rimGain = ctx.createGain();
-      rimOsc.type = 'triangle';
-      rimOsc.frequency.setValueAtTime(340, now);
-      rimOsc.frequency.exponentialRampToValueAtTime(155, now + 0.055);
-      rimGain.gain.setValueAtTime(0.055 * cityMix, now);
-      rimGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-      rimOsc.connect(rimGain);
-      rimGain.connect(dest);
-      rimOsc.start(now);
-      rimOsc.stop(now + 0.065);
-    } else if (step % 2 === 0) {
-      const hatOsc = ctx.createOscillator();
-      const hatGain = ctx.createGain();
-      hatOsc.type = 'sine';
-      hatOsc.frequency.setValueAtTime(1480 + (step % 4) * 120, now);
-      hatGain.gain.setValueAtTime(0.016 * cityMix, now);
-      hatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.028);
-      hatOsc.connect(hatGain);
-      hatGain.connect(dest);
-      hatOsc.start(now);
-      hatOsc.stop(now + 0.032);
-    }
-
-    // 2. Acordes Solares Alegres (C Major -> G Major -> F Major7 -> G6)
-    if (step % 8 === 0) {
-      const chordBank = [
-        [261.63, 329.63, 392.0], // C4 - E4 - G4
-        [246.94, 293.66, 392.0], // B3 - D4 - G4
-        [261.63, 349.23, 440.0], // C4 - F4 - A4
-        [293.66, 392.0, 493.88]  // D4 - G4 - B4
-      ];
-      const chord = chordBank[Math.floor(step / 8) % 4];
-      for (const freq of chord) {
-        const chOsc = ctx.createOscillator();
-        const chGain = ctx.createGain();
-        chOsc.type = 'sine';
-        chOsc.frequency.setValueAtTime(freq, now);
-        chGain.gain.setValueAtTime(0.032 * cityMix, now);
-        chGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
-        chOsc.connect(chGain);
-        chGain.connect(dest);
-        chOsc.start(now);
-        chOsc.stop(now + 0.44);
-      }
-    }
-
-    // 3. Linha de Baixo Leve & Saltitante (Funky Urban Groove em Dó Maior)
-    const bassPattern = [
-      130.81, 0, 130.81, 164.81, 196.0, 0, 164.81, 146.83,
-      98.0, 0, 98.0, 123.47, 146.83, 0, 164.81, 146.83,
-      87.31, 0, 87.31, 110.0, 130.81, 0, 146.83, 130.81,
-      98.0, 0, 123.47, 0, 146.83, 164.81, 196.0, 0
-    ];
-    const bassFreq = bassPattern[step];
-    if (bassFreq > 0) {
-      const bassOsc = ctx.createOscillator();
-      const bassGain = ctx.createGain();
-      bassOsc.type = 'triangle';
-      bassOsc.frequency.setValueAtTime(bassFreq, now);
-      bassGain.gain.setValueAtTime(0.082 * cityMix, now);
-      bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.115);
-      bassOsc.connect(bassGain);
-      bassGain.connect(dest);
-      bassOsc.start(now);
-      bassOsc.stop(now + 0.12);
-    }
-
-    // 4. Tema Melódico Heroico & Aventureiro Estilo LEGO Marvel
-    const leadMelody = [
-      523.25, 0, 659.25, 0, 783.99, 0, 659.25, 587.33,
-      587.33, 0, 659.25, 783.99, 0, 0, 587.33, 0,
-      523.25, 0, 587.33, 0, 659.25, 0, 880.0, 783.99,
-      659.25, 0, 587.33, 523.25, 587.33, 0, 0, 0
-    ];
-    const leadFreq = leadMelody[step];
-    if (leadFreq > 0) {
-      const leadOsc = ctx.createOscillator();
-      const leadGain = ctx.createGain();
-      leadOsc.type = 'triangle';
-      leadOsc.frequency.setValueAtTime(leadFreq, now);
-      leadGain.gain.setValueAtTime(0.048 * cityMix, now);
-      leadGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-      leadOsc.connect(leadGain);
-      leadGain.connect(dest);
-      leadOsc.start(now);
-      leadOsc.stop(now + 0.23);
+    // 2. Percussão Sincopada Escura do Paredão
+    if (s16 === 2 || s16 === 3 || s16 === 7 || s16 === 11 || s16 === 12 || s16 === 15) {
+      const tambOsc = ctx.createOscillator();
+      const tambGain = ctx.createGain();
+      tambOsc.type = 'triangle';
+      const fStart = s16 === 3 || s16 === 12 ? 620 : 510;
+      tambOsc.frequency.setValueAtTime(fStart, now);
+      tambOsc.frequency.exponentialRampToValueAtTime(240, now + 0.048);
+      tambGain.gain.setValueAtTime(0.085 * baileMix, now);
+      tambGain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+      tambOsc.connect(tambGain);
+      tambGain.connect(dest);
+      tambOsc.start(now);
+      tambOsc.stop(now + 0.06);
     }
   }, 130);
 
@@ -442,6 +352,7 @@ export function stopWarMusicLoop(sfx) {
     clearInterval(sfx._musicInterval);
     sfx._musicInterval = null;
   }
+  sfx.urbanAmbience?.stop();
 }
 
 export function setBossMusicIntensityState(sfx, active) {

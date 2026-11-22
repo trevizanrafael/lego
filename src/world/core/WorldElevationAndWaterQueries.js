@@ -30,7 +30,7 @@ export const worldElevationAndWaterMethods = {
         num: 'LAB',
         name: 'PORÃO DA TORRE — LABORATÓRIO OP-09',
         shortName: 'PORÃO DOS HERÓIS (OP-09)',
-        sub: 'Laboratório Bio-Genético Subterrâneo • Criação de Personagem [E]',
+        sub: 'Laboratório Bio-Genético Subterrâneo • Criação de Personagem [F]',
         color: '#00f0ff',
         icon: 'tower'
       },
@@ -50,7 +50,7 @@ export const worldElevationAndWaterMethods = {
         num: 'CUS',
         name: 'LEGO CUSTOMS — OFICINA DE TUNING',
         shortName: 'LEGO CUSTOMS',
-        sub: 'Tuning 0–10 • Pintura • Decals • Monster Truck & Rampa Cunha [E]',
+        sub: 'Tuning 0–10 • Pintura • Decals • Monster Truck & Rampa Cunha [F]',
         color: '#facc15',
         icon: 'customs'
       },

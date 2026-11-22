@@ -18,6 +18,10 @@ export const heroCombatAndSpecialPowersMethods = {
       this._fireVehicleWeapon();
       return;
     }
+    if (this.operatorWeapons?.isOperatorActive()) {
+      this.operatorWeapons.handlePrimaryMouseDown();
+      return;
+    }
     if (this.primaryCooldown > 0) return;
 
     const hero = this.minifigure.currentHeroKey;
@@ -31,67 +35,39 @@ export const heroCombatAndSpecialPowersMethods = {
 
     if (!this.destructibles) return;
     const aimData = this.destructibles.getAimTargetPoint(this.camera, 85);
-    const rightVec = new THREE.Vector3(
-      -Math.cos(this.facingAngle),
-      0,
-      Math.sin(this.facingAngle)
+    const rightVec = new THREE.Vector3(-Math.cos(this.facingAngle), 0, Math.sin(this.facingAngle));
+
+    const fwdX = Math.sin(this.facingAngle);
+    const fwdZ = Math.cos(this.facingAngle);
+    const muzzleAt = (fwd, right, up) => new THREE.Vector3(
+      this.position.x + fwdX * fwd + rightVec.x * right,
+      this.position.y + up,
+      this.position.z + fwdZ * fwd + rightVec.z * right
     );
 
     if (hero === 'caveira') {
       this.minifigure.triggerShoot();
       this.primaryCooldown = 0.11;
-      const muzzlePos = new THREE.Vector3(
-        this.position.x + Math.sin(this.facingAngle) * 0.95 + rightVec.x * 0.45,
-        this.position.y + 1.28,
-        this.position.z + Math.cos(this.facingAngle) * 0.95 + rightVec.z * 0.45
-      );
-      this.destructibles.spawnRifleBullet(muzzlePos, aimData.point);
+      this.destructibles.spawnRifleBullet(muzzleAt(0.95, 0.45, 1.28), aimData.point);
     } else if (hero === 'solaris') {
       this.minifigure.triggerShoot();
       this.primaryCooldown = 0.28;
-      const handPos = new THREE.Vector3(
-        this.position.x + Math.sin(this.facingAngle) * 0.85,
-        this.position.y + 1.32,
-        this.position.z + Math.cos(this.facingAngle) * 0.85
-      );
-      this.destructibles.spawnFireball(handPos, aimData.point);
+      this.destructibles.spawnFireball(muzzleAt(0.85, 0, 1.32), aimData.point);
     } else if (hero === 'tita') {
       this.minifigure.triggerShoot();
       this.primaryCooldown = 0.036;
-      const muzzlePos = new THREE.Vector3(
-        this.position.x + Math.sin(this.facingAngle) * 1.55 + rightVec.x * 0.86,
-        this.position.y + 1.98,
-        this.position.z + Math.cos(this.facingAngle) * 1.55 + rightVec.z * 0.86
-      );
-      this.destructibles.spawnTitaRotaryBullet(muzzlePos, aimData.point);
+      this.destructibles.spawnTitaRotaryBullet(muzzleAt(1.55, 0.86, 1.98), aimData.point);
     } else if (hero === 'vingador') {
       const furorMult = this.vingadorFurorTimer > 0 ? 0.4 : 1.0;
       const wKey = this.minifigure.vingadorWeapon || 'dual_smg';
       if (wKey === 'dual_smg') {
         this.primaryCooldown = 0.065 * furorMult;
-        const recoilSide = this.minifigure.triggerVingadorDualRecoil
-          ? this.minifigure.triggerVingadorDualRecoil()
-          : 0;
-        const leftMuzzle = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 0.98 - rightVec.x * 0.48,
-          this.position.y + 1.28,
-          this.position.z + Math.cos(this.facingAngle) * 0.98 - rightVec.z * 0.48
-        );
-        const rightMuzzle = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 0.98 + rightVec.x * 0.48,
-          this.position.y + 1.28,
-          this.position.z + Math.cos(this.facingAngle) * 0.98 + rightVec.z * 0.48
-        );
-        this.destructibles.spawnDualSmgBullets(leftMuzzle, rightMuzzle, aimData.point, recoilSide);
+        const recoilSide = this.minifigure.triggerVingadorDualRecoil ? this.minifigure.triggerVingadorDualRecoil() : 0;
+        this.destructibles.spawnDualSmgBullets(muzzleAt(0.98, -0.48, 1.28), muzzleAt(0.98, 0.48, 1.28), aimData.point, recoilSide);
       } else if (wKey === 'shotgun') {
         this.minifigure.triggerShoot();
         this.primaryCooldown = 0.26 * furorMult;
-        const muzzlePos = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 1.12 + rightVec.x * 0.45,
-          this.position.y + 1.28,
-          this.position.z + Math.cos(this.facingAngle) * 1.12 + rightVec.z * 0.45
-        );
-        this.destructibles.spawnShotgunBlast(muzzlePos, aimData.point);
+        this.destructibles.spawnShotgunBlast(muzzleAt(1.12, 0.45, 1.28), aimData.point);
 
         const aimDir = new THREE.Vector3();
         this.camera.getWorldDirection(aimDir);
@@ -100,11 +76,7 @@ export const heroCombatAndSpecialPowersMethods = {
           this.isGrounded = false;
           this.position.y += 0.24;
           this.velocity.y = Math.max(this.velocity.y * 0.35 + recoilDir.y * 16.5, 13.5);
-          this.blastVelocity.set(
-            this.velocity.x * 0.55 + recoilDir.x * 16.5,
-            0,
-            this.velocity.z * 0.55 + recoilDir.z * 16.5
-          );
+          this.blastVelocity.set(this.velocity.x * 0.55 + recoilDir.x * 16.5, 0, this.velocity.z * 0.55 + recoilDir.z * 16.5);
           this.blastJumpTimer = Math.max(this.blastJumpTimer, 0.52);
           this.velocity.x = this.blastVelocity.x;
           this.velocity.z = this.blastVelocity.z;
@@ -112,12 +84,7 @@ export const heroCombatAndSpecialPowersMethods = {
       } else {
         this.minifigure.triggerShoot();
         this.primaryCooldown = 0.72 * furorMult;
-        const muzzlePos = new THREE.Vector3(
-          this.position.x + Math.sin(this.facingAngle) * 1.25 + rightVec.x * 0.5,
-          this.position.y + 1.38,
-          this.position.z + Math.cos(this.facingAngle) * 1.25 + rightVec.z * 0.5
-        );
-        this.destructibles.spawnRpgRocket(muzzlePos, aimData.point, (blastPos) => {
+        this.destructibles.spawnRpgRocket(muzzleAt(1.25, 0.5, 1.38), aimData.point, (blastPos) => {
           this.applyRocketJumpImpulse(blastPos);
         });
       }
@@ -132,21 +99,24 @@ export const heroCombatAndSpecialPowersMethods = {
     } else if (hero === 'voltaico') {
       this.primaryCooldown = 0.23;
       this.minifigure.triggerShoot();
-      const staffTip = new THREE.Vector3(
-        this.position.x + Math.sin(this.facingAngle) * 1.15,
-        this.position.y + 1.38,
-        this.position.z + Math.cos(this.facingAngle) * 1.15
-      );
-      this.destructibles.fireChainLightning(staffTip, aimData.point);
+      this.destructibles.fireChainLightning(muzzleAt(1.15, 0, 1.38), aimData.point);
     } else if (hero === 'vortex') {
       this.primaryCooldown = 0.25;
       this.minifigure.triggerPunch();
-      this.destructibles.performVortexTentacleStrike(
-        this.position,
-        this.facingAngle,
-        this.minifigure.isVortexMonster,
-        aimData.point
-      );
+      this.destructibles.performVortexTentacleStrike(this.position, this.facingAngle, this.minifigure.isVortexMonster, aimData.point);
+    } else if (hero === 'boss_cv') {
+      this.minifigure.triggerShoot();
+      this.primaryCooldown = 0.095;
+      this.destructibles.spawnDualSmgBullets(muzzleAt(1.02, -0.44, 1.3), muzzleAt(1.02, 0.44, 1.3), aimData.point, 0);
+    } else if (hero === 'boss_pcc') {
+      this.minifigure.triggerShoot();
+      const furorMult = this.vingadorFurorTimer > 0 ? 0.45 : 1.0;
+      this.primaryCooldown = 0.11 * furorMult;
+      this.destructibles.spawnDualSmgBullets(muzzleAt(1.04, -0.42, 1.28), muzzleAt(1.04, 0.42, 1.28), aimData.point, 0);
+    } else if (hero === 'boss_ares') {
+      this.minifigure.triggerShoot();
+      this.primaryCooldown = 0.12;
+      this.destructibles.spawnVehicleProjectile(muzzleAt(1.55, 0.86, 1.98), aimData.point, 'plasma_laser');
     } else if (hero === 'op09') {
       this.customHeroPowers?.firePrimary(aimData.point);
     }
@@ -536,5 +506,44 @@ export const heroCombatAndSpecialPowersMethods = {
     this.cameraShakeTimer = 0.48;
     const groundY = this._findGroundSupportAt(this.position.x, this.position.z, this.position.y);
     this.destructibles.triggerVortexAbyssalEruption(this.position, 24.0, groundY);
+  },
+
+  _triggerBossCvBarrage() {
+    if (this.supernovaCooldown > 0 || !this.destructibles) return;
+    this.supernovaCooldown = 0.9;
+    this._alignCharacterToCrosshair();
+    this.minifigure.triggerShoot();
+    const aimData = this.destructibles.getAimTargetPoint(this.camera, 90);
+    const rightVec = new THREE.Vector3(-Math.cos(this.facingAngle), 0, Math.sin(this.facingAngle));
+    const muzzlePos = new THREE.Vector3(
+      this.position.x + Math.sin(this.facingAngle) * 1.2 + rightVec.x * 0.45,
+      this.position.y + 1.38,
+      this.position.z + Math.cos(this.facingAngle) * 1.2 + rightVec.z * 0.45
+    );
+    this.destructibles.spawnRpgRocket(muzzlePos, aimData.point);
+  },
+
+  _triggerBossCvWarCry() {
+    this._triggerTacticalRoll();
+    const lc = this.world?.livingCity;
+    if (lc && typeof lc.playerHp === 'number') {
+      const maxHp = lc.playerMaxHp || 380;
+      lc.playerHp = Math.min(maxHp, lc.playerHp + Math.round(maxHp * 0.25));
+      this.hud?.setPlayerHealth?.(lc.playerHp, maxHp, false);
+    }
+  },
+
+  _triggerBossPccOvercharge() {
+    this.vingadorFurorTimer = 4.5;
+    this.minifigure.setVingadorFurorVisual?.(true);
+    soundFX.playHeroSwap?.();
+  },
+
+  _triggerBossAresCollapse() {
+    if (this.supernovaCooldown > 0) return;
+    this._triggerTitaEarthquake();
+    this.supernovaCooldown = 0;
+    this._triggerVoltaicoEmp();
+    this.supernovaCooldown = 1.1;
   }
 };

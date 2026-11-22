@@ -18,6 +18,12 @@ import { solarisOutfitMethods } from './minifigure/outfits/SolarisSunKingOutfit.
 import { turboOutfitMethods } from './minifigure/outfits/TurboGhostRiderOutfit.js';
 import { voltaicoOutfitMethods } from './minifigure/outfits/VoltaicoStormlordOutfit.js';
 import { vortexOutfitMethods } from './minifigure/outfits/VortexSymbioteOutfit.js';
+import { cvMarretaoOutfitMethods } from './minifigure/outfits/CvMarretaoOutfit.js';
+import { cvFogueteiraOutfitMethods } from './minifigure/outfits/CvFogueteiraOutfit.js';
+import { pccContadorOutfitMethods } from './minifigure/outfits/PccContadorOutfit.js';
+import { pccMuralhaOutfitMethods } from './minifigure/outfits/PccMuralhaOutfit.js';
+import { aresBastiaoOutfitMethods } from './minifigure/outfits/AresBastiaoOutfit.js';
+import { aresAgulhaOutfitMethods } from './minifigure/outfits/AresAgulhaOutfit.js';
 import { updateMinifigSecondaryVfx } from './minifigure/MinifigVfxAndClothAnimator.js';
 import {
   locomotionMethods,
@@ -152,6 +158,12 @@ installMinifigMethods(Minifigure.prototype, {
   ...turboOutfitMethods,
   ...voltaicoOutfitMethods,
   ...vortexOutfitMethods,
+  ...cvMarretaoOutfitMethods,
+  ...cvFogueteiraOutfitMethods,
+  ...pccContadorOutfitMethods,
+  ...pccMuralhaOutfitMethods,
+  ...aresBastiaoOutfitMethods,
+  ...aresAgulhaOutfitMethods,
   ...locomotionMethods,
   ...combatAndEmoteMethods
 });

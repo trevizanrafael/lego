@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { FactionWarSystem } from './FactionWarSystem.js';
 import { WantedPursuitSystem } from './WantedPursuitSystem.js';
+import { applyIncomingDamageMitigation } from '../entities/operators/RoleBaselines.js';
+import { resolveCombatantSheet, getDefaultHybridOperatorKey } from '../entities/operators/OperatorCatalog.js';
 import { pedestrianArchetypeMethods } from './living-city/PedestrianSharedGeometriesAndArchetypes.js';
 import { trafficRouteSpecsAndSpawnerMethods } from './living-city/TrafficRouteSpecsAndSpawner.js';
 import { trafficNetworkAndVehicleAIMethods } from './living-city/TrafficNetworkAndVehicleAI.js';
@@ -9,11 +11,7 @@ import { pedestrianBehaviorAndReactionsMethods } from './living-city/PedestrianB
 import { ambientHelicopterAndCityPropsMethods } from './living-city/AmbientHelicopterAndCityProps.js';
 
 /**
- * GERENCIADOR DE VIDA URBANA SOLAR & PACÍFICA — ESTILO LEGO MARVEL SUPER HEROES (MANHATTAN FREE ROAM):
- * 1) Zero Guerra Mundial / Zero Tiroteios: Cidade 100% pacífica, carismática, ensolarada e leve (60 FPS)!
- * 2) Bolha Dinâmica de Multidão ("Dynamic Crowd Ring"): Pool reciclável de 160 Civis LEGO com arquétipos por bairro e grupos de conversa!
- * 3) 4 Reações Dinâmicas Estilo LEGO Marvel: NORMAL, CHEER (aplausos, pulinhos e flash 3D de foto!), VILLAIN_SPOOK (Vórtex OP-08) e PANIC cômico!
- * 4) Trânsito Vivo Estilo Manhattan (~72 Veículos: Ônibus LEGO, Táxis Amarelos, Sedans, Esportivos, Buggies e Patrulhas Pacíficas), Luz de Freio, Buzinas, Helicóptero Civil de TV e Carrinhos de Lanche Destrutíveis!
+ * GERENCIADOR DE VIDA URBANA, ATRIBUTOS POR PAPEL/FACÇÃO & BOLHA DE MULTIDÃO (60 FPS)
  */
 export class LivingCityManager {
   constructor(world, destructibles, hud) {
@@ -21,8 +19,6 @@ export class LivingCityManager {
     this.scene = world.scene;
     this.destructibles = destructibles;
     this.hud = hud;
-
-    // Arrays limpos (Zero soldados armados, zero zonas de guerra, zero projéteis inimigos!)
     this.trafficVehicles = [];
     this.pedestrians = [];
     this.combatNpcs = [];
@@ -34,11 +30,11 @@ export class LivingCityManager {
     this.healStations = [];
     this.healthCrystals = [];
 
-    // Facção Aliada do Jogador ('cv' | 'pcc' | 'ares') — Cidade Civil 100% Pacífica; Guerra 1x1 apenas nos 3 Territórios!
     this.playerFaction = 'cv';
-    this.playerMaxHp = 250;
-    this.playerHp = 250;
-
+    this.activeCharacterKey = 'cv_marretao';
+    this.playerMaxHp = 380;
+    this.playerHp = 380;
+    this.playerDamageReduction = 0.20;
     this.caveiraSupportCooldown = 0;
     this.caveiraCallToggle = 0;
     this._sirenPhase = 0;
@@ -46,30 +42,89 @@ export class LivingCityManager {
     this._wasPlayerAirborne = false;
     this._heroLandingCheerTimer = 0;
     this._heroLandingPos = new THREE.Vector3();
-
     this.civilianSkyHeli = null;
 
     this._buildingGrid = new Map();
     this._buildingGridCellSize = 48;
     this._initBuildingSpatialGrid();
-
     this._initUrbanTraffic();
     this._initPedestrianInstancedPools();
     this._initPedestrians();
     this._initCivilianSkyHelicopter();
     this._initStreetVendorCarts();
-
-    // Sistema de Guerra Territorial de Invasão (1x1 apenas dentro do Território Invadido!)
     this.factionWar = new FactionWarSystem(this);
-
-    // Sistema de Procurado Escalável Estilo GTA (0 a 5 Estrelas) + Fuga Tática!
     this.wantedSystem = new WantedPursuitSystem(this);
   }
 
   resetTerritories() {
-    if (this.factionWar) {
-      this.factionWar.resetConqueredTerritories();
+    this.factionWar?.resetConqueredTerritories();
+  }
+
+  syncPlayerCharacterStats(charKey, factionKey = this.playerFaction, resetFull = false) {
+    const sheet = resolveCombatantSheet(charKey, factionKey || this.playerFaction);
+    const prevMax = this.playerMaxHp || sheet.hp;
+    const curHp = Number.isFinite(this.playerHp) ? this.playerHp : prevMax;
+    const ratio = resetFull ? 1 : (prevMax > 0 ? curHp / prevMax : 1);
+    this.activeCharacterKey = sheet.characterKey;
+    this.playerMaxHp = sheet.hp;
+    this.playerDamageReduction = sheet.damageReduction || 0;
+    this.playerHp = Math.max(1, Math.min(this.playerMaxHp, Math.round(this.playerMaxHp * ratio)));
+    this.hud?.setPlayerHealth?.(this.playerHp, this.playerMaxHp, false);
+    return sheet;
+  }
+
+  applyMitigatedDamageToPlayer(rawDamage, controller = null, opts = {}) {
+    const numericRaw = Number(rawDamage);
+    if (!Number.isFinite(numericRaw) || numericRaw <= 0) return 0;
+    const afterRole = applyIncomingDamageMitigation(numericRaw, this.playerDamageReduction || 0);
+    const abilityMult = controller?.operatorAbilities?.getIncomingDamageMultiplier?.(opts?.attackerPos || null) ?? 1.0;
+    return Math.max(1, Math.round(afterRole * abilityMult * 10) / 10);
+  }
+
+  healPlayerAndAlliesInRadius(center, radius, playerHealAmount, npcHealAmount = playerHealAmount, opts = {}) {
+    const r = Math.max(0, Number(radius) || 0);
+    const pHeal = Math.max(0, Number(playerHealAmount) || 0);
+    const nHeal = Math.max(0, Number(npcHealAmount) || 0);
+    const pPos = opts?.playerPos || opts?.controller?.position || opts?.position || null;
+    if (opts?.includeSelf !== false && pHeal > 0) {
+      const inRange = !center || !pPos || Math.hypot(pPos.x - center.x, pPos.z - center.z) <= r;
+      if (inRange) {
+        const maxHp = this.playerMaxHp || 380;
+        this.playerHp = Math.min(maxHp, (this.playerHp ?? maxHp) + pHeal);
+        this.hud?.setPlayerHealth?.(this.playerHp, maxHp, true);
+      }
     }
+
+    let alliesHealed = 0;
+    const visited = new Set();
+    const healUnit = (npc, zoneOwner = null) => {
+      if (!npc || visited.has(npc)) return;
+      visited.add(npc);
+      const isAllied = Boolean(
+        npc.isAllied ||
+        (this.playerFaction && npc.faction === this.playerFaction) ||
+        (!npc.faction && this.playerFaction && zoneOwner === this.playerFaction)
+      );
+      const dest = npc.destructible;
+      if (!isAllied || !dest || dest.destroyed) return;
+      const uPos = npc.visual?.root?.position || npc.mesh?.position || dest.mesh?.position || dest.basePos || npc.position;
+      if (center && uPos && Math.hypot(uPos.x - center.x, uPos.z - center.z) > r) return;
+      if (nHeal > 0) {
+        const maxNpcHp = dest.maxHp || dest.hp || 100;
+        dest.hp = Math.min(maxNpcHp, dest.hp + nHeal);
+        alliesHealed++;
+      }
+    };
+
+    for (const npc of this.factionWar?.combatNpcs || []) healUnit(npc);
+    for (const npc of this.combatNpcs || []) healUnit(npc);
+    for (const zone of Object.values(this.factionWar?.territories || {})) {
+      for (const npc of zone?.garrisonUnits || []) {
+        healUnit(npc, zone?.owner || zone?.currentOwner || null);
+      }
+    }
+
+    return { playerHp: this.playerHp, alliesHealed };
   }
 
   /**
@@ -77,7 +132,8 @@ export class LivingCityManager {
    */
   setPlayerFaction(factionKey = 'free_roam', controller = null, savedConquests = null) {
     this.playerFaction = factionKey || 'free_roam';
-    this.playerHp = this.playerMaxHp;
+    const charKey = controller?.minifigure?.currentHeroKey || this.activeCharacterKey || getDefaultHybridOperatorKey(this.playerFaction);
+    this.syncPlayerCharacterStats(charKey, this.playerFaction, true);
     if (this.hud) {
       this.hud.setPlayerFaction(this.playerFaction, false);
       this.hud.setPlayerHealth(this.playerMaxHp, this.playerMaxHp, false);

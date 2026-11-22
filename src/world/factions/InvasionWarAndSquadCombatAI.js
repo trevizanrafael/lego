@@ -44,6 +44,19 @@ export const invasionSquadCombatMethods = {
         }
       }
 
+      if (obj._signalMarkedTimer > 0) {
+        obj._signalMarkedTimer = Math.max(0, obj._signalMarkedTimer - dt);
+      }
+
+      if (npc.stunTimer > 0) {
+        npc.stunTimer = Math.max(0, npc.stunTimer - dt);
+        npc.visual.muzzleFlash.visible = false;
+        npc.visual.leftLeg.rotation.x *= 0.85;
+        npc.visual.rightLeg.rotation.x *= 0.85;
+        obj.basePos.copy(pos);
+        continue;
+      }
+
       // ======================================================================
       // MODO 1: QG ALIADO EM PAZ (Patrulha calma, Continência/Aceno e Cura!)
       // ======================================================================
@@ -124,7 +137,10 @@ export const invasionSquadCombatMethods = {
         }
       }
 
-      if (!npc.isAllied) {
+      const isPlayerStealthed = Boolean(
+        controller?.operatorAbilities?.isStealthed?.() || (controller?.stealthTimer || 0) > 0
+      );
+      if (!npc.isAllied && !isPlayerStealthed) {
         const dPlayer = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
         if (dPlayer < bestDist * 0.92 && dPlayer < 65 && Math.abs(playerPos.y - pos.y) < 4.5) {
           bestDist = dPlayer;
@@ -273,6 +289,7 @@ export const invasionSquadCombatMethods = {
 
     this.npcProjectiles.push({
       mesh: bulletMesh,
+      originPos: bulletMesh.position.clone(),
       vel: dir.multiplyScalar(npc.isBoss ? 48 : isRpg ? 26 : 42),
       isAllied: npc.isAllied,
       damage:
@@ -335,7 +352,7 @@ export const invasionSquadCombatMethods = {
     if (!bossNpc.isAllied && playerPos) {
       const dp = Math.hypot(playerPos.x - bPos.x, playerPos.z - bPos.z);
       if (dp < 10.5 && Math.abs(playerPos.y - bPos.y) < 3.5) {
-        this._damagePlayerInInvasion(18, controller);
+        this._damagePlayerInInvasion(18, controller, null, bPos);
       }
     }
   },
@@ -372,6 +389,12 @@ export const invasionSquadCombatMethods = {
         continue;
       }
 
+      if (!p.isAllied && controller?.operatorAbilities?.isProjectileBlocked?.(p.mesh.position, p.originPos)) {
+        if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        this.npcProjectiles.splice(i, 1);
+        continue;
+      }
+
       let hit = false;
       for (const npc of this.combatNpcs) {
         if (npc.isAllied === p.isAllied || !npc.destructible || npc.destructible.destroyed) continue;
@@ -403,7 +426,7 @@ export const invasionSquadCombatMethods = {
           py >= playerPos.y - 0.2 &&
           py <= playerPos.y + 2.3
         ) {
-          this._damagePlayerInInvasion(p.damage, controller, zoneState);
+          this._damagePlayerInInvasion(p.damage, controller, zoneState, p.originPos || p.mesh.position);
           hit = true;
         }
       }
@@ -471,7 +494,7 @@ export const invasionSquadCombatMethods = {
     if (!fromAllied && pp) {
       const dp = Math.hypot(pp.x - center.x, pp.z - center.z);
       if (dp < radius && Math.abs(pp.y - center.y) < 4) {
-        this._damagePlayerInInvasion(damage * (1 - dp / (radius * 1.3)), controller, zoneState);
+        this._damagePlayerInInvasion(damage * (1 - dp / (radius * 1.3)), controller, zoneState, center);
       }
     }
   },
@@ -485,9 +508,16 @@ export const invasionSquadCombatMethods = {
     }
   },
 
-  _damagePlayerInInvasion(amount, controller, zoneState = null) {
-    if (!this.isInvasionActive) return;
-    const dmg = controller?.currentVehicle ? amount * 0.35 : amount;
+  _damagePlayerInInvasion(amount, controller, zoneState = null, attackerPos = null) {
+    if (!this.isInvasionActive || amount <= 0) return;
+    if (controller?.operatorAbilities?.isStealthed?.() && attackerPos && controller?.position) {
+      const dist = Math.hypot(attackerPos.x - controller.position.x, attackerPos.z - controller.position.z);
+      if (dist > 6.0) return;
+    }
+    const baseDmg = controller?.currentVehicle ? amount * 0.35 : amount;
+    const dmg = this.livingCity?.applyMitigatedDamageToPlayer
+      ? this.livingCity.applyMitigatedDamageToPlayer(baseDmg, controller, { attackerPos })
+      : baseDmg;
     this.livingCity.playerHp = Math.max(0, this.livingCity.playerHp - dmg);
     this.hud?.setPlayerHealth(this.livingCity.playerHp, this.livingCity.playerMaxHp, false);
 

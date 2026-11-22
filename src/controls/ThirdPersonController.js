@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CustomHeroPowerRuntime } from '../entities/CustomHeroSystem.js';
+import { OperatorWeaponRuntime } from './player/OperatorWeaponRuntime.js';
+import { OperatorAbilityRuntime } from './player/OperatorAbilityRuntime.js';
 import { UP, cameraOrbitAndRigMethods } from './player/CameraOrbitAndRig.js';
 import { controllerInputAndEventsMethods } from './player/ControllerInputAndEvents.js';
 import { heroSelectionAndShortcutsMethods } from './player/HeroSelectionAndShortcuts.js';
@@ -19,14 +21,12 @@ export class ThirdPersonController {
     this.world = world;
     this.destructibles = destructibles;
     this.hud = hud;
-
     this.position = new THREE.Vector3(0, 0, -104);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.playerRadius = 0.42;
     this.isGrounded = true;
     this.facingAngle = Math.PI;
     this.minifigure.root.rotation.y = this.facingAngle;
-
     this.walkSpeed = 7.5;
     this.runSpeed = 13.5;
     this.flyHoverSpeed = 28.0;
@@ -34,7 +34,6 @@ export class ThirdPersonController {
     this.jumpForce = 11.0;
     this.gravity = -26.0;
     this.currentSpeed = 0;
-
     this.isFlying = false;
     this.isSupersonic = false;
     this.flightPitch = 0;
@@ -49,7 +48,6 @@ export class ThirdPersonController {
     this.rollDir = new THREE.Vector3(0, 0, -1);
     this.blastJumpTimer = 0;
     this.blastVelocity = new THREE.Vector3();
-
     this.yaw = 0;
     this.pitch = 0.3;
     this.distance = 6.0;
@@ -117,6 +115,10 @@ export class ThirdPersonController {
     this.energyNetSlowTimer = 0;
     this._initGrappleCableMesh();
     this.customHeroPowers = new CustomHeroPowerRuntime(this);
+    this.operatorWeapons = new OperatorWeaponRuntime(this);
+    this.operatorAbilities = new OperatorAbilityRuntime(this);
+    this.operatorWeapons.onCharacterSwitched(this.minifigure.currentHeroKey);
+    this.operatorAbilities.onCharacterSwitched(this.minifigure.currentHeroKey);
     this._bindEvents();
   }
 
@@ -132,7 +134,8 @@ export class ThirdPersonController {
 
     if (
       this.hud?.isTikTokRadioOpen || this.hud?.isPauseMenuOpen || this.hud?.isFullMapOpen ||
-      this.hud?.isDossierOpen || this.hud?.isTitleScreenActive || this.hud?.isLoadingActive
+      this.hud?.isDossierOpen || this.hud?.isCharacterGridOpen ||
+      this.hud?.isTitleScreenActive || this.hud?.isLoadingActive
     ) {
       if (
         this.keys.forward || this.keys.backward || this.keys.left || this.keys.right ||
@@ -147,6 +150,8 @@ export class ThirdPersonController {
     this.secondaryCooldown = Math.max(0, this.secondaryCooldown - dt);
     this.supernovaCooldown = Math.max(0, this.supernovaCooldown - dt);
     this.customHeroPowers?.update(dt);
+    this.operatorWeapons?.update(dt);
+    this.operatorAbilities?.update(dt);
 
     const camForward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
     const camRight = new THREE.Vector3().crossVectors(camForward, UP).normalize();
@@ -187,7 +192,12 @@ export class ThirdPersonController {
       this.flightBank = 0;
       this.lastYaw = this.yaw;
 
-      if (this.rollImpulseTimer > 0) this._updateTacticalRollImpulse(dt);
+      const shieldChargeVel = this.operatorAbilities?.getChargeOverrideVelocity?.();
+      if (shieldChargeVel) {
+        this.velocity.x = shieldChargeVel.x;
+        this.velocity.z = shieldChargeVel.z;
+        this.currentSpeed = Math.hypot(shieldChargeVel.x, shieldChargeVel.z);
+      } else if (this.rollImpulseTimer > 0) this._updateTacticalRollImpulse(dt);
       else if (this.vingadorDiveTimer > 0) this._updateVingadorDiveImpulse(dt);
       else if (this.rocketPunchTimer > 0) this._updateTitaRocketPunchImpulse(dt);
       else if (this.grappleState) this._updateGrapplePull(dt, moveInput);

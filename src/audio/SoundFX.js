@@ -56,6 +56,8 @@ class SoundFX {
   stopWarMusic() { return stopWarMusicLoop(this); }
   setBossMusicIntensity(active) { return setBossMusicIntensityState(this, active); }
   updateBaileSpatialProximity(distanceMeters, dt = 0.016) { return updateBaileSpatialProximityLoop(this, distanceMeters, dt); }
+  setAmbienceContext(meta = {}) { return this.urbanAmbience?.setContext(meta); }
+  setAmbienceRegion(regionId) { return this.urbanAmbience?.setRegion(regionId); }
 
   // Combate, Destruição LEGO, Coleta de Studs, Poderes dos Heróis e UI
   playStudCollect(value = 10) { return playStudCollectSfx(this, value); }

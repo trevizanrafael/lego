@@ -220,7 +220,7 @@ export function getOp09CatalogEntry() {
       icon: 'star',
       specialty: 'Vida Civil Urbana, Direção de Todos os Veículos & Customização no Porão da Torre',
       passive:
-        'Vá até o Porão Bio-Genético da Torre dos Heróis (Ala Sudeste, Y = -8.2m) e aperte [E] no Pedestal para criar seu Herói Único!',
+        'Vá até o Porão Bio-Genético da Torre dos Heróis (Ala Sudeste, Y = -8.2m) e aperte [F] no Pedestal para criar seu Herói Único!',
       controls: [
         {
           key: 'MOUSE 1 / V',
@@ -228,7 +228,7 @@ export function getOp09CatalogEntry() {
           desc: 'Golpe físico básico sem poderes sobre-humanos.'
         },
         {
-          key: 'E',
+          key: 'F',
           title: 'DIRIGIR CARROS, MOTOS, BARCOS E METRÔ',
           desc: 'Pode dirigir qualquer veículo da metrópole livremente.'
         },
@@ -243,7 +243,7 @@ export function getOp09CatalogEntry() {
           desc: 'Trote civil pelas calçadas e parques.'
         },
         {
-          key: 'PORÃO [E]',
+          key: 'PORÃO [F]',
           title: 'LABORATÓRIO DA TORRE DOS HERÓIS',
           desc: 'Desça a escadaria no Saguão da Torre dos Heróis para desbloquear poderes inéditos!'
         }
@@ -279,7 +279,7 @@ export function getOp09CatalogEntry() {
         desc: 'Ativa Arpéu, Prancha Hoverboard ou Propulsão Especial do seu kit.'
       },
       {
-        key: 'E',
+        key: 'F',
         title: 'VEÍCULOS & CONSOLE DO LABORATÓRIO',
         desc: 'Dirige veículos ou reabre o Criador no Porão da Torre dos Heróis.'
       },

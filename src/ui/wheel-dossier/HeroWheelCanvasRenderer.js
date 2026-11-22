@@ -1,17 +1,40 @@
 import { getOp09CatalogEntry, drawOp09Portrait2D } from '../../entities/CustomHeroSystem.js';
+import {
+  isOperatorOrBossPortraitKey,
+  drawOperatorNoirPortrait
+} from './OperatorPortraitsPainter.js';
+import { isFactionOperatorKey, getOperatorSpec } from '../../entities/operators/OperatorCatalog.js';
+import { formatRoleTitle } from '../../entities/operators/RoleBaselines.js';
+import { EXTRAS_CATALOG, HERO_EXTRA_QE_DESCRIPTORS } from '../../progression/RosterAndUnlocks.js';
 
 /**
  * Metadados oficiais dos Operadores Jogáveis para a Roda Tática [TAB] e Ficha Individual [H].
  * As fichas detalhadas de poderes (`specialty`, `passive`, `controls`) são hidratadas por
  * `HeroDossierModalController.js` mantendo a mesma instância exportada de `HERO_CATALOG`.
  */
+function _enrichOp09CatalogEntry(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const rawName = String(entry.name || 'CIDADÃO COMUM')
+    .split('//')[0]
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .trim();
+  const isCitizen = rawName === 'CIDADÃO COMUM' || String(entry.role || '').includes('CIVIL DA METRÓPOLE');
+  entry.cleanName = rawName || 'CIDADÃO COMUM';
+  entry.cleanRole = isCitizen
+    ? { 'pt-BR': 'CIVIL DA METRÓPOLE', 'en-US': 'METROPOLIS CITIZEN' }
+    : { 'pt-BR': 'OPERADOR PERSONALIZADO', 'en-US': 'CUSTOM OPERATOR' };
+  return entry;
+}
+
 export const HERO_CATALOG = [
   {
     key: 'caveira',
     opCode: 'OP-01',
     shortName: 'CAVEIRA',
     name: 'COMANDANTE CAVEIRA',
+    cleanName: 'COMANDANTE CAVEIRA',
     role: 'OPERAÇÕES ESPECIAIS // BOPE',
+    cleanRole: { 'pt-BR': 'OPERAÇÕES ESPECIAIS BOPE', 'en-US': 'BOPE SPECIAL OPS' },
     accent: '#d99b16',
     icon: 'shield',
     specialty: '',
@@ -23,7 +46,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-02',
     shortName: 'SOLARIS',
     name: 'SOLARIS (REI DO SOL)',
+    cleanName: 'SOLARIS',
     role: 'SOBERANO TERMONUCLEAR // VOO DE COMETA HIPERSÔNICO',
+    cleanRole: { 'pt-BR': 'REI DO SOL', 'en-US': 'SUN KING' },
     accent: '#f97316',
     icon: 'star',
     specialty: '',
@@ -35,7 +60,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-03',
     shortName: 'TITÃ BLINDADO',
     name: 'TITÃ BLINDADO (PMESP)',
+    cleanName: 'TITÃ BLINDADO',
     role: 'PM ROBÔ MUTANTE GIGANTE // CHOQUE PESADO PMESP',
+    cleanRole: { 'pt-BR': 'COLOSSO CIBORGUE', 'en-US': 'CYBORG COLOSSUS' },
     accent: '#ef4444',
     icon: 'shield',
     specialty: '',
@@ -47,7 +74,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-04',
     shortName: 'VINGADOR',
     name: 'VINGADOR DE CHUMBO',
+    cleanName: 'VINGADOR DE CHUMBO',
     role: 'VIGILANTE IMPLACÁVEL (O JUSTICEIRO) // ARSENAL DE DEMOLIÇÃO',
+    cleanRole: { 'pt-BR': 'ARSENAL PESADO', 'en-US': 'HEAVY ARSENAL' },
     accent: '#f8fafc',
     icon: 'crosshair',
     specialty: '',
@@ -59,7 +88,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-05',
     shortName: 'SOMBRA',
     name: 'SOMBRA ESCARLATE',
+    cleanName: 'SOMBRA ESCARLATE',
     role: 'CYBER-SHINOBI MÍSTICO // ASSASSINO DA LUA DE SANGUE',
+    cleanRole: { 'pt-BR': 'SHINOBI DE GANCHO', 'en-US': 'GRAPPLE SHINOBI' },
     accent: '#ef4444',
     icon: 'bolt',
     specialty: '',
@@ -71,7 +102,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-06',
     shortName: 'TURBO FANTASMA',
     name: 'TURBO FANTASMA',
+    cleanName: 'TURBO FANTASMA',
     role: 'MOTOCICLISTA FANTASMA // PLASMA CIANO & MURALHA DE LUZ',
+    cleanRole: { 'pt-BR': 'PILOTO DE PLASMA', 'en-US': 'PLASMA RIDER' },
     accent: '#22d3ee',
     icon: 'bolt',
     specialty: '',
@@ -83,7 +116,9 @@ export const HERO_CATALOG = [
     opCode: 'OP-07',
     shortName: 'VOLTAICO',
     name: 'VOLTAICO (TEMPESTADE)',
+    cleanName: 'VOLTAICO',
     role: 'SENHOR DA TEMPESTADE // ALTA TENSÃO & BOBINAS TESLA',
+    cleanRole: { 'pt-BR': 'SENHOR DA TEMPESTADE', 'en-US': 'STORM LORD' },
     accent: '#38bdf8',
     icon: 'bolt',
     specialty: '',
@@ -95,24 +130,102 @@ export const HERO_CATALOG = [
     opCode: 'OP-08',
     shortName: 'VÓRTEX',
     name: 'VÓRTEX (SIMBIONTE)',
+    cleanName: 'VÓRTEX',
     role: 'COLOSSO SIMBIONTE ABISSAL // METAMORFO BIG-FIG',
+    cleanRole: { 'pt-BR': 'COLOSSO SIMBIONTE', 'en-US': 'SYMBIOTE COLOSSUS' },
     accent: '#a855f7',
     icon: 'shield',
     specialty: '',
     passive: '',
     controls: []
   },
-  getOp09CatalogEntry()
+  _enrichOp09CatalogEntry(getOp09CatalogEntry())
 ];
 
 export function syncOp09CatalogSlot() {
-  HERO_CATALOG[8] = getOp09CatalogEntry();
+  HERO_CATALOG[8] = _enrichOp09CatalogEntry(getOp09CatalogEntry());
   return HERO_CATALOG[8];
 }
 
-export function getHeroInfo(heroKey) {
+const FACTION_ACCENTS = { cv: '#dc2626', pcc: '#3b82f6', ares: '#a855f7' };
+const SECRET_BOSS_KEYS = new Set(['boss_cv', 'boss_pcc', 'boss_ares']);
+
+export function getHeroInfo(heroKey, lang = 'pt-BR') {
+  const locale = lang === 'en-US' ? 'en-US' : 'pt-BR';
+  if (isFactionOperatorKey(heroKey)) {
+    const op = getOperatorSpec(heroKey);
+    const rolePt = formatRoleTitle(op.roles, 'pt-BR').toUpperCase();
+    const roleEn = formatRoleTitle(op.roles, 'en-US').toUpperCase();
+    return {
+      key: op.key,
+      opCode: op.faction.toUpperCase(),
+      shortName: op.name,
+      name: op.name,
+      cleanName: op.name,
+      role: locale === 'en-US' ? roleEn : rolePt,
+      cleanRole: { 'pt-BR': rolePt, 'en-US': roleEn },
+      accent: FACTION_ACCENTS[op.faction] || '#c28e2b',
+      icon: 'crosshair',
+      specialty: `${op.abilities.q.name[locale]} [Q] • ${op.abilities.e.name[locale]} [E]`,
+      passive: locale === 'en-US' ? roleEn : rolePt,
+      controls: [
+        { key: 'Q', title: op.abilities.q.name[locale].toUpperCase(), desc: op.abilities.q.desc?.[locale] || '' },
+        { key: 'E', title: op.abilities.e.name[locale].toUpperCase(), desc: op.abilities.e.desc?.[locale] || '' }
+      ]
+    };
+  }
+  if (SECRET_BOSS_KEYS.has(heroKey) && EXTRAS_CATALOG[heroKey]) {
+    const boss = EXTRAS_CATALOG[heroKey];
+    const qe = HERO_EXTRA_QE_DESCRIPTORS[heroKey] || boss.abilities;
+    const namePt = String(boss.name?.['pt-BR'] || heroKey).toUpperCase();
+    const nameEn = String(boss.name?.['en-US'] || namePt).toUpperCase();
+    const activeName = locale === 'en-US' ? nameEn : namePt;
+    const rolePt = formatRoleTitle(boss.roles, 'pt-BR').toUpperCase();
+    const roleEn = formatRoleTitle(boss.roles, 'en-US').toUpperCase();
+    const qName = qe?.q?.name?.[locale] || qe?.q?.name?.['pt-BR'] || 'Q';
+    const eName = qe?.e?.name?.[locale] || qe?.e?.name?.['pt-BR'] || 'E';
+    return {
+      key: boss.key,
+      opCode: `BOSS-${String(boss.bossFaction || 'cv').toUpperCase()}`,
+      shortName: activeName,
+      name: activeName,
+      cleanName: activeName,
+      nameByLang: { 'pt-BR': namePt, 'en-US': nameEn },
+      role: locale === 'en-US' ? roleEn : rolePt,
+      cleanRole: { 'pt-BR': rolePt, 'en-US': roleEn },
+      accent: FACTION_ACCENTS[boss.bossFaction] || '#dc2626',
+      icon: 'shield',
+      specialty: `${qName} [Q] • ${eName} [E]`,
+      passive: locale === 'en-US' ? roleEn : rolePt,
+      controls: [
+        { key: 'Q', title: String(qName).toUpperCase(), desc: qe?.q?.desc?.[locale] || qe?.q?.desc?.['pt-BR'] || '' },
+        { key: 'E', title: String(eName).toUpperCase(), desc: qe?.e?.desc?.[locale] || qe?.e?.desc?.['pt-BR'] || '' }
+      ]
+    };
+  }
   syncOp09CatalogSlot();
   return HERO_CATALOG.find((h) => h.key === heroKey) || HERO_CATALOG[0];
+}
+
+export function getCleanHeroDisplayInfo(heroKey, lang = 'pt-BR') {
+  const locale = lang === 'en-US' ? 'en-US' : 'pt-BR';
+  const info = getHeroInfo(heroKey, locale);
+  const isDefaultCitizen = info.key === 'op09' && info.cleanName === 'CIDADÃO COMUM';
+  const name = isDefaultCitizen && locale === 'en-US'
+    ? 'CITIZEN'
+    : (info.nameByLang?.[locale] || info.cleanName || info.shortName || info.name);
+  const roleMap = info.cleanRole;
+  const role =
+    roleMap && typeof roleMap === 'object'
+      ? roleMap[locale] || roleMap['pt-BR'] || ''
+      : String(roleMap || info.role || '').split('//')[0].trim();
+  return {
+    key: info.key,
+    opCode: info.opCode,
+    name,
+    role,
+    accent: info.accent
+  };
 }
 
 const PORTRAIT_THEMES = {
@@ -223,16 +336,191 @@ function _getCachedPortraitTile(presetKey) {
   return tileCanvas;
 }
 
-/**
- * Desenha o retrato 2D Gotham Noir (studless, chiaroscuro e rim-light) de qualquer operador
- */
-export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
-  if (presetKey === 'op09') {
-    drawOp09Portrait2D(ctx, w, h);
+function _createRealAuxCanvas(w, h) {
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') return null;
+  const c = document.createElement('canvas');
+  if (typeof HTMLCanvasElement !== 'undefined' && !(c instanceof HTMLCanvasElement)) return null;
+  if (typeof HTMLCanvasElement === 'undefined' && typeof OffscreenCanvas === 'undefined') return null;
+  c.width = Math.max(1, Math.round(w));
+  c.height = Math.max(1, Math.round(h));
+  const auxCtx = c?.getContext?.('2d');
+  return auxCtx ? { canvas: c, ctx: auxCtx } : null;
+}
+
+function _drawLockedSilhouetteFallback(ctx, w, h, presetKey) {
+  const side = Math.min(w, h);
+  const offsetX = (w - side) * 0.5;
+  const offsetY = (h - side) * 0.44;
+  const scale = side / 76;
+  const isTallCard = h > w * 1.08;
+  const isWide = presetKey === 'boss_ares' || presetKey === 'tita';
+
+  if (typeof ctx.save === 'function') ctx.save();
+  ctx.translate?.(offsetX, offsetY);
+  ctx.scale?.(scale, scale);
+  ctx.fillStyle = '#07090e';
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.8;
+
+  if (typeof ctx.beginPath === 'function') {
+    if (presetKey === 'boss_ares' || presetKey === 'sombra' || presetKey === 'solaris') {
+      ctx.beginPath();
+      ctx.moveTo?.(17, 19);
+      ctx.lineTo?.(11, 5);
+      ctx.lineTo?.(26, 15);
+      ctx.lineTo?.(38, 6);
+      ctx.lineTo?.(50, 15);
+      ctx.lineTo?.(65, 5);
+      ctx.lineTo?.(59, 19);
+      ctx.closePath?.();
+      ctx.fill?.();
+      ctx.stroke?.();
+    }
+    ctx.beginPath();
+    ctx.moveTo?.(isWide ? 4 : 8, 76);
+    ctx.lineTo?.(isWide ? 6 : 10, 55);
+    ctx.lineTo?.(22, 50);
+    ctx.lineTo?.(54, 50);
+    ctx.lineTo?.(isWide ? 70 : 66, 55);
+    ctx.lineTo?.(isWide ? 72 : 68, 76);
+    if (!isTallCard) ctx.closePath?.();
+    ctx.fill?.();
+    ctx.stroke?.();
+
+    ctx.fillRect?.(27, 47, 22, 7);
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(17, 13, 42, 38, 8);
+    } else {
+      ctx.rect?.(17, 13, 42, 38);
+    }
+    ctx.fill?.();
+    ctx.stroke?.();
+  } else {
+    ctx.fillRect?.(offsetX + 14 * scale, offsetY + 12 * scale, 48 * scale, 62 * scale);
+  }
+  if (typeof ctx.restore === 'function') ctx.restore();
+
+  if (isTallCard && typeof ctx.beginPath === 'function') {
+    const joinY = offsetY + side;
+    const leftTopX = offsetX + (isWide ? 4 : 8) * scale;
+    const rightTopX = offsetX + (isWide ? 72 : 68) * scale;
+    ctx.fillStyle = '#07090e';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = Math.max(1.4, 1.8 * scale);
+    ctx.beginPath();
+    ctx.moveTo?.(leftTopX, joinY - 1);
+    ctx.lineTo?.(rightTopX, joinY - 1);
+    ctx.lineTo?.(rightTopX + (h - joinY) * 0.08, h + 2);
+    ctx.lineTo?.(leftTopX - (h - joinY) * 0.08, h + 2);
+    ctx.closePath?.();
+    ctx.fill?.();
+    ctx.stroke?.();
+  }
+}
+
+function _drawHeroLegoPortraitSilhouette(ctx, w, h, presetKey) {
+  ctx.clearRect?.(0, 0, w, h);
+  ctx.fillStyle = '#05070c';
+  ctx.fillRect?.(0, 0, w, h);
+
+  if (typeof ctx.beginPath === 'function') {
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.24)';
+    ctx.lineWidth = Math.max(1, Math.min(w, h) * 0.02);
+    ctx.beginPath();
+    ctx.moveTo?.(0, h * 0.68);
+    ctx.lineTo?.(h * 0.68, 0);
+    ctx.moveTo?.(w * 0.24, h);
+    ctx.lineTo?.(w, h - w * 0.76);
+    ctx.stroke?.();
+  }
+
+  const aux = presetKey !== 'op09' && typeof ctx.drawImage === 'function' ? _createRealAuxCanvas(w, h) : null;
+  if (aux) {
+    if (isOperatorOrBossPortraitKey(presetKey)) {
+      drawOperatorNoirPortrait(aux.ctx, w, h, presetKey, { foregroundOnly: true });
+    } else {
+      _renderHeroLegoPortraitDirect(aux.ctx, w, h, presetKey, true);
+    }
+    aux.ctx.globalCompositeOperation = 'source-atop';
+    aux.ctx.fillStyle = '#1e293b';
+    aux.ctx.fillRect(0, 0, w, h);
+    const rimPx = Math.min(2, Math.max(1, Math.min(w, h) * 0.016));
+    for (const [dx, dy] of [[-rimPx, 0], [rimPx, 0], [0, -rimPx], [0, rimPx]]) {
+      ctx.drawImage(aux.canvas, dx, dy, w, h);
+    }
+    aux.ctx.fillStyle = '#07090e';
+    aux.ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(aux.canvas, 0, 0, w, h);
     return;
   }
 
-  if (typeof ctx?.drawImage === 'function') {
+  _drawLockedSilhouetteFallback(ctx, w, h, presetKey);
+}
+
+/**
+ * Desenha o retrato 2D Gotham Noir (studless, chiaroscuro e rim-light) de qualquer operador
+ */
+export function drawHeroLegoPortrait(ctx, w, h, heroKey = 'caveira', opts = null) {
+  if (!ctx) return;
+  const presetKey = heroKey || 'caveira';
+  if (opts?.silhouette === true) {
+    _drawHeroLegoPortraitSilhouette(ctx, w, h, presetKey);
+    return;
+  }
+  if (isOperatorOrBossPortraitKey(presetKey)) {
+    drawOperatorNoirPortrait(ctx, w, h, presetKey);
+    return;
+  }
+  const isSmallSquare = w <= 110 && h <= 110 && Math.abs(w - h) <= 4;
+
+  if (presetKey === 'op09') {
+    if (isSmallSquare) {
+      drawOp09Portrait2D(ctx, w, h);
+      return;
+    }
+
+    const side = Math.min(w, h);
+    const offsetX = (w - side) * 0.5;
+    const offsetY = (h - side) * 0.45;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#060911';
+    ctx.fillRect(0, 0, w, h);
+
+    if (typeof ctx.createLinearGradient === 'function') {
+      const outerGrad = ctx.createLinearGradient(0, 0, 0, h);
+      outerGrad.addColorStop(0, '#04060a');
+      outerGrad.addColorStop(0.5, '#060911');
+      outerGrad.addColorStop(1, '#020408');
+      ctx.fillStyle = outerGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(side, 0);
+    ctx.lineTo(side, side);
+    ctx.lineTo(0, side);
+    ctx.closePath();
+    ctx.clip?.();
+    drawOp09Portrait2D(ctx, side, side);
+    ctx.restore();
+
+    if (typeof ctx.createLinearGradient === 'function' && h > w * 1.08) {
+      const blendStart = Math.max(0, offsetY + side - side * 0.14);
+      const bottomBlend = ctx.createLinearGradient(0, blendStart, 0, h);
+      bottomBlend.addColorStop(0, 'rgba(2, 4, 8, 0)');
+      bottomBlend.addColorStop(1, 'rgba(2, 4, 8, 0.92)');
+      ctx.fillStyle = bottomBlend;
+      ctx.fillRect(0, blendStart, w, h - blendStart);
+    }
+    return;
+  }
+
+  if (isSmallSquare && typeof ctx?.drawImage === 'function') {
     const cachedTile = _getCachedPortraitTile(presetKey);
     if (cachedTile) {
       ctx.clearRect(0, 0, w, h);
@@ -241,47 +529,62 @@ export function drawHeroLegoPortrait(ctx, w, h, presetKey) {
     }
   }
 
-  _renderHeroLegoPortraitDirect(ctx, w, h, presetKey);
+  _renderHeroLegoPortraitDirect(ctx, w, h, presetKey, false);
 }
 
-function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
+function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey, foregroundOnly = false) {
   const theme = PORTRAIT_THEMES[presetKey] || PORTRAIT_THEMES.caveira;
+  const isTallCard = h > w * 1.08;
   ctx.clearRect(0, 0, w, h);
 
-  // 1. Fundo Gotham Noir Cinematográfico (#04060a -> #0b101b)
-  if (typeof ctx.createLinearGradient === 'function') {
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-    bgGrad.addColorStop(0, '#04060a');
-    bgGrad.addColorStop(0.58, '#080c15');
-    bgGrad.addColorStop(1, '#0b101b');
-    ctx.fillStyle = bgGrad;
-  } else {
-    ctx.fillStyle = '#060911';
-  }
-  ctx.fillRect(0, 0, w, h);
+  const side = Math.min(w, h);
+  const offsetX = (w - side) * 0.5;
+  const offsetY = (h - side) * 0.44;
+  const scale = side / 76;
 
-  if (typeof ctx.createRadialGradient === 'function') {
-    const auraGrad = ctx.createRadialGradient(w * 0.44, h * 0.42, w * 0.04, w * 0.5, h * 0.46, w * 0.62);
-    auraGrad.addColorStop(0, theme.aura);
-    auraGrad.addColorStop(1, 'rgba(4, 6, 10, 0)');
-    ctx.fillStyle = auraGrad;
+  if (!foregroundOnly) {
+    // 1. Fundo Gotham Noir Cinematográfico (#04060a -> #080c15 -> #0b101b)
+    if (typeof ctx.createLinearGradient === 'function') {
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+      bgGrad.addColorStop(0, '#04060a');
+      bgGrad.addColorStop(0.58, '#080c15');
+      bgGrad.addColorStop(1, '#0b101b');
+      ctx.fillStyle = bgGrad;
+    } else {
+      ctx.fillStyle = '#060911';
+    }
     ctx.fillRect(0, 0, w, h);
+
+    if (typeof ctx.createRadialGradient === 'function') {
+      const auraGrad = ctx.createRadialGradient(
+        w * 0.5,
+        h * 0.46,
+        side * 0.04,
+        w * 0.5,
+        h * 0.46,
+        Math.max(w, h) * 0.58
+      );
+      auraGrad.addColorStop(0, theme.aura);
+      auraGrad.addColorStop(1, 'rgba(4, 6, 10, 0)');
+      ctx.fillStyle = auraGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // Linhas táticas diagonais discretas em 45° atravessando todo o quadro w × h
+    ctx.strokeStyle = theme.diag;
+    ctx.lineWidth = Math.max(1, side * 0.022);
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.68);
+    ctx.lineTo(h * 0.68, 0);
+    ctx.moveTo(w * 0.18, h);
+    ctx.lineTo(w, h - w * 0.82);
+    ctx.moveTo(w * 0.56, h);
+    ctx.lineTo(w, h - w * 0.44);
+    ctx.stroke();
   }
 
-  // Linhas táticas diagonais discretas em baixa opacidade
-  ctx.strokeStyle = theme.diag;
-  ctx.lineWidth = Math.max(1, w * 0.022);
-  ctx.beginPath();
-  ctx.moveTo(0, h * 0.68);
-  ctx.lineTo(w * 0.68, 0);
-  ctx.moveTo(w * 0.18, h);
-  ctx.lineTo(w, h * 0.18);
-  ctx.moveTo(w * 0.56, h);
-  ctx.lineTo(w, h * 0.56);
-  ctx.stroke();
-
-  const scale = w / 76;
   ctx.save();
+  ctx.translate(offsetX, offsetY);
   ctx.scale(scale, scale);
 
   // Aura traseira específica antes da cabeça (Solaris / Turbo / Voltaico)
@@ -372,7 +675,18 @@ function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
   ctx.lineTo(68, 76);
   ctx.closePath();
   ctx.fill();
-  ctx.stroke();
+  if (isTallCard) {
+    ctx.beginPath();
+    ctx.moveTo(8, 76);
+    ctx.lineTo(10, 56);
+    ctx.lineTo(23, 51);
+    ctx.lineTo(53, 51);
+    ctx.lineTo(66, 56);
+    ctx.lineTo(68, 76);
+    ctx.stroke();
+  } else {
+    ctx.stroke();
+  }
 
   // Pescoço sombreado
   ctx.fillStyle = '#04060a';
@@ -997,8 +1311,57 @@ function _renderHeroLegoPortraitDirect(ctx, w, h, presetKey) {
 
   ctx.restore();
 
+  // 5b. Extensão da silhueta inferior do torso/capa para cards verticais (ex.: 420×520)
+  if (isTallCard) {
+    const joinY = offsetY + side;
+    const extH = h - joinY;
+    const leftTopX = offsetX + 8 * scale;
+    const rightTopX = offsetX + 68 * scale;
+    const flare = extH * 0.1;
+    const leftBotX = leftTopX - flare;
+    const rightBotX = rightTopX + flare;
+    const centerX = offsetX + 38 * scale;
+
+    ctx.fillStyle = theme.torso || '#090d16';
+    ctx.beginPath();
+    ctx.moveTo(leftTopX, joinY - 1.5);
+    ctx.lineTo(rightTopX, joinY - 1.5);
+    ctx.lineTo(rightBotX, h + 2);
+    ctx.lineTo(leftBotX, h + 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#04060a';
+    ctx.lineWidth = 2.2 * scale;
+    ctx.beginPath();
+    ctx.moveTo(leftTopX, joinY - 1);
+    ctx.lineTo(leftBotX, h + 2);
+    ctx.moveTo(rightTopX, joinY - 1);
+    ctx.lineTo(rightBotX, h + 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = theme.diag;
+    ctx.lineWidth = Math.max(1.2, 1.2 * scale);
+    ctx.beginPath();
+    ctx.moveTo(offsetX + 18 * scale, joinY);
+    ctx.lineTo(offsetX + 22 * scale, h);
+    ctx.moveTo(offsetX + 58 * scale, joinY);
+    ctx.lineTo(offsetX + 54 * scale, h);
+    ctx.moveTo(offsetX + 24 * scale, joinY + extH * 0.26);
+    ctx.lineTo(centerX, joinY + extH * 0.5);
+    ctx.lineTo(offsetX + 52 * scale, joinY + extH * 0.26);
+    ctx.stroke();
+
+    ctx.strokeStyle = theme.rim;
+    ctx.lineWidth = 1.7 * scale;
+    ctx.beginPath();
+    ctx.moveTo(offsetX + 9 * scale, offsetY + 73 * scale);
+    ctx.lineTo(leftBotX + 1.4 * scale, h);
+    ctx.stroke();
+  }
+
   // 6. Sombreamento Chiaroscuro Lateral + Vinheta Escura na Base
-  if (typeof ctx.createLinearGradient === 'function') {
+  if (!foregroundOnly && typeof ctx.createLinearGradient === 'function') {
     const chiaro = ctx.createLinearGradient(0, 0, w, 0);
     chiaro.addColorStop(0, 'rgba(255, 255, 255, 0.03)');
     chiaro.addColorStop(0.45, 'rgba(4, 6, 10, 0)');

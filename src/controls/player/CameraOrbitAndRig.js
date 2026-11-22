@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
+import { isFactionOperatorKey } from '../../entities/operators/OperatorCatalog.js';
 
 export const UP = new THREE.Vector3(0, 1, 0);
 
@@ -244,30 +245,41 @@ export const cameraOrbitAndRigMethods = {
    */
   _updateCamera(dt, camRight, isAimingBeam = false) {
     // FOV dinâmico (aumenta no Voo Supersônico do Solaris, Gancho/Stealth do Sombra, Rocket Jump/Furor do Vingador, Blast Jump do Caveira e Turbo Nitro dos Carros!)
+    const heroKey = this.minifigure.currentHeroKey;
+    const isOperator = isFactionOperatorKey(heroKey);
     const isCaveiraBlast =
-      (this.minifigure.currentHeroKey === 'caveira' ||
-        this.minifigure.currentHeroKey === 'sombra' ||
-        this.minifigure.currentHeroKey === 'vingador') &&
+      (heroKey === 'caveira' || heroKey === 'sombra' || heroKey === 'vingador') &&
       this.blastJumpTimer > 0 &&
       !this.isGrounded;
     const isSombraGrapple =
-      (this.minifigure.currentHeroKey === 'sombra' && Boolean(this.grappleState)) ||
-      (this.minifigure.currentHeroKey === 'vingador' && this.vingadorDiveTimer > 0);
+      (heroKey === 'sombra' && Boolean(this.grappleState)) ||
+      (heroKey === 'vingador' && this.vingadorDiveTimer > 0);
     const isHeroSprint =
-      (this.minifigure.currentHeroKey === 'caveira' ||
-        this.minifigure.currentHeroKey === 'sombra' ||
-        this.minifigure.currentHeroKey === 'vingador') &&
-      (this.keys.sprint || this.stealthTimer > 0 || this.vingadorFurorTimer > 0) &&
+      (isOperator || heroKey === 'caveira' || heroKey === 'sombra' || heroKey === 'vingador') &&
+      (this.keys.sprint || this.stealthTimer > 0 || this.vingadorFurorTimer > 0 || Boolean(this.operatorAbilities?.isStealthed?.())) &&
       this.currentSpeed > 18;
-    const desiredFov = (this.isSupersonic || this.isTurboActive || isSombraGrapple)
-      ? 74
-      : isCaveiraBlast
-        ? 72
-        : isHeroSprint
-          ? 66
-          : isAimingBeam
-            ? 53
-            : this.baseFov;
+    const baseUserFov = THREE.MathUtils.clamp(
+      Number(this.hud?.settings?.fov ?? this.baseFov ?? 58),
+      50,
+      85
+    );
+    const fovDelta = baseUserFov - (this.baseFov || 58);
+    const opAimFov = !this.currentVehicle ? this.operatorWeapons?.getDesiredAimFov?.() : null;
+    const desiredFov = THREE.MathUtils.clamp(
+      typeof opAimFov === 'number'
+        ? opAimFov + fovDelta * 0.35
+        : (this.isSupersonic || this.isTurboActive || isSombraGrapple)
+          ? 74 + fovDelta
+          : isCaveiraBlast
+            ? 72 + fovDelta
+            : isHeroSprint
+              ? 66 + fovDelta
+              : isAimingBeam
+                ? 53 + fovDelta * 0.5
+                : baseUserFov,
+      32,
+      98
+    );
     if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, desiredFov, Math.min(1, dt * 10));
       this.camera.updateProjectionMatrix();

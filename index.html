@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,8 +9,10 @@
   <!-- Fontes Oficiais da IDV Tática Urbana: Teko, Chakra Petch e JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=Inter:wght@500;600;700;800&family=JetBrains+Mono:wght@700;800&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=20261120d" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css?v=20261122b" />
   <script type="importmap">
     {
       "imports": {
@@ -19,6 +22,7 @@
     }
   </script>
 </head>
+
 <body class="title-or-loading-active">
   <div id="game-container"></div>
 
@@ -35,26 +39,8 @@
     </div>
   </div>
 
-  <!-- Overlay da Roda de Seleção de Personagem Estilo GTA V (Câmera Lenta + Filtro Tático + Giro em WASD) -->
-  <div id="hero-wheel-overlay" class="hidden">
-    <div class="wheel-scanlines"></div>
-    <div class="wheel-vignette"></div>
-    <div class="sat-reticle">
-      <div class="sat-corner sat-tl"></div>
-      <div class="sat-corner sat-tr"></div>
-      <div class="sat-corner sat-bl"></div>
-      <div class="sat-corner sat-br"></div>
-    </div>
-    <div class="hero-wheel-center-wrap">
-      <div class="wheel-top-tag">SELETOR TÁTICO DE OPERADOR // CÂMERA LENTA ATIVA</div>
-      <canvas id="hero-wheel-canvas" width="460" height="460"></canvas>
-      <div id="wheel-hero-info" class="wheel-hero-info">
-        <div id="wheel-hero-title" class="wheel-hero-title">COMANDANTE CAVEIRA</div>
-        <div id="wheel-hero-role" class="wheel-hero-role">OPERAÇÕES ESPECIAIS // BOPE</div>
-        <div id="wheel-hero-spec" class="wheel-hero-spec">Combate Tático Urbano, Explosivos de Impulso & Patrulha Blindada</div>
-      </div>
-    </div>
-  </div>
+  <!-- Grade de Seleção de Personagens Estilo Jogos LEGO ([TAB] Toggle em Câmera Lenta 12%) -->
+  <div id="character-grid-overlay" class="character-grid-overlay hidden" role="dialog" aria-modal="true" aria-label="Grade de Personagens"></div>
 
   <!-- Mira Central Tática Estilo Valorant / Fortnite -->
   <div id="crosshair" data-hero="caveira">
@@ -111,158 +97,166 @@
       <!-- Coluna Direita do Topo: Estrelas de Procurado (1-5★) + Armas CS + Velocímetro -->
       <div id="top-right-cluster" class="top-right-cluster">
 
-      <!-- Canto Superior Direito: Estrelas de Procurado LEGO Estilo GTA (100% Oculto em 0 Estrelas!) -->
-      <div id="hud-wanted-panel" class="hud-wanted-panel hidden" aria-live="polite">
-        <div class="wanted-top-row">
-          <span id="wanted-status-tag" class="wanted-status-tag">PROCURADO // PATRULHA LOCAL</span>
+        <!-- Canto Superior Direito: Estrelas de Procurado LEGO Estilo GTA (100% Oculto em 0 Estrelas!) -->
+        <div id="hud-wanted-panel" class="hud-wanted-panel hidden" aria-live="polite">
+          <div class="wanted-top-row">
+            <span id="wanted-status-tag" class="wanted-status-tag">PROCURADO // PATRULHA LOCAL</span>
+          </div>
+          <div id="wanted-stars-row" class="wanted-stars-row">
+            <div class="wanted-lego-star" data-star="1">
+              <svg viewBox="0 0 36 36" width="28" height="28">
+                <polygon
+                  points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+                <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
+              </svg>
+            </div>
+            <div class="wanted-lego-star" data-star="2">
+              <svg viewBox="0 0 36 36" width="28" height="28">
+                <polygon
+                  points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+                <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
+              </svg>
+            </div>
+            <div class="wanted-lego-star" data-star="3">
+              <svg viewBox="0 0 36 36" width="28" height="28">
+                <polygon
+                  points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+                <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
+              </svg>
+            </div>
+            <div class="wanted-lego-star" data-star="4">
+              <svg viewBox="0 0 36 36" width="28" height="28">
+                <polygon
+                  points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+                <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
+              </svg>
+            </div>
+            <div class="wanted-lego-star" data-star="5">
+              <svg viewBox="0 0 36 36" width="28" height="28">
+                <polygon
+                  points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
+                <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
+              </svg>
+            </div>
+          </div>
+          <div id="wanted-escape-bar-wrap" class="wanted-escape-bar-wrap hidden">
+            <div class="wanted-escape-track">
+              <div id="wanted-escape-bar-fill" class="wanted-escape-bar-fill"></div>
+            </div>
+            <span id="wanted-escape-sec" class="wanted-escape-sec">18s</span>
+          </div>
         </div>
-        <div id="wanted-stars-row" class="wanted-stars-row">
-          <div class="wanted-lego-star" data-star="1">
-            <svg viewBox="0 0 36 36" width="28" height="28">
-              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
-              <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
-            </svg>
-          </div>
-          <div class="wanted-lego-star" data-star="2">
-            <svg viewBox="0 0 36 36" width="28" height="28">
-              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
-              <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
-            </svg>
-          </div>
-          <div class="wanted-lego-star" data-star="3">
-            <svg viewBox="0 0 36 36" width="28" height="28">
-              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
-              <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
-            </svg>
-          </div>
-          <div class="wanted-lego-star" data-star="4">
-            <svg viewBox="0 0 36 36" width="28" height="28">
-              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
-              <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
-            </svg>
-          </div>
-          <div class="wanted-lego-star" data-star="5">
-            <svg viewBox="0 0 36 36" width="28" height="28">
-              <polygon points="18,2 22.8,12.2 34,13.6 25.7,21.4 27.9,32.6 18,27.1 8.1,32.6 10.3,21.4 2,13.6 13.2,12.2" />
-              <circle cx="18" cy="18.5" r="2.0" class="star-lego-stud" />
-            </svg>
-          </div>
-        </div>
-        <div id="wanted-escape-bar-wrap" class="wanted-escape-bar-wrap hidden">
-          <div class="wanted-escape-track">
-            <div id="wanted-escape-bar-fill" class="wanted-escape-bar-fill"></div>
-          </div>
-          <span id="wanted-escape-sec" class="wanted-escape-sec">18s</span>
-        </div>
-      </div>
 
-      <!-- Canto Superior Direito: Scroll de Silhuetas Estilo CS (Exclusivo do Vingador de Chumbo a pé — ZERO TEXTO) -->
-      <div id="vingador-weapon-hud" class="hidden" aria-hidden="true">
-        <div class="csgo-weapon-wheel">
-          <!-- Arma 1: Castigadoras Gêmeas (.50 Dupla) -->
-          <div class="csgo-weapon-slot slot-active" data-weapon="dual_smg">
-            <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
-              <!-- Pistola Traseira Superior (Deslocada) -->
-              <g opacity="0.58" transform="translate(22, -7)">
-                <path d="M18,16 L88,16 L92,20 L92,26 L62,26 L58,30 L42,30 L44,25 L35,25 L29,43 L16,43 L22,25 L14,23 Z" fill="currentColor" />
-                <rect x="88" y="17" width="12" height="7" fill="currentColor" />
-                <rect x="28" y="13" width="46" height="2" fill="currentColor" />
-                <polygon points="15,43 29,43 27,47 13,47" fill="currentColor" />
-              </g>
-              <!-- Pistola Frontal Principal -->
-              <g transform="translate(2, 6)">
-                <path d="M18,16 L88,16 L92,20 L92,26 L62,26 L58,30 L42,30 L44,25 L35,25 L29,43 L16,43 L22,25 L14,23 Z" fill="currentColor" />
-                <!-- Quebra-chamas .50 + Mira + Pente Estendido -->
-                <rect x="88" y="17" width="12" height="7" fill="currentColor" />
-                <rect x="20" y="12" width="6" height="4" fill="currentColor" />
-                <rect x="82" y="13" width="5" height="3" fill="currentColor" />
-                <polygon points="15,43 29,43 27,47 13,47" fill="currentColor" />
-                <!-- Guarda-mato vazado -->
-                <polygon points="35,25 43,25 41,30 33,30" fill="#090a0d" />
-              </g>
-            </svg>
-          </div>
+        <!-- Canto Superior Direito: Scroll de Silhuetas Estilo CS (Exclusivo do Vingador de Chumbo a pé — ZERO TEXTO) -->
+        <div id="vingador-weapon-hud" class="hidden" aria-hidden="true">
+          <div class="csgo-weapon-wheel">
+            <!-- Arma 1: Castigadoras Gêmeas (.50 Dupla) -->
+            <div class="csgo-weapon-slot slot-active" data-weapon="dual_smg">
+              <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
+                <!-- Pistola Traseira Superior (Deslocada) -->
+                <g opacity="0.58" transform="translate(22, -7)">
+                  <path d="M18,16 L88,16 L92,20 L92,26 L62,26 L58,30 L42,30 L44,25 L35,25 L29,43 L16,43 L22,25 L14,23 Z"
+                    fill="currentColor" />
+                  <rect x="88" y="17" width="12" height="7" fill="currentColor" />
+                  <rect x="28" y="13" width="46" height="2" fill="currentColor" />
+                  <polygon points="15,43 29,43 27,47 13,47" fill="currentColor" />
+                </g>
+                <!-- Pistola Frontal Principal -->
+                <g transform="translate(2, 6)">
+                  <path d="M18,16 L88,16 L92,20 L92,26 L62,26 L58,30 L42,30 L44,25 L35,25 L29,43 L16,43 L22,25 L14,23 Z"
+                    fill="currentColor" />
+                  <!-- Quebra-chamas .50 + Mira + Pente Estendido -->
+                  <rect x="88" y="17" width="12" height="7" fill="currentColor" />
+                  <rect x="20" y="12" width="6" height="4" fill="currentColor" />
+                  <rect x="82" y="13" width="5" height="3" fill="currentColor" />
+                  <polygon points="15,43 29,43 27,47 13,47" fill="currentColor" />
+                  <!-- Guarda-mato vazado -->
+                  <polygon points="35,25 43,25 41,30 33,30" fill="#090a0d" />
+                </g>
+              </svg>
+            </div>
 
-          <!-- Arma 2: Doze de Tambor "Juiz Final" -->
-          <div class="csgo-weapon-slot slot-next" data-weapon="shotgun">
-            <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
-              <!-- Coronha Tática + Receiver + Cano Duplo + Guarda-mão -->
-              <polygon points="6,23 30,19 35,14 82,14 82,26 42,26 34,39 23,39 29,26 6,31" fill="currentColor" />
-              <!-- Trilho Picatinny Superior -->
-              <rect x="38" y="11" width="40" height="2.5" fill="currentColor" />
-              <!-- Cano Principal Longo + Tubo de Gás Inferior -->
-              <rect x="82" y="15" width="48" height="5.5" fill="currentColor" />
-              <rect x="82" y="22" width="38" height="4" fill="currentColor" />
-              <!-- Quebra-chamas Dentado + Baioneta Inferior -->
-              <polygon points="130,14 136,14 136,21 130,21" fill="currentColor" />
-              <polygon points="104,26 128,26 121,31 104,31" fill="currentColor" />
-              <!-- Tambor Rotativo Calibre 12 -->
-              <circle cx="63" cy="33" r="12.5" fill="currentColor" stroke="#090a0d" stroke-width="2.5" />
-              <circle cx="63" cy="33" r="3.5" fill="#090a0d" />
-            </svg>
-          </div>
+            <!-- Arma 2: Doze de Tambor "Juiz Final" -->
+            <div class="csgo-weapon-slot slot-next" data-weapon="shotgun">
+              <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
+                <!-- Coronha Tática + Receiver + Cano Duplo + Guarda-mão -->
+                <polygon points="6,23 30,19 35,14 82,14 82,26 42,26 34,39 23,39 29,26 6,31" fill="currentColor" />
+                <!-- Trilho Picatinny Superior -->
+                <rect x="38" y="11" width="40" height="2.5" fill="currentColor" />
+                <!-- Cano Principal Longo + Tubo de Gás Inferior -->
+                <rect x="82" y="15" width="48" height="5.5" fill="currentColor" />
+                <rect x="82" y="22" width="38" height="4" fill="currentColor" />
+                <!-- Quebra-chamas Dentado + Baioneta Inferior -->
+                <polygon points="130,14 136,14 136,21 130,21" fill="currentColor" />
+                <polygon points="104,26 128,26 121,31 104,31" fill="currentColor" />
+                <!-- Tambor Rotativo Calibre 12 -->
+                <circle cx="63" cy="33" r="12.5" fill="currentColor" stroke="#090a0d" stroke-width="2.5" />
+                <circle cx="63" cy="33" r="3.5" fill="#090a0d" />
+              </svg>
+            </div>
 
-          <!-- Arma 3: Bazuca RPG "Aniquiladora" -->
-          <div class="csgo-weapon-slot slot-prev" data-weapon="rpg">
-            <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
-              <!-- Cone de Exaustão Traseiro -->
-              <polygon points="4,14 19,19 19,29 4,34" fill="currentColor" />
-              <!-- Tubo Principal de Lançamento + Câmara Reforçada -->
-              <rect x="19" y="19" width="76" height="10" fill="currentColor" />
-              <rect x="34" y="17" width="32" height="14" fill="currentColor" />
-              <!-- Luneta Óptica Superior -->
-              <polygon points="46,9 64,9 62,17 48,17" fill="currentColor" />
-              <!-- Empunhaduras Duplas -->
-              <polygon points="40,31 49,31 45,43 37,43" fill="currentColor" />
-              <polygon points="72,29 80,29 77,40 70,40" fill="currentColor" />
-              <!-- Ogiva Antitanque com Aletas -->
-              <polygon points="95,19 104,13 122,13 136,24 122,35 104,35 95,29" fill="currentColor" />
-              <rect x="93" y="15" width="4" height="18" fill="currentColor" />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Canto Superior Direito: Indicador Contextual de Rádio Ao Vivo Estilo GTA 6 (Segure [Z] ou [P]) -->
-      <div id="hud-tiktok-radio-pill" class="hud-tiktok-radio-pill" title="Segure [Z] ou [P] para abrir a Roda de Rádios • [ e ] trocam estação" aria-label="Rádio FM [Z]">
-        <span class="tiktok-pill-key">[Z] RÁDIO OFF</span>
-        <div class="hud-spotify-disc-wrap" aria-hidden="true">
-          <img id="hud-spotify-disc-img" class="hud-spotify-disc-img" alt="" />
-        </div>
-        <div class="hud-radio-live-meta" aria-hidden="true">
-          <span id="hud-radio-station-tag" class="hud-radio-station-tag">101.5 FM • RÁDIO PADRÃO</span>
-          <div id="hud-spotify-marquee-title" class="hud-spotify-marquee-title"></div>
-          <span id="hud-radio-artist-sub" class="hud-radio-artist-sub"></span>
-        </div>
-      </div>
-
-      <div id="tiktok-radio-toast" class="tiktok-radio-toast hidden">
-        <img id="tiktok-toast-cover" class="tiktok-toast-cover hidden" alt="" />
-        <div class="tiktok-toast-body">
-          <span id="tiktok-toast-station" class="tiktok-toast-station">101.5 FM // RÁDIO PADRÃO</span>
-          <span id="tiktok-toast-title" class="tiktok-toast-title">SINTONIZADO</span>
-          <span id="tiktok-toast-artist" class="tiktok-toast-artist"></span>
-        </div>
-      </div>
-
-      <!-- Canto Superior Direito: Velocímetro Dark-Tuner Digital (Aparece APENAS ao Dirigir/Pilotar Veículo) -->
-      <div id="vehicle-speedometer" class="hidden">
-        <div class="speedo-header">
-          <span id="speedo-vehicle-name" class="speedo-veh-name">VIATURA BOPE</span>
-          <span id="speedo-gear-badge" class="speedo-gear">D</span>
-        </div>
-        <div class="speedo-main-row">
-          <div class="speedo-kmh-stack">
-            <span class="speedo-kmh-ghost" aria-hidden="true">888</span>
-            <span id="speedo-kmh-val" class="speedo-kmh-val">000</span>
-          </div>
-          <div class="speedo-unit-col">
-            <span class="speedo-unit">KM/H</span>
-            <span id="speedo-mode-tag" class="speedo-mode-tag">CRUZEIRO</span>
+            <!-- Arma 3: Bazuca RPG "Aniquiladora" -->
+            <div class="csgo-weapon-slot slot-prev" data-weapon="rpg">
+              <svg class="csgo-silhouette-svg" viewBox="0 0 140 54" width="128" height="48">
+                <!-- Cone de Exaustão Traseiro -->
+                <polygon points="4,14 19,19 19,29 4,34" fill="currentColor" />
+                <!-- Tubo Principal de Lançamento + Câmara Reforçada -->
+                <rect x="19" y="19" width="76" height="10" fill="currentColor" />
+                <rect x="34" y="17" width="32" height="14" fill="currentColor" />
+                <!-- Luneta Óptica Superior -->
+                <polygon points="46,9 64,9 62,17 48,17" fill="currentColor" />
+                <!-- Empunhaduras Duplas -->
+                <polygon points="40,31 49,31 45,43 37,43" fill="currentColor" />
+                <polygon points="72,29 80,29 77,40 70,40" fill="currentColor" />
+                <!-- Ogiva Antitanque com Aletas -->
+                <polygon points="95,19 104,13 122,13 136,24 122,35 104,35 95,29" fill="currentColor" />
+                <rect x="93" y="15" width="4" height="18" fill="currentColor" />
+              </svg>
+            </div>
           </div>
         </div>
-        <div id="speedo-rpm-bars" class="speedo-rpm-bars"></div>
-      </div>
+
+        <!-- Canto Superior Direito: Indicador Contextual de Rádio Ao Vivo Estilo GTA 6 (Segure [Z] ou [P]) -->
+        <div id="hud-tiktok-radio-pill" class="hud-tiktok-radio-pill"
+          title="Segure [Z] ou [P] para abrir a Roda de Rádios • [ e ] trocam estação" aria-label="Rádio FM [Z]">
+          <span class="tiktok-pill-key">[Z] RÁDIO OFF</span>
+          <div class="hud-spotify-disc-wrap" aria-hidden="true">
+            <img id="hud-spotify-disc-img" class="hud-spotify-disc-img" alt="" />
+          </div>
+          <div class="hud-radio-live-meta" aria-hidden="true">
+            <span id="hud-radio-station-tag" class="hud-radio-station-tag">101.5 FM • RÁDIO PADRÃO</span>
+            <div id="hud-spotify-marquee-title" class="hud-spotify-marquee-title"></div>
+            <span id="hud-radio-artist-sub" class="hud-radio-artist-sub"></span>
+          </div>
+        </div>
+
+        <div id="tiktok-radio-toast" class="tiktok-radio-toast hidden">
+          <img id="tiktok-toast-cover" class="tiktok-toast-cover hidden" alt="" />
+          <div class="tiktok-toast-body">
+            <span id="tiktok-toast-station" class="tiktok-toast-station">101.5 FM // RÁDIO PADRÃO</span>
+            <span id="tiktok-toast-title" class="tiktok-toast-title">SINTONIZADO</span>
+            <span id="tiktok-toast-artist" class="tiktok-toast-artist"></span>
+          </div>
+        </div>
+
+        <!-- Canto Superior Direito: Velocímetro Dark-Tuner Digital (Aparece APENAS ao Dirigir/Pilotar Veículo) -->
+        <div id="vehicle-speedometer" class="hidden">
+          <div class="speedo-header">
+            <span id="speedo-vehicle-name" class="speedo-veh-name">VIATURA BOPE</span>
+            <span id="speedo-gear-badge" class="speedo-gear">D</span>
+          </div>
+          <div class="speedo-main-row">
+            <div class="speedo-kmh-stack">
+              <span class="speedo-kmh-ghost" aria-hidden="true">888</span>
+              <span id="speedo-kmh-val" class="speedo-kmh-val">000</span>
+            </div>
+            <div class="speedo-unit-col">
+              <span class="speedo-unit">KM/H</span>
+              <span id="speedo-mode-tag" class="speedo-mode-tag">CRUZEIRO</span>
+            </div>
+          </div>
+          <div id="speedo-rpm-bars" class="speedo-rpm-bars"></div>
+        </div>
       </div>
     </div>
 
@@ -282,11 +276,9 @@
     <!-- Aviso de Clique para Travar Mira (Some assim que clica na tela!) -->
     <div id="pointer-prompt">
       <div class="prompt-card">
-        <div class="prompt-tag">SISTEMA DE COMBATE // LEGO: CIDADE DE DEUS</div>
-        <div class="prompt-title">CLIQUE NA TELA PARA TRAVAR A MIRA EM 3ª PESSOA</div>
-        <div class="prompt-sub">
-          <b>[TAB]</b> Roda de Heróis • <b>[E]</b> Veículo • <b>[M]</b> Mapa • <b>[H]</b> Ficha • <b>[ESC]</b> Pausa/Opções
-        </div>
+        <div class="prompt-tag">CÂMERA EM 3ª PESSOA</div>
+        <div class="prompt-title">CLIQUE NA TELA PARA JOGAR</div>
+        <div class="prompt-sub"><b>[TAB]</b> Personagens • <b>[F]</b> Veículo • <b>[M]</b> Mapa • <b>[Z]</b> Rádio • <b>[ESC]</b> Pausa</div>
       </div>
     </div>
 
@@ -303,220 +295,353 @@
           <div class="logo-emblem-row">
             <svg viewBox="0 0 120 120" width="90" height="90" class="official-crest-svg">
               <!-- Asas & Pináculos Góticos Angulares Laterais -->
-              <polygon points="2,24 22,18 18,46 6,38" fill="#0d121d" stroke="#c28e2b" stroke-width="1.6"/>
-              <polygon points="118,24 98,18 102,46 114,38" fill="#0d121d" stroke="#c28e2b" stroke-width="1.6"/>
-              <polygon points="5,44 19,50 17,74 8,64" fill="#080b12" stroke="#2c3a52" stroke-width="1.4"/>
-              <polygon points="115,44 101,50 103,74 112,64" fill="#080b12" stroke="#2c3a52" stroke-width="1.4"/>
+              <polygon points="2,24 22,18 18,46 6,38" fill="#0d121d" stroke="#c28e2b" stroke-width="1.6" />
+              <polygon points="118,24 98,18 102,46 114,38" fill="#0d121d" stroke="#c28e2b" stroke-width="1.6" />
+              <polygon points="5,44 19,50 17,74 8,64" fill="#080b12" stroke="#2c3a52" stroke-width="1.4" />
+              <polygon points="115,44 101,50 103,74 112,64" fill="#080b12" stroke="#2c3a52" stroke-width="1.4" />
               <!-- Escudo Externo Chanfrado em Obsidiana & Bronze -->
-              <polygon points="60,3 103,17 97,86 60,116 23,86 17,17" fill="#05070c" stroke="#c28e2b" stroke-width="3"/>
+              <polygon points="60,3 103,17 97,86 60,116 23,86 17,17" fill="#05070c" stroke="#c28e2b" stroke-width="3" />
               <!-- Escudo Interno em Aço Noturno & Carmesim -->
-              <polygon points="60,10 96,22 90,82 60,108 30,82 24,22" fill="#111622" stroke="#2c3a52" stroke-width="1.6"/>
-              <polygon points="60,15 90,25 85,79 60,101 35,79 30,25" fill="#090d16" stroke="#991b1b" stroke-width="1.4"/>
+              <polygon points="60,10 96,22 90,82 60,108 30,82 24,22" fill="#111622" stroke="#2c3a52"
+                stroke-width="1.6" />
+              <polygon points="60,15 90,25 85,79 60,101 35,79 30,25" fill="#090d16" stroke="#991b1b"
+                stroke-width="1.4" />
               <!-- Nervuras Arquitetônicas Góticas -->
-              <line x1="60" y1="15" x2="60" y2="101" stroke="#1e283a" stroke-width="1.4"/>
-              <polygon points="60,15 66,24 60,30 54,24" fill="#c28e2b"/>
+              <line x1="60" y1="15" x2="60" y2="101" stroke="#1e283a" stroke-width="1.4" />
+              <polygon points="60,15 66,24 60,30 54,24" fill="#c28e2b" />
               <!-- Pináculos Superiores do Capuz / Máscara Tática -->
-              <polygon points="39,22 45,36 37,43" fill="#1e283a" stroke="#c28e2b" stroke-width="1.1"/>
-              <polygon points="81,22 75,36 83,43" fill="#141b29" stroke="#c28e2b" stroke-width="1.1"/>
+              <polygon points="39,22 45,36 37,43" fill="#1e283a" stroke="#c28e2b" stroke-width="1.1" />
+              <polygon points="81,22 75,36 83,43" fill="#141b29" stroke="#c28e2b" stroke-width="1.1" />
               <!-- Crânio / Máscara Tática Facetada Bipartida (Luz Fria & Sombra) -->
-              <polygon points="60,28 39,37 36,59 46,69 47,84 60,87" fill="#cbd5e1"/>
-              <polygon points="60,28 81,37 84,59 74,69 73,84 60,87" fill="#64748b"/>
+              <polygon points="60,28 39,37 36,59 46,69 47,84 60,87" fill="#cbd5e1" />
+              <polygon points="60,28 81,37 84,59 74,69 73,84 60,87" fill="#64748b" />
               <!-- Sobrancelha Blindada & Cavidades Oculares em Obsidiana -->
-              <polygon points="38,44 57,50 55,58 40,54" fill="#05070c"/>
-              <polygon points="82,44 63,50 65,58 80,54" fill="#05070c"/>
+              <polygon points="38,44 57,50 55,58 40,54" fill="#05070c" />
+              <polygon points="82,44 63,50 65,58 80,54" fill="#05070c" />
               <!-- Olhos Táticos em Carmesim Arterial -->
-              <polygon points="41,47 54,51 52,55 42,52" fill="#dc2626"/>
-              <polygon points="79,47 66,51 68,55 78,52" fill="#dc2626"/>
-              <polygon points="43,48 48,50 47,52 43,51" fill="#fca5a5"/>
-              <polygon points="77,48 72,50 73,52 77,51" fill="#fca5a5"/>
+              <polygon points="41,47 54,51 52,55 42,52" fill="#dc2626" />
+              <polygon points="79,47 66,51 68,55 78,52" fill="#dc2626" />
+              <polygon points="43,48 48,50 47,52 43,51" fill="#fca5a5" />
+              <polygon points="77,48 72,50 73,52 77,51" fill="#fca5a5" />
               <!-- Cavidade Nasal & Respirador / Grade Mandibular -->
-              <polygon points="60,56 64,66 56,66" fill="#05070c" stroke="#991b1b" stroke-width="1"/>
-              <polygon points="48,70 72,70 70,83 60,86 50,83" fill="#05070c" stroke="#1e283a" stroke-width="1.2"/>
-              <line x1="53" y1="71" x2="53" y2="83" stroke="#c28e2b" stroke-width="2"/>
-              <line x1="60" y1="71" x2="60" y2="85" stroke="#c28e2b" stroke-width="2"/>
-              <line x1="67" y1="71" x2="67" y2="83" stroke="#c28e2b" stroke-width="2"/>
+              <polygon points="60,56 64,66 56,66" fill="#05070c" stroke="#991b1b" stroke-width="1" />
+              <polygon points="48,70 72,70 70,83 60,86 50,83" fill="#05070c" stroke="#1e283a" stroke-width="1.2" />
+              <line x1="53" y1="71" x2="53" y2="83" stroke="#c28e2b" stroke-width="2" />
+              <line x1="60" y1="71" x2="60" y2="85" stroke="#c28e2b" stroke-width="2" />
+              <line x1="67" y1="71" x2="67" y2="83" stroke="#c28e2b" stroke-width="2" />
               <!-- Divisa Inferior de Comando em Bronze -->
-              <polygon points="32,87 60,98 88,87 60,93" fill="#c28e2b"/>
+              <polygon points="32,87 60,98 88,87 60,93" fill="#c28e2b" />
             </svg>
             <div class="logo-text-col">
-              <div class="logo-top-pill">DARK METROPOLIS // SYNDICATE WARFARE</div>
               <h1 class="logo-main-title">CIDADE DE <span>DEUS</span></h1>
-              <div id="title-sub-banner" class="logo-sub-banner">GUERRA URBANA // MUNDO ABERTO SOMBRIO</div>
+              <div id="title-sub-banner" class="logo-sub-banner">MUNDO ABERTO E GUERRA URBANA</div>
             </div>
-          </div>
-          <div class="title-telemetry-strip">
-            <span>SETORES: <b>10 ATIVOS</b></span>
-            <span>CLIMA: <b>ALERTA NOTURNO</b></span>
-            <span>OPERADORES: <b>11</b></span>
           </div>
         </div>
 
-        <!-- PAINEL 1: Lâminas Metálicas Assimétricas do Menu Inicial -->
+        <!-- PAINEL 1: Lista Principal Limpa & Frameless -->
         <div id="title-main-panel" class="title-panel">
-          <button id="btn-title-new-game" class="title-action-btn primary-btn">
-            <span class="btn-tag">01</span>
-            <span class="btn-label-stack">
-              <span id="txt-new-game" class="btn-main-txt">NOVO JOGO</span>
-              <small class="btn-sub-txt">Iniciar nova operação no mundo aberto</small>
-            </span>
+          <button type="button" id="btn-title-continue" class="title-action-btn primary-btn hidden">
+            <span id="txt-continue-game" class="btn-main-txt">CONTINUAR</span>
           </button>
-          <button id="btn-title-load-game" class="title-action-btn">
-            <span class="btn-tag">02</span>
-            <span class="btn-label-stack">
-              <span id="txt-load-game" class="btn-main-txt">CARREGAR JOGO</span>
-              <small class="btn-sub-txt">Retomar progresso salvo nos dossiês</small>
-            </span>
+          <button type="button" id="btn-title-new-game" class="title-action-btn primary-btn">
+            <span id="txt-new-game" class="btn-main-txt">NOVO JOGO</span>
           </button>
-          <button id="btn-title-options" class="title-action-btn">
-            <span class="btn-tag">03</span>
-            <span class="btn-label-stack">
-              <span id="txt-options" class="btn-main-txt">OPÇÕES TÁTICAS</span>
-              <small class="btn-sub-txt">Qualidade gráfica, clima e áudio</small>
-            </span>
+          <button type="button" id="btn-title-load-game" class="title-action-btn is-disabled" disabled>
+            <span id="txt-load-game" class="btn-main-txt">CARREGAR JOGO</span>
           </button>
-          <button id="btn-title-language" class="title-action-btn">
-            <span class="btn-tag">04</span>
-            <span class="btn-label-stack">
-              <span id="txt-language-btn" class="btn-main-txt">IDIOMA: PT-BR</span>
-              <small class="btn-sub-txt">Alternar idioma da interface</small>
-            </span>
+          <button type="button" id="btn-title-options" class="title-action-btn">
+            <span id="txt-options" class="btn-main-txt">CONFIGURAÇÕES</span>
           </button>
+          <button type="button" id="btn-title-credits" class="title-action-btn">
+            <span id="txt-credits" class="btn-main-txt">CRÉDITOS</span>
+          </button>
+          <button type="button" id="btn-title-quit" class="title-action-btn">
+            <span id="txt-quit-game" class="btn-main-txt">SAIR</span>
+          </button>
+          <div id="title-quit-toast" class="pause-save-feedback hidden" role="status" aria-live="polite"></div>
         </div>
 
         <!-- PAINEL 2: Seleção de Slots de Save (3 Slots localStorage) -->
         <div id="title-slots-panel" class="title-slots-panel hidden">
           <div class="panel-header-bar">
-            <span id="slots-panel-title" class="panel-header-title">ESCOLHA UM SLOT DE MEMÓRIA</span>
-            <button id="btn-slots-back" class="tactical-btn">VOLTAR</button>
+            <h2 id="slots-panel-title" class="panel-header-title">NOVO JOGO — ESCOLHA UM SLOT</h2>
+            <button type="button" id="btn-slots-back" class="tactical-btn">VOLTAR</button>
           </div>
           <div id="save-slots-grid" class="save-slots-grid"></div>
         </div>
 
-        <!-- PAINEL 3: Escolha da Facção Aliada na Guerra Mundial (3 Cards Grandes com SVG) -->
+        <!-- PAINEL 3: Escolha da Facção Aliada (3 Estandartes Verticais) -->
         <div id="title-faction-panel" class="title-faction-panel hidden">
           <div class="panel-header-bar">
             <div>
-              <div id="faction-panel-tag" class="dossier-tag">SELEÇÃO DE ALIANÇA MILITAR // BACKYARD BATTLEGROUND</div>
-              <div id="faction-panel-title" class="panel-header-title">ESCOLHA SUA FACÇÃO ALIADA NA GUERRA MUNDIAL</div>
-              <div id="faction-panel-sub" class="faction-panel-sub">Sua facção lutará ao seu lado no Centro da Metrópole, enviará Médicos de Combate para curar você e invocará Bosses Colossais aliados!</div>
+              <div id="faction-panel-tag" class="dossier-tag">ALIANÇA</div>
+              <h2 id="faction-panel-title" class="panel-header-title">ESCOLHA SUA FACÇÃO</h2>
+              <div id="faction-panel-sub" class="faction-panel-sub">Define sua base aliada, oficinas e reforços pela cidade.</div>
             </div>
-            <button id="btn-faction-back" class="tactical-btn">VOLTAR</button>
+            <button type="button" id="btn-faction-back" class="tactical-btn">VOLTAR</button>
           </div>
           <div id="faction-cards-grid" class="faction-cards-grid"></div>
         </div>
+
+        <!-- PAINEL 4: Créditos Tipográficos -->
+        <div id="title-credits-panel" class="title-credits-panel hidden">
+          <div class="panel-header-bar">
+            <h2 id="credits-panel-title" class="panel-header-title">CRÉDITOS</h2>
+            <button type="button" id="btn-credits-back" class="tactical-btn">VOLTAR</button>
+          </div>
+          <div id="credits-grid-body" class="credits-grid"></div>
+        </div>
       </div>
+      <div class="title-version-tag">v1.0 • CIDADE DE DEUS</div>
     </div>
 
     <!-- =======================================================================
-         TELA DE LOADING TÁTICA (0% -> 100%) COM WARM-UP 360° ANTI-LAG!
+         TELA DE CARREGAMENTO TÁTICA FULL-BLEED
          ======================================================================= -->
-    <div id="tactical-loading-screen" class="tactical-loading-screen hidden">
-      <div class="title-scanlines"></div>
+    <div id="tactical-loading-screen" class="tactical-loading-screen hidden" data-faction="cv">
+      <canvas id="loading-bg-canvas"></canvas>
+      <div id="loading-watermark-crest" class="loading-watermark-crest" aria-hidden="true"></div>
       <div class="loading-card">
         <div class="loading-top-row">
           <div id="loading-faction-logo" class="loading-faction-logo"></div>
           <div class="loading-title-col">
-            <div id="loading-op-tag" class="dossier-tag">SISTEMA DE PRÉ-COMPILAÇÃO GPU // ANTI-STUTTER 360°</div>
-            <div id="loading-faction-title" class="loading-faction-title">MUNDO ABERTO 3D // EXPLORAÇÃO LIVRE</div>
-            <div id="loading-stage-text" class="loading-stage-text">POSICIONANDO OPERADOR & SINCRONIZANDO SETORES...</div>
+            <div id="loading-op-tag" class="loading-region-subtitle">Cidade de Deus • Oeste</div>
+            <div id="loading-faction-title" class="loading-faction-title">COMANDO VERMELHO (CV)</div>
+            <div id="loading-stage-text" class="loading-stage-text">Preparando a região...</div>
           </div>
-          <div id="loading-pct-text" class="loading-pct-text">0%</div>
         </div>
-
-        <!-- Barra de Progresso LEGO Segmentada (20 Blocos Chanfrados) -->
+        <div id="loading-pct-text" class="loading-pct-text">0%</div>
         <div id="loading-lego-bar" class="loading-lego-bar"></div>
-
-        <!-- Card de Dica de Exploração no Mundo Aberto -->
         <div class="loading-tip-box">
-          <span class="loading-tip-badge">DICA DE JOGO</span>
-          <span id="loading-tip-text" class="loading-tip-text">
-            Aperte [E] perto de qualquer Táxi, Ônibus LEGO, Supercarro ou Buggy de Praia para dirigir livremente pelas 10 Regiões!
-          </span>
+          <span id="loading-tip-badge" class="loading-tip-badge">DICA</span>
+          <p id="loading-tip-text" class="loading-tip-text">Pressione [F] perto de carros, motos, barcos ou aeronaves para assumir a direção.</p>
         </div>
       </div>
     </div>
 
     <!-- =======================================================================
-         MODAL TÁTICO DE PAUSA & OPÇÕES COMPLETAS [ESC]
+         MENU DE PAUSA NOIR ("LÂMINAS + CARD DO HERÓI") & CONFIGURAÇÕES [ESC]
          ======================================================================= -->
-    <div id="pause-options-modal" class="hidden">
-      <div class="pause-card">
-        <div class="dossier-header">
-          <div>
-            <div id="pause-tag" class="dossier-tag">SISTEMA DE COMANDO // JOGO PAUSADO [ESC]</div>
-            <div id="pause-title" class="dossier-title">CENTRAL DE OPÇÕES & MUNDO ABERTO</div>
+    <div id="pause-options-modal" class="hidden" data-faction="cv">
+      <div class="pause-bg-layer" aria-hidden="true">
+        <div class="pause-diag-slash slash-a"></div>
+        <div class="pause-diag-slash slash-b"></div>
+        <div class="pause-diag-slash slash-c"></div>
+        <div id="pause-bg-crest" class="pause-bg-crest"></div>
+      </div>
+
+      <!-- VIEW 1: Pausa Principal em Partida (7 Lâminas Angulares + Card do Herói) -->
+      <div id="pause-main-view" class="pause-shell pause-main-view">
+        <header id="pause-top-bar" class="pause-top-bar">
+          <div class="pause-studs-display">
+            <span class="pause-stud-icon" aria-hidden="true"></span>
+            <span id="pause-top-studs">0</span>
           </div>
-          <button id="pause-close-btn" class="tactical-btn">[ESC] FECHAR</button>
+          <span class="pause-top-divider" aria-hidden="true"></span>
+          <span id="pause-top-location">CENTRO FINANCEIRO · 20:00</span>
+        </header>
+
+        <div class="pause-center-stage">
+          <nav id="pause-ingame-actions" class="pause-blades-col pause-actions-grid" aria-label="Menu de Pausa">
+            <button type="button" id="btn-pause-resume" class="tactical-btn pause-blade-btn pause-main-btn" style="--blade-idx: 0">CONTINUAR</button>
+            <button type="button" id="btn-pause-map" class="tactical-btn pause-blade-btn" style="--blade-idx: 1">MAPA</button>
+            <button type="button" id="btn-pause-heroes" class="tactical-btn pause-blade-btn" style="--blade-idx: 2">PERSONAGENS</button>
+            <button type="button" id="btn-pause-open-settings" class="tactical-btn pause-blade-btn" style="--blade-idx: 3">CONFIGURAÇÕES</button>
+            <button type="button" id="btn-pause-save" class="tactical-btn pause-blade-btn" style="--blade-idx: 4">SALVAR JOGO</button>
+            <button type="button" id="btn-pause-switch-faction" class="tactical-btn pause-blade-btn" style="--blade-idx: 5">TROCAR FACÇÃO</button>
+            <button type="button" id="btn-pause-save-quit" class="tactical-btn pause-blade-btn pause-blade-danger danger-btn" style="--blade-idx: 6">SAIR PARA O MENU</button>
+          </nav>
+
+          <div id="pause-hero-card" class="pause-hero-card" role="button" tabindex="-1" aria-label="Abrir loja e vitrine de personagens">
+            <div class="pause-hero-card-inner">
+              <div class="pause-hero-portrait-wrap">
+                <canvas id="pause-hero-card-canvas" width="420" height="520"></canvas>
+              </div>
+              <div class="pause-hero-nameplate">
+                <div id="pause-hero-card-name">COMANDANTE CAVEIRA</div>
+                <div id="pause-hero-card-role">OPERAÇÕES ESPECIAIS</div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="pause-options-body">
-          <!-- Sliders de Volume (Master, Música da Cidade, Efeitos Sonoros) -->
-          <div class="option-row">
-            <div class="option-label-col">
-              <span id="lbl-master-vol" class="option-title">VOLUME GERAL (MASTER)</span>
-              <span id="val-master-vol" class="option-val">85%</span>
-            </div>
-            <input id="slider-master-vol" type="range" min="0" max="100" value="85" class="tactical-slider" />
+        <footer id="pause-bottom-bar" class="pause-bottom-bar">
+          <div class="pause-stats-row">
+            <span class="pause-stat-item">
+              <span class="pause-stat-sq" aria-hidden="true"></span>
+              <b id="pause-stat-bricks">0</b>
+              <span id="lbl-pause-stat-bricks">BLOCOS DOURADOS</span>
+            </span>
+            <span class="pause-stat-item">
+              <span class="pause-stat-sq" aria-hidden="true"></span>
+              <b id="pause-stat-territories">1/3</b>
+              <span id="lbl-pause-stat-territories">TERRITÓRIOS</span>
+            </span>
+            <span class="pause-stat-item">
+              <span id="pause-stat-faction-icon" class="pause-mini-crest" aria-hidden="true"></span>
+              <b id="pause-stat-faction">CV</b>
+            </span>
+            <span class="pause-stat-item">
+              <b id="pause-stat-playtime">00:00:00</b>
+              <span id="lbl-pause-stat-playtime">DE JOGO</span>
+            </span>
+            <span id="pause-save-feedback" class="hidden" role="status" aria-live="polite">JOGO SALVO</span>
           </div>
+          <div id="pause-keyhints-row"></div>
+        </footer>
+      </div>
 
-          <div class="option-row">
-            <div class="option-label-col">
-              <span id="lbl-music-vol" class="option-title">VOLUME DA MÚSICA DA CIDADE</span>
-              <span id="val-music-vol" class="option-val">55%</span>
-            </div>
-            <input id="slider-music-vol" type="range" min="0" max="100" value="55" class="tactical-slider" />
-          </div>
-
-          <div class="option-row">
-            <div class="option-label-col">
-              <span id="lbl-sfx-vol" class="option-title">VOLUME DE EFEITOS SONOROS (PODERES / VEÍCULOS)</span>
-              <span id="val-sfx-vol" class="option-val">90%</span>
-            </div>
-            <input id="slider-sfx-vol" type="range" min="0" max="100" value="90" class="tactical-slider" />
-          </div>
-
-          <!-- Toggle para Desligar o Aviso de Troca de Região (#region-toast) -->
-          <div class="option-row option-row-inline">
-            <span id="lbl-region-toast" class="option-title">AVISO DE TROCA DE REGIÃO NA TELA</span>
-            <button id="btn-toggle-region-toast" class="tactical-toggle-btn active">ON // ATIVADO</button>
-          </div>
-
-          <!-- Controle de Qualidade Gráfica & Pós-Processamento -->
-          <div class="option-row option-row-inline option-row-quality">
-            <span id="lbl-graphics-quality" class="option-title">QUALIDADE GRÁFICA</span>
-            <div id="grp-graphics-quality" class="tactical-quality-group" role="group" aria-label="Qualidade Gráfica">
-              <button id="btn-quality-auto" type="button" class="tactical-quality-btn active" data-quality="auto">AUTO 60</button>
-              <button id="btn-quality-low" type="button" class="tactical-quality-btn" data-quality="low">BAIXO</button>
-              <button id="btn-quality-medium" type="button" class="tactical-quality-btn" data-quality="medium">MÉDIO</button>
-              <button id="btn-quality-ultra" type="button" class="tactical-quality-btn" data-quality="ultra">ULTRA</button>
-            </div>
-          </div>
-
-          <!-- Controle de Clima & Horário do Mundo (4 Modos Salvos nas Configurações) -->
-          <div class="option-row option-row-inline">
-            <span id="lbl-time-mode" class="option-title">CLIMA & HORÁRIO DO MUNDO</span>
-            <button id="btn-pause-time-mode" class="tactical-toggle-btn active">CICLO AUTOMÁTICO (12 MIN)</button>
-          </div>
-
-          <!-- Seletor de Idioma (PT-BR / EN-US) -->
-          <div class="option-row option-row-inline">
-            <span id="lbl-lang-select" class="option-title">IDIOMA DA INTERFACE (LANGUAGE)</span>
-            <button id="btn-pause-language" class="tactical-toggle-btn active">PT-BR // PORTUGUÊS</button>
-          </div>
-
-          <div id="pause-save-feedback" class="pause-save-feedback hidden">✔ PROGRESSO SALVO NO SLOT COM SUCESSO!</div>
+      <!-- VIEW 2: Subtela de Configurações em 4 Abas ([Q] / [E]) -->
+      <div id="settings-subview" class="settings-subview settings-screen hidden">
+        <div class="settings-header-bar">
+          <h2 id="settings-title" class="settings-title">CONFIGURAÇÕES</h2>
+          <button type="button" id="pause-close-btn" class="tactical-btn">VOLTAR</button>
         </div>
 
-        <!-- Botões de Jogo quando aberto durante a partida [ESC] -->
-        <div id="pause-ingame-actions" class="pause-actions-grid">
-          <button id="btn-pause-resume" class="tactical-btn pause-main-btn">CONTINUAR PARTIDA [ESC]</button>
-          <button id="btn-pause-save" class="tactical-btn">SALVAR JOGO AGORA</button>
-          <button id="btn-pause-switch-faction" class="tactical-btn">TROCAR DE FACÇÃO ALIADA</button>
-          <button id="btn-pause-reset-territories" class="tactical-btn">RESETAR TERRITÓRIOS DE FACÇÃO</button>
-          <button id="btn-pause-save-quit" class="tactical-btn danger-btn">SALVAR E SAIR PARA O MENU INICIAL</button>
+        <div id="settings-tabs-bar" class="settings-tabs-bar" role="tablist">
+          <span class="tab-key-badge">Q</span>
+          <button type="button" id="tab-btn-audio" class="settings-tab-btn active" role="tab" aria-selected="true" data-settings-tab="audio">ÁUDIO</button>
+          <button type="button" id="tab-btn-video" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="video">VÍDEO</button>
+          <button type="button" id="tab-btn-controls" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="controls">CONTROLES</button>
+          <button type="button" id="tab-btn-game" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="game">JOGO</button>
+          <span class="tab-key-badge">E</span>
+        </div>
+
+        <div id="settings-panels-wrap" class="settings-panels-wrap">
+          <!-- Aba 1: Áudio -->
+          <div id="settings-panel-audio" class="settings-tab-panel">
+            <div class="option-row" data-desc-key="masterVol">
+              <span id="lbl-master-vol" class="option-title">VOLUME GERAL</span>
+              <div class="option-slider-wrap">
+                <input id="slider-master-vol" type="range" min="0" max="100" step="5" value="85" class="tactical-slider" />
+                <span id="val-master-vol" class="option-val">85%</span>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="musicVol">
+              <span id="lbl-music-vol" class="option-title">MÚSICA E RÁDIO</span>
+              <div class="option-slider-wrap">
+                <input id="slider-music-vol" type="range" min="0" max="100" step="5" value="55" class="tactical-slider" />
+                <span id="val-music-vol" class="option-val">55%</span>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="sfxVol">
+              <span id="lbl-sfx-vol" class="option-title">EFEITOS</span>
+              <div class="option-slider-wrap">
+                <input id="slider-sfx-vol" type="range" min="0" max="100" step="5" value="90" class="tactical-slider" />
+                <span id="val-sfx-vol" class="option-val">90%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 2: Vídeo -->
+          <div id="settings-panel-video" class="settings-tab-panel hidden">
+            <div class="option-row" data-desc-key="graphicsQuality">
+              <span id="lbl-graphics-quality" class="option-title">QUALIDADE GRÁFICA</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="graphicsQuality" data-dir="-1">◂</button>
+                <span id="val-graphics-quality" class="stepper-value" data-stepper="graphicsQuality">AUTOMÁTICO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="graphicsQuality" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="fov">
+              <span id="lbl-fov" class="option-title">CAMPO DE VISÃO</span>
+              <div class="option-slider-wrap">
+                <input id="slider-fov" type="range" min="50" max="85" step="1" value="60" class="tactical-slider" />
+                <span id="val-fov" class="option-val">60°</span>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="fullscreen">
+              <span id="lbl-fullscreen" class="option-title">TELA CHEIA</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="fullscreen" data-dir="-1">◂</button>
+                <span id="val-fullscreen" class="stepper-value" data-stepper="fullscreen">DESLIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="fullscreen" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="timeMode">
+              <span id="lbl-time-mode" class="option-title">HORÁRIO</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="timeMode" data-dir="-1">◂</button>
+                <span id="btn-pause-time-mode" class="stepper-value" data-stepper="timeMode">DINÂMICO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="timeMode" data-dir="1">▸</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 3: Controles -->
+          <div id="settings-panel-controls" class="settings-tab-panel hidden">
+            <div class="option-row" data-desc-key="mouseSens">
+              <span id="lbl-mouse-sens" class="option-title">SENSIBILIDADE DO MOUSE</span>
+              <div class="option-slider-wrap">
+                <input id="slider-mouse-sens" type="range" min="20" max="250" step="5" value="100" class="tactical-slider" />
+                <span id="val-mouse-sens" class="option-val">100%</span>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="invertY">
+              <span id="lbl-invert-y" class="option-title">INVERTER EIXO Y</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="invertY" data-dir="-1">◂</button>
+                <span id="val-invert-y" class="stepper-value" data-stepper="invertY">DESLIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="invertY" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row option-row-keymap" data-desc-key="controlsList">
+              <span id="lbl-controls-list" class="option-title">LISTA DE CONTROLES</span>
+              <div id="controls-keymap-grid" class="controls-keymap-grid"></div>
+            </div>
+          </div>
+
+          <!-- Aba 4: Jogo -->
+          <div id="settings-panel-game" class="settings-tab-panel hidden">
+            <div class="option-row" data-desc-key="language">
+              <span id="lbl-lang-select" class="option-title">IDIOMA</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="language" data-dir="-1">◂</button>
+                <span id="btn-pause-language" class="stepper-value" data-stepper="language">PORTUGUÊS</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="language" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="regionToast">
+              <span id="lbl-region-toast" class="option-title">AVISO DE NOVA REGIÃO</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="regionToast" data-dir="-1">◂</button>
+                <span id="btn-toggle-region-toast" class="stepper-value" data-stepper="regionToast">LIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="regionToast" data-dir="1">▸</button>
+              </div>
+            </div>
+            <div id="row-reset-territories" class="option-row ingame-only-setting" data-desc-key="resetTerritories">
+              <span id="lbl-reset-territories" class="option-title">REINICIAR TERRITÓRIOS</span>
+              <div class="option-action-wrap">
+                <button type="button" id="btn-pause-reset-territories" class="tactical-btn danger-btn" data-setting-action="resetTerritories">REINICIAR TERRITÓRIOS</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="settings-footer-row">
+          <div class="settings-footer-top">
+            <div id="settings-option-desc"></div>
+            <button type="button" id="btn-settings-restore-defaults" class="tactical-btn">RESTAURAR PADRÃO</button>
+          </div>
+          <div id="settings-keyhints-row"></div>
         </div>
       </div>
     </div>
+
+    <!-- Modal de Confirmação Tático & Barra Contextual de Atalhos de Menu -->
+    <div id="menu-confirm-dialog" class="menu-confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+      <div class="confirm-dialog-panel">
+        <div id="confirm-dialog-title" class="confirm-dialog-title">CONFIRMAR</div>
+        <p id="confirm-dialog-msg" class="confirm-dialog-msg"></p>
+        <div class="confirm-dialog-actions">
+          <button type="button" id="btn-confirm-cancel" class="tactical-btn confirm-dialog-btn">CANCELAR</button>
+          <button type="button" id="btn-confirm-accept" class="tactical-btn confirm-dialog-btn">CONFIRMAR</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="menu-keyhints-bar" class="menu-keyhints-bar hidden" aria-live="polite"></div>
 
     <!-- Estúdio Interativo 3D do Porão da Torre dos Heróis: Criador de Personagem OP-09 -->
     <div id="custom-hero-creator-modal" class="hidden">
@@ -562,7 +687,8 @@
             </div>
           </div>
           <div class="customs-studs-wallet" title="Carteira de Studs">
-            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"
+              aria-hidden="true">
               <ellipse cx="10" cy="6.2" rx="6" ry="2.5" fill="rgba(194,142,43,0.24)" />
               <path d="M4 6.2v7.2c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V6.2" />
               <ellipse cx="10" cy="4.1" rx="2.7" ry="1.05" />
@@ -615,13 +741,16 @@
       <!-- ZONA 2: Pílula Flutuante de Controles Interativos de Showroom (Rodapé Esquerdo/Central) -->
       <div class="customs-showroom-controls creator-studio-turntable-controls">
         <button id="btn-customs-rot-left" type="button" class="customs-pill-btn" title="Girar Esquerda">
-          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M7.5 5.5L3.5 9.5l4 4" />
             <path d="M4 9.5h8.5a4 4 0 0 1 4 4v1" />
           </svg>
         </button>
-        <button id="btn-customs-toggle-orbit" type="button" class="customs-pill-btn active" title="Auto-Órbita 360° ON/OFF">
-          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button id="btn-customs-toggle-orbit" type="button" class="customs-pill-btn active"
+          title="Auto-Órbita 360° ON/OFF">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <ellipse cx="10" cy="10" rx="7.5" ry="3.8" />
             <path d="M12.5 5.8L15 6.8l-1 2.4" />
             <circle cx="10" cy="10" r="1.5" fill="currentColor" />
@@ -629,7 +758,8 @@
           <span>AUTO-ÓRBITA</span>
         </button>
         <button id="btn-customs-rot-right" type="button" class="customs-pill-btn" title="Girar Direita">
-          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12.5 5.5l4 4-4 4" />
             <path d="M16 9.5H7.5a4 4 0 0 0-4 4v1" />
           </svg>
@@ -637,15 +767,20 @@
 
         <span class="customs-pill-sep" aria-hidden="true"></span>
 
-        <button id="btn-customs-test-nitro" type="button" class="customs-pill-btn accent-cyan" title="Disparar Labaredas do Nitro no Elevador">
-          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10.8 2.2c.4 2.8-1.8 4.4-1.8 6.8 0 1.4 1.1 2.5 2.5 2.5 1.8 0 2.7-1.5 2.5-3.2 1.8 1.4 2.8 3.6 2.2 5.9-.6 2.3-2.8 3.8-5.7 3.8-3.5 0-6-2.3-6-5.7 0-3.7 3-6.7 6.3-10.1z" />
+        <button id="btn-customs-test-nitro" type="button" class="customs-pill-btn accent-cyan"
+          title="Disparar Labaredas do Nitro no Elevador">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path
+              d="M10.8 2.2c.4 2.8-1.8 4.4-1.8 6.8 0 1.4 1.1 2.5 2.5 2.5 1.8 0 2.7-1.5 2.5-3.2 1.8 1.4 2.8 3.6 2.2 5.9-.6 2.3-2.8 3.8-5.7 3.8-3.5 0-6-2.3-6-5.7 0-3.7 3-6.7 6.3-10.1z" />
           </svg>
           <span>TESTAR NITRO</span>
         </button>
 
-        <button id="btn-customs-test-hydraulics" type="button" class="customs-pill-btn accent-amber" title="Testar Suspensão Hidráulica no Elevador">
-          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button id="btn-customs-test-hydraulics" type="button" class="customs-pill-btn accent-amber"
+          title="Testar Suspensão Hidráulica no Elevador">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M7 2.5h6M7 17.5h6M10 2.5v2.2l-3 1.6 6 2.2-6 2.2 6 2.2-3 1.6v3" />
           </svg>
           <span>TESTAR HIDRÁULICA</span>
@@ -660,15 +795,18 @@
             <div class="customs-dock-title">LS CUSTOMS // PRO TUNER</div>
           </div>
           <div class="customs-dock-header-btns">
-            <button id="btn-customs-reset-stock" type="button" class="customs-icon-btn" title="Restaurar Original (Stock)">
-              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <button id="btn-customs-reset-stock" type="button" class="customs-icon-btn"
+              title="Restaurar Original (Stock)">
+              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3.5 8.5a6.5 6.5 0 1 1 1.4 5.2" />
                 <path d="M3.2 4.5v4.2h4.2" />
               </svg>
               <span>STOCK</span>
             </button>
             <button id="btn-customs-close" type="button" class="customs-icon-btn danger" title="Sair da Oficina [ESC]">
-              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" aria-hidden="true">
                 <path d="M5 5l10 10M15 5L5 15" />
               </svg>
               <span>[ESC] SAIR DA OFICINA</span>
@@ -678,7 +816,8 @@
 
         <nav class="customs-tabs customs-tabs-row" aria-label="Categorias de Preparação">
           <button id="btn-customs-tab-perf" type="button" class="customs-tab-btn active">
-            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3.5 13.5a6.5 6.5 0 1 1 13 0" />
               <path d="M10 10.5l3.2-3.2" />
               <circle cx="10" cy="10.5" r="1.4" />
@@ -686,20 +825,23 @@
             <span>ECU &amp; MOTOR</span>
           </button>
           <button id="btn-customs-tab-paint" type="button" class="customs-tab-btn">
-            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M10 2.6c3.2 3.8 5.2 6.3 5.2 8.9a5.2 5.2 0 1 1-10.4 0c0-2.6 2-5.1 5.2-8.9z" />
             </svg>
             <span>PINTURA</span>
           </button>
           <button id="btn-customs-tab-mods" type="button" class="customs-tab-btn">
-            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2.5 8.5h15l-2.2-3H4.7L2.5 8.5z" />
               <path d="M6 8.5v4.5M14 8.5v4.5M3.5 13h13" />
             </svg>
             <span>BODYKIT</span>
           </button>
           <button id="btn-customs-tab-roof" type="button" class="customs-tab-btn">
-            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="10" cy="10" r="6.5" />
               <circle cx="10" cy="10" r="2.2" />
               <path d="M10 3.5v4.3M10 12.2v4.3M3.5 10h4.3M12.2 10h4.3" />
@@ -707,7 +849,8 @@
             <span>TETO &amp; RODAS</span>
           </button>
           <button id="btn-customs-tab-garage" type="button" class="customs-tab-btn">
-            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2.5 8L10 3l7.5 5v8.5h-15V8z" />
               <path d="M6 16.5v-5.5h8v5.5M6 13.5h8" />
             </svg>
@@ -720,7 +863,8 @@
 
         <div class="customs-dock-footer">
           <button id="btn-customs-apply-drive" type="button" class="customs-confirm-btn">
-            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 10.5l4 4L16 6" />
             </svg>
             <span>CONFIRMAR TUNING E ACELERAR NA RUA</span>
@@ -769,8 +913,8 @@
           <span><b>[WASD]</b> MOVER / DIRIGIR</span>
           <span><b>[ESPAÇO]</b> PULAR</span>
           <span><b>[SHIFT]</b> CORRER / DRIFT</span>
-          <span><b>[E]</b> ENTRAR / SAIR VEÍCULO</span>
-          <span><b>[TAB]</b> RODA DE HERÓIS</span>
+          <span><b>[F]</b> ENTRAR / SAIR VEÍCULO</span>
+          <span><b>[TAB]</b> PERSONAGENS</span>
           <span><b>[M]</b> MAPA TÁTICO</span>
         </div>
       </div>
@@ -827,7 +971,8 @@
           </div>
 
           <div id="gta6-wheel-track-title" class="gta6-wheel-track-title">SINTONIZE UMA ESTAÇÃO AO REDOR</div>
-          <div id="gta6-wheel-track-artist" class="gta6-wheel-track-artist">Gerencie suas rádios em localhost:5173/configs</div>
+          <div id="gta6-wheel-track-artist" class="gta6-wheel-track-artist">Gerencie suas rádios em
+            localhost:5173/configs</div>
 
           <div class="gta6-wheel-live-bar">
             <div id="gta6-wheel-live-fill" class="gta6-wheel-live-fill"></div>
@@ -841,9 +986,9 @@
       </div>
     </div>
 
-    <!-- Indicador Contextual Tático de Veículo [E] (Apenas a pé perto de veículo) -->
+    <!-- Indicador Contextual Tático de Veículo [F] (Apenas a pé perto de veículo) -->
     <div id="vehicle-prompt" class="hidden">
-      <span class="pill-key">E</span>
+      <span class="pill-key">F</span>
       <span id="vehicle-prompt-text">ENTRAR NO VEÍCULO</span>
     </div>
 
@@ -862,7 +1007,11 @@
           <div class="minimap-header">
             <span id="minimap-region-num" class="minimap-num">R-01</span>
             <span id="minimap-region-name" class="minimap-name">
-              <svg class="tactical-svg-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#d99b16" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"><polygon points="12,2 19,9 12,22 5,9" fill="rgba(217,155,22,0.18)"/><circle cx="12" cy="9.5" r="2.5" fill="#d99b16"/></svg>
+              <svg class="tactical-svg-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#d99b16"
+                stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter">
+                <polygon points="12,2 19,9 12,22 5,9" fill="rgba(217,155,22,0.18)" />
+                <circle cx="12" cy="9.5" r="2.5" fill="#d99b16" />
+              </svg>
               <span>CENTRO FINANCEIRO</span>
             </span>
           </div>
@@ -877,38 +1026,40 @@
     </div>
   </div>
 
-    <!-- MODAL DO HANGAR PERSONALIZADOR DE AERONAVES (HELIPORTO PORTA-AVIÕES) -->
-    <div id="aircraft-customs-modal" class="aircraft-customs-modal hidden">
-      <div class="aircraft-studio-topbar">
-        <div class="aircraft-studio-brand">
-          <span class="aircraft-studio-tag">S.H.I.E.L.D. HANGAR BAY 01</span>
-          <h2 id="aircraft-customs-vehicle-title">CAÇA SUPERSÔNICO F-99 • #64</h2>
-        </div>
-        <div class="aircraft-studio-cam-bar">
-          <button type="button" class="aircraft-cam-btn" data-cam-preset="front">FRENTE</button>
-          <button type="button" class="aircraft-cam-btn" data-cam-preset="wing">ASA</button>
-          <button type="button" class="aircraft-cam-btn" data-cam-preset="tail">CAUDA</button>
-          <button type="button" class="aircraft-cam-btn" data-cam-preset="top">TOPO</button>
-          <button type="button" id="aircraft-customs-spin-btn" class="aircraft-cam-btn">GIRO AUTO: ON</button>
-          <button type="button" id="aircraft-customs-thrust-btn" class="aircraft-cam-btn">TESTAR TURBINAS</button>
-          <button type="button" id="aircraft-customs-close-btn" class="aircraft-close-btn">FECHAR [ESC]</button>
-        </div>
+  <!-- MODAL DO HANGAR PERSONALIZADOR DE AERONAVES (HELIPORTO PORTA-AVIÕES) -->
+  <div id="aircraft-customs-modal" class="aircraft-customs-modal hidden">
+    <div class="aircraft-studio-topbar">
+      <div class="aircraft-studio-brand">
+        <span class="aircraft-studio-tag">S.H.I.E.L.D. HANGAR BAY 01</span>
+        <h2 id="aircraft-customs-vehicle-title">CAÇA SUPERSÔNICO F-99 • #64</h2>
       </div>
-
-      <aside class="aircraft-studio-panel">
-        <div id="aircraft-customs-stats" class="aircraft-stats-grid"></div>
-        <div id="aircraft-customs-tabs" class="aircraft-tabs-row"></div>
-        <div id="aircraft-customs-body" class="aircraft-studio-body"></div>
-        <div class="aircraft-studio-footer">
-          <button type="button" id="aircraft-customs-reset-btn" class="aircraft-btn-secondary">PADRÃO</button>
-          <button type="button" id="aircraft-customs-apply-btn" class="aircraft-btn-secondary">APLICAR</button>
-          <button type="button" id="aircraft-customs-save-btn" class="aircraft-btn-secondary">SALVAR</button>
-          <button type="button" id="aircraft-customs-launch-btn" class="aircraft-btn-primary">SALVAR &amp; DECOLAR</button>
-        </div>
-      </aside>
-      <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
+      <div class="aircraft-studio-cam-bar">
+        <button type="button" class="aircraft-cam-btn" data-cam-preset="front">FRENTE</button>
+        <button type="button" class="aircraft-cam-btn" data-cam-preset="wing">ASA</button>
+        <button type="button" class="aircraft-cam-btn" data-cam-preset="tail">CAUDA</button>
+        <button type="button" class="aircraft-cam-btn" data-cam-preset="top">TOPO</button>
+        <button type="button" id="aircraft-customs-spin-btn" class="aircraft-cam-btn">GIRO AUTO: ON</button>
+        <button type="button" id="aircraft-customs-thrust-btn" class="aircraft-cam-btn">TESTAR TURBINAS</button>
+        <button type="button" id="aircraft-customs-close-btn" class="aircraft-close-btn">FECHAR [ESC]</button>
+      </div>
     </div>
 
-  <script type="module" src="./src/main.js?v=20261120d"></script>
+    <aside class="aircraft-studio-panel">
+      <div id="aircraft-customs-stats" class="aircraft-stats-grid"></div>
+      <div id="aircraft-customs-tabs" class="aircraft-tabs-row"></div>
+      <div id="aircraft-customs-body" class="aircraft-studio-body"></div>
+      <div class="aircraft-studio-footer">
+        <button type="button" id="aircraft-customs-reset-btn" class="aircraft-btn-secondary">PADRÃO</button>
+        <button type="button" id="aircraft-customs-apply-btn" class="aircraft-btn-secondary">APLICAR</button>
+        <button type="button" id="aircraft-customs-save-btn" class="aircraft-btn-secondary">SALVAR</button>
+        <button type="button" id="aircraft-customs-launch-btn" class="aircraft-btn-primary">SALVAR &amp;
+          DECOLAR</button>
+      </div>
+    </aside>
+    <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
+  </div>
+
+  <script type="module" src="./src/main.js?v=20261122b"></script>
 </body>
+
 </html>

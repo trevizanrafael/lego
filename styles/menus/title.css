@@ -1,0 +1,242 @@
+/* =========================================================================
+   TELA INICIAL 100% FRAMELESS — CIDADE DE DEUS (ARKHAM × MODERN WARFARE)
+   ========================================================================= */
+.title-screen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: auto;
+  background: #010103;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  overflow: hidden;
+}
+
+#title-favela-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
+}
+
+.title-noir-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(1, 1, 3, 0.96) 0%, rgba(4, 6, 10, 0.78) 38%, rgba(4, 6, 10, 0.16) 70%, transparent 100%);
+}
+
+.title-scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.24;
+  background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0, 0, 0, 0.32) 2px, rgba(0, 0, 0, 0.32) 4px);
+}
+
+.title-content-wrap {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1420px;
+  margin: 0 auto;
+  padding: 20px clamp(28px, 6vw, 96px) 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 30px;
+  transition: opacity 0.14s ease, visibility 0.14s ease;
+}
+
+/* Anti-Bleed F.1: oculta título/menu quando Configurações abre por cima */
+body.settings-over-title .title-content-wrap,
+body.settings-over-title .title-version-tag {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.title-content-wrap:has(#title-faction-panel:not(.hidden)) .official-logo-block,
+.title-content-wrap:has(#title-credits-panel:not(.hidden)) .official-logo-block { display: none; }
+.title-content-wrap:has(#title-slots-panel:not(.hidden)) { gap: 20px; }
+
+/* Bloco de Logo Monumental Frameless */
+.official-logo-block { background: none; border: none; box-shadow: none; padding: 0; }
+.logo-emblem-row { display: flex; align-items: center; gap: 22px; }
+.official-crest-svg { flex-shrink: 0; filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.92)); }
+.logo-text-col { display: flex; flex-direction: column; align-items: flex-start; }
+.logo-top-pill, .title-telemetry-strip { display: none; }
+
+.logo-main-title {
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 5.6vw, 5.15rem);
+  font-weight: 700;
+  line-height: 0.86;
+  letter-spacing: 0.06em;
+  color: #f8fafc;
+  text-transform: uppercase;
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.95);
+  margin: 0;
+}
+
+.logo-main-title span { color: #c28e2b; }
+
+.logo-sub-banner {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: rgba(148, 163, 184, 0.78);
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+/* Lista Principal — Alinhamento Rocha (zero shift horizontal no hover/foco) */
+.title-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.title-action-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 7px 0 7px 18px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transform: none;
+}
+
+.title-action-btn:disabled, .title-action-btn.is-disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-tag, .btn-sub-txt { display: none; }
+.btn-label-stack { display: flex; flex-direction: column; }
+
+.btn-main-txt {
+  font-family: var(--font-display);
+  font-size: clamp(2.0rem, 3.0vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 0.96;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.62);
+  white-space: nowrap;
+  transform: none;
+  transition: color 0.1s ease-out, text-shadow 0.1s ease-out;
+}
+
+.title-action-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14%;
+  bottom: 14%;
+  width: 3px;
+  background: #dc2626;
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.8);
+  opacity: 0;
+  transform: scaleY(0.35);
+  transition: opacity 0.1s ease-out, transform 0.1s ease-out;
+}
+
+.title-action-btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(220, 38, 38, 0.85), transparent);
+  opacity: 0;
+  transform: scaleX(0.3);
+  transform-origin: left center;
+  transition: opacity 0.1s ease-out, transform 0.1s ease-out;
+}
+
+.title-panel:not(:hover):not(:has(.is-nav-focused)) .title-action-btn.primary-btn .btn-main-txt { color: rgba(248, 250, 252, 0.88); }
+.title-panel:not(:hover):not(:has(.is-nav-focused)) .title-action-btn.primary-btn::before { opacity: 0.65; transform: scaleY(0.82); }
+.title-panel:not(:hover):not(:has(.is-nav-focused)) .title-action-btn.primary-btn::after { opacity: 0.45; transform: scaleX(0.7); }
+
+.title-action-btn:hover .btn-main-txt,
+.title-action-btn:focus-visible .btn-main-txt,
+.title-action-btn.is-nav-focused .btn-main-txt {
+  color: #ffffff;
+  text-shadow: 0 0 22px rgba(220, 38, 38, 0.34);
+  transform: none;
+}
+
+.title-action-btn:hover::before, .title-action-btn:focus-visible::before, .title-action-btn.is-nav-focused::before { opacity: 1; transform: scaleY(1); }
+.title-action-btn:hover::after, .title-action-btn:focus-visible::after, .title-action-btn.is-nav-focused::after { opacity: 1; transform: scaleX(1); }
+
+/* Metadados de Versão & Subpainel Tipográfico de Créditos */
+.title-version-tag {
+  position: fixed;
+  right: clamp(24px, 4vw, 56px);
+  bottom: 54px;
+  z-index: 3;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(148, 163, 184, 0.48);
+  letter-spacing: 0.14em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.title-credits-panel { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 18px; }
+.credits-grid { display: grid; grid-template-columns: minmax(170px, 230px) minmax(0, 1fr); border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.credits-grid:has(> .credits-row), .credits-grid:has(> .credits-item) { grid-template-columns: 1fr; }
+
+.credits-row, .credits-item {
+  display: grid;
+  grid-template-columns: minmax(170px, 230px) minmax(0, 1fr);
+  column-gap: 24px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.credits-role {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #c28e2b;
+  padding: 12px 24px 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.credits-value {
+  font-family: var(--font-tactical);
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #f8fafc;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.credits-row .credits-role, .credits-row .credits-value,
+.credits-item .credits-role, .credits-item .credits-value { padding-top: 0; padding-bottom: 0; border-bottom: none; }

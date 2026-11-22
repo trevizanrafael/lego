@@ -73,24 +73,33 @@ O mundo é uma **Grande Ilha Metropolitana** cercada pelo oceano, mais a **Ilha 
 
 ---
 
-## 🦸‍♂️ 5. Especificação dos 11 Personagens Jogáveis
+## 🦸‍♂️ 5. Especificação dos Personagens Jogáveis (Operadores de Facção & Extras)
 
-### Dupla Inicial Desbloqueada:
-1. **Comandante Caveira (BOPE):** Fuzil Tático, Granada Flashbang/Explosiva, rolamento tático, recruta policiais e **chama Caveirão ou Helicóptero Policial** com 1 botão.
-2. **Solaris (Guerreiro Solar / Fogo):** Voo supersônico de cometa, hover, Bolas de Fogo, **Raio Solar Contínuo** (derrete objetos/portas de Ouro LEGO) e explosão **Supernova**.
+### 6 Operadores de Facção Primários (Dupla Inicial Gratuita da Sua Facção):
+Cada facção começa com **2 operadores liberados de fábrica** (**1 Híbrido + 1 Puro**, cobrindo toda a tríade tática **Tanque, Dano e Suporte**), cada um com arma exclusiva e **2 habilidades táticas (`Q` / `E`)**, com troca instantânea em **`1` / `2`**:
+1. **`CV` (Comando Vermelho):**
+   * **MARRETÃO (`cv_marretao` — Híbrido Tanque-Dano, 380 HP, 20% mitigação):** Metralhadora Pesada LMG, **`Q` Barricada** (cobertura balística) e **`E` Bazuca RPG**.
+   * **FOGUETEIRA (`cv_fogueteira` — Suporte Puro, 240 HP):** Pistola Tática, **`Q` Kit de Socorro** (cura em área) e **`E` Fogos de Alerta** (marca inimigos e impulsiona aliados).
+2. **`PCC` (Primeiro Comando):**
+   * **CONTADOR (`pcc_contador` — Híbrido Dano-Suporte, 260 HP, 5% mitigação):** Fuzil DMR de Precisão, **`Q` Caixa de Suprimento** (munição e cura) e **`E` C4 Remota**.
+   * **MURALHA (`pcc_muralha` — Tanque Puro, 420 HP, 30% mitigação):** Escopeta Calibre 12, **`Q` Escudo Balístico** frontal e **`E` Investida** blindada.
+3. **`A.R.E.S.` (Sindicato Cyber-Mercenário):**
+   * **BASTIÃO-7 (`ares_bastiao` — Híbrido Tanque-Suporte, 400 HP, 25% mitigação):** Minigun de Pulso, **`Q` Domo de Energia** hexagonal e **`E` Drone Médico** regenerador.
+   * **AGULHA (`ares_agulha` — Dano Puro, 200 HP):** Rifle de Carga, **`Q` Camuflagem Óptica** furtiva e **`E` Granada de Pulso (EMP)** (atordoa tropas e escudos).
 
-### 6 Heróis Desbloqueáveis (Com Studs e Blocos Dourados):
-3. **Titã Blindado (Mecha-Policial *Big-Fig*):** Superpulo pesado, **Soco Foguete** (quebra paredes rachadas), terremoto de escudo, metralhadora e agarrar/arremessar carros.
-4. **Vingador de Chumbo (Justiceiro Pesado):** Troca entre **Duas Submetralhadoras**, **Escopeta de Impacto** (repulsão) e **Bazuca RPG** (destrói objetos prateados, blindados e helicópteros).
-5. **Sombra Escarlate (Ninja de Gancho):** **Balança pelos prédios** com Gancho Magnético, puxa armas/escudos dos inimigos, Katanas energizadas e Bomba de Fumaça (invisibilidade).
-6. **Turbo Fantasma (Motociclista Turbo):** **Invoca Moto Energética instantânea**, deixa parede de luz ciano que capota carros inimigos e ataca com correntes giratórias.
-7. **Voltaico (Senhor da Tempestade):** **Teleporta por postes de luz**, dispara raios em cadeia (*Chain Lightning*), carrega geradores elétricos e solta pulso EMP.
-8. **Vórtex (Colosso Simbionte):** **Alterna com `F` entre tamanho normal ágil e tamanho *Big-Fig* monstruoso**, usa tentáculos em área e puxa helicópteros do céu.
+### Extras Compráveis na Loja "Personagens" (Menu de Pausa) & Visíveis na Grade (`Tab`):
+* **4 Operadores Desertores das Facções Rivais (`400.000` Studs cada):** Qualquer operador das 2 facções rivais pode ser recrutado com Studs, passando a lutar sob a bandeira da **SUA facção aliada**.
+* **8 Heróis Clássicos (Poderes Originais Mantidos, compráveis com Studs):**
+  * **Comandante Caveira** (`250k`), **Solaris** (`350k`), **Sombra Escarlate** (`500k`), **Turbo Fantasma** (`550k`), **Vingador de Chumbo** (`650k`), **Voltaico** (`750k`), **Titã Blindado** (*Big-Fig*, `900k`) e **Vórtex** (*Simbionte / Big-Fig*, `1M`).
+* **Slot Customizável `OP-09` (`300.000` Studs):** Operador bio-genético editável no laboratório subterrâneo da Torre dos Heróis.
+* **3 Chefões Secretos (Liberados ao derrotá-los na Guerra Territorial):** **Barão Vermelho** (CV), **Mestre do Cofre** (PCC) e **General Overlord** (*Big-Fig* A.R.E.S.).
 
-### 3 Chefões Secretos (Liberados ao derrotá-los):
-9. **Barão Vermelho (Chefe do CV)**
-10. **Mestre do Cofre (Chefe do PCC)**
-11. **General Overlord (Chefe Mecha *Big-Fig* da A.R.E.S.)**
+### Mapeamento Oficial de Teclas de Jogabilidade:
+* **`F`:** Entrar/sair de veículos, embarcar em atrações/elevadores e interagir com terminais/oficinas.
+* **`1` / `2`:** Alternar rapidamente entre os 2 operadores primários da facção ativa.
+* **`Q` / `E`:** Acionar habilidades táticas dos operadores (ou poderes principais dos extras).
+* **`R`:** Recarregar arma equipada • **`G`:** Poder extra / invocação especial (ex.: veículos táticos ou metamorfose).
+* **`Tab`:** Abrir a **Grade de Personagens** em câmera lenta (dupla da facção + extras desbloqueados/bloqueados).
 
 ---
 
@@ -123,8 +132,9 @@ Sempre adicione ou edite funcionalidades diretamente no submódulo específico d
   * `vehicles/` & `garages/` — Catálogo e malhas da frota terrestre/naval/aérea + oficinas `street-customs/` e `aircraft-customs/`.
   * `destructibles/` — Registro/culling com histerese, dano/explosões em cadeia, estilhaços/studs, balística e VFX de cada herói.
   * `living-city/`, `factions/`, `police/`, `atmosphere/`, `attractions/` — Trânsito/pedestres instanciados, guerra territorial 1x1, perseguição policial 0★–5★, ciclo dia/noite e Baile/Parque de Diversões.
-* **Materiais, Áudio, UI & Estilos (`src/materials/modules/`, `src/audio/sfx/`, `src/ui/`, `styles/`):**
+* **Materiais, Áudio, UI & Estilos (`src/materials/modules/`, `src/audio/`, `src/ui/`, `styles/`):**
   * `src/materials/modules/` — Paleta PBR sombria, shaders de água/superfície e texturas procedurais de rostos/torsos.
+  * `src/audio/ambience/` + `src/audio/ambience/regions/` — Primitivas de síntese Dark Ambient e 11 compositores independentes de 10 minutos (`600s`) por bairro, orquestrados por `UrbanAmbienceSoundtrack.js`.
   * `src/ui/hud/`, `src/ui/map/`, `src/ui/minimap/`, `src/ui/wheel-dossier/` — Módulos isolados da interface Dark-Tech.
   * `styles/` — Folhas CSS separadas por domínio (`tokens-and-base.css`, `operator-hud.css`, `wheel-map-dossier.css`, `title-and-menus.css`, `garages-and-lab.css`, `wanted-and-objectives.css`, `aircraft-hangar.css`), importadas em cascata por `style.css` (lembrar de atualizar o cache-bust `?v=...` em `index.html` ao alterar CSS/JS).
 

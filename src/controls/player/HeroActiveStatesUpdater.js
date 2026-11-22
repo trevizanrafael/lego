@@ -25,7 +25,7 @@ export const heroActiveStatesUpdaterMethods = {
   },
 
   _updateHeroContinuousCombatAndCharges(dt) {
-    if (this.mouseButtons.left && this.primaryCooldown <= 0) {
+    if (!this.operatorWeapons?.isOperatorActive() && this.mouseButtons.left && this.primaryCooldown <= 0) {
       this._firePrimaryAction();
     }
 
