@@ -1,3 +1,4 @@
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import {
   buildFortifiedCompoundWalls,
   addGiantSiloBattery,
@@ -100,9 +101,18 @@ export function buildAllExpandedPCCIndustrialAndCorporateBlocks(world, batcher) 
     { cx: 1580, cz: 58, w: 96, d: 96, type: 'coastal_fort', h: 52, label: 'FAROL BLINDADO DO SINDICATO' }
   ];
 
-  pccGridBlocks.forEach((blk, idx) => {
+  pccGridBlocks.forEach((rawBlk, idx) => {
+    const blk = IS_SCALED_WORLD
+      ? { ...rawBlk, cx: ws(rawBlk.cx), cz: ws(rawBlk.cz) }
+      : rawBlk;
     world.industrialPCCData.blocksCount++;
-    world._addCityBlockSidewalk(blk.cx, blk.cz, blk.w, blk.d, 0x1e293b);
+    if (!IS_SCALED_WORLD) {
+      world._addCityBlockSidewalk(blk.cx, blk.cz, blk.w, blk.d, 0x1e293b);
+    } else if (rawBlk.cz < -1172 || rawBlk.cx > 1524) {
+      // Blocos costeiros extremos fora da grade de UrbanSidewalkAndBlockBuilder: laje local 1x interna aos muros
+      batcher.addBox('armor_slate', blk.w - 2.4, 0.16, blk.d - 2.4, blk.cx, 0.08, blk.cz);
+      world.mapBlocks.push({ x: blk.cx, z: blk.cz, w: blk.w, d: blk.d, color: '#1e293b' });
+    }
     buildFortifiedCompoundWalls(world, batcher, blk.cx, blk.cz, blk.w, blk.d, {
       wallH: 5.0,
       gateSouth: true,

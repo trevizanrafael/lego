@@ -5,6 +5,7 @@ import {
   configureCrispCanvasTexture
 } from '../../../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox } from '../../BuildingGenerator.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 import {
   TROPICAL_WALL_KEYS,
   addCurvedLegoPalmTree,
@@ -258,40 +259,57 @@ function _addCleanBalconiesLOD0(tb, bx, byBase, bz, bw, bd, height, intervalY = 
 }
 
 export function buildCoastalHotelBlocks(world, batcher) {
-  const hotelColsX = [-582, -450, -318, -186, -60, 60, 186, 318, 450];
+  const hotelColsDesignX = [-582, -450, -318, -186, -60, 60, 186, 318, 450];
+  const bd = 96;
+  const innerD = bd - 10; // 86m (sempre 1x!)
+  const halfD = innerD * 0.5;
+  const frontRowZ = IS_SCALED_WORLD
+    ? ws(710) - (ROAD.mainWidth * 0.5 + ROAD.sidewalk + halfD + 1.5)
+    : 630;
+  const quadraMarZ = IS_SCALED_WORLD
+    ? ws(556) - (ROAD.secondaryWidth * 0.5 + ROAD.sidewalk + halfD + 4.0)
+    : 480;
 
-  // 1.1 Fileira Traseira "Quadra Mar" (Z = 480): 18 Torres Residenciais Costeiras (38 a 52 andares)
-  hotelColsX.forEach((hx, idx) => {
-    const bw = Math.abs(hx) === 60 ? 92 : 104;
-    const bd = 96;
+  // 1.1 Fileira Traseira "Quadra Mar": 18 Torres Residenciais Costeiras (38 a 52 andares, tamanho 1x!)
+  hotelColsDesignX.forEach((dhx, idx) => {
+    const bw = Math.abs(dhx) === 60 ? 92 : 104;
     const innerW = bw - 10;
-    const innerD = bd - 10;
-    world._addCityBlockSidewalk(hx, 480, bw, bd, LEGO_COLORS.sidewalk);
+    const hx = ws(dhx);
+    if (!IS_SCALED_WORLD) {
+      world._addCityBlockSidewalk(hx, quadraMarZ, bw, bd, LEGO_COLORS.sidewalk);
+    }
 
     const lotW = (innerW - 6) * 0.5;
+    const pairGap = IS_SCALED_WORLD ? 24 : 6;
     const floors1 = 38 + (idx % 4) * 4;
     const floors2 = 42 + ((idx + 2) % 4) * 3;
-    buildGenericHighRiseResort(world, batcher, hx - (lotW + 6) * 0.5, 480, lotW, innerD, floors1, idx * 2, false);
-    buildGenericHighRiseResort(world, batcher, hx + (lotW + 6) * 0.5, 480, lotW, innerD, floors2, idx * 2 + 1, false);
+    buildGenericHighRiseResort(world, batcher, hx - (lotW + pairGap) * 0.5, quadraMarZ, lotW, innerD, floors1, idx * 2, false);
+    buildGenericHighRiseResort(world, batcher, hx + (lotW + pairGap) * 0.5, quadraMarZ, lotW, innerD, floors2, idx * 2 + 1, false);
   });
 
-  // 1.2 Orla Oeste (X = -955..-582 em Z = 630): Torres Costeiras Remodeladas
-  for (const [edgeX, seedIdx, bwEdge, floorsLeft, floorsRight, labelText] of [
+  // 1.2 Orla Oeste (X = ws(-955)..ws(-582)): Torres Costeiras Remodeladas (tamanho 1x, ancoradas na Av. Beira-Mar!)
+  for (const [designEdgeX, seedIdx, bwEdge, floorsLeft, floorsRight, labelText] of [
     [-955, 2, 114, 46, 50, 'RESORT PONTA OESTE'],
     [-832, 4, 114, 48, 54, 'MIRANTE CAMBORIÚ TOWER'],
     [-710, 6, 114, 52, 56, 'COSTA ESMERALDA TWIN'],
     [-582, 0, 104, 50, 55, 'ATLÂNTICO SUL RESIDENCE']
   ]) {
-    world._addCityBlockSidewalk(edgeX, 630, bwEdge, 96, LEGO_COLORS.sidewalk);
+    const edgeX = ws(designEdgeX);
+    if (!IS_SCALED_WORLD) {
+      world._addCityBlockSidewalk(edgeX, frontRowZ, bwEdge, 96, LEGO_COLORS.sidewalk);
+    } else if (designEdgeX < -648) {
+      world._addCityBlockSidewalk(edgeX, frontRowZ, bwEdge + 24, innerD + 2, LEGO_COLORS.sidewalk);
+    }
     const innerW = bwEdge - 10;
     const lotW = (innerW - 6) * 0.5;
+    const pairGap = IS_SCALED_WORLD ? 20 : 6;
     buildGenericHighRiseResort(
       world,
       batcher,
-      edgeX - (lotW + 6) * 0.5,
-      630,
+      edgeX - (lotW + pairGap) * 0.5,
+      frontRowZ,
       lotW,
-      86,
+      innerD,
       floorsLeft,
       seedIdx,
       true,
@@ -300,10 +318,10 @@ export function buildCoastalHotelBlocks(world, batcher) {
     buildGenericHighRiseResort(
       world,
       batcher,
-      edgeX + (lotW + 6) * 0.5,
-      630,
+      edgeX + (lotW + pairGap) * 0.5,
+      frontRowZ,
       lotW,
-      86,
+      innerD,
       floorsRight,
       seedIdx + 1,
       true,
@@ -312,13 +330,19 @@ export function buildCoastalHotelBlocks(world, batcher) {
   }
 
   // Parque Linear & Estacionamento Costeiro Oeste
-  world._addCityBlockSidewalk(-1420, 690, 810, 52, LEGO_COLORS.sidewalk);
-  batcher.addBox('palm_leaf', 796, 0.22, 24, -1420, 0.35, 682);
-  for (let px = -1790; px <= -1040; px += 46) {
-    addCurvedLegoPalmTree(batcher, px, 0.32, 682, 0.16, 0.85, 1.15);
+  const parkX = ws(-1420);
+  const parkW = ws(810);
+  const parkZ = IS_SCALED_WORLD ? ws(710) - ROAD.mainWidth * 0.5 - 26 : 690;
+  const parkTurfZ = IS_SCALED_WORLD ? parkZ - 5 : 682;
+  world._addCityBlockSidewalk(parkX, parkZ, parkW, 52, LEGO_COLORS.sidewalk);
+  batcher.addBox('palm_leaf', ws(796), 0.22, 24, parkX, 0.35, parkTurfZ);
+  const westPalmStep = IS_SCALED_WORLD ? 110 : 46;
+  for (let px = ws(-1790); px <= ws(-1040); px += westPalmStep) {
+    const py = (world.getTerrainHeightAt ? world.getTerrainHeightAt(px, parkTurfZ) : 0) + (IS_SCALED_WORLD ? 0.16 : 0.32);
+    addCurvedLegoPalmTree(batcher, px, py, parkTurfZ, 0.16, 0.85, 1.15);
   }
 
-  // 1.3 OS 8 SUPER-ARRANHA-CÉUS EXCLUSIVOS DA ORLA REMODELADOS (Z = 630, 232m a 296m!)
+  // 1.3 OS 8 SUPER-ARRANHA-CÉUS EXCLUSIVOS DA ORLA REMODELADOS (232m a 296m em escala 1x, ancorados fora da Av. Z=ws(710)!)
   const signatureSpecs = [
     { x: -450, bw: 104, styleId: 1, floors: 68, height: 264, name: 'YACHTHOUSE TWIN TOWERS', color: '#06b6d4' },
     { x: -318, bw: 104, styleId: 2, floors: 74, height: 284, name: 'ONE TOWER BURJ NÁUTICO', color: '#38bdf8' },
@@ -331,24 +355,28 @@ export function buildCoastalHotelBlocks(world, batcher) {
   ];
 
   signatureSpecs.forEach((spec) => {
-    const bz = 630;
-    const bd = 96;
+    const sx = ws(spec.x);
+    const bz = frontRowZ;
     const w = spec.bw - 10;
-    const d = bd - 10;
-    world._addCityBlockSidewalk(spec.x, bz, spec.bw, bd, LEGO_COLORS.sidewalk);
+    const d = innerD;
+    if (!IS_SCALED_WORLD) {
+      world._addCityBlockSidewalk(sx, bz, spec.bw, bd, LEGO_COLORS.sidewalk);
+    }
 
-    buildSignatureOceanfrontHotel(world, batcher, spec.x, bz, w, d, spec);
+    buildSignatureOceanfrontHotel(world, batcher, sx, bz, w, d, spec);
 
-    const palmLY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(spec.x - w * 0.38, 675.5) : 0) + 0.3;
-    const palmRY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(spec.x + w * 0.38, 675.5) : 0) + 0.3;
-    addCurvedLegoPalmTree(batcher, spec.x - w * 0.38, palmLY, 675.5, -0.18, 0.78, 1.15);
-    addCurvedLegoPalmTree(batcher, spec.x + w * 0.38, palmRY, 675.5, 0.18, 0.78, 1.15);
+    const palmZ = IS_SCALED_WORLD ? bz + halfD + 2.5 : 675.5;
+    const palmPad = IS_SCALED_WORLD ? 0.04 : 0.3;
+    const palmLY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(sx - w * 0.38, palmZ) : 0) + palmPad;
+    const palmRY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(sx + w * 0.38, palmZ) : 0) + palmPad;
+    addCurvedLegoPalmTree(batcher, sx - w * 0.38, palmLY, palmZ, -0.18, 0.78, 1.15);
+    addCurvedLegoPalmTree(batcher, sx + w * 0.38, palmRY, palmZ, 0.18, 0.78, 1.15);
   });
 }
 
 function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, isFrontRow = false, signText = null) {
   const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
-  const yBase = terrainY + 0.3;
+  const yBase = terrainY + (IS_SCALED_WORLD ? 0.04 : 0.3);
   const podiumH = 8.0;
   const floorH = 3.8;
   const totalH = podiumH + (floors - 1) * floorH;
@@ -424,7 +452,7 @@ function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, is
 
 function buildSignatureOceanfrontHotel(world, batcher, x, z, w, d, spec) {
   const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
-  const yBase = terrainY + 0.3;
+  const yBase = terrainY + (IS_SCALED_WORLD ? 0.04 : 0.3);
   const podiumH = 9.0;
   const totalH = spec.height;
   const bodyH = totalH - podiumH;

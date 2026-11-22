@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LEGO_COLORS } from '../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, flushSpatialChunkedBuckets } from './BuildingGenerator.js';
+import { IS_SCALED_WORLD, ROAD, ws } from './core/WorldLayoutScale.js';
 
 export const HOUSE_STYLE_KEYS = [
   'american_two_story',
@@ -267,8 +268,13 @@ export function buildDetailedHouse(world, batcher, cfg) {
   } = cfg;
 
   const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
-  const yBase = baseY + 0.30;
-  if (baseY > 0.15) {
+  const yBase = baseY + (IS_SCALED_WORLD ? (cfg.padOffsetY ?? 0.06) : 0.30);
+  if (IS_SCALED_WORLD) {
+    if (baseY > 0.25) {
+      batcher.addBox('stone_grey', lotW - 0.3, 2.8, lotD - 0.3, x, baseY - 1.35, z);
+    }
+    batcher.addBox('lawn_green', lotW - 0.2, 0.06, lotD - 0.2, x, yBase - 0.01, z);
+  } else if (baseY > 0.15) {
     batcher.addBox('stone_grey', lotW - 0.3, 2.4, lotD - 0.3, x, baseY - 0.92, z);
     batcher.addBox('lawn_green', lotW - 0.2, 0.1, lotD - 0.2, x, baseY + 0.28, z);
   }
@@ -278,9 +284,40 @@ export function buildDetailedHouse(world, batcher, cfg) {
 
   const frontEdgeZ = z + facingDirZ * (lotD * 0.5);
   const backEdgeZ = z - facingDirZ * (lotD * 0.5);
-  // Posiciona a casa bem próxima da calçada da rua (~2.2m da borda) para que os quarteirões fiquem bem colados e cheios!
-  const houseZ = frontEdgeZ - facingDirZ * Math.min(9.6, lotD * 0.36);
+  // Em 3x, garante recuo suficiente p/ que NENHUMA garagem/alpendre/telhado invada a calçada de 10m!
+  const frontSetback = IS_SCALED_WORLD ? Math.min(13.0, lotD * 0.42) : Math.min(9.6, lotD * 0.36);
+  const houseZ = frontEdgeZ - facingDirZ * frontSetback;
   const backyardZ = backEdgeZ + facingDirZ * Math.min(4.8, lotD * 0.22);
+
+  const addDrivewayStrip = (driveX, driveW, startZ, reach1x = 3.8) => {
+    if (!IS_SCALED_WORLD) {
+      batcher.addBox(
+        'driveway_concrete',
+        driveW,
+        0.08,
+        Math.abs(frontEdgeZ - startZ) + (reach1x + 0.2),
+        driveX,
+        yBase + 0.02,
+        (frontEdgeZ + facingDirZ * reach1x + startZ) * 0.5
+      );
+      return;
+    }
+    // Tramo interno do lote (da porta da garagem até a borda interna da calçada)
+    batcher.addBox(
+      'driveway_concrete',
+      driveW,
+      0.07,
+      Math.abs(frontEdgeZ - startZ) + 0.2,
+      driveX,
+      yBase + 0.02,
+      (frontEdgeZ + startZ) * 0.5
+    );
+    // Rampa/acesso visual atravessando a calçada de 10m até a guia (zero colisor!)
+    const apronLen = Math.max(1.0, ROAD.sidewalk - 0.4);
+    const apronMidZ = frontEdgeZ + facingDirZ * (apronLen * 0.5);
+    const swY = world.getTerrainHeightAt ? world.getTerrainHeightAt(driveX, apronMidZ) : baseY;
+    batcher.addBox('driveway_concrete', driveW, 0.05, apronLen, driveX, swY + 0.02, apronMidZ);
+  };
 
   if (styleKey === 'american_two_story') {
     // 1. SOBRADO AMERICANO CLÁSSICO (2 Andares + Garagem Acoplada + Varanda + Chaminé)
@@ -301,13 +338,11 @@ export function buildDetailedHouse(world, batcher, cfg) {
     batcher.addBox('trim_white', 1.8, 0.3, 1.8, mainX - mainW * 0.35, yBase + mainH + 4.5, houseZ - facingDirZ * 2.0);
 
     // Garagem acoplada + Rampa Driveway até a rua
+    const garDoorZ = houseZ + facingDirZ * (0.8 + garD * 0.5);
     batcher.addBox(wallEntry.key, garW, garH, garD, garX, yBase + garH * 0.5, houseZ + facingDirZ * 0.8);
     addPitchedGableRoof(batcher, roofEntry.key, garX, yBase + garH, houseZ + facingDirZ * 0.8, garW, garD, 2.0, true);
-    addGarageDoor(batcher, garX, yBase, houseZ + facingDirZ * (0.8 + garD * 0.5), garW - 1.6, 3.6, facingDirZ, Math.random() < 0.5);
-
-    const driveLen = Math.abs(frontEdgeZ - (houseZ + facingDirZ * (0.8 + garD * 0.5))) + 4.2;
-    const driveCenterZ = (frontEdgeZ + facingDirZ * 4.0 + houseZ + facingDirZ * (0.8 + garD * 0.5)) * 0.5;
-    batcher.addBox('driveway_concrete', garW - 1.0, 0.08, driveLen, garX, yBase + 0.02, driveCenterZ);
+    addGarageDoor(batcher, garX, yBase, garDoorZ, garW - 1.6, 3.6, facingDirZ, Math.random() < 0.5);
+    addDrivewayStrip(garX, garW - 1.0, garDoorZ, 4.0);
 
     // Varanda frontal coberta com pilastras brancas + Porta + Caminho de Pedras
     const porchZ = houseZ + facingDirZ * (mainD * 0.5 + 1.4);
@@ -348,17 +383,9 @@ export function buildDetailedHouse(world, batcher, cfg) {
     addPitchedGableRoof(batcher, roofEntry.key, garX, yBase + wingH, fwdZ, fwdW, fwdD, 2.4, false);
 
     // Garagem dupla na ponta do "L" + Rampa Driveway
-    addGarageDoor(batcher, garX, yBase, fwdZ + facingDirZ * (fwdD * 0.5), fwdW - 1.6, 3.6, facingDirZ, Math.random() < 0.5);
     const garFrontZ = fwdZ + facingDirZ * (fwdD * 0.5);
-    batcher.addBox(
-      'driveway_concrete',
-      fwdW - 1.0,
-      0.08,
-      Math.abs(frontEdgeZ - garFrontZ) + 4.0,
-      garX,
-      yBase + 0.02,
-      (frontEdgeZ + facingDirZ * 3.8 + garFrontZ) * 0.5
-    );
+    addGarageDoor(batcher, garX, yBase, garFrontZ, fwdW - 1.6, 3.6, facingDirZ, Math.random() < 0.5);
+    addDrivewayStrip(garX, fwdW - 1.0, garFrontZ, 3.8);
 
     // Janelões frontais iluminados + Canteiros de flores sob as janelas
     const rightCenterX = x + fwdW * 0.45;
@@ -399,7 +426,7 @@ export function buildDetailedHouse(world, batcher, cfg) {
     addFramedWindow(batcher, x + 6.2, yBase + 7.4, fZ, 3.0, 2.0, facingDirZ, shutterKey, false);
 
     // Driveway Circular / Lateral e Caminho Nobre
-    batcher.addBox('driveway_concrete', 5.0, 0.08, Math.abs(frontEdgeZ - fZ) + 4.0, x + manW * 0.32, yBase + 0.02, (frontEdgeZ + facingDirZ * 3.8 + fZ) * 0.5);
+    addDrivewayStrip(x + manW * 0.32, 5.0, fZ, 3.8);
     batcher.addBox('walkway_stone', 2.8, 0.08, Math.abs(frontEdgeZ - fZ), x, yBase + 0.03, (frontEdgeZ + fZ) * 0.5);
 
     // PISCINA AZUL BRILHANTE NO QUINTAL DOS FUNDOS + Borda Branca + Espreguiçadeiras + Guarda-Sol!
@@ -432,7 +459,7 @@ export function buildDetailedHouse(world, batcher, cfg) {
     const fZ = houseZ + facingDirZ * (chD * 0.5);
     batcher.addBox('wood_warm', chW * 0.55, 0.35, 3.2, x - chW * 0.2, yBase + 0.18, fZ + facingDirZ * 1.5);
     addGarageDoor(batcher, x + chW * 0.26, yBase, fZ, 6.2, 3.4, facingDirZ, true);
-    batcher.addBox('driveway_concrete', 5.8, 0.08, Math.abs(frontEdgeZ - fZ) + 4.0, x + chW * 0.26, yBase + 0.02, (frontEdgeZ + facingDirZ * 3.8 + fZ) * 0.5);
+    addDrivewayStrip(x + chW * 0.26, 5.8, fZ, 3.8);
     batcher.addBox('walkway_stone', 1.8, 0.08, Math.abs(frontEdgeZ - fZ), x - chW * 0.2, yBase + 0.03, (frontEdgeZ + fZ) * 0.5);
 
     addFramedWindow(batcher, x - chW * 0.22, yBase + 2.3, fZ, 2.8, 1.9, facingDirZ, null, true);
@@ -441,9 +468,9 @@ export function buildDetailedHouse(world, batcher, cfg) {
     world.addCollider(x, houseZ, chW, chD, yBase + chH + 3.8, yBase);
     world.mapBuildings.push({ x, z: houseZ, w: chW, d: chD, height: chH, color: wallEntry.mapColor });
   } else if (styleKey === 'townhouses') {
-    // 5. TOWNHOUSES / SOBRADOS GEMINADOS (Fileira de 3 a 4 Sobrados de 3 Andares colados parede com parede)
-    const count = lotW >= 36 ? 4 : 3;
-    const totalW = lotW - 2.0;
+    // 5. TOWNHOUSES / SOBRADOS GEMINADOS (Fileira de 3 a 4 Sobrados de 3 Andares colados parede com parede — largura 1x!)
+    const totalW = IS_SCALED_WORLD ? Math.min(52, lotW - 2.0) : lotW - 2.0;
+    const count = totalW >= 34 ? 4 : 3;
     const unitW = totalW / count;
     const thD = 14.5;
 
@@ -519,20 +546,19 @@ export function buildDetailedHouse(world, batcher, cfg) {
     world._addLegoTree(treeX, yBase, treeZ, 1.0);
   }
 
-  // Objetos na Calçada/Frente da Casa (Caixa de Correio Colorida + Cerca Branca LEGO)
-  const isNearActionZone = Math.abs(x) <= 360 && z >= -790 && z <= -530;
+  // Objetos na Frente da Casa (Caixa de Correio Colorida + Cerca Branca LEGO — recuados em 3x para zero sobreposição c/ calçada de 10m!)
+  const isNearActionZone = Math.abs(x) <= ws(360) && z >= ws(-790) && z <= ws(-510);
+  const mbZ = frontEdgeZ + facingDirZ * (IS_SCALED_WORLD ? -0.85 : 1.2);
+  const fZ = frontEdgeZ + facingDirZ * (IS_SCALED_WORLD ? -0.85 : -0.4);
   if (world.destructibles && isNearActionZone && seed % 2 === 0) {
-    spawnBreakableMailbox(world, x + 2.2, frontEdgeZ + facingDirZ * 1.2, seed);
-    spawnBreakableWhiteFence(world, x - lotW * 0.26, frontEdgeZ - facingDirZ * 0.4, 5.2);
+    spawnBreakableMailbox(world, x + 2.2, mbZ, seed);
+    spawnBreakableWhiteFence(world, x - lotW * 0.26, fZ, 5.2);
   } else {
-    // Nos quarteirões mais distantes, desenha a mesma Cerca Branca e Caixa de Correio mescladas em 0 Draw Calls!
     const mbX = x + 2.2;
-    const mbZ = frontEdgeZ + facingDirZ * 1.2;
     batcher.addBox('trim_white', 0.22, 1.15, 0.22, mbX, yBase + 0.58, mbZ);
     batcher.addBox(seed % 2 === 0 ? 'court_blue' : 'flower_red', 0.58, 0.48, 0.78, mbX, yBase + 1.25, mbZ);
 
     const fX = x - lotW * 0.26;
-    const fZ = frontEdgeZ - facingDirZ * 0.4;
     batcher.addBox('trim_white', 5.2, 0.18, 0.22, fX, yBase + 0.85, fZ);
     batcher.addBox('trim_white', 5.2, 0.18, 0.22, fX, yBase + 0.42, fZ);
     batcher.addBox('trim_white', 0.24, 1.1, 0.26, fX - 2.4, yBase + 0.55, fZ);
@@ -554,7 +580,7 @@ const SHARED_MAILBOX_MATS = [
  */
 export function spawnBreakableWhiteFence(world, x, z, width = 5.2) {
   const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
-  const yBase = baseY + 0.28;
+  const yBase = baseY + (IS_SCALED_WORLD ? 0.06 : 0.28);
   const geos = [
     makeTranslatedBox(width, 0.18, 0.22, 0, 0.85, 0),
     makeTranslatedBox(width, 0.18, 0.22, 0, 0.42, 0)
@@ -590,7 +616,7 @@ export function spawnBreakableWhiteFence(world, x, z, width = 5.2) {
  */
 export function spawnBreakableMailbox(world, x, z, seed = 0) {
   const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
-  const yBase = baseY + 0.28;
+  const yBase = baseY + (IS_SCALED_WORLD ? 0.06 : 0.28);
   const geos = [
     makeTranslatedBox(0.22, 1.15, 0.22, 0, 0.58, 0),
     makeTranslatedBox(0.58, 0.48, 0.78, 0, 1.25, 0)

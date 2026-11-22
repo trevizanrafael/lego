@@ -14,6 +14,7 @@ import {
   sliceRectAroundCutouts
 } from '../../MetroSystemBuilder.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ROAD, ws, wsP } from '../../core/WorldLayoutScale.js';
 
 /**
  * COMPLEXO MONUMENTAL DA TORRE DOS HERÓIS (O Arranha-Céu Mais Alto da Ilha: 310m no Heliponto + 352m na Antena!)
@@ -34,8 +35,14 @@ import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
  *   5. 4º e 5º Estágios (36x36, Y=282..310m + Antena 352m): Cúpula Orbital com 3 Anéis de Energia Solar, Heliponto Principal em Y=310.5m, Prancha de Salto Heroico e Pináculo Giratório!
  */
 export function buildHeroTowerComplex(world) {
-  const tx = -318;
-  const tz = -180;
+  const towerOrigin = wsP(-324, -168);
+  const hxShift = IS_SCALED_WORLD ? towerOrigin.x - -324 : 0;
+  const hzShift = IS_SCALED_WORLD ? towerOrigin.z - -168 : 0;
+  const hx = (x) => x + hxShift;
+  const hz = (z) => z + hzShift;
+
+  const tx = hx(-318);
+  const tz = hz(-180);
   const blockW = 104;
   const blockD = 104;
   const bw = 94;
@@ -47,7 +54,17 @@ export function buildHeroTowerComplex(world) {
   const podiumRoofBottomY = floorY + lobbyWallH; // 32.56m
   const podiumRoofTopY = 34.8;
 
-  world._addCityBlockSidewalk(tx, tz, blockW, blockD, LEGO_COLORS.sidewalk);
+  const stairMinX = hx(-306.0);
+  const stairMaxX = hx(-282.0);
+  const stairMinZ = hz(-150.5);
+  const stairMaxZ = hz(-141.5);
+  const stairMidX = (stairMinX + stairMaxX) * 0.5;
+  const stairMidZ = (stairMinZ + stairMaxZ) * 0.5;
+  const stairW = stairMaxZ - stairMinZ; // 9.0m
+
+  if (!IS_SCALED_WORLD) {
+    world._addCityBlockSidewalk(tx, tz, blockW, blockD, LEGO_COLORS.sidewalk);
+  }
 
   // Materiais compartilhados para performance máxima (60 FPS)
   const darkTitaniumMat = getLegoMaterial(0x0f172a, { roughness: 0.22, metalness: 0.55, clearcoat: 0.65 });
@@ -109,9 +126,15 @@ export function buildHeroTowerComplex(world) {
   // ============================================================================
   // 1. PISO NOBRE DO QG DOS HERÓIS (RECORTADO NA ESCADARIA DO PORÃO OP-09!)
   // ============================================================================
+  const activeCutouts = IS_SCALED_WORLD
+    ? [
+        ...METRO_ISLAND_CUTOUTS.filter((c) => c.id !== 'hero_tower_lab_stair'),
+        { minX: stairMinX, maxX: stairMaxX, minZ: stairMinZ, maxZ: stairMaxZ }
+      ]
+    : METRO_ISLAND_CUTOUTS;
   const lobbyFloorSlices = sliceRectAroundCutouts(
     { minX: tx - halfW, maxX: tx + halfW, minZ: tz - halfD, maxZ: tz + halfD },
-    METRO_ISLAND_CUTOUTS
+    activeCutouts
   );
   for (const r of lobbyFloorSlices) {
     const rw = r.maxX - r.minX;
@@ -126,13 +149,39 @@ export function buildHeroTowerComplex(world) {
     }
   }
 
-  // Malha de ladrilhos polidos no saguão (90m x 90m, preservando a boca da escadaria do Porão em X=-306..-282, Z=-150.5..-141.5!)
+  // Esplanadas externas de abordagem tática ligando os Portais Sul e Leste às calçadas de 10m em 3x
+  if (IS_SCALED_WORLD) {
+    const southAveInnerZ = ws(-117) - ROAD.mainWidth * 0.5 - ROAD.sidewalk;
+    const southWalkD = southAveInnerZ - (tz + halfD);
+    if (southWalkD > 2) {
+      const southMidZ = (tz + halfD + southAveInnerZ) * 0.5;
+      slateGeos.push(makeTranslatedBox(30.0, 0.2, southWalkD, tx, 0.1, southMidZ));
+      sapphireGeos.push(makeTranslatedBox(12.0, 0.04, southWalkD - 2, tx, 0.21, southMidZ));
+      goldGeos.push(
+        makeTranslatedBox(0.5, 0.05, southWalkD - 2, tx - 6.2, 0.215, southMidZ),
+        makeTranslatedBox(0.5, 0.05, southWalkD - 2, tx + 6.2, 0.215, southMidZ)
+      );
+    }
+    const eastAveInnerX = ws(-252) - ROAD.mainWidth * 0.5 - ROAD.sidewalk;
+    const eastWalkW = eastAveInnerX - (tx + halfW);
+    if (eastWalkW > 2) {
+      const eastMidX = (tx + halfW + eastAveInnerX) * 0.5;
+      slateGeos.push(makeTranslatedBox(eastWalkW, 0.2, 30.0, eastMidX, 0.1, tz));
+      sapphireGeos.push(makeTranslatedBox(eastWalkW - 2, 0.04, 12.0, eastMidX, 0.21, tz));
+      goldGeos.push(
+        makeTranslatedBox(eastWalkW - 2, 0.05, 0.5, eastMidX, 0.215, tz - 6.2),
+        makeTranslatedBox(eastWalkW - 2, 0.05, 0.5, eastMidX, 0.215, tz + 6.2)
+      );
+    }
+  }
+
+  // Malha de ladrilhos polidos no saguão (90m x 90m, preservando a boca da escadaria do Porão!)
   const tileStep = 6.0;
   for (let lx = -42; lx <= 42; lx += tileStep) {
     for (let lz = -42; lz <= 42; lz += tileStep) {
       const wx = tx + lx;
       const wz = tz + lz;
-      if (wx + 3.2 > -306.5 && wx - 3.2 < -281.5 && wz + 3.2 > -151.0 && wz - 3.2 < -141.0) {
+      if (wx + 3.2 > stairMinX - 0.5 && wx - 3.2 < stairMaxX + 0.5 && wz + 3.2 > stairMinZ - 0.5 && wz - 3.2 < stairMaxZ + 0.5) {
         continue;
       }
       const ix = Math.round((lx + 42) / tileStep);
@@ -557,16 +606,10 @@ export function buildHeroTowerComplex(world) {
   // ==========================================================================
   // 4.4) O "PORÃO DOS HERÓIS" — LABORATÓRIO SUBTERRÂNEO DE CRIAÇÃO OP-09 (Y = -8.2m!)
   // ==========================================================================
-  const stairMinX = -306.0;
-  const stairMaxX = -282.0;
-  const stairMinZ = -150.5;
-  const stairMaxZ = -141.5;
-  const stairMidZ = (stairMinZ + stairMaxZ) * 0.5; // -146.0
-  const stairW = stairMaxZ - stairMinZ; // 9.0m
-  const labMinX = -356.0;
-  const labMaxX = -306.0;
-  const labMinZ = -196.0;
-  const labMaxZ = -138.0;
+  const labMinX = hx(-356.0);
+  const labMaxX = hx(-306.0);
+  const labMinZ = hz(-196.0);
+  const labMaxZ = hz(-138.0);
   const labFloorY = -8.2;
   const labCeilY = -0.8;
 
@@ -581,20 +624,51 @@ export function buildHeroTowerComplex(world) {
     ceilingY: labCeilY
   });
 
-  // Guarda-Corpo Dourado & Ciano no Saguão ao redor da Boca da Escadaria (deixando a entrada Leste X = -282 livre!)
+  if (IS_SCALED_WORLD) {
+    // Rampa contínua de superfície/subsolo para a escadaria OP-09 na posição rígida 3x
+    const stairSpan = stairMaxX - stairMinX;
+    world.elevatedDecks?.push({
+      id: 'hero_tower_lab_stair_upper',
+      minX: stairMinX,
+      maxX: stairMaxX,
+      minZ: stairMinZ,
+      maxZ: stairMaxZ,
+      thresholdBelow: 1.8,
+      getDeckY: (x) =>
+        THREE.MathUtils.lerp(labFloorY, floorY, THREE.MathUtils.clamp((x - stairMinX) / stairSpan, 0, 1))
+    });
+    const subStairSlices = 14;
+    for (let i = 0; i < subStairSlices; i++) {
+      const x0 = stairMinX + (stairSpan * i) / subStairSlices;
+      const x1 = stairMinX + (stairSpan * (i + 1)) / subStairSlices;
+      const xm = (x0 + x1) * 0.5;
+      const fySlice = THREE.MathUtils.lerp(labFloorY, floorY, (xm - stairMinX) / stairSpan);
+      world.undergroundFloors.push({
+        id: `hero_tower_lab_stair_${i}`,
+        minX: x0,
+        maxX: x1,
+        minZ: stairMinZ,
+        maxZ: stairMaxZ,
+        floorY: fySlice,
+        ceilingY: 0.6
+      });
+    }
+  }
+
+  // Guarda-Corpo Dourado & Ciano no Saguão ao redor da Boca da Escadaria (deixando a entrada Leste livre!)
   goldGeos.push(
-    makeTranslatedBox(24.4, 1.25, 0.45, -294.0, floorY + 0.62, stairMinZ - 0.35),
-    makeTranslatedBox(24.4, 1.25, 0.45, -294.0, floorY + 0.62, stairMaxZ + 0.35),
+    makeTranslatedBox(24.4, 1.25, 0.45, stairMidX, floorY + 0.62, stairMinZ - 0.35),
+    makeTranslatedBox(24.4, 1.25, 0.45, stairMidX, floorY + 0.62, stairMaxZ + 0.35),
     makeTranslatedBox(0.45, 1.25, stairW + 1.1, stairMinX - 0.35, floorY + 0.62, stairMidZ)
   );
   cyanGeos.push(
-    makeTranslatedBox(24.5, 0.22, 0.52, -294.0, floorY + 1.32, stairMinZ - 0.35),
-    makeTranslatedBox(24.5, 0.22, 0.52, -294.0, floorY + 1.32, stairMaxZ + 0.35),
+    makeTranslatedBox(24.5, 0.22, 0.52, stairMidX, floorY + 1.32, stairMinZ - 0.35),
+    makeTranslatedBox(24.5, 0.22, 0.52, stairMidX, floorY + 1.32, stairMaxZ + 0.35),
     makeTranslatedBox(0.52, 0.22, stairW + 1.15, stairMinX - 0.35, floorY + 1.32, stairMidZ)
   );
-  world.addCollider(-294.0, stairMinZ - 0.45, 24.4, 0.7, floorY + 1.45, labFloorY);
-  world.addCollider(-294.0, stairMaxZ + 0.45, 24.4, 0.7, floorY + 1.45, labFloorY);
-  // Parede de verga acima do portal subterrâneo em X = -306.0 (livre de Y = -8.2m até -0.8m, fechada de -0.8m até +1.6m!)
+  world.addCollider(stairMidX, stairMinZ - 0.45, 24.4, 0.7, floorY + 1.45, labFloorY);
+  world.addCollider(stairMidX, stairMaxZ + 0.45, 24.4, 0.7, floorY + 1.45, labFloorY);
+  // Parede de verga acima do portal subterrâneo em stairMinX (livre de Y = -8.2m até -0.8m, fechada de -0.8m até +1.6m!)
   darkGeos.push(makeTranslatedBox(0.8, 2.4, stairW + 1.0, stairMinX - 0.3, 0.4, stairMidZ));
   world.addCollider(stairMinX - 0.3, stairMidZ, 0.8, stairW + 1.0, floorY + 1.45, labCeilY);
 
@@ -622,7 +696,7 @@ export function buildHeroTowerComplex(world) {
     makeTranslatedBox(0.55, 4.2, 0.55, stairMaxX + 0.4, floorY + 2.1, stairMaxZ + 0.35)
   );
 
-  // Degraus Iluminados & Paredes Laterais da Escadaria (descendo de X=-282 em Y=0.36m até X=-306 em Y=-8.2m)
+  // Degraus Iluminados & Paredes Laterais da Escadaria (descendo de stairMaxX em Y=0.36m até stairMinX em Y=-8.2m)
   const stairSteps = 28;
   for (let s = 0; s < stairSteps; s++) {
     const u = (s + 0.5) / stairSteps;
@@ -634,34 +708,36 @@ export function buildHeroTowerComplex(world) {
     }
   }
   darkGeos.push(
-    makeTranslatedBox(24.4, 9.5, 0.7, -294.0, -4.2, stairMinZ - 0.45),
-    makeTranslatedBox(24.4, 9.5, 0.7, -294.0, -4.2, stairMaxZ + 0.45)
+    makeTranslatedBox(24.4, 9.5, 0.7, stairMidX, -4.2, stairMinZ - 0.45),
+    makeTranslatedBox(24.4, 9.5, 0.7, stairMidX, -4.2, stairMaxZ + 0.45)
   );
 
   // Salão Subterrâneo Bio-Genético LEGO (50m x 58m, Piso Y = -8.2m, Teto Y = -0.8m = 7.4m de pé-direito!)
   const labW = labMaxX - labMinX; // 50m
   const labD = labMaxZ - labMinZ; // 58m
-  const labCX = (labMinX + labMaxX) * 0.5; // -331
-  const labCZ = (labMinZ + labMaxZ) * 0.5; // -167
+  const labCX = (labMinX + labMaxX) * 0.5;
+  const labCZ = (labMinZ + labMaxZ) * 0.5;
   const labH = labCeilY - labFloorY; // 7.4m
 
   whiteGeos.push(makeTranslatedBox(labW, 0.6, labD, labCX, labFloorY - 0.3, labCZ));
   slateGeos.push(makeTranslatedBox(labW + 1.2, 0.55, labD + 1.2, labCX, labCeilY + 0.28, labCZ));
 
   // Paredes perimetrais do Porão (Branco Hospitalar + Titânio + Frisos Ciano/Ouro)
+  const eastSegNorthZ = hz(-173.25);
+  const eastSegSouthZ = hz(-139.75);
   whiteGeos.push(
     makeTranslatedBox(0.9, labH, labD, labMinX, labFloorY + labH * 0.5, labCZ), // Parede Oeste
     makeTranslatedBox(labW, labH, 0.9, labCX, labFloorY + labH * 0.5, labMinZ), // Parede Norte
     makeTranslatedBox(labW, labH, 0.9, labCX, labFloorY + labH * 0.5, labMaxZ), // Parede Sul
-    // Parede Leste com abertura de 9.0m para a Escadaria (Z = -150.5..-141.5)
-    makeTranslatedBox(0.9, labH, 45.5, labMaxX, labFloorY + labH * 0.5, -173.25),
-    makeTranslatedBox(0.9, labH, 3.5, labMaxX, labFloorY + labH * 0.5, -139.75)
+    // Parede Leste com abertura de 9.0m para a Escadaria
+    makeTranslatedBox(0.9, labH, 45.5, labMaxX, labFloorY + labH * 0.5, eastSegNorthZ),
+    makeTranslatedBox(0.9, labH, 3.5, labMaxX, labFloorY + labH * 0.5, eastSegSouthZ)
   );
   world.addCollider(labMinX, labCZ, 1.1, labD, labCeilY, labFloorY - 1.0);
   world.addCollider(labCX, labMinZ, labW, 1.1, labCeilY, labFloorY - 1.0);
   world.addCollider(labCX, labMaxZ, labW, 1.1, labCeilY, labFloorY - 1.0);
-  world.addCollider(labMaxX, -173.25, 1.1, 45.5, labCeilY, labFloorY - 1.0);
-  world.addCollider(labMaxX, -139.75, 1.1, 3.5, labCeilY, labFloorY - 1.0);
+  world.addCollider(labMaxX, eastSegNorthZ, 1.1, 45.5, labCeilY, labFloorY - 1.0);
+  world.addCollider(labMaxX, eastSegSouthZ, 1.1, 3.5, labCeilY, labFloorY - 1.0);
 
   // Painéis Luminosos Hospitalares no Teto do Porão + Trilhas Ciano no Piso
   for (let px = labMinX + 10; px <= labMaxX - 10; px += 14) {
@@ -670,16 +746,17 @@ export function buildHeroTowerComplex(world) {
     }
   }
   cyanGeos.push(
-    makeTranslatedBox(26.0, 0.06, 0.9, -319.0, labFloorY + 0.03, stairMidZ),
-    makeTranslatedBox(0.9, 0.06, 22.0, -332.0, labFloorY + 0.03, -156.5)
+    makeTranslatedBox(26.0, 0.06, 0.9, hx(-319.0), labFloorY + 0.03, stairMidZ),
+    makeTranslatedBox(0.9, 0.06, 22.0, hx(-332.0), labFloorY + 0.03, hz(-156.5))
   );
 
   // 2 Grandes Tubos Cilíndricos de Vidro Bio-LEGO borbulhando energia luminosa nas laterais!
-  for (const [tubeZ, isCyan] of [
+  for (const [dtubeZ, isCyan] of [
     [-183.0, true],
     [-151.0, false]
   ]) {
-    const tubeX = -332.0;
+    const tubeX = hx(-332.0);
+    const tubeZ = hz(dtubeZ);
     darkGeos.push(
       makeTranslatedBox(6.2, 0.85, 6.2, tubeX, labFloorY + 0.42, tubeZ),
       makeTranslatedBox(6.2, 0.85, 6.2, tubeX, labCeilY - 0.45, tubeZ)
@@ -732,8 +809,8 @@ export function buildHeroTowerComplex(world) {
   world.addCollider(labMinX + 1.4, labCZ, 2.0, 34.0, labFloorY + 5.5, labFloorY);
 
   // PEDESTAL HOLOGRÁFICO DE CUSTOMIZAÇÃO LEGO NO CENTRO DA SALA + 2 BRAÇOS ROBÓTICOS AMARELOS + CONSOLE [E]
-  const pedX = -332.0;
-  const pedZ = -167.0;
+  const pedX = hx(-332.0);
+  const pedZ = hz(-167.0);
   const pedGroup = new THREE.Group();
   pedGroup.position.set(pedX, labFloorY, pedZ);
 
@@ -811,7 +888,7 @@ export function buildHeroTowerComplex(world) {
   if (!world.nightLampRegistry) world.nightLampRegistry = [];
   world.nightLampRegistry.push(
     { x: pedX, y: labCeilY - 0.3, z: pedZ, groundY: labFloorY, warm: false, coneH: 7.0, coneR: 6.5 },
-    { x: -316, y: labCeilY - 0.3, z: stairMidZ, groundY: labFloorY, warm: true, coneH: 7.0, coneR: 5.5 }
+    { x: hx(-316), y: labCeilY - 0.3, z: stairMidZ, groundY: labFloorY, warm: true, coneH: 7.0, coneR: 5.5 }
   );
 
   if (world.destructibles) {
@@ -1051,6 +1128,10 @@ export function buildHeroTowerComplex(world) {
   world.heroTowerData = {
     x: tx,
     z: tz,
+    originX: towerOrigin.x,
+    originZ: towerOrigin.z,
+    shiftX: hxShift,
+    shiftZ: hzShift,
     width: bw,
     depth: bd,
     helipadHeight: 310.8,

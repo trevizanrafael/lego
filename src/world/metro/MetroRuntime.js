@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { soundFX } from '../../audio/SoundFX.js';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 import { createLegoMetroCarMesh } from './MetroTrainMesh.js';
 import {
   worldToCarLocal,
@@ -12,6 +13,8 @@ import {
   getMetroSeatTransform,
   getMetroDisembarkPoint
 } from './MetroBoarding.js';
+
+export const METRO_SPEED_MULTIPLIER = IS_SCALED_WORLD ? 2.5 : 1.0;
 
 export class MetroSystemRuntime {
   constructor(world, spline, totems) {
@@ -78,8 +81,8 @@ export class MetroSystemRuntime {
       const train = {
         id: `metro_train_${t + 1}`,
         s: startOffsets[t],
-        cruiseSpeed: 28.0,
-        speed: 22.0,
+        cruiseSpeed: 28.0 * METRO_SPEED_MULTIPLIER,
+        speed: 22.0 * METRO_SPEED_MULTIPLIER,
         state: 'MOVING',
         stopTimer: 0,
         lastStoppedStationId: null,
@@ -184,7 +187,7 @@ export class MetroSystemRuntime {
           this._setTrainDoors(train, 0, 'both');
           train.state = 'MOVING';
           train.departCooldown = 3.5;
-          train.speed = 2.5;
+          train.speed = 2.5 * METRO_SPEED_MULTIPLIER;
         }
 
         this._syncTrainCarsTransform(train, false);
@@ -206,8 +209,12 @@ export class MetroSystemRuntime {
         }
       }
 
-      if (nearestAheadSt && minAheadDist <= 46.0) {
-        if (minAheadDist <= 0.65) {
+      const brakeDist = 46.0 * METRO_SPEED_MULTIPLIER;
+      const snapDist = 0.65 * METRO_SPEED_MULTIPLIER;
+      const minCreepSpeed = 2.4 * METRO_SPEED_MULTIPLIER;
+
+      if (nearestAheadSt && minAheadDist <= brakeDist) {
+        if (minAheadDist <= snapDist) {
           train.s = nearestAheadSt.stopS;
           train.speed = 0;
           train.state = 'STOPPED';
@@ -219,7 +226,10 @@ export class MetroSystemRuntime {
           this._syncTrainCarsTransform(train, false);
           continue;
         }
-        const targetBrakeSpeed = Math.max(2.4, train.cruiseSpeed * Math.sqrt(Math.max(0, minAheadDist) / 46.0));
+        const targetBrakeSpeed = Math.max(
+          minCreepSpeed,
+          train.cruiseSpeed * Math.sqrt(Math.max(0, minAheadDist) / brakeDist)
+        );
         train.speed = THREE.MathUtils.lerp(train.speed, targetBrakeSpeed, Math.min(1, dt * 6.0));
       } else {
         train.speed = THREE.MathUtils.lerp(train.speed, train.cruiseSpeed, Math.min(1, dt * 2.2));

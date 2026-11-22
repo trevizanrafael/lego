@@ -48,12 +48,12 @@ export const wsPos3 = (p) => (p ? { ...p, x: ws(p.x), z: ws(p.z) } : p);
 export const wsBounds = (b) =>
   b
     ? {
-        ...b,
-        minX: ws(b.minX),
-        maxX: ws(b.maxX),
-        minZ: ws(b.minZ),
-        maxZ: ws(b.maxZ)
-      }
+      ...b,
+      minX: ws(b.minX),
+      maxX: ws(b.maxX),
+      minZ: ws(b.minZ),
+      maxZ: ws(b.maxZ)
+    }
     : b;
 export const fromWs = (v) => (v === 0 ? 0 : v / WORLD_SCALE);
 

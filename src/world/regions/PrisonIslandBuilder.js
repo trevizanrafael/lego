@@ -31,6 +31,14 @@
 
 import {
   PrisonIslandBatcher,
+  DESIGN_PRISON_CENTER,
+  PRISON_COMPOUND_ORIGIN,
+  PRISON_OFFSET_X,
+  PRISON_OFFSET_Z,
+  DESIGN_PRISON_DOCK,
+  PRISON_DOCK_ORIGIN,
+  PRISON_DOCK_OFFSET_X,
+  PRISON_DOCK_OFFSET_Z,
   createInitialPrisonIslandData,
   buildArmoredCableStayedBridgeAndCheckpoints
 } from './prison-island/PrisonBatcherAndBridgeBuilder.js';
@@ -43,18 +51,30 @@ import {
   buildSixTallPenitentiaryPavilions
 } from './prison-island/PrisonCellBlocksAndHQBuilder.js';
 
+export {
+  DESIGN_PRISON_CENTER,
+  PRISON_COMPOUND_ORIGIN,
+  PRISON_OFFSET_X,
+  PRISON_OFFSET_Z,
+  DESIGN_PRISON_DOCK,
+  PRISON_DOCK_ORIGIN,
+  PRISON_DOCK_OFFSET_X,
+  PRISON_DOCK_OFFSET_Z
+};
+
 /**
  * Constrói a Grande Ponte Blindada Estaiada (com cabos corrigidos e guaritas do BOPE)
- * e toda a Ilha da Prisão de Segurança Máxima ("A Balsa", 840m x 860m).
+ * e toda a Ilha da Prisão de Segurança Máxima ("A Balsa"), preservando 100% da geometria
+ * em `1x` e escalando a ponte/ilha em `WORLD_SCALE` com a fortaleza rígida em tamanho `1x`.
  */
 export function buildSoutheastPrisonIsland(world) {
   const batcher = new PrisonIslandBatcher();
   world.prisonIslandData = createInitialPrisonIslandData();
 
-  // 1. Grande Ponte Blindada Estaiada (X = 1375, Z = 735..1125) + 2 Checkpoints/Guaritas do BOPE
+  // 1. Grande Ponte Blindada Estaiada (X = ws(1375)) + Via de Acesso + 2 Checkpoints/Guaritas do BOPE
   buildArmoredCableStayedBridgeAndCheckpoints(world, batcher);
 
-  // 2. Ilha 840m x 860m, Doca Naval da Guarda Costeira, Muralha de 40m e 8 Torres de Vigia (68m)
+  // 2. Plataforma da Ilha, Doca Naval da Guarda Costeira, Muralha de 40m e 8 Torres de Vigia (68m)
   buildPrisonIslandPerimeterWallsAndCoastGuardDock(world, batcher);
 
   // 3. Cidadela Panóptica Central ("A Balsa" — 126m, Duplo Heliponto e 4 Skybridges em Y=40m)

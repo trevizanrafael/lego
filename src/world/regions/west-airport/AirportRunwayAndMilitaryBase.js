@@ -4,37 +4,86 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../../../materials/LegoMaterials.js';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import { addHighwayGreenSign } from './AirportTerminalAndParking.js';
+
+function addTaxiwayStripX(world, batcher, groundY, xEast, xWest, z, roadD = 30) {
+  const w = xEast - xWest;
+  if (w <= 1) return;
+  const cx = (xEast + xWest) * 0.5;
+  batcher.addBox('asphalt_dark', w, 0.1, roadD, cx, groundY + 0.05, z);
+  batcher.addBox('mark_yellow', w - 2, 0.04, 0.65, cx, groundY + 0.11, z);
+  world.mapRoads.push({ x: cx, z, w, d: roadD, isMain: false });
+}
+
+function addTaxiwayStripZ(world, batcher, groundY, x, zNorth, zSouth, roadW = 26) {
+  const d = zSouth - zNorth;
+  if (d <= 1) return;
+  const cz = (zNorth + zSouth) * 0.5;
+  batcher.addBox('asphalt_dark', roadW, 0.1, d, x, groundY + 0.05, cz);
+  batcher.addBox('mark_yellow', 0.65, 0.04, d - 2, x, groundY + 0.11, cz);
+  world.mapRoads.push({ x, z: cz, w: roadW, d, isMain: false });
+}
 
 /**
  * 3. QUARTEIRÕES ENTRE AS PISTAS MENORES (TAXIWAYS) LOTADOS DE GALPÕES / HANGARES ENFILEIRADOS!
- * - 5 Pistas Menores Horizontais (Z = -560, -280, 0, +280, +560) e 3 Ruas de Pátio Verticais
- *   (X = -1215, -1380, -1545) formando 4 Grandes Quarteirões Aeronáuticos!
- * - Cada quarteirão tem 4 Grandes Galpões/Hangares de Teto Arqueado Enfileirados (16 Hangares no total!):
- *   - 8 Galpões Azuis/Brancos nos 2 Quarteirões Norte (Aviação Civil, Executiva e Cargas)
- *   - 8 Galpões Verdes-Militares/Cinzas nos 2 Quarteirões Sul (Base Militar, Caças, Helicópteros e Tanques)
+ * - 5 Pistas Menores Horizontais (Z = ws(-560), ws(-280), 0, ws(+280), ws(+560)) e 3 Ruas de Pátio Verticais
+ *   (X = ws(-1215), ws(-1380), ws(-1545)) formando 4 Grandes Quarteirões Aeronáuticos!
+ * - 16 Hangares de Teto Arqueado (88m x 72m x 22m em 1x estrito!) posicionados nos âncoras wsP(hx, hz).
  */
 export function buildTaxiwayBlocksAnd16RowHangars(world, batcher, groundY) {
-  // 1. Pistas Menores Horizontais (Taxiways Leste-Oeste ligando o Mega Terminal à Pista Principal!)
-  const taxiwaysZ = [-560, -280, 0, 280, 560];
-  for (const tz of taxiwaysZ) {
-    batcher.addBox('asphalt_dark', 420, 0.1, 30, -1410, groundY + 0.05, tz);
-    batcher.addBox('mark_yellow', 420, 0.04, 0.65, -1410, groundY + 0.11, tz);
-    world.mapRoads.push({ x: -1410, z: tz, w: 420, d: 30, isMain: false });
-  }
+  if (!IS_SCALED_WORLD) {
+    const taxiwaysZ = [-560, -280, 0, 280, 560];
+    for (const tz of taxiwaysZ) {
+      batcher.addBox('asphalt_dark', 420, 0.1, 30, -1410, groundY + 0.05, tz);
+      batcher.addBox('mark_yellow', 420, 0.04, 0.65, -1410, groundY + 0.11, tz);
+      world.mapRoads.push({ x: -1410, z: tz, w: 420, d: 30, isMain: false });
+    }
+    for (const tx of [-1215, -1380, -1545]) {
+      batcher.addBox('asphalt_dark', 26, 0.1, 1150, tx, groundY + 0.05, 0);
+      batcher.addBox('mark_yellow', 0.65, 0.04, 1150, tx, groundY + 0.11, 0);
+      world.mapRoads.push({ x: tx, z: 0, w: 26, d: 1150, isMain: false });
+    }
+  } else {
+    const termRearApronX = ws(-1145) - 72; // Pátio traseiro do Mega Terminal
+    const eastBlvdX = ws(-1145) + 180;     // Boulevard Perimetral N-S
+    const txEast = ws(-1215);
+    const txMid = ws(-1380);
+    const txWest = ws(-1545);
+    const rwyEdgeX = ws(-1660) + 40;
 
-  // 2. Ruas de Taxiamento Verticais (Norte-Sul em X = -1215, X = -1380 e X = -1545)
-  for (const tx of [-1215, -1380, -1545]) {
-    batcher.addBox('asphalt_dark', 26, 0.1, 1150, tx, groundY + 0.05, 0);
-    batcher.addBox('mark_yellow', 0.65, 0.04, 1150, tx, groundY + 0.11, 0);
-    world.mapRoads.push({ x: tx, z: 0, w: 26, d: 1150, isMain: false });
+    // Pátio traseiro norte-sul atrás das 8 pontes de embarque do Terminal (960m)
+    addTaxiwayStripZ(world, batcher, groundY, termRearApronX, -475, 475, 28);
+
+    // 3 Ruas de Taxiamento Verticais (largura 26m 1x!) cruzando todos os 4 quarteirões aeronáuticos
+    for (const tx of [txEast, txMid, txWest]) {
+      addTaxiwayStripZ(world, batcher, groundY, tx, ws(-560) - 15, ws(560) + 15, 26);
+    }
+
+    // 5 Taxiways Horizontais: Z = ±280 ligam o Pátio do Terminal direto às cabeceiras da Pista 09/27;
+    // Z = 0 para em txWest (livre da Torre ATC Central em ws(-1582), 0!); Z = ±560 ligam o Boulevard até txWest
+    addTaxiwayStripX(world, batcher, groundY, termRearApronX, txWest, 0, 30);
+    addTaxiwayStripX(world, batcher, groundY, eastBlvdX, rwyEdgeX, ws(-280), 30);
+    addTaxiwayStripX(world, batcher, groundY, eastBlvdX, rwyEdgeX, ws(280), 30);
+    addTaxiwayStripX(world, batcher, groundY, eastBlvdX, txWest, ws(-560), 30);
+    addTaxiwayStripX(world, batcher, groundY, eastBlvdX, txWest, ws(560), 30);
+    // Saídas rápidas intermediárias da Pista 09/27 (livres das Torres ATC em ws(±360) = ±1080 e 0!)
+    addTaxiwayStripX(world, batcher, groundY, txWest, rwyEdgeX, -420, 26);
+    addTaxiwayStripX(world, batcher, groundY, txWest, rwyEdgeX, 420, 26);
   }
 
   // ============================================================================
-  // 3. OS 16 GRANDES GALPÕES / HANGARES ENFILEIRADOS DENTRO DOS 4 QUARTEIRÕES!
+  // 3. OS 16 GRANDES GALPÕES / HANGARES ENFILEIRADOS (88m x 72m x 22m — 1x ESTRITO!)
   // ============================================================================
-  const hangarColsX = [-1298, -1462];
-  const hangarRowsZ = [-475, -365, -195, -85, 85, 195, 365, 475];
+  const hangarColsX = [-1298, -1462].map(ws);
+  const hangarRowsZ = [-475, -365, -195, -85, 85, 195, 365, 475].map(ws);
+
+  if (IS_SCALED_WORLD) {
+    // Pistas curtas de pátio conectando as bocas Leste/Oeste de cada fileira de hangares às Taxiways Verticais
+    for (const hz of hangarRowsZ) {
+      addTaxiwayStripX(world, batcher, groundY, ws(-1215), ws(-1545), hz, 24);
+    }
+  }
 
   for (const hx of hangarColsX) {
     for (let r = 0; r < hangarRowsZ.length; r++) {
@@ -48,33 +97,51 @@ export function buildTaxiwayBlocksAnd16RowHangars(world, batcher, groundY) {
         : 'aviation_blue';
       const label = isMilitary ? 'GALPÃO MILITAR' : 'HANGAR CIVIL';
 
+      if (IS_SCALED_WORLD) {
+        world.mapBlocks.push({
+          x: hx,
+          z: hz,
+          w: 136,
+          d: 96,
+          color: isMilitary ? '#1a2e05' : '#1e293b'
+        });
+      }
       buildOpenArchedHangar(world, batcher, hx, groundY, hz, 88, 72, 22, wallKey, roofKey, label);
     }
   }
 
   // 4. 4 Caminhões-Tanque de Combustível de Aviação (Explosivos!) distribuídos pelos Quarteirões!
-  for (const [tx, tz] of [[-1380, -310], [-1380, -30], [-1380, 45], [-1380, 320]]) {
-    spawnExplosiveFuelTruck(world, tx, groundY, tz);
+  const truckBaseX = IS_SCALED_WORLD ? ws(-1380) + 22 : -1380;
+  for (const dz of [-310, -30, 45, 320]) {
+    spawnExplosiveFuelTruck(world, truckBaseX, groundY, ws(dz));
   }
 
-  // 5. 16 Caixas Militares Verdes Quebráveis nos Galpões Militares + 2 Torres de Vigia!
-  for (const hx of [-1270, -1325, -1435, -1490]) {
-    for (const hz of [70, 180, 350, 460]) {
-      spawnMilitaryCrate(world, hx, groundY, hz);
+  // 5. 16 Caixas Militares Verdes Quebráveis dentro dos 8 Galpões Militares + 2 Torres de Vigia!
+  const milRowsZ = [85, 195, 365, 475].map(ws);
+  const crateOffsetsX = [28, -27];
+  for (let c = 0; c < hangarColsX.length; c++) {
+    const colOffsets = c === 0 ? crateOffsetsX : [27, -28];
+    for (const dxOff of colOffsets) {
+      for (const mhz of milRowsZ) {
+        spawnMilitaryCrate(world, hangarColsX[c] + dxOff, groundY, mhz - 15);
+      }
     }
   }
-  buildMilitaryWatchtower(world, batcher, -1215, groundY, 320);
-  buildMilitaryWatchtower(world, batcher, -1215, groundY, 520);
+
+  const wtSouthX = IS_SCALED_WORLD ? ws(-1215) + 22 : -1215;
+  buildMilitaryWatchtower(world, batcher, wtSouthX, groundY, ws(320));
+  buildMilitaryWatchtower(world, batcher, wtSouthX, groundY, ws(520));
 }
 
 /**
- * 4B. PISTA PRINCIPAL DE POUSO E DECOLAGEM (RUNWAY 09 / 27 em X = -1660, 96m x 1220m) COM LUZES E BIRUTAS!
+ * 4B. PISTA PRINCIPAL DE POUSO E DECOLAGEM (RUNWAY 09 / 27 em X = ws(-1660), largura 96m 1x!)
  */
 export function buildMainRunway0927(world, batcher, groundY) {
-  const rwX = -1660;
+  const rwX = ws(-1660);
   const rwZ = 0;
-  const rwW = 96;
-  const rwD = 1220;
+  const rwW = 96; // Largura estritamente 1x!
+  const rwD = IS_SCALED_WORLD ? 1800 : 1220; // ~1.48x em 3x, conectando taxiways Z = ±840 (ws(±280))!
+  const halfD = rwD * 0.5;
 
   const runwayMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.68 });
   const runway = new THREE.Mesh(new THREE.BoxGeometry(rwW, 0.14, rwD), runwayMat);
@@ -88,40 +155,48 @@ export function buildMainRunway0927(world, batcher, groundY) {
   // Linhas Laterais Contínuas + Linha Central Tracejada Branca
   batcher.addBox('mark_white', 1.2, 0.03, rwD - 20, rwX - rwW * 0.5 + 3.5, markY, rwZ);
   batcher.addBox('mark_white', 1.2, 0.03, rwD - 20, rwX + rwW * 0.5 - 3.5, markY, rwZ);
-  for (let dz = -460; dz <= 460; dz += 42) {
+  const dashMaxZ = halfD - 150;
+  for (let dz = -dashMaxZ; dz <= dashMaxZ; dz += 42) {
     batcher.addBox('mark_white', 1.8, 0.03, 22.0, rwX, markY, dz);
   }
 
-  // Cabeceiras ("Piano Keys") e Zonas de Toque nas duas pontas
-  for (const endZ of [-580, 580]) {
+  // Cabeceiras ("Piano Keys") e Zonas de Toque nas duas pontas (dimensões 1x!)
+  const pianoOffZ = halfD - 30;
+  const tdOffZ = halfD - 120;
+  for (const endZ of [-pianoOffZ, pianoOffZ]) {
     for (let px = -36; px <= 36; px += 9) {
       if (Math.abs(px) < 3) continue;
       batcher.addBox('mark_white', 4.2, 0.03, 28.0, rwX + px, markY, endZ);
     }
-    const tdZ = endZ > 0 ? 490 : -490;
+    const tdZ = endZ > 0 ? tdOffZ : -tdOffZ;
     batcher.addBox('mark_white', 8.0, 0.03, 22.0, rwX - 18, markY, tdZ);
     batcher.addBox('mark_white', 8.0, 0.03, 22.0, rwX + 18, markY, tdZ);
   }
 
   // Números "09" e "27" na Pista
-  drawRunwayNumber09(batcher, rwX, markY, -535);
-  drawRunwayNumber27(batcher, rwX, markY, 535);
+  const numOffZ = halfD - 75;
+  drawRunwayNumber09(batcher, rwX, markY, -numOffZ);
+  drawRunwayNumber27(batcher, rwX, markY, numOffZ);
 
-  // Fileiras de Luzes de Pista Luminosas (Verdes no início, Brancas/Amarelas nas laterais, Vermelhas no fim)
+  // Fileiras de Luzes de Pista Luminosas
+  const threshLightZ = halfD - 4;
   for (let lx = -44; lx <= 44; lx += 8) {
-    batcher.addBox('light_green', 0.9, 0.45, 0.9, rwX + lx, groundY + 0.3, -606);
-    batcher.addBox('light_red', 0.9, 0.45, 0.9, rwX + lx, groundY + 0.3, 606);
+    batcher.addBox('light_green', 0.9, 0.45, 0.9, rwX + lx, groundY + 0.3, -threshLightZ);
+    batcher.addBox('light_red', 0.9, 0.45, 0.9, rwX + lx, groundY + 0.3, threshLightZ);
   }
-  for (let lz = -590; lz <= 590; lz += 28) {
-    const sideLightKey = Math.abs(lz) > 420 ? 'mark_yellow' : 'light_warm';
+  const edgeMaxZ = halfD - 20;
+  const yellowZoneZ = halfD - 190;
+  for (let lz = -edgeMaxZ; lz <= edgeMaxZ; lz += 28) {
+    const sideLightKey = Math.abs(lz) > yellowZoneZ ? 'mark_yellow' : 'light_warm';
     batcher.addBox(sideLightKey, 0.85, 0.5, 0.85, rwX - rwW * 0.5 - 1.5, groundY + 0.32, lz);
     batcher.addBox(sideLightKey, 0.85, 0.5, 0.85, rwX + rwW * 0.5 + 1.5, groundY + 0.32, lz);
     batcher.addBox('mark_white', 0.55, 0.12, 0.55, rwX, groundY + 0.14, lz);
   }
 
-  // 2 Birutas Laranja e Branca (Windsocks) ao lado da Pista Principal
-  for (const wz of [-450, 450]) {
-    const wx = rwX + rwW * 0.5 + 10; // -1602 (entre a pista e as torres!)
+  // 2 Birutas Laranja e Branca (Windsocks 1x!) ao lado da Pista Principal
+  const wsOffZ = halfD - 160;
+  for (const wz of [-wsOffZ, wsOffZ]) {
+    const wx = rwX + rwW * 0.5 + 10;
     batcher.addBox('steel_silver', 0.45, 9.5, 0.45, wx, groundY + 4.75, wz);
     for (let s = 0; s < 5; s++) {
       const segW = 1.6 - s * 0.22;
@@ -136,6 +211,8 @@ export function buildMainRunway0927(world, batcher, groundY) {
       );
     }
   }
+
+  return rwD;
 }
 
 function drawRunwayNumber09(batcher, cx, y, cz) {
@@ -200,32 +277,6 @@ function buildOpenArchedHangar(world, batcher, hx, yBase, hz, w, d, wallH, wallK
     color: wallKey === 'white_clean' || wallKey === 'sky_blue' ? '#0284c7' : '#3f6212',
     label
   });
-}
-
-function buildCommercialAirlinerLego(world, batcher, ax, yBase, az) {
-  batcher.addBox('white_clean', 6.4, 5.8, 38.0, ax, yBase + 4.8, az);
-  batcher.addBox('aviation_blue', 6.6, 1.8, 38.4, ax, yBase + 2.6, az);
-  batcher.addBox('glass_cockpit', 5.2, 2.2, 4.5, ax, yBase + 5.6, az - 19.5);
-  batcher.addBox('white_clean', 44.0, 0.75, 7.6, ax, yBase + 4.2, az - 1.5);
-  batcher.addBox('steel_silver', 3.2, 2.8, 6.2, ax - 11.5, yBase + 2.5, az - 2.5);
-  batcher.addBox('steel_silver', 3.2, 2.8, 6.2, ax + 11.5, yBase + 2.5, az - 2.5);
-  batcher.addBox('aviation_blue', 1.2, 9.5, 6.8, ax, yBase + 11.5, az + 15.5);
-  batcher.addBox('gold_trim', 1.4, 2.2, 5.2, ax, yBase + 15.2, az + 16.0);
-  batcher.addBox('white_clean', 16.0, 0.55, 4.4, ax, yBase + 5.4, az + 16.5);
-  batcher.addBox('charcoal', 0.9, 2.2, 0.9, ax, yBase + 1.1, az - 15.0);
-  batcher.addBox('charcoal', 1.2, 2.2, 1.2, ax - 3.2, yBase + 1.1, az + 1.0);
-  batcher.addBox('charcoal', 1.2, 2.2, 1.2, ax + 3.2, yBase + 1.1, az + 1.0);
-
-  world.addCollider(ax, az, 12, 38, yBase + 9.0, yBase);
-}
-
-function buildExecutiveVipJet(world, batcher, jx, yBase, jz) {
-  batcher.addBox('white_clean', 18.0, 2.8, 3.2, jx, yBase + 2.2, jz);
-  batcher.addBox('gold_trim', 18.2, 0.45, 3.3, jx, yBase + 2.0, jz);
-  batcher.addBox('glass_cockpit', 3.2, 1.4, 2.6, jx - 7.5, yBase + 2.8, jz);
-  batcher.addBox('white_clean', 4.6, 0.45, 18.0, jx + 0.5, yBase + 1.9, jz);
-  batcher.addBox('aviation_blue', 3.6, 4.2, 0.65, jx + 7.2, yBase + 5.2, jz);
-  world.addCollider(jx, jz, 18, 12, yBase + 5.5, yBase);
 }
 
 function buildSupersonicFighterJet(world, batcher, fx, yBase, fz) {
@@ -351,31 +402,49 @@ function spawnMilitaryCrate(world, x, yBase, z) {
 }
 
 /**
- * 5. ALA MILITAR NORTE DA BASE (CANTO NOROESTE: X = -1825..-1015, Z = -1320..-660)
+ * 5. ALA MILITAR NORTE DA BASE (CANTO NOROESTE: X = ws(-1825)..ws(-1015), Z = ws(-1320)..ws(-660))
  */
 export function buildNorthMilitaryBaseWing(world, batcher, groundY) {
+  const bx = ws(-1115);
+  const bz = ws(-990);
+  const tyX = ws(-1380);
+  const tyZ = ws(-1135);
+
   // 1. Avenidas Táticas Internas da Ala Militar Norte
-  for (const tz of [-660, -960, -1285]) {
-    batcher.addBox('asphalt_dark', 760, 0.1, 28, -1410, groundY + 0.05, tz);
-    batcher.addBox('mark_yellow', 750, 0.04, 0.65, -1410, groundY + 0.11, tz);
-    world.mapRoads.push({ x: -1410, z: tz, w: 760, d: 28, isMain: false });
-  }
-  for (const tx of [-1215, -1380, -1545]) {
-    batcher.addBox('asphalt_dark', 26, 0.1, 640, tx, groundY + 0.05, -980);
-    batcher.addBox('mark_yellow', 0.65, 0.04, 640, tx, groundY + 0.11, -980);
-    world.mapRoads.push({ x: tx, z: -980, w: 26, d: 640, isMain: false });
+  if (!IS_SCALED_WORLD) {
+    for (const tz of [-660, -960, -1285]) {
+      batcher.addBox('asphalt_dark', 760, 0.1, 28, -1410, groundY + 0.05, tz);
+      batcher.addBox('mark_yellow', 750, 0.04, 0.65, -1410, groundY + 0.11, tz);
+      world.mapRoads.push({ x: -1410, z: tz, w: 760, d: 28, isMain: false });
+    }
+    for (const tx of [-1215, -1380, -1545]) {
+      batcher.addBox('asphalt_dark', 26, 0.1, 640, tx, groundY + 0.05, -980);
+      batcher.addBox('mark_yellow', 0.65, 0.04, 640, tx, groundY + 0.11, -980);
+      world.mapRoads.push({ x: tx, z: -980, w: 26, d: 640, isMain: false });
+    }
+  } else {
+    const eastBlvdX = ws(-1145) + 180; // -3255 (rente à frente do Quartel Militar!)
+    const westRadarTieX = ws(-1790);   // -5370 (conecta direto com hwy_nw_radar!)
+
+    // Avenidas Leste-Oeste conectando o Boulevard Perimetral até o Cabo Radar (-1790, -1285)
+    addTaxiwayStripX(world, batcher, groundY, eastBlvdX, westRadarTieX, ws(-660), 28);
+    addTaxiwayStripX(world, batcher, groundY, ws(-1215), westRadarTieX, ws(-960), 28);
+    addTaxiwayStripX(world, batcher, groundY, eastBlvdX, westRadarTieX, ws(-1285), 28);
+
+    // Avenidas Norte-Sul conectando as Taxiways do Aeroporto (ws(-560)) até a Rodovia Boreal Norte (ws(-1300))
+    addTaxiwayStripZ(world, batcher, groundY, ws(-1215), ws(-1300), ws(-560), 26);
+    addTaxiwayStripZ(world, batcher, groundY, ws(-1380), tyZ + 132, ws(-560), 26);
+    addTaxiwayStripZ(world, batcher, groundY, ws(-1545), ws(-1300), ws(-560), 26);
   }
 
-  // 2. Quartel Militar / Comando Norte do Exército (X = -1115, Z = -990, 144m x 540m, H = 38m)
-  const bx = -1115;
-  const bz = -990;
+  // 2. Quartel Militar / Comando Norte do Exército (âncora wsP(-1115, -990), dimensões 1x: 144m x 540m!)
   batcher.addBox('military_dark', 144, 1.2, 540, bx, groundY + 0.6, bz);
   world.mapBlocks.push({ x: bx, z: bz, w: 144, d: 540, color: '#1a2e05' });
 
   const barracksSpecs = [
-    { z: -1170, h: 36, label: 'QUARTEL DE COMANDO NORTE' },
-    { z: -990, h: 42, label: 'QG DO EXÉRCITO & INTELIGÊNCIA' },
-    { z: -810, h: 34, label: 'ARSENAL & PAIOL MILITAR NORTE' }
+    { z: bz - 180, h: 36, label: 'QUARTEL DE COMANDO NORTE' },
+    { z: bz, h: 42, label: 'QG DO EXÉRCITO & INTELIGÊNCIA' },
+    { z: bz + 180, h: 34, label: 'ARSENAL & PAIOL MILITAR NORTE' }
   ];
   for (const bSpec of barracksSpecs) {
     batcher.addBox('military_olive', 108, bSpec.h, 132, bx, groundY + bSpec.h * 0.5, bSpec.z);
@@ -395,29 +464,40 @@ export function buildNorthMilitaryBaseWing(world, batcher, groundY) {
       label: bSpec.label
     });
   }
-  addHighwayGreenSign(world, -1042, groundY + 40, -990, 78.0, 5.8, 'QUARTEL GENERAL — ALA MILITAR NORTE ');
+  addHighwayGreenSign(world, bx + 73, groundY + 40, bz, 78.0, 5.8, 'QUARTEL GENERAL — ALA MILITAR NORTE ');
 
-  // 3. 4 Hangares Militares Extras (X = -1298 e -1462, Z = -735 e -865)
-  for (const hx of [-1298, -1462]) {
-    for (const hz of [-735, -865]) {
+  // 3. 4 Hangares Militares Extras (âncoras wsP(hx, hz), 88m x 76m x 24m em 1x estrito!)
+  const northHangarColsX = [-1298, -1462].map(ws);
+  const northHangarRowsZ = [-735, -865].map(ws);
+  if (IS_SCALED_WORLD) {
+    for (const hz of northHangarRowsZ) {
+      addTaxiwayStripX(world, batcher, groundY, ws(-1215), ws(-1545), hz, 24);
+    }
+  }
+  for (const hx of northHangarColsX) {
+    for (const hz of northHangarRowsZ) {
+      if (IS_SCALED_WORLD) {
+        world.mapBlocks.push({ x: hx, z: hz, w: 136, d: 100, color: '#1a2e05' });
+      }
       buildOpenArchedHangar(world, batcher, hx, groundY, hz, 88, 76, 24, 'military_olive', 'military_dark', 'HANGAR MILITAR NORTE');
       buildSupersonicFighterJet(world, batcher, hx, groundY, hz);
     }
   }
 
-  // 4. Grande Pátio Blindado de Tanques (X = -1380, Z = -1135, 290m x 260m)
-  const tyX = -1380;
-  const tyZ = -1135;
-  batcher.addBox('asphalt_dark', 290, 0.16, 260, tyX, groundY + 0.08, tyZ);
-  world.mapBlocks.push({ x: tyX, z: tyZ, w: 290, d: 260, color: '#334155' });
+  // 4. Grande Pátio Blindado de Tanques (âncora wsP(-1380, -1135), Oficina e Tanques 1x!)
+  const yardW = IS_SCALED_WORLD ? 340 : 290;
+  const workshopZ = tyZ - 90;
+  const tankBayZ = IS_SCALED_WORLD ? tyZ + 75 : tyZ + 50;
+  batcher.addBox('asphalt_dark', yardW, 0.16, 260, tyX, groundY + 0.08, tyZ);
+  world.mapBlocks.push({ x: tyX, z: tyZ, w: yardW, d: 260, color: '#334155' });
 
-  batcher.addBox('steel_dark', 250, 30, 62, tyX, groundY + 15, -1225);
-  batcher.addBox('military_olive', 254, 3.2, 66, tyX, groundY + 28.5, -1225);
-  batcher.addBox('mark_yellow', 255, 0.85, 67, tyX, groundY + 30.4, -1225);
-  world.addCollider(tyX, -1225, 250, 62, groundY + 31, groundY);
+  batcher.addBox('steel_dark', 250, 30, 62, tyX, groundY + 15, workshopZ);
+  batcher.addBox('military_olive', 254, 3.2, 66, tyX, groundY + 28.5, workshopZ);
+  batcher.addBox('mark_yellow', 255, 0.85, 67, tyX, groundY + 30.4, workshopZ);
+  world.addCollider(tyX, workshopZ, 250, 62, groundY + 31, groundY);
   world.mapBuildings.push({
     x: tyX,
-    z: -1225,
+    z: workshopZ,
     w: 250,
     d: 62,
     height: 30,
@@ -425,34 +505,43 @@ export function buildNorthMilitaryBaseWing(world, batcher, groundY) {
     label: 'OFICINA DE TANQUES TITAN'
   });
 
-  // 6 Tanques de Guerra Pesados Estacionados nas Baias Amarelas do Pátio Norte
-  for (const tankX of [-1480, -1430, -1380, -1330, -1280, -1235]) {
-    batcher.addBox('mark_yellow', 18, 0.05, 28, tankX, groundY + 0.18, -1085);
-    batcher.addBox('charcoal', 7.2, 1.8, 12.6, tankX, groundY + 1.1, -1085);
-    batcher.addBox('military_olive', 6.4, 2.2, 11.4, tankX, groundY + 2.4, -1085);
-    batcher.addBox('military_dark', 4.6, 1.8, 5.8, tankX, groundY + 4.1, -1085);
-    batcher.addBox('steel_dark', 0.85, 0.85, 9.5, tankX, groundY + 4.2, -1078);
-    world.addCollider(tankX, -1085, 7.4, 13.0, groundY + 5.2, groundY);
+  // 6 Tanques de Guerra Pesados Estacionados nas Baias Amarelas do Pátio Norte (1x!)
+  for (const dxOff of [-100, -50, 0, 50, 100, 145]) {
+    const tankX = tyX + dxOff;
+    batcher.addBox('mark_yellow', 18, 0.05, 28, tankX, groundY + 0.18, tankBayZ);
+    batcher.addBox('charcoal', 7.2, 1.8, 12.6, tankX, groundY + 1.1, tankBayZ);
+    batcher.addBox('military_olive', 6.4, 2.2, 11.4, tankX, groundY + 2.4, tankBayZ);
+    batcher.addBox('military_dark', 4.6, 1.8, 5.8, tankX, groundY + 4.1, tankBayZ);
+    batcher.addBox('steel_dark', 0.85, 0.85, 9.5, tankX, groundY + 4.2, tankBayZ + 7);
+    world.addCollider(tankX, tankBayZ, 7.4, 13.0, groundY + 5.2, groundY);
   }
 
-  // 5. 4 Baterias Antiaéreas SAM / Radar Costeiras & 2 Helipontos Militares Norte (X = -1680, Z = -1230..-750)
-  batcher.addBox('military_dark', 220, 0.2, 620, -1685, groundY + 0.1, -990);
-  world.mapBlocks.push({ x: -1685, z: -990, w: 220, d: 620, color: '#1e293b' });
+  // 5. 4 Baterias Antiaéreas SAM / Radar Costeiras & 2 Helipontos Militares Norte (âncoras wsP, 1x!)
+  if (!IS_SCALED_WORLD) {
+    batcher.addBox('military_dark', 220, 0.2, 620, -1685, groundY + 0.1, -990);
+    world.mapBlocks.push({ x: -1685, z: -990, w: 220, d: 620, color: '#1e293b' });
+  } else {
+    addTaxiwayStripZ(world, batcher, groundY, ws(-1655), ws(-1285), ws(-660), 24);
+  }
 
-  const samZCoords = [-1235, -1085, -935, -785];
+  const samX = ws(-1710);
+  const samZCoords = [-1235, -1085, -935, -785].map(ws);
   for (const sz of samZCoords) {
-    const sx = -1710;
-    batcher.addBox('concrete_wall', 42, 8.5, 42, sx, groundY + 4.25, sz);
-    batcher.addBox('military_olive', 36, 4.0, 36, sx, groundY + 10.5, sz);
-    batcher.addBox('mark_yellow', 43, 0.75, 43, sx, groundY + 8.6, sz);
-    batcher.addBox('steel_dark', 10, 6.5, 10, sx, groundY + 15.5, sz);
-    for (const mxOff of [-3.2, -1.1, 1.1, 3.2]) {
-      batcher.addBox('white_clean', 1.4, 2.2, 11.5, sx + mxOff, groundY + 19.5, sz);
-      batcher.addBox('aviation_red', 1.5, 2.3, 2.2, sx + mxOff, groundY + 20.2, sz - 5.2);
+    if (IS_SCALED_WORLD) {
+      batcher.addBox('military_dark', 72, 0.2, 72, samX, groundY + 0.1, sz);
+      world.mapBlocks.push({ x: samX, z: sz, w: 72, d: 72, color: '#1e293b' });
     }
-    world.addCollider(sx, sz, 42, 42, groundY + 22, groundY);
+    batcher.addBox('concrete_wall', 42, 8.5, 42, samX, groundY + 4.25, sz);
+    batcher.addBox('military_olive', 36, 4.0, 36, samX, groundY + 10.5, sz);
+    batcher.addBox('mark_yellow', 43, 0.75, 43, samX, groundY + 8.6, sz);
+    batcher.addBox('steel_dark', 10, 6.5, 10, samX, groundY + 15.5, sz);
+    for (const mxOff of [-3.2, -1.1, 1.1, 3.2]) {
+      batcher.addBox('white_clean', 1.4, 2.2, 11.5, samX + mxOff, groundY + 19.5, sz);
+      batcher.addBox('aviation_red', 1.5, 2.3, 2.2, samX + mxOff, groundY + 20.2, sz - 5.2);
+    }
+    world.addCollider(samX, sz, 42, 42, groundY + 22, groundY);
     world.mapBuildings.push({
-      x: sx,
+      x: samX,
       z: sz,
       w: 42,
       d: 42,
@@ -462,18 +551,21 @@ export function buildNorthMilitaryBaseWing(world, batcher, groundY) {
     });
   }
 
-  // 2 Helipontos Militares Norte (X = -1605, Z = -1160 e Z = -860) com Helicópteros de Ataque Falcon-X
-  for (const hz of [-1160, -860]) {
-    const hx = -1605;
-    batcher.addBox('asphalt_dark', 38, 0.3, 38, hx, groundY + 0.2, hz);
-    batcher.addBox('mark_yellow', 34, 0.06, 1.4, hx, groundY + 0.38, hz - 16);
-    batcher.addBox('mark_yellow', 34, 0.06, 1.4, hx, groundY + 0.38, hz + 16);
-    batcher.addBox('mark_white', 2.2, 0.08, 14.0, hx - 4.5, groundY + 0.39, hz);
-    batcher.addBox('mark_white', 2.2, 0.08, 14.0, hx + 4.5, groundY + 0.39, hz);
-    batcher.addBox('mark_white', 9.0, 0.08, 2.2, hx, groundY + 0.39, hz);
-    buildMilitaryAttackHelicopter(world, batcher, hx, groundY + 0.35, hz);
+  // 2 Helipontos Militares Norte (âncoras wsP(-1605, -1160/-860), 38m x 38m 1x!)
+  const heliX = ws(-1605);
+  for (const hz of [-1160, -860].map(ws)) {
+    if (IS_SCALED_WORLD) {
+      world.mapBlocks.push({ x: heliX, z: hz, w: 54, d: 54, color: '#1e293b' });
+    }
+    batcher.addBox('asphalt_dark', 38, 0.3, 38, heliX, groundY + 0.2, hz);
+    batcher.addBox('mark_yellow', 34, 0.06, 1.4, heliX, groundY + 0.38, hz - 16);
+    batcher.addBox('mark_yellow', 34, 0.06, 1.4, heliX, groundY + 0.38, hz + 16);
+    batcher.addBox('mark_white', 2.2, 0.08, 14.0, heliX - 4.5, groundY + 0.39, hz);
+    batcher.addBox('mark_white', 2.2, 0.08, 14.0, heliX + 4.5, groundY + 0.39, hz);
+    batcher.addBox('mark_white', 9.0, 0.08, 2.2, heliX, groundY + 0.39, hz);
+    buildMilitaryAttackHelicopter(world, batcher, heliX, groundY + 0.35, hz);
   }
 
-  buildMilitaryWatchtower(world, batcher, -1555, groundY, -1275);
-  buildMilitaryWatchtower(world, batcher, -1795, groundY, -1275);
+  buildMilitaryWatchtower(world, batcher, ws(-1555), groundY, ws(-1275));
+  buildMilitaryWatchtower(world, batcher, ws(-1795), groundY, ws(-1275));
 }

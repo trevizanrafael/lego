@@ -106,11 +106,11 @@ export function buildInteractiveMetroMapTotem(world, stationIndex) {
   const ty = st.platformSpawn.y;
   let tz = st.platformSpawn.z;
   if (st.number === 1) {
-    tx = 10.5;
-    tz = -93.8;
+    tx = st.platformSpawn.x + 10.5;
+    tz = st.platformSpawn.z + 7.7;
   } else if (st.number === 2) {
-    tx = -69.5;
-    tz = 26.5;
+    tx = st.platformSpawn.x + 8.0;
+    tz = st.platformSpawn.z + 6.5;
   } else {
     const outerSide = st.number === 5 ? -1 : 1;
     tx = st.platformSpawn.x + outerSide * 4.2;

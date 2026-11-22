@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, getLegoMaterial, createLegoBrick } from '../../../materials/LegoMaterials.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
-import { BANK_SPEC, FLOOR_T, addBankPlant } from './SuperBankExteriorAndLobby.js';
+import { BANK_SPEC, FLOOR_T, addBankPlant, bzShift } from './SuperBankExteriorAndLobby.js';
 
 function rampY(ramp, z) {
   const base = BANK_SPEC.floors[ramp.fromFloor];
@@ -71,11 +71,12 @@ export function buildFloorsRampsAndElevator(world, B) {
       }
       // Forro com painéis de luz do andar de baixo
       for (let lx = -56; lx <= 56; lx += 16) {
-        for (let lz = -150; lz >= -218; lz -= 17) {
+        for (let dlz = -150; dlz >= -218; dlz -= 17) {
+          const lz = bzShift(dlz);
           if (hole && insideRect(lx, lz, hole, 2)) continue;
           B.box('lightPanel', 5.5, 0.12, 2.4, lx, fy - FLOOR_T - 0.08, lz);
           // Dois lustres monumentais no teto do saguão térreo (1º andar)
-          if (fy < 14 && lz === -167 && (lx === -40 || lx === 40)) {
+          if (fy < 14 && dlz === -167 && (lx === -40 || lx === 40)) {
             const ceilY = fy - FLOOR_T;
             B.cyl('gold', 0.22, 0.22, 0.65, lx, ceilY - 0.35, lz, 8);
             B.cyl('gold', 2.3, 2.3, 0.22, lx, ceilY - 0.72, lz, 16);
@@ -90,10 +91,10 @@ export function buildFloorsRampsAndElevator(world, B) {
   // Teto do 4º andar (laje da cobertura) + iluminação dourada na área do Cofre
   B.box('cream', W, 0.7, D, 0, S.roofY - 0.85, midZ);
   for (let lx = -56; lx <= 56; lx += 16) {
-    for (let lz = -150; lz >= -218; lz -= 17) B.box('lightPanel', 5.5, 0.12, 2.4, lx, S.roofY - 1.26, lz);
+    for (let dlz = -150; dlz >= -218; dlz -= 17) B.box('lightPanel', 5.5, 0.12, 2.4, lx, S.roofY - 1.26, bzShift(dlz));
   }
-  B.box('gold', 10.6, 0.22, 1.8, 0, S.roofY - 1.18, -214);
-  B.box('crystalGlow', 10.0, 0.16, 1.4, 0, S.roofY - 1.32, -214);
+  B.box('gold', 10.6, 0.22, 1.8, 0, S.roofY - 1.18, bzShift(-214));
+  B.box('crystalGlow', 10.0, 0.16, 1.4, 0, S.roofY - 1.32, bzShift(-214));
 
   // Rampas largas (andáveis e dirigíveis)
   for (const r of S.ramps) {
@@ -169,7 +170,7 @@ export function buildOfficeFloor(world, B) {
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 6; col++) {
       const x = -40 + col * 16;
-      const z = -154 - row * 13;
+      const z = bzShift(-154 - row * 13);
       B.box('white', 6.4, 0.25, 3.2, x, fy + 1.2, z);
       B.box('steel', 0.3, 1.2, 3.0, x - 3.0, fy + 0.6, z);
       B.box('steel', 0.3, 1.2, 3.0, x + 3.0, fy + 0.6, z);
@@ -184,25 +185,26 @@ export function buildOfficeFloor(world, B) {
     }
   }
   // Sala de reunião de vidro (fundo)
-  B.box('glass', 30, 6, 0.3, 0, fy + 3, -206);
-  B.box('glass', 0.3, 6, 14, -15, fy + 3, -213);
-  B.box('glass', 0.3, 6, 14, 15, fy + 3, -213);
-  B.box('wood', 18, 0.4, 5, 0, fy + 1.4, -214);
-  B.box('gold', 30.4, 0.3, 0.4, 0, fy + 6.1, -206);
+  B.box('glass', 30, 6, 0.3, 0, fy + 3, bzShift(-206));
+  B.box('glass', 0.3, 6, 14, -15, fy + 3, bzShift(-213));
+  B.box('glass', 0.3, 6, 14, 15, fy + 3, bzShift(-213));
+  B.box('wood', 18, 0.4, 5, 0, fy + 1.4, bzShift(-214));
+  B.box('gold', 30.4, 0.3, 0.4, 0, fy + 6.1, bzShift(-206));
   // Balcão de câmbio com painel de cotações
-  B.box('wood', 30, 1.3, 2.4, 0, fy + 0.65, -144.5);
-  world.addCollider(0, -144.5, 30, 2.4, fy + 1.4, fy);
-  B.box('graniteBlack', 24, 3.2, 0.4, 0, fy + 6.5, -140.4);
-  for (let i = 0; i < 6; i++) B.box(i % 2 ? 'screenGreen' : 'ledRed', 3.0, 0.5, 0.1, -9 + i * 3.6, fy + 6.5, -140.15);
+  const fxDeskZ = bzShift(-144.5);
+  B.box('wood', 30, 1.3, 2.4, 0, fy + 0.65, fxDeskZ);
+  world.addCollider(0, fxDeskZ, 30, 2.4, fy + 1.4, fy);
+  B.box('graniteBlack', 24, 3.2, 0.4, 0, fy + 6.5, bzShift(-140.4));
+  for (let i = 0; i < 6; i++) B.box(i % 2 ? 'screenGreen' : 'ledRed', 3.0, 0.5, 0.1, -9 + i * 3.6, fy + 6.5, bzShift(-140.15));
   // Arquivos e plantas
-  for (let i = 0; i < 6; i++) B.box('steel', 2.2, 3.2, 1.4, -30 + i * 2.4, fy + 1.6, -224.5);
-  addBankPlant(B, 30, fy, -224);
-  addBankPlant(B, 40, fy, -140.6);
-  addBankPlant(B, -40, fy, -140.6);
+  for (let i = 0; i < 6; i++) B.box('steel', 2.2, 3.2, 1.4, -30 + i * 2.4, fy + 1.6, bzShift(-224.5));
+  addBankPlant(B, 30, fy, bzShift(-224));
+  addBankPlant(B, 40, fy, bzShift(-140.6));
+  addBankPlant(B, -40, fy, bzShift(-140.6));
   // Bebedouros
   for (const x of [-50, 50]) {
-    B.box('white', 1.2, 2.6, 1.2, x, fy + 1.3, -224.5);
-    B.cyl('glass', 0.5, 0.5, 1.4, x, fy + 3.2, -224.5, 12);
+    B.box('white', 1.2, 2.6, 1.2, x, fy + 1.3, bzShift(-224.5));
+    B.cyl('glass', 0.5, 0.5, 1.4, x, fy + 3.2, bzShift(-224.5), 12);
   }
 }
 
@@ -213,43 +215,46 @@ export function buildSecurityFloor(world, B) {
   const S = BANK_SPEC;
   const fy = S.floors[2];
   // Parede de monitores (fundo)
-  B.box('graniteBlack', 70, 8, 1.0, 0, fy + 4.6, -224.8);
+  B.box('graniteBlack', 70, 8, 1.0, 0, fy + 4.6, bzShift(-224.8));
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 10; c++) {
-      B.box((r + c) % 3 === 0 ? 'screenGreen' : 'screen', 5.6, 2.0, 0.1, -31.5 + c * 7, fy + 2.4 + r * 2.4, -224.25);
+      B.box((r + c) % 3 === 0 ? 'screenGreen' : 'screen', 5.6, 2.0, 0.1, -31.5 + c * 7, fy + 2.4 + r * 2.4, bzShift(-224.25));
     }
   }
-  B.box('steel', 40, 1.2, 3, 0, fy + 0.6, -218);
-  world.addCollider(0, -218, 40, 3, fy + 1.3, fy);
+  const secDeskZ = bzShift(-218);
+  B.box('steel', 40, 1.2, 3, 0, fy + 0.6, secDeskZ);
+  world.addCollider(0, secDeskZ, 40, 3, fy + 1.3, fy);
   // Racks de servidores com LEDs
   for (let i = 0; i < 6; i++) {
     for (const x of [-46, 46]) {
-      const z = -160 - i * 9;
+      const z = bzShift(-160 - i * 9);
       B.box('black', 3.2, 6.5, 2.2, x, fy + 3.25, z);
       for (let k = 0; k < 5; k++) B.box(k % 2 ? 'screenGreen' : 'ledRed', 0.1, 0.2, 1.6, x + (x < 0 ? 1.62 : -1.62), fy + 1.2 + k * 1.1, z);
       world.addCollider(x, z, 3.2, 2.2, fy + 6.5, fy);
     }
   }
   // Barricadas de sacos de areia / caixotes blindados (cobertura)
-  for (const [x, z] of [[-24, -160], [24, -160], [-12, -185], [12, -185], [-30, -200], [30, -200]]) {
+  for (const [x, dz] of [[-24, -160], [24, -160], [-12, -185], [12, -185], [-30, -200], [30, -200]]) {
+    const z = bzShift(dz);
     B.box('concrete', 8, 2.0, 1.8, x, fy + 1.0, z);
     B.box('yellowLine', 8.2, 0.25, 1.9, x, fy + 2.05, z);
     world.addCollider(x, z, 8, 1.8, fy + 2.1, fy);
   }
   // Detectores de metal (pórticos)
+  const detZ = bzShift(-146);
   for (const x of [-10, 0, 10]) {
-    B.box('steel', 0.5, 4.2, 1.0, x - 1.6, fy + 2.1, -146);
-    B.box('steel', 0.5, 4.2, 1.0, x + 1.6, fy + 2.1, -146);
-    B.box('steel', 3.7, 0.5, 1.0, x, fy + 4.35, -146);
-    B.box('ledRed', 0.3, 0.3, 0.3, x, fy + 4.75, -146);
+    B.box('steel', 0.5, 4.2, 1.0, x - 1.6, fy + 2.1, detZ);
+    B.box('steel', 0.5, 4.2, 1.0, x + 1.6, fy + 2.1, detZ);
+    B.box('steel', 3.7, 0.5, 1.0, x, fy + 4.35, detZ);
+    B.box('ledRed', 0.3, 0.3, 0.3, x, fy + 4.75, detZ);
   }
   // Armários do arsenal
   for (let i = 0; i < 8; i++) {
-    B.box('steelDark', 2.0, 4.0, 1.2, -18 + i * 2.2, fy + 2.0, -140.6);
-    B.box('gold', 0.1, 0.5, 0.1, -17.4 + i * 2.2, fy + 2.2, -140.0);
+    B.box('steelDark', 2.0, 4.0, 1.2, -18 + i * 2.2, fy + 2.0, bzShift(-140.6));
+    B.box('gold', 0.1, 0.5, 0.1, -17.4 + i * 2.2, fy + 2.2, bzShift(-140.0));
   }
   // Faixas de alerta no chão
-  for (let i = 0; i < 10; i++) B.box('yellowLine', 2.4, 0.03, 0.6, -45 + i * 10, fy + 0.03, -192, 0.6);
+  for (let i = 0; i < 10; i++) B.box('yellowLine', 2.4, 0.03, 0.6, -45 + i * 10, fy + 0.03, bzShift(-192), 0.6);
 }
 
 // ============================================================================
@@ -263,9 +268,9 @@ export function buildVaultFloor(world, B) {
   const wallH = S.roofY - fy - 1.2;
 
   // Piso nobre de mármore com faixas douradas
-  B.box('marble', S.innerMaxX - S.innerMinX - 12, 0.05, 58, 6, fy + 0.03, -175.5);
-  for (let i = 0; i < 8; i++) B.box('gold', 120, 0.04, 0.4, 6, fy + 0.07, -150 - i * 7.6);
-  B.box('velvet', 10, 0.05, 52, 0, fy + 0.08, -178);
+  B.box('marble', S.innerMaxX - S.innerMinX - 12, 0.05, 58, 6, fy + 0.03, bzShift(-175.5));
+  for (let i = 0; i < 8; i++) B.box('gold', 120, 0.04, 0.4, 6, fy + 0.07, bzShift(-150 - i * 7.6));
+  B.box('velvet', 10, 0.05, 52, 0, fy + 0.08, bzShift(-178));
   // Parede blindada do cofre com abertura circular no centro (verga alinhada ao teto fy + wallH)
   const lintelBottomY = fy + Math.min(10.6, wallH - 0.8);
   const lintelH = fy + wallH - lintelBottomY;
@@ -355,16 +360,17 @@ export function buildVaultFloor(world, B) {
       B.cyl('gold', 0.18, 0.18, 0.2, -27 + c * 3.6 + 1.2, fy + 1.2 + r * 2.0, S.innerBackZ + 0.6, 8, Math.PI / 2);
     }
   }
-  // 4 pilhas grandes de barras de ouro (destrutíveis só com raio solar) em Z = -211
-  for (const gx of [-12, -4, 4, 12]) addGoldStack(world, gx, fy, -211, 3.6, 2.6, 3.0);
+  // 4 pilhas grandes de barras de ouro (destrutíveis só com raio solar) em Z local = -211
+  for (const gx of [-12, -4, 4, 12]) addGoldStack(world, gx, fy, bzShift(-211), 3.6, 2.6, 3.0);
   // 2 pilhas extras + pedestal central do "Ouro Lendário"
-  addGoldStack(world, -24, fy, -219, 3.2, 2.2, 2.6);
-  addGoldStack(world, 24, fy, -219, 3.2, 2.2, 2.6);
+  addGoldStack(world, -24, fy, bzShift(-219), 3.2, 2.2, 2.6);
+  addGoldStack(world, 24, fy, bzShift(-219), 3.2, 2.2, 2.6);
   B.box('graniteBlack', 6, 1.4, 6, S.goldPile.x, fy + 0.7, S.goldPile.z - 4);
   B.box('gold', 3.6, 1.6, 2.2, S.goldPile.x, fy + 2.2, S.goldPile.z - 4);
   B.box('gold', 2.4, 1.0, 1.6, S.goldPile.x, fy + 3.5, S.goldPile.z - 4);
   // Maletas prateadas
-  for (const [mx, mz] of [[-16, -208.5], [16, -208.5], [-8, -223], [8, -223]]) {
+  for (const [mx, dmz] of [[-16, -208.5], [16, -208.5], [-8, -223], [8, -223]]) {
+    const mz = bzShift(dmz);
     const brief = createLegoBrick(1.6, 1.0, 0.6, LEGO_COLORS.silver, { metalness: 0.7, roughness: 0.2, studs: false });
     brief.position.set(mx, fy + 0.5, mz);
     world.scene.add(brief);
@@ -386,7 +392,7 @@ export function buildVaultFloor(world, B) {
       const a = (i / 36) * Math.PI * 2;
       const r = 6 + (i % 3) * 3;
       const tier = i % 6 === 0 ? 'purple' : i % 3 === 0 ? 'blue' : 'gold';
-      world.destructibles.spawnAmbientStud(Math.cos(a) * r, fy + 0.9, -216 + Math.sin(a) * r * 0.45, tier);
+      world.destructibles.spawnAmbientStud(Math.cos(a) * r, fy + 0.9, bzShift(-216) + Math.sin(a) * r * 0.45, tier);
     }
   }
 
@@ -442,7 +448,7 @@ export function buildRooftop(world, B) {
 
   // Heliponto (oeste)
   const hx = -40;
-  const hz = -195;
+  const hz = bzShift(-195);
   B.cyl('graniteBlack', 13, 13, 0.6, hx, ry + 0.3, hz, 40);
   B.cyl('yellowLine', 12, 12, 0.62, hx, ry + 0.31, hz, 40);
   B.cyl('graniteBlack', 11.2, 11.2, 0.64, hx, ry + 0.32, hz, 40);
@@ -455,15 +461,17 @@ export function buildRooftop(world, B) {
   }
 
   // Claraboia em pirâmide de vidro (centro) com moldura dourada
-  B.box('gold', 22, 0.8, 22, 10, ry + 0.4, -168);
-  B.cone('glass', 15.2, 9, 10, ry + 5.3, -168, 4);
+  const skyZ = bzShift(-168);
+  B.box('gold', 22, 0.8, 22, 10, ry + 0.4, skyZ);
+  B.cone('glass', 15.2, 9, 10, ry + 5.3, skyZ, 4);
   for (const [dx, dz] of [[-10.5, -10.5], [10.5, -10.5], [-10.5, 10.5], [10.5, 10.5]]) {
-    B.box('gold', 0.4, 0.4, 14.5, 10 + dx * 0.5, ry + 5, -168 + dz * 0.5, Math.atan2(dx, dz), 0.85);
+    B.box('gold', 0.4, 0.4, 14.5, 10 + dx * 0.5, ry + 5, skyZ + dz * 0.5, Math.atan2(dx, dz), 0.85);
   }
-  world.addCollider(10, -168, 22, 22, ry + 3.5, ry);
+  world.addCollider(10, skyZ, 22, 22, ry + 3.5, ry);
 
   // Jardins suspensos (canteiros com árvores LEGO) e bancos
-  for (const [gx, gz] of [[46, -150], [46, -212], [-12, -150], [-12, -214]]) {
+  for (const [gx, dgz] of [[46, -150], [46, -212], [-12, -150], [-12, -214]]) {
+    const gz = bzShift(dgz);
     B.box('wood', 14, 1.2, 6, gx, ry + 0.6, gz);
     B.box('plant', 13.4, 0.4, 5.4, gx, ry + 1.3, gz);
     for (let t = -1; t <= 1; t++) {
@@ -476,7 +484,7 @@ export function buildRooftop(world, B) {
   // Máquinas de ar-condicionado com ventoinhas
   for (let i = 0; i < 4; i++) {
     const x = 32 + (i % 2) * 9;
-    const z = -180 - Math.floor(i / 2) * 9;
+    const z = bzShift(-180 - Math.floor(i / 2) * 9);
     B.box('chrome', 7, 3, 6, x, ry + 1.5, z);
     B.cyl('black', 2.2, 2.2, 0.2, x, ry + 3.05, z, 20);
     B.box('steel', 3.8, 0.1, 0.4, x, ry + 3.2, z, i * 0.7);
@@ -484,19 +492,22 @@ export function buildRooftop(world, B) {
   }
 
   // Caixa d'água + gerador
-  B.cyl('steel', 4, 4, 6, -62, ry + 5.2, -218, 20);
-  B.cone('steel', 4.4, 2, -62, ry + 9.2, -218, 20);
-  for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) B.box('steelDark', 0.5, 2.2, 0.5, -62 + dx, ry + 1.1, -218 + dz);
-  world.addCollider(-62, -218, 8.4, 8.4, ry + 8.2, ry);
-  B.box('yellowLine', 8, 3.4, 4, -62, ry + 1.7, -150);
-  B.box('black', 8.2, 0.6, 4.2, -62, ry + 3.6, -150);
-  world.addCollider(-62, -150, 8, 4, ry + 3.9, ry);
+  const wtZ = bzShift(-218);
+  const genZ = bzShift(-150);
+  B.cyl('steel', 4, 4, 6, -62, ry + 5.2, wtZ, 20);
+  B.cone('steel', 4.4, 2, -62, ry + 9.2, wtZ, 20);
+  for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) B.box('steelDark', 0.5, 2.2, 0.5, -62 + dx, ry + 1.1, wtZ + dz);
+  world.addCollider(-62, wtZ, 8.4, 8.4, ry + 8.2, ry);
+  B.box('yellowLine', 8, 3.4, 4, -62, ry + 1.7, genZ);
+  B.box('black', 8.2, 0.6, 4.2, -62, ry + 3.6, genZ);
+  world.addCollider(-62, genZ, 8, 4, ry + 3.9, ry);
 
   // Antena de comunicação com luz vermelha
-  B.box('steelDark', 2.4, 1, 2.4, 60, ry + 0.5, -222);
-  B.cyl('chrome', 0.35, 0.6, 18, 60, ry + 10, -222, 10);
-  for (let k = 0; k < 4; k++) B.box('chrome', 3.2 - k * 0.6, 0.15, 0.15, 60, ry + 6 + k * 3, -222);
-  B.sphere('ledRed', 0.6, 60, ry + 19.4, -222);
+  const antZ = bzShift(-222);
+  B.box('steelDark', 2.4, 1, 2.4, 60, ry + 0.5, antZ);
+  B.cyl('chrome', 0.35, 0.6, 18, 60, ry + 10, antZ, 10);
+  for (let k = 0; k < 4; k++) B.box('chrome', 3.2 - k * 0.6, 0.15, 0.15, 60, ry + 6 + k * 3, antZ);
+  B.sphere('ledRed', 0.6, 60, ry + 19.4, antZ);
 
   // Letreiro dourado no topo da fachada (de frente para a avenida)
   const roofSign = createSignBoardMesh({

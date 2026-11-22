@@ -12,8 +12,13 @@
  */
 
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 import {
-  BANK_SPEC, createBankBatcher, buildExteriorShell, buildGroundLobby
+  BANK_SPEC,
+  createBankBatcher,
+  buildBankMonumentalForecourt,
+  buildExteriorShell,
+  buildGroundLobby
 } from './downtown/SuperBankExteriorAndLobby.js';
 import {
   buildFloorsRampsAndElevator, buildOfficeFloor, buildSecurityFloor,
@@ -26,7 +31,11 @@ export function buildSuperBancoCentral(world) {
   const S = BANK_SPEC;
   const B = createBankBatcher();
 
-  world._addCityBlockSidewalk(S.x, (S.frontZ + S.backZ) / 2 + 1, 152, 100, LEGO_COLORS.sidewalk);
+  if (IS_SCALED_WORLD) {
+    buildBankMonumentalForecourt(world, B);
+  } else {
+    world._addCityBlockSidewalk(S.x, (S.frontZ + S.backZ) / 2 + 1, 152, 100, LEGO_COLORS.sidewalk);
+  }
 
   buildExteriorShell(world, B);
   buildFloorsRampsAndElevator(world, B);
@@ -56,6 +65,17 @@ export function buildSuperBancoCentral(world) {
   world.superBankData = {
     x: S.x,
     z: (S.frontZ + S.backZ) / 2,
+    originX: S.originX,
+    originZ: S.originZ,
+    zShift: S.zShift,
+    minX: S.minX,
+    maxX: S.maxX,
+    frontZ: S.frontZ,
+    backZ: S.backZ,
+    innerMinX: S.innerMinX,
+    innerMaxX: S.innerMaxX,
+    innerFrontZ: S.innerFrontZ,
+    innerBackZ: S.innerBackZ,
     width: S.maxX - S.minX,
     depth: S.frontZ - S.backZ,
     floorsCount: 4,

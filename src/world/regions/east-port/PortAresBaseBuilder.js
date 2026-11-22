@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import {
   CLASSIC_LEGO_CONTAINER_KEYS,
   addCorrugatedContainerStack,
@@ -19,7 +20,7 @@ import {
 } from './CargoShipsAndDocksBuilder.js';
 
 /**
- * 6. PORTO DE CARGAS, BASE A.R.E.S. & CAIS MARÍTIMO (NO EXTREMO LESTE/SUDESTE: X = 600..1620, Z = 115..735)
+ * 6. PORTO DE CARGAS, BASE A.R.E.S. & CAIS MARÍTIMO (NO EXTREMO LESTE/SUDESTE: X = ws(600)..ws(1620), Z = ws(115)..ws(735))
  */
 export function buildMetropolitanPortAndDocks(world, batcher) {
   world.eastPortData = {
@@ -92,23 +93,31 @@ export function buildMetropolitanPortAndDocks(world, batcher) {
   // 4. Base portuária fortificada da 3ª facção: `A.R.E.S.` (Cyber-Mercenários Tecnológicos)
   buildAresCyberMercenaryPortBase(world, batcher);
 
-  // 5. Os 5 Guindastes Portuários Gigantes (76m: 3 Leste + 2 Sul) & 3 Grandes Navios Atracados
-  const eastCraneZCoords = [215, 415, 605];
+  // 5. Os 5 Guindastes Portuários Gigantes (76m ×1: 3 Leste + 2 Sul) & 3 Grandes Navios Atracados
+  const eastCraneX = ws(1620) - 65;
+  const eastCraneZCoords = [215, 415, 605].map(ws);
   eastCraneZCoords.forEach((gz, idx) => {
-    buildColossalPortainerCrane(world, batcher, 1555, gz, classicLegoContainerKeys[idx % classicLegoContainerKeys.length], false);
+    buildColossalPortainerCrane(world, batcher, eastCraneX, gz, classicLegoContainerKeys[idx % classicLegoContainerKeys.length], false);
   });
-  const southCraneXCoords = [1045, 1215];
+  const southCraneZ = ws(734) - 39;
+  const southCraneXCoords = [1045, 1215].map(ws);
   southCraneXCoords.forEach((gx, idx) => {
-    buildColossalPortainerCrane(world, batcher, gx, 695, idx === 0 ? 'ares_neon_purple' : 'lego_orange', true);
+    buildColossalPortainerCrane(world, batcher, gx, southCraneZ, idx === 0 ? 'ares_neon_purple' : 'lego_orange', true);
   });
 
-  buildMooredLegoCargoShip(world, batcher, 1668, 240, classicLegoContainerKeys, [185, 295], 'NAVIO PORTA-CONTÊINERES 01');
-  buildMooredLegoCargoShip(world, batcher, 1668, 535, classicLegoContainerKeys, [362, 502], 'NAVIO PORTA-CONTÊINERES 02');
-  buildMooredAresDreadnoughtShip(world, batcher, 1125, 768);
+  const eastShipX = ws(1620) + 48;
+  const ship1Z = ws(240);
+  const ship1Gangways = IS_SCALED_WORLD ? [ship1Z - 55, ship1Z + 55] : [185, 295];
+  const ship2Z = ws(535);
+  const ship2Gangways = IS_SCALED_WORLD ? [ship2Z - 65, ship2Z + 65] : [362, 502];
 
-  // Caminhões-Carreta extras nas Avenidas Principais do Porto
-  addPortCargoSemiTruck(world, batcher, 814, 362, 'lego_red', false);
-  addPortCargoSemiTruck(world, batcher, 1545, 250, 'pcc_royal', false);
+  buildMooredLegoCargoShip(world, batcher, eastShipX, ship1Z, classicLegoContainerKeys, ship1Gangways, 'NAVIO PORTA-CONTÊINERES 01');
+  buildMooredLegoCargoShip(world, batcher, eastShipX, ship2Z, classicLegoContainerKeys, ship2Gangways, 'NAVIO PORTA-CONTÊINERES 02');
+  buildMooredAresDreadnoughtShip(world, batcher, ws(1125), IS_SCALED_WORLD ? ws(768) : 768);
+
+  // Caminhões-Carreta extras nas Avenidas Principais do Porto (alinhados no acostamento em 3x)
+  addPortCargoSemiTruck(world, batcher, IS_SCALED_WORLD ? ws(825) - 11 : 814, ws(362), 'lego_red', false);
+  addPortCargoSemiTruck(world, batcher, IS_SCALED_WORLD ? ws(1545) + 11 : 1545, ws(250), 'pcc_royal', false);
 }
 
 /**
@@ -150,11 +159,13 @@ function _addOpenAresContrabandContainer(world, batcher, x, z) {
 }
 
 /**
- * 4. BASE PORTUÁRIA FORTIFICADA DA 3ª FACÇÃO: `A.R.E.S.` (CYBER-MERCENÁRIOS TECNOLÓGICOS — X = 855..1135, Z = 555..695)
+ * 4. BASE PORTUÁRIA FORTIFICADA DA 3ª FACÇÃO: `A.R.E.S.` (CYBER-MERCENÁRIOS TECNOLÓGICOS — ÂNCORA ws(995), ws(622), TAMANHOS ×1)
  */
 export function buildAresCyberMercenaryPortBase(world, batcher) {
-  const ax = 995;
-  const az = 622;
+  const aresOx = ws(995) - 995;
+  const aresOz = ws(622) - 622;
+  const ax = 995 + aresOx;
+  const az = 622 + aresOz;
   const hw = 96;
   const hd = 60;
   const hh = 52;
@@ -216,7 +227,7 @@ export function buildAresCyberMercenaryPortBase(world, batcher) {
     label: 'TORRE & HANGAR CYBER A.R.E.S.'
   });
 
-  // 2) SELVA / FORTALEZA DE CONTÊINERES BLINDADOS PRETOS E ROXO-NEON
+  // 2) SELVA / FORTALEZA DE CONTÊINERES BLINDADOS PRETOS E ROXO-NEON (offsets locais ×1)
   const aresContainerKeys = ['matte_black', 'gunmetal_concrete', 'armor_slate'];
   const aresFortressStacks = [
     { x: 866, z: 582, floors: 7, rotated: false },
@@ -253,18 +264,22 @@ export function buildAresCyberMercenaryPortBase(world, batcher) {
   ];
 
   aresFortressStacks.forEach((st, idx) => {
-    addCorrugatedContainerStack(world, batcher, st.x, st.z, st.floors, st.rotated, aresContainerKeys, idx);
+    const sx = st.x + aresOx;
+    const sz = st.z + aresOz;
+    addCorrugatedContainerStack(world, batcher, sx, sz, st.floors, st.rotated, aresContainerKeys, idx);
     const cw = st.rotated ? 18.0 : 6.2;
     const cd = st.rotated ? 6.2 : 18.0;
     const topY = 0.28 + st.floors * 6.0;
-    batcher.addBox(idx % 2 === 0 ? 'ares_neon_purple' : 'ares_magenta', cw + 0.25, 0.45, cd + 0.25, st.x, topY - 0.35, st.z);
+    batcher.addBox(idx % 2 === 0 ? 'ares_neon_purple' : 'ares_magenta', cw + 0.25, 0.45, cd + 0.25, sx, topY - 0.35, sz);
     world.eastPortData.fourStoryStacksCount++;
     world.eastPortData.fiveStoryStacksCount++;
     if (st.floors >= 6) world.eastPortData.sixToEightStoryStacksCount++;
   });
 
-  for (const bridgeZ of [582, 622, 662]) {
-    for (const bridgeX of [940, 1050]) {
+  for (const baseBridgeZ of [582, 622, 662]) {
+    const bridgeZ = baseBridgeZ + aresOz;
+    for (const baseBridgeX of [940, 1050]) {
+      const bridgeX = baseBridgeX + aresOx;
       batcher.addBox('matte_black', 22.0, 0.7, 4.6, bridgeX, 30.5, bridgeZ);
       batcher.addBox('ares_neon_purple', 22.4, 0.4, 5.0, bridgeX, 30.9, bridgeZ);
       world.addCollider(bridgeX, bridgeZ, 22.0, 4.6, 31.1, 30.2);
@@ -277,7 +292,9 @@ export function buildAresCyberMercenaryPortBase(world, batcher) {
     [881, 622], [911, 622], [1079, 622], [1109, 622],
     [881, 662], [911, 662], [1079, 662], [1109, 662]
   ];
-  for (const [ox, oz] of aresOpenCoords) {
+  for (const [baseOx, baseOz] of aresOpenCoords) {
+    const ox = baseOx + aresOx;
+    const oz = baseOz + aresOz;
     _addOpenAresContrabandContainer(world, batcher, ox, oz);
     for (let s = 1; s <= 4; s++) {
       const cy = 0.28 + s * 6.0 + 3.0;
@@ -296,7 +313,9 @@ export function buildAresCyberMercenaryPortBase(world, batcher) {
     [856, 690],
     [1134, 690]
   ];
-  for (const [tx, tz] of turretCoords) {
+  for (const [baseTx, baseTz] of turretCoords) {
+    const tx = baseTx + aresOx;
+    const tz = baseTz + aresOz;
     batcher.addBox('matte_black', 7.5, 8.5, 7.5, tx, 4.5, tz);
     batcher.addBox('ares_neon_purple', 8.0, 0.9, 8.0, tx, 8.2, tz);
     batcher.addCylinder('gunmetal_concrete', 3.2, 3.8, 3.6, tx, 10.4, tz, 8);
@@ -306,15 +325,17 @@ export function buildAresCyberMercenaryPortBase(world, batcher) {
   }
 
   // 4) 3 Antenas Parabólicas Sci-Fi + 6 Geradores de Plasma Roxo-Neon Pulsantes
-  for (const sx of [958, 995, 1032]) {
-    batcher.addBox('matte_black', 5.2, 9.0, 5.2, sx, 4.78, 568);
-    batcher.addCylinder('brushed_silver', 6.2, 1.4, 3.2, sx, 11.2, 568, 10, 0.35, 0);
-    batcher.addCylinder('ares_magenta', 0.45, 0.45, 5.0, sx, 13.5, 569, 6);
-    world.addCollider(sx, 568, 5.5, 5.5, 14.0, 0.28);
+  for (const baseSx of [958, 995, 1032]) {
+    const sx = baseSx + aresOx;
+    const sz = 568 + aresOz;
+    batcher.addBox('matte_black', 5.2, 9.0, 5.2, sx, 4.78, sz);
+    batcher.addCylinder('brushed_silver', 6.2, 1.4, 3.2, sx, 11.2, sz, 10, 0.35, 0);
+    batcher.addCylinder('ares_magenta', 0.45, 0.45, 5.0, sx, 13.5, sz + 1, 6);
+    world.addCollider(sx, sz, 5.5, 5.5, 14.0, 0.28);
   }
   for (let g = 0; g < 6; g++) {
-    const gx = 950 + g * 18;
-    const gz = 678;
+    const gx = 950 + g * 18 + aresOx;
+    const gz = 678 + aresOz;
     batcher.addCylinder('matte_black', 2.8, 3.2, 8.5, gx, 4.5, gz, 10);
     batcher.addCylinder('ares_neon_purple', 2.4, 2.4, 5.2, gx, 4.5, gz, 10);
     batcher.addCylinder('ares_magenta', 3.1, 3.1, 0.75, gx, 4.5, gz, 10);

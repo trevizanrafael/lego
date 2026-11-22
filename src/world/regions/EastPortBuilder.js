@@ -1,4 +1,5 @@
 import { buildTerritoryInfrastructureForZone } from '../FactionWarSystem.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
 import { PCCIndustrialBatcher } from './east-port/EastPortBatcherAndMaterials.js';
 import { buildEastCanalBridgesAndPCCBarricades } from './east-port/EastCanalAndBridgesBuilder.js';
 import {
@@ -21,6 +22,9 @@ export function buildEastCanalIndustrialAndPort(world) {
     faction: 'PCC',
     factionName: 'PRIMEIRO COMANDO (PCC)',
     colors: ['matte_black', 'gunmetal_concrete', 'pcc_navy', 'pcc_neon_blue', 'tactical_white', 'brushed_silver'],
+    citadelOrigin: { x: ws(866), z: IS_SCALED_WORLD ? ws(-316) : -381 },
+    chopShopOrigin: { x: ws(1062), z: IS_SCALED_WORLD ? ws(-316) : -250 },
+    convoyYardOrigin: { x: ws(684), z: ws(-316) },
     hasCentralBunker: true,
     citadelHeight: 112,
     skybridgesCount: 0,

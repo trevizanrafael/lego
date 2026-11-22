@@ -1,140 +1,186 @@
 import {
+  PRISON_COMPOUND_ORIGIN,
+  PRISON_OFFSET_X,
+  PRISON_OFFSET_Z,
+  PRISON_DOCK_OFFSET_X,
+  PRISON_DOCK_OFFSET_Z,
   addPrisonBannerSign,
   addBatchedLegoPerson
 } from './PrisonBatcherAndBridgeBuilder.js';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
+import { PRISON_ISLAND_POLYGON } from '../../CoastlineProfile.js';
 
 /**
- * 2. ESCALA 2X MAIOR DA ILHA DA PRISÃO (840m x 860m) + BORDA ROCHOSA + DOCA NAVAL EXTERNA DA GUARDA COSTEIRA:
- * - Ilha-Fortaleza Federal (X = 955..1795, Z = 1120..1980, centro X = 1375, Z = 1550) com mais de 2x a área anterior;
- * - Borda Costeira Rochosa & Quebra-Mar de LEGO cercando toda a base externa na água;
- * - Doca Naval da Guarda Costeira fora da Muralha Oeste (X = 860..995, Z = 1505..1595) ligada à muralha por
- *   Portão Lateral Blindado, com Guindaste Naval de 38m, caixas de suprimentos e 2 Lanchas Blindadas da Polícia Marítima;
- * - Muralha Perimetral Colossal de 40m (X = 995..1755, Z = 1125..1935) + 8 Torres de Vigia de 68m!
+ * 2. ESCALA DA ILHA DA PRISÃO + BORDA ROCHOSA + DOCA NAVAL EXTERNA DA GUARDA COSTEIRA:
+ * - Em `1x`: Ilha-Fortaleza Federal (X = 955..1795, Z = 1120..1980, centro X = 1375, Z = 1550) idêntica;
+ * - Em `WORLD_SCALE` (`3x`): Laje base cobre todo o núcleo costeiro escalado da ilha (`ws(954..1796) x ws(1118..1982)`),
+ *   Doca Naval rígida `1x` ancorada na costa oeste escalada (`wsP(928, 1550)`) com via logística até o Portão Oeste,
+ *   e Complexo Penitenciário Panóptico movido como fortaleza rígida `1x` centrada em `wsP(1375, 1540)`.
  */
 export function buildPrisonIslandPerimeterWallsAndCoastGuardDock(world, batcher) {
-  const ix = 1375;
-  const iz = 1550;
-  const islandW = 840; // X = 955..1795
-  const islandD = 860; // Z = 1120..1980
+  const ox = PRISON_OFFSET_X;
+  const oz = PRISON_OFFSET_Z;
+  const dxOff = PRISON_DOCK_OFFSET_X;
+  const dzOff = PRISON_DOCK_OFFSET_Z;
 
-  // Base Rochosa Costeira Escura + Plataforma Continental de Concreto Pesado da Ilha
-  batcher.addBox('coastal_rock', islandW + 32, 2.4, islandD + 32, ix, -0.85, iz);
-  batcher.addBox('yard_concrete', islandW, 1.1, islandD, ix, -0.25, iz);
-  world.addCollider(ix, iz, islandW, islandD, 0.3, -2.5);
-  world.mapBlocks.push({ x: ix, z: iz, w: islandW, d: islandD, color: '#334155' });
+  if (!IS_SCALED_WORLD) {
+    const ix = 1375, iz = 1550, islandW = 840, islandD = 860;
+    batcher.addBox('coastal_rock', islandW + 32, 2.4, islandD + 32, ix, -0.85, iz);
+    batcher.addBox('yard_concrete', islandW, 1.1, islandD, ix, -0.25, iz);
+    world.addCollider(ix, iz, islandW, islandD, 0.3, -2.5);
+    world.mapBlocks.push({ x: ix, z: iz, w: islandW, d: islandD, color: '#334155' });
 
-  // Anel de Rochas Costeiras / Quebra-Mar de Pedra Escura no Oceano cercando toda a Ilha 2x Maior
-  for (let rx = 940; rx <= 1810; rx += 26) {
-    for (const rz of [1104, 1994]) {
-      if (rz === 1104 && Math.abs(rx - ix) < 36) continue; // Deixa livre a chegada da Ponte Blindada
-      const rw = 18 + ((rx * 7) % 14);
-      const rh = 3.6 + ((rx * 13) % 6);
-      const rd = 16 + ((rx * 11) % 12);
-      batcher.addBox('coastal_rock', rw, rh, rd, rx, rh * 0.35 - 0.5, rz);
-      batcher.addBox('sea_foam', rw + 4.0, 0.16, rd + 4.0, rx, -0.36, rz);
-      world.prisonIslandData.coastalRocksCount++;
+    for (let rx = 940; rx <= 1810; rx += 26) {
+      for (const rz of [1104, 1994]) {
+        if (rz === 1104 && Math.abs(rx - ix) < 36) continue;
+        const rw = 18 + ((rx * 7) % 14), rh = 3.6 + ((rx * 13) % 6), rd = 16 + ((rx * 11) % 12);
+        batcher.addBox('coastal_rock', rw, rh, rd, rx, rh * 0.35 - 0.5, rz);
+        batcher.addBox('sea_foam', rw + 4.0, 0.16, rd + 4.0, rx, -0.36, rz);
+        world.prisonIslandData.coastalRocksCount++;
+      }
     }
-  }
-  for (let rz = 1125; rz <= 1975; rz += 26) {
-    for (const rx of [940, 1810]) {
-      // Deixa abertura na frente da Doca Naval da Guarda Costeira a Oeste (X=940, Z=1500..1600)
-      if (rx === 940 && rz >= 1495 && rz <= 1605) continue;
-      const rw = 16 + ((rz * 9) % 12);
-      const rh = 3.8 + ((rz * 17) % 6);
-      const rd = 18 + ((rz * 7) % 14);
-      batcher.addBox('coastal_rock', rw, rh, rd, rx, rh * 0.35 - 0.5, rz);
-      batcher.addBox('sea_foam', rw + 4.0, 0.16, rd + 4.0, rx, -0.36, rz);
-      world.prisonIslandData.coastalRocksCount++;
+    for (let rz = 1125; rz <= 1975; rz += 26) {
+      for (const rx of [940, 1810]) {
+        if (rx === 940 && rz >= 1495 && rz <= 1605) continue;
+        const rw = 16 + ((rz * 9) % 12), rh = 3.8 + ((rz * 17) % 6), rd = 18 + ((rz * 7) % 14);
+        batcher.addBox('coastal_rock', rw, rh, rd, rx, rh * 0.35 - 0.5, rz);
+        batcher.addBox('sea_foam', rw + 4.0, 0.16, rd + 4.0, rx, -0.36, rz);
+        world.prisonIslandData.coastalRocksCount++;
+      }
+    }
+  } else {
+    const minSlabX = ws(954), maxSlabX = ws(1796), minSlabZ = ws(1118), maxSlabZ = ws(1982);
+    const slabCX = (minSlabX + maxSlabX) * 0.5, slabCZ = (minSlabZ + maxSlabZ) * 0.5;
+    const slabW = maxSlabX - minSlabX, slabD = maxSlabZ - minSlabZ;
+    const tileW = slabW / 4, tileD = slabD / 4;
+    for (let gx = 0; gx < 4; gx++) {
+      for (let gz = 0; gz < 4; gz++) {
+        const tx = minSlabX + (gx + 0.5) * tileW, tz = minSlabZ + (gz + 0.5) * tileD;
+        batcher.addBox('coastal_rock', tileW + 8, 2.2, tileD + 8, tx, -0.92, tz);
+        batcher.addBox('yard_concrete', tileW, 1.1, tileD, tx, -0.25, tz);
+      }
+    }
+    world.addCollider(slabCX, slabCZ, slabW, slabD, 0.3, -2.5);
+    world.mapBlocks.push({ x: slabCX, z: slabCZ, w: slabW, d: slabD, color: '#334155' });
+    if (!world.elevatedDecks) world.elevatedDecks = [];
+    world.elevatedDecks.push({
+      id: 'prison_island_ground_pad', minX: minSlabX, maxX: maxSlabX, minZ: minSlabZ, maxZ: maxSlabZ,
+      topY: 0.3, thresholdBelow: 2.5, getDeckY: () => 0.3, getTopY: () => 0.3
+    });
+
+    const bridgeAxisX = ws(1375), dockCenterZ = 1550 + dzOff;
+    for (let i = 0; i < PRISON_ISLAND_POLYGON.length; i++) {
+      const [ax, az] = PRISON_ISLAND_POLYGON[i];
+      const [bx, bz] = PRISON_ISLAND_POLYGON[(i + 1) % PRISON_ISLAND_POLYGON.length];
+      for (const t of [0.22, 0.68]) {
+        const rx = ax + (bx - ax) * t, rz = az + (bz - az) * t;
+        if (Math.abs(rx - bridgeAxisX) < 46 && rz < ws(1168)) continue;
+        if (rx < ws(968) && Math.abs(rz - dockCenterZ) < 68) continue;
+        const seed = i * 2 + (t > 0.5 ? 1 : 0);
+        const rw = 18 + ((seed * 7) % 14), rh = 3.6 + ((seed * 13) % 6), rd = 16 + ((seed * 11) % 12);
+        batcher.addBox('coastal_rock', rw, rh, rd, rx, rh * 0.35 - 0.5, rz);
+        batcher.addBox('sea_foam', rw + 4.0, 0.16, rd + 4.0, rx, -0.36, rz);
+        world.addCollider(rx, rz, rw, rd, rh * 0.85 - 0.5, -1.5);
+        world.prisonIslandData.coastalRocksCount++;
+      }
     }
   }
 
   // ==========================================================================
-  // DOCA NAVAL DA GUARDA COSTEIRA (FORA DA MURALHA OESTE: X = 860..995, Z = 1505..1595)
+  // DOCA NAVAL DA GUARDA COSTEIRA ( CONJUNTO RÍGIDO 1X EM wsP(928, 1550) )
   // ==========================================================================
-  const dockX = 928;
-  const dockZ = 1550;
-  const dockW = 136; // X = 860..996
-  const dockD = 90;  // Z = 1505..1595
+  const dockX = 928 + dxOff;
+  const dockZ = 1550 + dzOff;
+  const dockW = 136; // 1x: X = 860..996
+  const dockD = 90;  // 1x: Z = 1505..1595
   batcher.addBox('gunmetal_concrete', dockW, 2.2, dockD, dockX, -0.82, dockZ);
   batcher.addBox('armor_slate', dockW - 4, 0.16, dockD - 4, dockX, 0.32, dockZ);
   world.addCollider(dockX, dockZ, dockW, dockD, 0.3, -2.5);
   world.mapBlocks.push({ x: dockX, z: dockZ, w: dockW, d: dockD, color: '#1e293b' });
 
-  // Faixas Zebradas Amarelas/Pretas na borda marítima Oeste (X = 862), Cabeços de Amarração e Defensas de Borracha
-  batcher.addBox('alert_yellow', 2.4, 0.12, dockD - 2, 862.5, 0.41, dockZ);
-  for (let dz = 1512; dz <= 1588; dz += 12) {
-    batcher.addBox('matte_black', 2.5, 0.14, 4.5, 862.5, 0.42, dz);
-    batcher.addBox('matte_black', 1.4, 1.8, 3.2, 859.6, -0.2, dz);
-    batcher.addCylinder('dark_steel', 0.55, 0.72, 1.3, 864.8, 0.95, dz, 8);
+  // Faixas Zebradas Amarelas/Pretas na borda marítima Oeste, Cabeços de Amarração e Defensas de Borracha
+  batcher.addBox('alert_yellow', 2.4, 0.12, dockD - 2, 862.5 + dxOff, 0.41, dockZ);
+  for (let dzBase = 1512; dzBase <= 1588; dzBase += 12) {
+    const dz = dzBase + dzOff;
+    batcher.addBox('matte_black', 2.5, 0.14, 4.5, 862.5 + dxOff, 0.42, dz);
+    batcher.addBox('matte_black', 1.4, 1.8, 3.2, 859.6 + dxOff, -0.2, dz);
+    batcher.addCylinder('dark_steel', 0.55, 0.72, 1.3, 864.8 + dxOff, 0.95, dz, 8);
   }
 
-  // 2 Dedos de Atracação (Píeres Flutuantes em X = 842..860) onde as 2 Lanchas Blindadas da Polícia Marítima ficam atracadas!
-  for (const pierZ of [1516, 1550, 1584]) {
-    batcher.addBox('gunmetal_concrete', 24, 1.4, 4.8, 848, -0.35, pierZ);
-    batcher.addBox('alert_yellow', 24.2, 0.18, 5.0, 848, 0.42, pierZ);
-    world.addCollider(848, pierZ, 24, 4.8, 0.3, -1.5);
+  // 3 Dedos de Atracação (Píeres Flutuantes) onde as 2 Lanchas Blindadas da Polícia Marítima ficam atracadas
+  for (const pierZBase of [1516, 1550, 1584]) {
+    const pierZ = pierZBase + dzOff;
+    batcher.addBox('gunmetal_concrete', 24, 1.4, 4.8, 848 + dxOff, -0.35, pierZ);
+    batcher.addBox('alert_yellow', 24.2, 0.18, 5.0, 848 + dxOff, 0.42, pierZ);
+    world.addCollider(848 + dxOff, pierZ, 24, 4.8, 0.3, -1.5);
   }
 
-  // Guindaste Naval da Guarda Costeira (H = 38m em X = 885, Z = 1518) + Contêineres e Caixas de Suprimentos do BOPE
-  batcher.addBox('alert_yellow', 10, 4.5, 10, 885, 2.5, 1518);
-  batcher.addBox('dark_steel', 4.5, 34.0, 4.5, 885, 19.5, 1518);
-  batcher.addBox('alert_yellow', 32.0, 3.2, 3.2, 874, 35.5, 1518);
-  batcher.addCable('matte_black', 0.32, 862, 34.0, 1518, 862, 10.0, 1518);
-  batcher.addBox('police_blue', 6.5, 3.8, 4.2, 862, 8.2, 1518);
-  world.addCollider(885, 1518, 10, 10, 38, 0.28);
+  // Guindaste Naval da Guarda Costeira (H = 38m) + Contêineres e Caixas de Suprimentos do BOPE
+  batcher.addBox('alert_yellow', 10, 4.5, 10, 885 + dxOff, 2.5, 1518 + dzOff);
+  batcher.addBox('dark_steel', 4.5, 34.0, 4.5, 885 + dxOff, 19.5, 1518 + dzOff);
+  batcher.addBox('alert_yellow', 32.0, 3.2, 3.2, 874 + dxOff, 35.5, 1518 + dzOff);
+  batcher.addCable('matte_black', 0.32, 862 + dxOff, 34.0, 1518 + dzOff, 862 + dxOff, 10.0, 1518 + dzOff);
+  batcher.addBox('police_blue', 6.5, 3.8, 4.2, 862 + dxOff, 8.2, 1518 + dzOff);
+  world.addCollider(885 + dxOff, 1518 + dzOff, 10, 10, 38, 0.28);
 
   // Caixas de Suprimentos Táticos e Combustível Naval no Píer + Policiais da Guarda Costeira
-  for (let cx = 905; cx <= 955; cx += 16) {
-    batcher.addBox('police_blue', 8.5, 4.2, 5.5, cx, 2.4, 1520);
-    batcher.addBox('alert_yellow', 8.7, 0.45, 5.7, cx, 4.55, 1520);
-    batcher.addBox('gunmetal_concrete', 7.5, 3.6, 5.0, cx, 2.1, 1580);
-    world.addCollider(cx, 1520, 8.5, 5.5, 4.6, 0.28);
-    world.addCollider(cx, 1580, 7.5, 5.0, 3.8, 0.28);
+  for (let cxBase = 905; cxBase <= 955; cxBase += 16) {
+    const cx = cxBase + dxOff;
+    batcher.addBox('police_blue', 8.5, 4.2, 5.5, cx, 2.4, 1520 + dzOff);
+    batcher.addBox('alert_yellow', 8.7, 0.45, 5.7, cx, 4.55, 1520 + dzOff);
+    batcher.addBox('gunmetal_concrete', 7.5, 3.6, 5.0, cx, 2.1, 1580 + dzOff);
+    world.addCollider(cx, 1520 + dzOff, 8.5, 5.5, 4.6, 0.28);
+    world.addCollider(cx, 1580 + dzOff, 7.5, 5.0, 3.8, 0.28);
   }
-  addBatchedLegoPerson(batcher, 872, 0.42, 1535, -Math.PI / 2, 'bope_guard', 'stand');
-  addBatchedLegoPerson(batcher, 872, 0.42, 1565, -Math.PI / 2, 'warden_police', 'stand');
-  addBatchedLegoPerson(batcher, 945, 0.42, 1550, 0, 'bope_guard', 'stand');
+  addBatchedLegoPerson(batcher, 872 + dxOff, 0.42, 1535 + dzOff, -Math.PI / 2, 'bope_guard', 'stand');
+  addBatchedLegoPerson(batcher, 872 + dxOff, 0.42, 1565 + dzOff, -Math.PI / 2, 'warden_police', 'stand');
+  addBatchedLegoPerson(batcher, 945 + dxOff, 0.42, 1550 + dzOff, 0, 'bope_guard', 'stand');
   world.prisonIslandData.guardsCount += 3;
 
-  // ==========================================================================
-  // MURALHA PERIMETRAL COLOSSAL (H = 40m, X = 995..1755, Z = 1125..1935 — 760m x 810m!)
-  // ==========================================================================
-  const wallH = 40;
-  const wallThick = 14;
-  const minX = 995;
-  const maxX = 1755;
-  const minZ = 1125;
-  const maxZ = 1935;
-  const spanX = maxX - minX; // 760m
-  const spanZ = maxZ - minZ; // 810m
+  if (IS_SCALED_WORLD) {
+    // Encontro costeiro contínuo da Doca Naval com a Laje da Ilha + Via Logística até o Portão Oeste (Z = 1550 + oz)
+    const dockEastX = dockX + dockW * 0.5;
+    const islandWestX = ws(954);
+    const abutmentSpan = Math.max(8, islandWestX - dockEastX + 16);
+    const abutmentCX = dockEastX + abutmentSpan * 0.5 - 4;
+    batcher.addBox('gunmetal_concrete', abutmentSpan, 2.2, dockD, abutmentCX, -0.82, dockZ);
+    batcher.addBox('armor_slate', abutmentSpan, 0.16, dockD - 4, abutmentCX, 0.32, dockZ);
+    world.addCollider(abutmentCX, dockZ, abutmentSpan, dockD, 0.3, -2.5);
+    world.elevatedDecks.push({
+      id: 'prison_west_naval_dock', minX: 836 + dxOff, maxX: islandWestX + 8,
+      minZ: dockZ - dockD * 0.5, maxZ: dockZ + dockD * 0.5, topY: 0.3, thresholdBelow: 2.5,
+      getDeckY: () => 0.3, getTopY: () => 0.3
+    });
 
-  // Muralha Sul (Z = 1935) e Muralha Leste (X = 1755)
+    const westGateX = 995 + ox, roadZ = 1550 + oz, roadLenX = westGateX - dockEastX;
+    if (roadLenX > 20) {
+      const roadMidX = (dockEastX + westGateX) * 0.5;
+      batcher.addBox('matte_black', roadLenX, 0.12, 26, roadMidX, 0.32, roadZ);
+      batcher.addBox('alert_yellow', roadLenX - 8, 0.05, 0.4, roadMidX, 0.39, roadZ);
+      world.mapRoads.push({ x: roadMidX, z: roadZ, w: roadLenX, d: 26, isMain: false });
+    }
+  }
+
+  // ==========================================================================
+  // MURALHA PERIMETRAL COLOSSAL (H = 40m, 760m x 810m EM ESCALA RÍGIDA 1X!)
+  // ==========================================================================
+  const ix = 1375 + ox, wallH = 40, wallThick = 14;
+  const minX = 995 + ox, maxX = 1755 + ox, minZ = 1125 + oz, maxZ = 1935 + oz;
+  const spanX = maxX - minX, spanZ = maxZ - minZ;
+
   _buildFortifiedWallSegment(world, batcher, ix, maxZ, spanX, wallThick, wallH, true);
   _buildFortifiedWallSegment(world, batcher, maxX, (minZ + maxZ) * 0.5, wallThick, spanZ, wallH, false);
 
-  // Muralha Oeste (X = 995) dividida em 2 trechos com Portão Lateral Blindado (Z = 1550) para a Doca Naval!
-  _buildFortifiedWallSegment(world, batcher, minX, 1325, wallThick, 400, wallH, false); // Z = 1125..1525
-  _buildFortifiedWallSegment(world, batcher, minX, 1755, wallThick, 360, wallH, false); // Z = 1575..1935
-  // Sobreportão e Pórtico Blindado do Portão Lateral Naval (X = 995, Z = 1550, vão livre Z = 1536..1564)
-  batcher.addBox('gunmetal_concrete', 16, 22, 54, minX, 29.3, 1550);
-  batcher.addBox('alert_yellow', 17, 1.0, 55, minX, 18.2, 1550);
-  addPrisonBannerSign(
-    world,
-    minX - 8.5,
-    26.0,
-    1550,
-    42.0,
-    5.0,
-    'DOCA NAVAL — GUARDA COSTEIRA',
-    'ACESSO MARÍTIMO BLINDADO • BOPE / POLÍCIA FEDERAL',
-    -Math.PI / 2
-  );
+  const westGateZ = 1550 + oz;
+  _buildFortifiedWallSegment(world, batcher, minX, 1325 + oz, wallThick, 400, wallH, false);
+  _buildFortifiedWallSegment(world, batcher, minX, 1755 + oz, wallThick, 360, wallH, false);
+  batcher.addBox('gunmetal_concrete', 16, 22, 54, minX, 29.3, westGateZ);
+  batcher.addBox('alert_yellow', 17, 1.0, 55, minX, 18.2, westGateZ);
+  addPrisonBannerSign(world, minX - 8.5, 26.0, westGateZ, 42.0, 5.0, 'DOCA NAVAL — GUARDA COSTEIRA', 'ACESSO MARÍTIMO BLINDADO • BOPE / POLÍCIA FEDERAL', -Math.PI / 2);
 
-  // Muralha Norte (Z = 1125) dividida em 2 alas laterais para o Portão Blindado Monumental (X = 1375)
-  _buildFortifiedWallSegment(world, batcher, 1161, minZ, 332, wallThick, wallH, true); // X = 995..1327
-  _buildFortifiedWallSegment(world, batcher, 1589, minZ, 332, wallThick, wallH, true); // X = 1423..1755
+  _buildFortifiedWallSegment(world, batcher, 1161 + ox, minZ, 332, wallThick, wallH, true);
+  _buildFortifiedWallSegment(world, batcher, 1589 + ox, minZ, 332, wallThick, wallH, true);
 
-  // PORTÃO BLINDADO MONUMENTAL NORTE (X = 1375, Z = 1125)
   batcher.addBox('gunmetal_concrete', 96, 24, 16, ix, 30.3, minZ);
   batcher.addBox('bope_black', 98, 4.2, 17.5, ix, 41.2, minZ);
   batcher.addBox('alert_yellow', 98.5, 0.9, 18.0, ix, 18.6, minZ);
@@ -145,40 +191,15 @@ export function buildPrisonIslandPerimeterWallsAndCoastGuardDock(world, batcher)
     batcher.addBox('dark_steel', 16, 18.5, 15, pillarX, 9.5, minZ);
     world.addCollider(pillarX, minZ, 16, 15, 42, 0.28);
     for (let bar = 0; bar < 5; bar++) {
-      const bxBar = ix + side * (12.8 + bar * 1.1);
-      batcher.addCylinder('brushed_silver', 0.28, 0.28, 18.0, bxBar, 9.3, minZ, 8);
+      batcher.addCylinder('brushed_silver', 0.28, 0.28, 18.0, ix + side * (12.8 + bar * 1.1), 9.3, minZ, 8);
     }
   }
   for (let gx = ix - 12; gx <= ix + 12; gx += 2.4) {
     batcher.addCylinder('brushed_silver', 0.26, 0.26, 9.5, gx, 23.5, minZ, 8);
   }
 
-  addPrisonBannerSign(
-    world,
-    ix,
-    32.5,
-    minZ - 8.4,
-    68.0,
-    7.2,
-    'PENITENCIÁRIA DE SEGURANÇA MÁXIMA',
-    'COMPLEXO FEDERAL "A BALSA" — FORÇA TÁTICA / BOPE',
-    0,
-    '#ef4444',
-    '#facc15'
-  );
-  addPrisonBannerSign(
-    world,
-    ix,
-    32.5,
-    minZ + 8.4,
-    58.0,
-    6.2,
-    'SAÍDA CONTROLADA — PONTE BLINDADA',
-    'PORTÃO DUPLO DE CONTENÇÃO (SALLIE PORT)',
-    Math.PI,
-    '#facc15',
-    '#facc15'
-  );
+  addPrisonBannerSign(world, ix, 32.5, minZ - 8.4, 68.0, 7.2, 'PENITENCIÁRIA DE SEGURANÇA MÁXIMA', 'COMPLEXO FEDERAL "A BALSA" — FORÇA TÁTICA / BOPE', 0, '#ef4444', '#facc15');
+  addPrisonBannerSign(world, ix, 32.5, minZ + 8.4, 58.0, 6.2, 'SAÍDA CONTROLADA — PONTE BLINDADA', 'PORTÃO DUPLO DE CONTENÇÃO (SALLIE PORT)', Math.PI, '#facc15', '#facc15');
 
   // 8 TORRES DE VIGIA GIGANTES (H = 68m — 4 esquinas + 2 laterais do Portão Principal + 2 laterais centrais!)
   const watchtowerCoords = [
@@ -188,8 +209,8 @@ export function buildPrisonIslandPerimeterWallsAndCoastGuardDock(world, batcher)
     { x: maxX, z: maxZ, label: 'TORRE DE VIGIA SUDESTE' },
     { x: ix - 46, z: minZ, label: 'TORRE DO PORTÃO OESTE' },
     { x: ix + 46, z: minZ, label: 'TORRE DO PORTÃO LESTE' },
-    { x: minX, z: 1515, label: 'TORRE DE VIGIA DOCA NAVAL' },
-    { x: maxX, z: 1540, label: 'TORRE DE VIGIA LESTE' }
+    { x: minX, z: 1515 + oz, label: 'TORRE DE VIGIA DOCA NAVAL' },
+    { x: maxX, z: 1540 + oz, label: 'TORRE DE VIGIA LESTE' }
   ];
 
   for (const wt of watchtowerCoords) {
@@ -233,8 +254,8 @@ function _buildGiantWatchtower(world, batcher, x, z, h, label) {
   batcher.addCylinder('brushed_silver', 0.35, 0.5, 6.5, x, h + 1.5, z, 8);
   batcher.addBox('siren_red', 1.6, 1.6, 1.6, x, h + 5.0, z);
   batcher.addBox('searchlight_white', 2.6, 1.8, 2.6, x, deckY + 2.4, z);
-  const dirX = x < 1375 ? 1 : -1;
-  const dirZ = z < 1540 ? 1 : -1;
+  const dirX = x < PRISON_COMPOUND_ORIGIN.x ? 1 : -1;
+  const dirZ = z < PRISON_COMPOUND_ORIGIN.z ? 1 : -1;
   batcher.addCylinder(
     'searchlight_beam',
     1.2,
@@ -255,13 +276,13 @@ function _buildGiantWatchtower(world, batcher, x, z, h, label) {
 }
 
 /**
- * Terraço de Comando Superior (Y = 126.28m) + DUPLO HELIPONTO POLICIAL (X = 1352 e X = 1398, Z = 1540)
+ * Terraço de Comando Superior (Y = 126.28m) + DUPLO HELIPONTO POLICIAL (cx - 23 e cx + 23)
  * + Torre de Radar, Antenas e Sirenes da Cidadela
  */
 export function buildCitadelRooftopHelipadsAndRadar(batcher, cx, cz, roofY) {
   batcher.addBox('armor_slate', 90, 0.5, 90, cx, roofY, cz);
 
-  for (const heliX of [1352, 1398]) {
+  for (const heliX of [cx - 23, cx + 23]) {
     batcher.addCylinder('matte_black', 17.5, 17.5, 0.36, heliX, roofY + 0.32, cz, 24);
     batcher.addCylinder('alert_yellow', 15.8, 15.8, 0.38, heliX, roofY + 0.34, cz, 24);
     batcher.addCylinder('matte_black', 14.2, 14.2, 0.40, heliX, roofY + 0.36, cz, 24);
@@ -284,34 +305,36 @@ export function buildCitadelRooftopHelipadsAndRadar(batcher, cx, cz, roofY) {
 }
 
 /**
- * 5. PREENCHIMENTO 100% DO PÁTIO INTERNO EM 4 SETORES CERCADOS (ZERO CHÃO CINZA VAZIO!):
+ * 5. PREENCHIMENTO 100% DO PÁTIO INTERNO EM 4 SETORES CERCADOS (ESCALA RÍGIDA 1X!):
  * - Avenida Central Asfaltada + Alambrados Duplos de Tela Metálica + Passarelas Elevadas de Ronda (com guardas em cima!);
- * - Setor 1 (Oeste/Sudoeste: X = 1170..1310, Z = 1310..1740): Grande Pátio de Banho de Sol com 2 Quadras Esportivas
- *   Completas (1 Futsal + 1 Basquete), Arquibancadas de Concreto, Academia de Musculação ao Ar Livre (12 bancos),
- *   20 Mesas de Concreto e dezenas de detentos de uniforme laranja vigiados por guardas nas passarelas elevadas;
- * - Setor 2 (Nordeste: X = 1435..1595, Z = 1280..1380): Garagem Tática & Pátio de Comboios Policiais com
- *   4 Ônibus Celulares Blindados, Caveirões do BOPE, viaturas e caixas de arsenal;
- * - Setor 3 (Centro-Leste: X = 1435..1595, Z = 1395..1535): Subestação de Energia & Geradores da Prisão com
- *   6 Transformadores Gigantes, 6 Geradores a Diesel, 8 Bobinas e 4 Torres de Energia;
- * - Setor 4 (Sudeste: X = 1435..1595, Z = 1565..1665): Pátio Logístico de Caixas d'Água Cilíndricas Pretas/Amarelas e Suprimentos.
+ * - Setor 1 (Oeste/Sudoeste): Grande Pátio de Banho de Sol com 2 Quadras Esportivas (Futsal + Basquete),
+ *   Arquibancadas de Concreto, Academia de Musculação ao Ar Livre (12 bancos) e 20 Mesas de Concreto;
+ * - Setor 2 (Nordeste): Garagem Tática & Pátio de Comboios Policiais com 4 Ônibus Celulares Blindados e Galpão;
+ * - Setor 3 (Centro-Leste): Subestação de Energia & Geradores com 6 Transformadores, 6 Geradores, Bobinas e 4 Torres;
+ * - Setor 4 (Sudeste): Pátio Logístico de 4 Caixas d'Água Cilíndricas Pretas/Amarelas.
  */
 export function buildFourInternalCourtyardSectors(world, batcher) {
-  // Vias Asfaltadas Internas conectando o Portão Norte (Z=1125) à Cidadela Central (Z=1540) e aos Setores
-  batcher.addBox('matte_black', 42, 0.14, 360, 1375, 0.34, 1305);
-  batcher.addBox('alert_yellow', 0.45, 0.06, 350, 1374.4, 0.41, 1305);
-  batcher.addBox('alert_yellow', 0.45, 0.06, 350, 1375.6, 0.41, 1305);
-  world.mapRoads.push({ x: 1375, z: 1305, w: 42, d: 360, isMain: true });
+  const ox = PRISON_OFFSET_X;
+  const oz = PRISON_OFFSET_Z;
+  const aveX = 1375 + ox;
+  const aveZ = 1305 + oz;
+
+  // Vias Asfaltadas Internas conectando o Portão Norte à Cidadela Central e aos Setores
+  batcher.addBox('matte_black', 42, 0.14, 360, aveX, 0.34, aveZ);
+  batcher.addBox('alert_yellow', 0.45, 0.06, 350, aveX - 0.6, 0.41, aveZ);
+  batcher.addBox('alert_yellow', 0.45, 0.06, 350, aveX + 0.6, 0.41, aveZ);
+  world.mapRoads.push({ x: aveX, z: aveZ, w: 42, d: 360, isMain: true });
 
   // ==========================================================================
   // PASSARELAS ELEVADAS DE RONDA (Y = 9.5m) & ALAMBRADOS DUPLOS DE TELA METÁLICA DIVIDINDO OS SETORES
   // ==========================================================================
   const catwalks = [
-    [1315, 1525, 6.0, 420, false], // Passarela Elevada Leste do Pátio de Banho de Sol
-    [1240, 1310, 150, 6.0, true],  // Passarela Elevada Norte do Pátio de Banho de Sol
-    [1240, 1525, 150, 6.0, true],  // Passarela Elevada Central entre as 2 Quadras e a Academia
-    [1240, 1740, 150, 6.0, true],  // Passarela Elevada Sul do Pátio de Banho de Sol
-    [1435, 1465, 6.0, 360, false], // Passarela Elevada Oeste da Garagem / Subestação / Pátio Logístico
-    [1515, 1388, 160, 6.0, true]   // Passarela Elevada entre Garagem Tática e Subestação de Energia
+    [1315 + ox, 1525 + oz, 6.0, 420, false], // Passarela Elevada Leste do Pátio de Banho de Sol
+    [1240 + ox, 1310 + oz, 150, 6.0, true],  // Passarela Elevada Norte do Pátio de Banho de Sol
+    [1240 + ox, 1525 + oz, 150, 6.0, true],  // Passarela Elevada Central entre as 2 Quadras e a Academia
+    [1240 + ox, 1740 + oz, 150, 6.0, true],  // Passarela Elevada Sul do Pátio de Banho de Sol
+    [1435 + ox, 1465 + oz, 6.0, 360, false], // Passarela Elevada Oeste da Garagem / Subestação / Pátio Logístico
+    [1515 + ox, 1388 + oz, 160, 6.0, true]   // Passarela Elevada entre Garagem Tática e Subestação de Energia
   ];
   for (const [cwX, cwZ, cwW, cwD, isHoriz] of catwalks) {
     world.prisonIslandData.elevatedGuardCatwalksCount++;
@@ -335,11 +358,11 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
   }
 
   // ==========================================================================
-  // SETOR 1 (X = 1170..1310, Z = 1315..1735): GRANDE PÁTIO DE BANHO DE SOL DOS DETENTOS
+  // SETOR 1: GRANDE PÁTIO DE BANHO DE SOL DOS DETENTOS
   // ==========================================================================
-  // 1A. QUADRA DE FUTSAL (X = 1235, Z = 1375 — 62m x 82m) + Arquibancada de Concreto
-  const futX = 1235;
-  const futZ = 1375;
+  // 1A. QUADRA DE FUTSAL (62m x 82m) + Arquibancada de Concreto
+  const futX = 1235 + ox;
+  const futZ = 1375 + oz;
   batcher.addBox('futsal_green', 62, 0.14, 82, futX, 0.34, futZ);
   batcher.addBox('tactical_white', 58, 0.06, 0.65, futX, 0.42, futZ - 39);
   batcher.addBox('tactical_white', 58, 0.06, 0.65, futX, 0.42, futZ + 39);
@@ -353,14 +376,13 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
     batcher.addBox('tactical_white', 0.38, 3.4, 0.38, futX - 5.3, 1.98, goalZ);
     batcher.addBox('tactical_white', 0.38, 3.4, 0.38, futX + 5.3, 1.98, goalZ);
   }
-  // Arquibancada de Concreto de 4 Degraus ao lado da Quadra de Futsal (X = 1280, Z = 1375)
   for (let step = 0; step < 4; step++) {
-    batcher.addBox('gunmetal_concrete', 3.2, (step + 1) * 1.1, 72, 1274 + step * 3.2, 0.28 + (step + 1) * 0.55, futZ);
+    batcher.addBox('gunmetal_concrete', 3.2, (step + 1) * 1.1, 72, 1274 + ox + step * 3.2, 0.28 + (step + 1) * 0.55, futZ);
   }
 
-  // 1B. QUADRA DE BASQUETE (X = 1235, Z = 1472 — 62m x 82m) + Tabelas + Arquibancada de Concreto
-  const bskX = 1235;
-  const bskZ = 1472;
+  // 1B. QUADRA DE BASQUETE (62m x 82m) + Tabelas + Arquibancada de Concreto
+  const bskX = 1235 + ox;
+  const bskZ = 1472 + oz;
   batcher.addBox('court_blue', 62, 0.14, 82, bskX, 0.34, bskZ);
   batcher.addBox('tactical_white', 58, 0.06, 0.65, bskX, 0.42, bskZ - 39);
   batcher.addBox('tactical_white', 58, 0.06, 0.65, bskX, 0.42, bskZ + 39);
@@ -375,18 +397,18 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
     batcher.addBox('prison_orange', 1.6, 0.24, 1.6, bskX, 5.4, hoopZ - dir * 0.3);
   }
   for (let step = 0; step < 4; step++) {
-    batcher.addBox('gunmetal_concrete', 3.2, (step + 1) * 1.1, 72, 1274 + step * 3.2, 0.28 + (step + 1) * 0.55, bskZ);
+    batcher.addBox('gunmetal_concrete', 3.2, (step + 1) * 1.1, 72, 1274 + ox + step * 3.2, 0.28 + (step + 1) * 0.55, bskZ);
   }
 
-  // 20 Detentos LEGO jogando Futsal e Basquete ou assistindo nas arquibancadas
+  // Detentos LEGO jogando Futsal e Basquete ou assistindo nas arquibancadas
   const sportsInmates = [
     [futX - 10, futZ - 18, 0, 'prisoner_orange'], [futX + 12, futZ - 12, 0.6, 'prisoner_cv'],
     [futX - 6, futZ + 8, -0.5, 'prisoner_pcc'], [futX + 14, futZ + 20, 2.4, 'prisoner_orange'],
     [futX, futZ - 34, 0, 'prisoner_orange'], [futX, futZ + 34, Math.PI, 'prisoner_cv'],
     [bskX - 12, bskZ - 16, 0.4, 'prisoner_orange'], [bskX + 10, bskZ - 8, -0.8, 'prisoner_pcc'],
     [bskX - 8, bskZ + 14, 1.8, 'prisoner_cv'], [bskX + 12, bskZ + 22, -2.2, 'prisoner_orange'],
-    [1277, futZ - 15, -Math.PI / 2, 'prisoner_orange'], [1277, futZ + 15, -Math.PI / 2, 'prisoner_cv'],
-    [1277, bskZ - 15, -Math.PI / 2, 'prisoner_pcc'], [1277, bskZ + 15, -Math.PI / 2, 'prisoner_orange']
+    [1277 + ox, futZ - 15, -Math.PI / 2, 'prisoner_orange'], [1277 + ox, futZ + 15, -Math.PI / 2, 'prisoner_cv'],
+    [1277 + ox, bskZ - 15, -Math.PI / 2, 'prisoner_pcc'], [1277 + ox, bskZ + 15, -Math.PI / 2, 'prisoner_orange']
   ];
   for (const [px, pz, rot, preset] of sportsInmates) {
     addBatchedLegoPerson(batcher, px, 0.42, pz, rot, preset, 'stand');
@@ -395,9 +417,9 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
     else world.prisonIslandData.orangePrisonersCount++;
   }
 
-  // 1C. ACADEMIA DE MUSCULAÇÃO AO AR LIVRE (X = 1235, Z = 1585 — 12 Bancos de Supino & Aparelhos!)
-  const gymX = 1235;
-  const gymZ = 1585;
+  // 1C. ACADEMIA DE MUSCULAÇÃO AO AR LIVRE (12 Bancos de Supino & Aparelhos!)
+  const gymX = 1235 + ox;
+  const gymZ = 1585 + oz;
   batcher.addBox('matte_black', 92, 0.14, 78, gymX, 0.34, gymZ);
   batcher.addBox('alert_yellow', 92.5, 0.08, 1.2, gymX, 0.38, gymZ - 38.5);
   batcher.addBox('alert_yellow', 92.5, 0.08, 1.2, gymX, 0.38, gymZ + 38.5);
@@ -422,9 +444,9 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
     }
   }
 
-  // 1D. PÁTIO DE MESAS E BANCOS DE CONCRETO (X = 1235, Z = 1685 — 20 Mesas de Concreto 5x4!)
-  const cafeX = 1235;
-  const cafeZ = 1685;
+  // 1D. PÁTIO DE MESAS E BANCOS DE CONCRETO (20 Mesas de Concreto 5x4!)
+  const cafeX = 1235 + ox;
+  const cafeZ = 1685 + oz;
   batcher.addBox('armor_slate', 92, 0.16, 82, cafeX, 0.35, cafeZ);
   for (let r = 0; r < 4; r++) {
     for (let c = 0; c < 5; c++) {
@@ -444,42 +466,43 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
   }
 
   // ==========================================================================
-  // SETOR 2 (X = 1515, Z = 1330): GARAGEM TÁTICA & PÁTIO DE COMBOIOS POLICIAIS
+  // SETOR 2: GARAGEM TÁTICA & PÁTIO DE COMBOIOS POLICIAIS
   // ==========================================================================
-  const garX = 1515;
-  const garZ = 1330;
+  const garX = 1515 + ox;
+  const garZ = 1330 + oz;
   batcher.addBox('matte_black', 148, 0.14, 92, garX, 0.34, garZ);
-  // Vagas Demarcadas com Faixas Amarelas no Piso para os Caveirões e Ônibus Celulares
-  for (let vx = 1445; vx <= 1585; vx += 18) {
-    batcher.addBox('alert_yellow', 0.45, 0.06, 22.0, vx, 0.41, 1315);
-    batcher.addBox('alert_yellow', 0.45, 0.06, 22.0, vx, 0.41, 1355);
+  for (let vxBase = 1445; vxBase <= 1585; vxBase += 18) {
+    const vx = vxBase + ox;
+    batcher.addBox('alert_yellow', 0.45, 0.06, 22.0, vx, 0.41, 1315 + oz);
+    batcher.addBox('alert_yellow', 0.45, 0.06, 22.0, vx, 0.41, 1355 + oz);
   }
   const busCoords = [
-    [1454, 1355, Math.PI],
-    [1478, 1355, Math.PI],
-    [1502, 1355, Math.PI],
-    [1526, 1355, Math.PI]
+    [1454 + ox, 1355 + oz, Math.PI],
+    [1478 + ox, 1355 + oz, Math.PI],
+    [1502 + ox, 1355 + oz, Math.PI],
+    [1526 + ox, 1355 + oz, Math.PI]
   ];
   for (const [bx, bz, rotY] of busCoords) {
     _addArmoredPrisonTransportBus(world, batcher, bx, bz, rotY);
   }
-  // Galpão de Manutenção & Caixas de Arsenal Policial no Leste do Setor 2 (X = 1568, Z = 1330)
-  batcher.addBox('bope_black', 34, 22, 76, 1568, 11.28, 1330);
-  batcher.addBox('alert_yellow', 35, 0.9, 77, 1568, 22.2, 1330);
-  world.addCollider(1568, 1330, 34, 76, 23, 0.28);
+  const maintX = 1568 + ox;
+  const maintZ = 1330 + oz;
+  batcher.addBox('bope_black', 34, 22, 76, maintX, 11.28, maintZ);
+  batcher.addBox('alert_yellow', 35, 0.9, 77, maintX, 22.2, maintZ);
+  world.addCollider(maintX, maintZ, 34, 76, 23, 0.28);
 
   // ==========================================================================
-  // SETOR 3 (X = 1515, Z = 1465): SUBESTAÇÃO DE ENERGIA & GERADORES DA PRISÃO
+  // SETOR 3: SUBESTAÇÃO DE ENERGIA & GERADORES DA PRISÃO
   // ==========================================================================
-  const subX = 1515;
-  const subZ = 1465;
+  const subX = 1515 + ox;
+  const subZ = 1465 + oz;
   batcher.addBox('gunmetal_concrete', 146, 0.22, 116, subX, 0.36, subZ);
-  // Mureta Perimetral Zebrada Amarela/Preta da Subestação
   batcher.addBox('alert_yellow', 146, 2.2, 1.6, subX, 1.38, subZ - 57);
   batcher.addBox('alert_yellow', 146, 2.2, 1.6, subX, 1.38, subZ + 57);
 
   // 6 Transformadores Elétricos Gigantes com Aletas de Resfriamento e Buchas Isoladoras
-  for (let tx = 1456; tx <= 1556; tx += 20) {
+  for (let txBase = 1456; txBase <= 1556; txBase += 20) {
+    const tx = txBase + ox;
     world.prisonIslandData.substationTransformersCount++;
     batcher.addBox('armor_slate', 10.5, 11.0, 12.0, tx, 5.8, subZ - 26);
     batcher.addBox('dark_steel', 11.5, 8.5, 13.0, tx, 5.5, subZ - 26);
@@ -493,7 +516,8 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
   }
 
   // 6 Geradores Industriais a Diesel Blindados (Preto/Amarelo com escapamentos duplos)
-  for (let gx = 1456; gx <= 1556; gx += 20) {
+  for (let gxBase = 1456; gxBase <= 1556; gxBase += 20) {
+    const gx = gxBase + ox;
     world.prisonIslandData.dieselGeneratorsCount++;
     batcher.addBox('bope_black', 11.0, 7.2, 16.0, gx, 3.9, subZ + 18);
     batcher.addBox('alert_yellow', 11.4, 1.2, 16.4, gx, 3.8, subZ + 18);
@@ -504,10 +528,10 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
 
   // 4 Torres de Energia / Transmissão de Alta Tensão (H = 42m!) nos cantos da Subestação
   const powerTowerCoords = [
-    [1452, subZ - 46],
-    [1576, subZ - 46],
-    [1452, subZ + 46],
-    [1576, subZ + 46]
+    [1452 + ox, subZ - 46],
+    [1576 + ox, subZ - 46],
+    [1452 + ox, subZ + 46],
+    [1576 + ox, subZ + 46]
   ];
   for (const [ptX, ptZ] of powerTowerCoords) {
     world.prisonIslandData.powerTowersCount++;
@@ -520,15 +544,17 @@ export function buildFourInternalCourtyardSectors(world, batcher) {
   }
 
   // ==========================================================================
-  // SETOR 4 (X = 1515, Z = 1612): PÁTIO DE CAIXAS D'ÁGUA CILÍNDRICAS PRETAS/AMARELAS & CALDEIRAS
+  // SETOR 4: PÁTIO DE CAIXAS D'ÁGUA CILÍNDRICAS PRETAS/AMARELAS & CALDEIRAS
   // ==========================================================================
-  for (const wtX of [1462, 1498, 1534, 1570]) {
+  const wtZ = 1608 + oz;
+  for (const wtXBase of [1462, 1498, 1534, 1570]) {
+    const wtX = wtXBase + ox;
     world.prisonIslandData.waterTowersCount++;
-    batcher.addCylinder('dark_steel', 6.5, 7.2, 14.0, wtX, 7.28, 1608, 12);
-    batcher.addCylinder('bope_black', 8.2, 8.2, 22.0, wtX, 24.5, 1608, 16);
-    batcher.addCylinder('alert_yellow', 8.4, 8.4, 2.6, wtX, 24.5, 1608, 16);
-    batcher.addCylinder('alert_yellow', 8.4, 8.4, 1.8, wtX, 34.8, 1608, 16);
-    world.addCollider(wtX, 1608, 16.5, 16.5, 36, 0.28);
+    batcher.addCylinder('dark_steel', 6.5, 7.2, 14.0, wtX, 7.28, wtZ, 12);
+    batcher.addCylinder('bope_black', 8.2, 8.2, 22.0, wtX, 24.5, wtZ, 16);
+    batcher.addCylinder('alert_yellow', 8.4, 8.4, 2.6, wtX, 24.5, wtZ, 16);
+    batcher.addCylinder('alert_yellow', 8.4, 8.4, 1.8, wtX, 34.8, wtZ, 16);
+    world.addCollider(wtX, wtZ, 16.5, 16.5, 36, 0.28);
   }
 }
 

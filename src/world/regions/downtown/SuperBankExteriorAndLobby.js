@@ -2,36 +2,51 @@ import * as THREE from 'three';
 import { LEGO_COLORS, getLegoMaterial, createLegoBrick } from '../../../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeFastBox } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
+
+export const BANK_Z_SHIFT = IS_SCALED_WORLD ? ws(-175) - -175 : 0;
+export const bzShift = (z) => z + BANK_Z_SHIFT;
 
 /**
- * ESPECIFICAÇÃO GEOMÉTRICA DO SUPER BANCO CENTRAL (X: -74..+74, Z: -229..-136)
+ * ESPECIFICAÇÃO GEOMÉTRICA DO SUPER BANCO CENTRAL
+ * (Ancorado rigidamente em `origin = (0, ws(-175))`, preservando 100% das dimensões internas 1x!)
  */
 export const BANK_SPEC = {
   x: 0,
+  originX: 0,
+  originZ: ws(-175),
+  zShift: BANK_Z_SHIFT,
   minX: -74,
   maxX: 74,
-  frontZ: -136, // face externa da fachada
-  backZ: -229,
+  frontZ: bzShift(-136), // face externa da fachada
+  backZ: bzShift(-229),
   innerMinX: -71,
   innerMaxX: 71,
-  innerFrontZ: -139,
-  innerBackZ: -226,
+  innerFrontZ: bzShift(-139),
+  innerBackZ: bzShift(-226),
   floors: [0.36, 10.36, 20.36, 30.36],
   floorHeight: 10,
   roofY: 40.96,
   wallTopY: 42.4,
   ramps: [
     // R1: 1º -> 2º (oeste), sobe indo para o fundo (-Z)
-    { id: 'R1', minX: -70.6, maxX: -61.4, zLow: -146, zHigh: -196, fromFloor: 0 },
+    { id: 'R1', minX: -70.6, maxX: -61.4, zLow: bzShift(-146), zHigh: bzShift(-196), fromFloor: 0 },
     // R2: 2º -> 3º (leste), sobe indo para a frente (+Z)
-    { id: 'R2', minX: 61.4, maxX: 70.6, zLow: -196, zHigh: -146, fromFloor: 1 },
+    { id: 'R2', minX: 61.4, maxX: 70.6, zLow: bzShift(-196), zHigh: bzShift(-146), fromFloor: 1 },
     // R3: 3º -> 4º (oeste)
-    { id: 'R3', minX: -70.6, maxX: -61.4, zLow: -146, zHigh: -196, fromFloor: 2 }
+    { id: 'R3', minX: -70.6, maxX: -61.4, zLow: bzShift(-146), zHigh: bzShift(-196), fromFloor: 2 }
   ],
-  elevator: { minX: 52, maxX: 60, minZ: -150, maxZ: -142, callX: 48.6, callZ: -146 },
-  vaultWallZ: -206,
+  elevator: {
+    minX: 52,
+    maxX: 60,
+    minZ: bzShift(-150),
+    maxZ: bzShift(-142),
+    callX: 48.6,
+    callZ: bzShift(-146)
+  },
+  vaultWallZ: bzShift(-206),
   vaultDoorHalfW: 6,
-  goldPile: { x: 0, z: -215 }
+  goldPile: { x: 0, z: bzShift(-215) }
 };
 
 export const FLOOR_T = 0.6;
@@ -348,6 +363,66 @@ export function buildExteriorShell(world, B) {
   for (const side of [-1, 1]) buildGoldenGuardianStatue(world, B, side * 27, S.frontZ + 3.4);
 }
 
+/**
+ * Esplanada / Forecourt Monumental em 3x ligando a escadaria frontal do Super Banco
+ * diretamente à Avenida `Z = ws(-117)` (mantendo o corredor central livre para veículos!).
+ */
+export function buildBankMonumentalForecourt(world, B) {
+  const S = BANK_SPEC;
+  const plinthMinZ = S.backZ - 3.5;
+  const plinthMaxZ = S.frontZ + 5.5;
+  const aveNorthEdgeZ = ws(-117) - ROAD.mainWidth * 0.5;
+  const aveSidewalkInnerZ = aveNorthEdgeZ - ROAD.sidewalk;
+  const plazaW = 152;
+  const topY = 0.2;
+
+  // Base perimetral sob o prédio do Super Banco
+  B.box(
+    'concrete',
+    plazaW,
+    0.26,
+    plinthMaxZ - plinthMinZ,
+    0,
+    topY - 0.13,
+    (plinthMinZ + plinthMaxZ) * 0.5
+  );
+
+  // Grande Esplanada Cerimonial ligando a fachada frontal até a calçada da Avenida Z = ws(-117)
+  const espD = aveSidewalkInnerZ - plinthMaxZ;
+  if (espD > 2) {
+    const espMidZ = (plinthMaxZ + aveSidewalkInnerZ) * 0.5;
+    B.box('granite', plazaW, 0.24, espD + 0.4, 0, topY - 0.12, espMidZ);
+    B.box('marble', 34, 0.03, espD, 0, topY + 0.015, espMidZ);
+    B.box('velvet', 12, 0.04, espD - 4, 0, topY + 0.025, espMidZ);
+    B.box('gold', 12.8, 0.035, espD - 3.4, 0, topY + 0.018, espMidZ);
+
+    // Continuação do boulevard sobre os 10m de calçada até o meio-fio da Av. Z = ws(-117), com rampa veicular
+    const swMidZ = (aveSidewalkInnerZ + aveNorthEdgeZ) * 0.5;
+    B.box('marble', 34, 0.22, ROAD.sidewalk + 0.2, 0, ROAD.curbHeight - 0.11, swMidZ);
+    const rampLen = 2.4;
+    const rampTilt = Math.atan2(ROAD.curbHeight, rampLen);
+    B.box('marble', 32, 0.12, rampLen, 0, ROAD.curbHeight * 0.5 - 0.02, aveNorthEdgeZ - rampLen * 0.5, 0, rampTilt);
+
+    // Balizas douradas e canteiros laterais fora da pista central (±19m livres!)
+    for (let z = plinthMaxZ + 12; z <= aveSidewalkInnerZ - 10; z += 18) {
+      for (const side of [-1, 1]) {
+        const bx = side * 19.5;
+        B.box('graniteBlack', 1.4, 0.9, 1.4, bx, topY + 0.45, z);
+        B.cyl('gold', 0.22, 0.28, 3.6, bx, topY + 2.7, z, 10);
+        B.sphere('crystalGlow', 0.48, bx, topY + 4.7, z);
+
+        const px = side * 46;
+        B.box('granite', 16, 0.75, 7.5, px, topY + 0.38, z);
+        B.box('gold', 16.4, 0.16, 7.9, px, topY + 0.8, z);
+        B.box('plant', 14.8, 0.45, 6.3, px, topY + 0.92, z);
+        addBankPlant(B, px - 4.5, topY + 0.75, z);
+        addBankPlant(B, px + 4.5, topY + 0.75, z);
+        world.addCollider(px, z, 16, 7.5, topY + 1.2, 0);
+      }
+    }
+  }
+}
+
 function buildGoldenGuardianStatue(world, B, x, z) {
   B.box('granite', 4.6, 2.2, 4.6, x, 1.1, z);
   B.box('gold', 2.0, 1.6, 1.2, x, 3.0, z); // pernas
@@ -371,23 +446,23 @@ export function buildGroundLobby(world, B) {
   // Piso de mármore quadriculado + tapete vermelho central
   B.box('marble', S.innerMaxX - S.innerMinX, fy, S.innerFrontZ - S.innerBackZ, 0, fy / 2, (S.innerFrontZ + S.innerBackZ) / 2);
   for (let tx = -66; tx <= 66; tx += 6) {
-    for (let tz = -142; tz >= -224; tz -= 6) {
+    for (let dtz = -142; dtz >= -224; dtz -= 6) {
       const ix = Math.round((tx + 66) / 6);
-      const iz = Math.round((-142 - tz) / 6);
-      if ((ix + iz) % 2 === 0) B.box('cream', 5.85, 0.04, 5.85, tx, fy + 0.01, tz);
+      const iz = Math.round((-142 - dtz) / 6);
+      if ((ix + iz) % 2 === 0) B.box('cream', 5.85, 0.04, 5.85, tx, fy + 0.01, bzShift(dtz));
     }
   }
-  B.box('velvet', 10, 0.05, 56, 0, fy + 0.04, -168);
-  B.box('gold', 10.6, 0.04, 56.6, 0, fy + 0.025, -168);
+  B.box('velvet', 10, 0.05, 56, 0, fy + 0.04, bzShift(-168));
+  B.box('gold', 10.6, 0.04, 56.6, 0, fy + 0.025, bzShift(-168));
   // Brasão dourado no piso
-  B.cyl('gold', 6, 6, 0.05, 0, fy + 0.07, -160, 32);
-  B.cyl('graniteBlack', 4.8, 4.8, 0.06, 0, fy + 0.08, -160, 32);
-  B.box('gold', 0.8, 0.07, 6, 0, fy + 0.1, -160);
+  B.cyl('gold', 6, 6, 0.05, 0, fy + 0.07, bzShift(-160), 32);
+  B.cyl('graniteBlack', 4.8, 4.8, 0.06, 0, fy + 0.08, bzShift(-160), 32);
+  B.box('gold', 0.8, 0.07, 6, 0, fy + 0.1, bzShift(-160));
 
   // 8 colunas internas de mármore (quebráveis)
   const pillarPositions = [
-    [-44, -158], [44, -158], [-44, -184], [44, -184],
-    [-22, -158], [22, -158], [-22, -184], [22, -184]
+    [-44, bzShift(-158)], [44, bzShift(-158)], [-44, bzShift(-184)], [44, bzShift(-184)],
+    [-22, bzShift(-158)], [22, bzShift(-158)], [-22, bzShift(-184)], [22, bzShift(-184)]
   ];
   for (const [px, pz] of pillarPositions) {
     const group = new THREE.Group();
@@ -418,7 +493,7 @@ export function buildGroundLobby(world, B) {
   }
 
   // Guichês: balcão longo com vidros e 8 computadores
-  const cz = -200;
+  const cz = bzShift(-200);
   B.box('wood', 84, 1.3, 2.4, 0, fy + 0.65, cz);
   B.box('marble', 85, 0.2, 2.8, 0, fy + 1.4, cz);
   world.addCollider(0, cz, 84, 2.4, fy + 1.5, fy);
@@ -437,7 +512,7 @@ export function buildGroundLobby(world, B) {
 
   // Parede de caixas eletrônicos (lado leste, perto da entrada)
   for (let i = 0; i < 5; i++) {
-    const z = -152 - i * 4.2;
+    const z = bzShift(-152 - i * 4.2);
     B.box('steel', 1.6, 3.2, 2.6, 46, fy + 1.6, z);
     B.box('screen', 0.06, 0.9, 1.4, 45.18, fy + 2.3, z);
     B.box('gold', 0.1, 0.3, 2.6, 45.15, fy + 3.05, z);
@@ -445,33 +520,36 @@ export function buildGroundLobby(world, B) {
   }
 
   // Recepção circular "INFORMAÇÕES"
-  B.cyl('wood', 4.2, 4.2, 1.3, -30, fy + 0.65, -148, 24);
-  B.cyl('marble', 4.5, 4.5, 0.2, -30, fy + 1.4, -148, 24);
-  world.addCollider(-30, -148, 8, 8, fy + 1.5, fy);
+  const infoZ = bzShift(-148);
+  B.cyl('wood', 4.2, 4.2, 1.3, -30, fy + 0.65, infoZ, 24);
+  B.cyl('marble', 4.5, 4.5, 0.2, -30, fy + 1.4, infoZ, 24);
+  world.addCollider(-30, infoZ, 8, 8, fy + 1.5, fy);
 
   // Bancos de espera, plantas e cordões de fila
   for (const bx of [-12, 12]) {
     for (let r = 0; r < 3; r++) {
-      const z = -170 - r * 5;
+      const z = bzShift(-170 - r * 5);
       B.box('wood', 9, 0.5, 1.6, bx, fy + 0.9, z);
       B.box('wood', 9, 1.4, 0.3, bx, fy + 1.6, z - 0.75);
       B.box('steel', 0.3, 0.7, 1.2, bx - 4, fy + 0.35, z);
       B.box('steel', 0.3, 0.7, 1.2, bx + 4, fy + 0.35, z);
     }
   }
+  const ropeZ = bzShift(-194);
   for (let i = 0; i < 6; i++) {
     const x = -15 + i * 6;
-    B.cyl('gold', 0.18, 0.25, 2.0, x, fy + 1.0, -194, 10);
-    B.sphere('gold', 0.3, x, fy + 2.1, -194);
-    if (i < 5) B.box('velvet', 5.6, 0.2, 0.2, x + 3, fy + 1.7, -194);
+    B.cyl('gold', 0.18, 0.25, 2.0, x, fy + 1.0, ropeZ, 10);
+    B.sphere('gold', 0.3, x, fy + 2.1, ropeZ);
+    if (i < 5) B.box('velvet', 5.6, 0.2, 0.2, x + 3, fy + 1.7, ropeZ);
   }
-  addBankPlant(B, -66, fy, -142);
-  addBankPlant(B, 66, fy, -142);
-  addBankPlant(B, -56, fy, -222);
-  addBankPlant(B, 56, fy, -222);
+  addBankPlant(B, -66, fy, bzShift(-142));
+  addBankPlant(B, 66, fy, bzShift(-142));
+  addBankPlant(B, -56, fy, bzShift(-222));
+  addBankPlant(B, 56, fy, bzShift(-222));
 
   // Lustres dourados pendurados no teto do térreo
-  for (const [lx, lz] of [[-30, -168], [0, -176], [30, -168]]) {
+  for (const [lx, dlz] of [[-30, -168], [0, -176], [30, -168]]) {
+    const lz = bzShift(dlz);
     B.cyl('gold', 0.12, 0.12, 1.6, lx, S.floors[1] - 1.4, lz, 8);
     B.cyl('gold', 2.4, 1.2, 0.9, lx, S.floors[1] - 2.6, lz, 16);
     for (let k = 0; k < 8; k++) {
@@ -481,7 +559,8 @@ export function buildGroundLobby(world, B) {
   }
 
   // Câmeras e sirenes vermelhas (perto das rampas e do elevador)
-  for (const [ax, az] of [[-60, -144], [60, -144], [0, -224]]) {
+  for (const [ax, daz] of [[-60, -144], [60, -144], [0, -224]]) {
+    const az = bzShift(daz);
     B.box('white', 0.9, 0.7, 1.6, ax, S.floors[1] - 1.5, az);
     B.box('ledRed', 0.9, 0.5, 0.5, ax, S.floors[1] - 2.2, az + 0.9);
   }

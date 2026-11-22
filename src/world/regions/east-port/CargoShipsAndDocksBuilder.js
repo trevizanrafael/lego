@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import {
   mergeBufferGeometries,
   mergeColoredGeometries,
@@ -114,14 +115,16 @@ export function buildMooredLegoCargoShip(world, batcher, shipX, shipZ, colorKeys
   });
 
   // 2 Rampas Metálicas de Acesso Caminháveis (Gangways) ligando o Cais Leste ao Convés!
+  const gangwayCenterX = IS_SCALED_WORLD ? ws(1620) + 12.0 : 1632.0;
+  const gangwayStartX = IS_SCALED_WORLD ? ws(1620) - 3.0 : 1617.0;
   for (const gz of gangwayZList) {
-    batcher.addBox('brushed_silver', 30.0, 0.7, 7.6, 1632.0, 4.8, gz, 0, 0, 0.31);
-    batcher.addBox('forklift_yellow', 30.0, 1.4, 0.35, 1632.0, 5.6, gz - 3.6, 0, 0, 0.31);
-    batcher.addBox('forklift_yellow', 30.0, 1.4, 0.35, 1632.0, 5.6, gz + 3.6, 0, 0, 0.31);
+    batcher.addBox('brushed_silver', 30.0, 0.7, 7.6, gangwayCenterX, 4.8, gz, 0, 0, 0.31);
+    batcher.addBox('forklift_yellow', 30.0, 1.4, 0.35, gangwayCenterX, 5.6, gz - 3.6, 0, 0, 0.31);
+    batcher.addBox('forklift_yellow', 30.0, 1.4, 0.35, gangwayCenterX, 5.6, gz + 3.6, 0, 0, 0.31);
     const steps = 14;
     for (let st = 0; st <= steps; st++) {
       const t = st / steps;
-      const gCol = world.addCollider(1617.0 + t * 29.0, gz, 3.2, 7.6, 0.35 + t * (deckY - 0.35), 0);
+      const gCol = world.addCollider(gangwayStartX + t * 29.0, gz, 3.2, 7.6, 0.35 + t * (deckY - 0.35), 0);
       gCol.isGangway = true;
     }
   }
@@ -210,15 +213,29 @@ export function buildMooredAresDreadnoughtShip(world, batcher, shipX, shipZ) {
     groundY: 0
   });
 
-  // 2 Rampas Metálicas de Acesso Caminháveis (X = 1075 e X = 1175) ligando o Cais Sul (Z = 733) ao Convés (Z = 749, Y = 9.2m)!
-  for (const gx of [1075, 1175]) {
-    batcher.addBox('brushed_silver', 7.6, 0.7, 22.0, gx, 4.8, 741.0, -0.38, 0, 0);
-    batcher.addBox('ares_neon_purple', 0.4, 1.4, 22.0, gx - 3.6, 5.6, 741.0, -0.38, 0, 0);
-    batcher.addBox('ares_neon_purple', 0.4, 1.4, 22.0, gx + 3.6, 5.6, 741.0, -0.38, 0, 0);
+  // Em 3x, estende o Píer/Deck Naval Blindado da A.R.E.S. do Cais Sul (ws(734)) até a borda de águas profundas (shipZ - 34)
+  if (IS_SCALED_WORLD) {
+    const jettyZStart = ws(734);
+    const jettyZEnd = shipZ - 34.0;
+    const jettyD = Math.max(12.0, jettyZEnd - jettyZStart);
+    const jettyCZ = (jettyZStart + jettyZEnd) * 0.5;
+    batcher.addBox('gunmetal_concrete', 136.0, 1.5, jettyD, shipX, -0.4, jettyCZ);
+    batcher.addBox('matte_black', 132.0, 0.16, jettyD - 2.0, shipX, 0.28, jettyCZ);
+    batcher.addBox('ares_neon_purple', 135.0, 0.14, 0.65, shipX, 0.34, jettyZEnd - 1.2);
+    world.addCollider(shipX, jettyCZ, 136.0, jettyD, 0.35, -1.2);
+  }
+
+  // 2 Rampas Metálicas de Acesso Caminháveis ligando o Cais/Píer Sul ao Convés (Y = 9.2m)!
+  const gangwayCenterZ = IS_SCALED_WORLD ? shipZ - 27.0 : 741.0;
+  const gangwayStartZ = IS_SCALED_WORLD ? shipZ - 35.0 : 733.0;
+  for (const gx of [shipX - 50, shipX + 50]) {
+    batcher.addBox('brushed_silver', 7.6, 0.7, 22.0, gx, 4.8, gangwayCenterZ, -0.38, 0, 0);
+    batcher.addBox('ares_neon_purple', 0.4, 1.4, 22.0, gx - 3.6, 5.6, gangwayCenterZ, -0.38, 0, 0);
+    batcher.addBox('ares_neon_purple', 0.4, 1.4, 22.0, gx + 3.6, 5.6, gangwayCenterZ, -0.38, 0, 0);
     const steps = 12;
     for (let st = 0; st <= steps; st++) {
       const t = st / steps;
-      const gCol = world.addCollider(gx, 733.0 + t * 16.0, 7.6, 3.0, 0.35 + t * (deckY - 0.35), 0);
+      const gCol = world.addCollider(gx, gangwayStartZ + t * 16.0, 7.6, 3.0, 0.35 + t * (deckY - 0.35), 0);
       gCol.isGangway = true;
     }
   }
@@ -342,7 +359,7 @@ export function addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, r
   truckGroup.add(flameGroup);
 
   const rotY = rotated90 ? Math.PI / 2 : 0;
-  const truckTY = world.getTerrainHeightAt && x > 622 && x < 1430 && z > -720 && z < -40
+  const truckTY = world.getTerrainHeightAt && x > ws(622) && x < ws(1430) && z > ws(-720) && z < ws(-40)
     ? Math.max(0, world.getTerrainHeightAt(x, z))
     : 0;
   truckGroup.position.set(x, truckTY, z);

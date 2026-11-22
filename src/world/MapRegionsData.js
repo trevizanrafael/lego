@@ -120,7 +120,7 @@ export const MAP_REGIONS = [
     name: 'AEROPORTA-AVIÕES NO CÉU (ALTITUDE Y=410m)',
     shortName: 'AEROPORTA-AVIÕES',
     sub: 'Fortaleza Aérea de Casco Pesado Sustentada por 4 Turbinas Rotoras',
-    bounds: wsBounds({ minX: -140, maxX: 140, minZ: -210, maxZ: 110, minY: 365, maxY: 495 }),
+    bounds: { minX: ws(0) - 140, maxX: ws(0) + 140, minZ: ws(-50) - 160, maxZ: ws(-50) + 160, minY: 365, maxY: 495 },
     spawn: wsPos3({ x: 0, y: 411.5, z: -50 }),
     color: '#60a5fa',
     icon: 'sky'
@@ -131,8 +131,8 @@ export const MAP_REGIONS = [
  * Marcos Principais (Landmarks) para Radar Local e Mapa Tático Completo [M] (Ícones Vetoriais Puros)
  */
 export const MAP_LANDMARKS = [
-  { id: 'lm_banco', code: 'BNC', icon: 'bank', label: 'SUPER BANCO', x: ws(0), y: 0.5, z: ws(-175), labelPos: 'top', color: '#facc15', spawn: wsPos3({ x: 0, y: 0.5, z: -115 }) },
-  { id: 'lm_torre', code: 'TRR', icon: 'tower', label: 'TORRE HERÓIS', x: ws(-318), y: 310.8, z: ws(-180), labelPos: 'bottom', color: '#38bdf8', spawn: wsPos3({ x: -324, y: 310.85, z: -168 }) },
+  { id: 'lm_banco', code: 'BNC', icon: 'bank', label: 'SUPER BANCO', x: ws(0), y: 0.5, z: ws(-175), labelPos: 'top', color: '#facc15', spawn: { x: ws(0), y: 0.5, z: ws(-175) + 60 } },
+  { id: 'lm_torre', code: 'TRR', icon: 'tower', label: 'TORRE HERÓIS', x: ws(-324) + 6, y: 310.8, z: ws(-168) - 12, labelPos: 'bottom', color: '#38bdf8', spawn: wsPos3({ x: -324, y: 310.85, z: -168 }) },
   { id: 'lm_parque', code: 'PRQ', icon: 'park', label: 'PARQUE CENTRAL', x: ws(0), y: 2.2, z: ws(268), labelPos: 'bottom', color: '#4ade80', spawn: wsPos3({ x: 0, y: 0.6, z: 242 }) },
   { id: 'lm_posto', code: 'PST', icon: 'suburb', label: 'SUBÚRBIO / POSTO', x: ws(204), y: 3.5, z: ws(-740), labelPos: 'top', color: '#fb923c', spawn: wsPos3({ x: 120, y: 2.2, z: -646 }) },
   { id: 'lm_praia', code: 'PRA', icon: 'beach', label: 'PÍER & RODA-GIGANTE', x: ws(0), y: 1.5, z: ws(1140), labelPos: 'bottom', color: '#fde047', spawn: wsPos3({ x: 0, y: 1.5, z: 1080 }) },
@@ -142,7 +142,7 @@ export const MAP_LANDMARKS = [
   { id: 'lm_aero', code: 'AER', icon: 'airport', label: 'AEROPORTO OESTE', x: ws(-1340), y: 0.5, z: ws(0), labelPos: 'left', color: '#94a3b8', spawn: wsPos3({ x: -1060, y: 0.5, z: 0 }) },
   { id: 'lm_prisao', code: 'PRI', icon: 'prison', label: 'ILHA DA PRISÃO', x: ws(1375), y: 0.8, z: ws(1540), labelPos: 'bottom', color: '#f87171', spawn: wsPos3({ x: 1375, y: 0.5, z: 1175 }) },
   { id: 'lm_sky', code: 'SKY', icon: 'sky', label: 'AEROPORTA-AVIÕES', x: ws(0), y: 411.5, z: ws(-50), displayX: ws(295), displayZ: ws(-255), altitudeLabel: 'ALTITUDE: 410m', labelPos: 'right', color: '#60a5fa', spawn: wsPos3({ x: 0, y: 411.5, z: -50 }) },
-  { id: 'lm_hangar', code: 'HGR', icon: 'sky', label: 'HANGAR AERONAVES (CUSTOM)', x: ws(20), y: 411.5, z: ws(54), displayX: ws(295), displayZ: ws(-175), altitudeLabel: 'HANGAR 410m', labelPos: 'right', color: '#00f0ff', spawn: wsPos3({ x: 10, y: 411.5, z: 46 }) },
+  { id: 'lm_hangar', code: 'HGR', icon: 'sky', label: 'HANGAR AERONAVES (CUSTOM)', x: ws(0) + 20, y: 411.5, z: ws(-50) + 104, displayX: ws(295), displayZ: ws(-175), altitudeLabel: 'HANGAR 410m', labelPos: 'right', color: '#00f0ff', spawn: { x: ws(0) + 10, y: 411.5, z: ws(-50) + 96 } },
   // Oficina de Rua LEGO Customs (Cidade Neutra: X = 60, Z = -448)
   { id: 'lm_customs', code: 'CUS', icon: 'customs', label: 'LEGO CUSTOMS (OFICINA)', x: ws(60), y: 0.5, z: ws(-448), labelPos: 'right', color: '#facc15', spawn: wsPos3({ x: 24, y: 0.5, z: -416 }) },
   // 5 Estações da Linha 01 Circular do Metrô LEGO (2 Subterrâneas em Y = -10.5m + 3 Elevadas em Y = +14.85m)

@@ -1,3 +1,4 @@
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import {
   addCorrugatedContainerStack,
   addSingleDetailedContainerGeometry
@@ -71,9 +72,14 @@ export function buildMassiveContainerYardBlocksAndRTGCranes(world, batcher, colo
 
   world.eastPortData.yardBlocksCount = yardBlocks.length;
   let rtgCount = 0;
+  const scaledBlockCenters = [];
 
   yardBlocks.forEach((yb, bIdx) => {
-    const { bx, bz, rows, bays, maxFloors, shape, hasRTG, seed } = yb;
+    const bx = ws(yb.bx);
+    // Em 3x, recua a fileira Z=386 para ws(370)=1110 para livrar 100% a avenida principal Z = ws(402) = 1206
+    const bz = IS_SCALED_WORLD && yb.bz === 386 ? ws(370) : ws(yb.bz);
+    scaledBlockCenters.push({ bx, bz, rows: yb.rows, bays: yb.bays });
+    const { rows, bays, maxFloors, shape, hasRTG, seed } = yb;
     const colSpacingX = 6.35;
     const baySpacingZ = 18.4;
 
@@ -170,7 +176,7 @@ export function buildMassiveContainerYardBlocksAndRTGCranes(world, batcher, colo
   world.eastPortData.rtgCranesCount = rtgCount;
 
   // PONTES AÉREAS DE CONTÊINERES SUSPENSOS (Y = 24m, Y = 30m e Y = 36m) & PASSARELAS AÉREAS ENTRE OS CÂNIONS!
-  const containerSkybridges = [
+  const rawContainerSkybridges = [
     { x: 895, y: 24.28, z: 386, rotated: true, color: 'lego_red' },
     { x: 949, y: 36.28, z: 386, rotated: true, color: 'forklift_yellow' },
     { x: 1005, y: 30.28, z: 386, rotated: true, color: 'pcc_royal' },
@@ -201,6 +207,20 @@ export function buildMassiveContainerYardBlocksAndRTGCranes(world, batcher, colo
     { x: 1456, y: 30.28, z: 658, rotated: true, color: 'lego_red' }
   ];
 
+  const containerSkybridges = !IS_SCALED_WORLD
+    ? rawContainerSkybridges
+    : rawContainerSkybridges.map((sb, idx) => {
+        const blk = scaledBlockCenters[idx % 34];
+        const zOff = blk.bays >= 3 ? -18.4 : -9.2;
+        return {
+          x: sb.rotated ? blk.bx - 6.0 : blk.bx,
+          y: sb.y,
+          z: sb.rotated ? blk.bz + zOff : blk.bz,
+          rotated: sb.rotated,
+          color: sb.color
+        };
+      });
+
   for (const sb of containerSkybridges) {
     const cw = sb.rotated ? 18.0 : 6.0;
     const cd = sb.rotated ? 6.0 : 18.0;
@@ -224,14 +244,18 @@ export function buildMassiveContainerYardBlocksAndRTGCranes(world, batcher, colo
     { x: 1456, z: 535, floors: 3, angle: -0.38, color: 'lego_red' }
   ];
   for (const dc of diagonalContainers) {
+    const dcx = ws(dc.x);
+    const dcz = IS_SCALED_WORLD
+      ? ws(dc.z === 335 ? 312 : dc.z === 535 ? 512 : dc.z)
+      : dc.z;
     for (let s = 0; s < dc.floors; s++) {
       const cy = 0.28 + s * 6.0 + 3.0;
       const cKey = colorKeys[(s + Math.round(dc.x)) % colorKeys.length];
-      batcher.addBox(cKey, 6.0, 5.85, 18.0, dc.x, cy, dc.z, 0, dc.angle, 0);
-      batcher.addBox('brushed_silver', 6.2, 0.35, 18.2, dc.x, cy + 2.8, dc.z, 0, dc.angle, 0);
+      batcher.addBox(cKey, 6.0, 5.85, 18.0, dcx, cy, dcz, 0, dc.angle, 0);
+      batcher.addBox('brushed_silver', 6.2, 0.35, 18.2, dcx, cy + 2.8, dcz, 0, dc.angle, 0);
       world.eastPortData.detailedContainersCount++;
     }
-    world.addCollider(dc.x, dc.z, 11.0, 14.0, 0.28 + dc.floors * 6.0, 0.28);
+    world.addCollider(dcx, dcz, 11.0, 14.0, 0.28 + dc.floors * 6.0, 0.28);
   }
 }
 
@@ -299,7 +323,7 @@ export function buildColossalPortainerCrane(world, batcher, cx, cz, suspendedCol
     batcher.addBox('lego_orange', 169, 0.85, 12.4, cx + 44, boomY + 4.2, cz);
     batcher.addBox('brushed_silver', 86, 0.5, 0.5, cx + 52, boomY + 11.2, cz, 0, 0, -0.21);
 
-    const dropX = 1656;
+    const dropX = cx + 101;
     batcher.addBox('matte_black', 9.2, 2.2, 9.8, dropX, boomY - 0.8, cz);
     for (const [cxOff, czOff] of [[-2.2, -5.0], [2.2, -5.0], [-2.2, 5.0], [2.2, 5.0]]) {
       batcher.addCylinder('brushed_silver', 0.18, 0.18, 19.0, dropX + cxOff, boomY - 10.5, cz + czOff, 6);
@@ -310,7 +334,7 @@ export function buildColossalPortainerCrane(world, batcher, cx, cz, suspendedCol
     batcher.addBox('lego_orange', 12.4, 0.85, 169, cx, boomY + 4.2, cz + 44);
     batcher.addBox('brushed_silver', 0.5, 0.5, 86, cx, boomY + 11.2, cz + 52, 0.21, 0, 0);
 
-    const dropZ = 766;
+    const dropZ = IS_SCALED_WORLD ? cz + 122 : cz + 71;
     batcher.addBox('matte_black', 9.8, 2.2, 9.2, cx, boomY - 0.8, dropZ);
     for (const [cxOff, czOff] of [[-5.0, -2.2], [5.0, -2.2], [-5.0, 2.2], [5.0, 2.2]]) {
       batcher.addCylinder('brushed_silver', 0.18, 0.18, 19.0, cx + cxOff, boomY - 10.5, dropZ + czOff, 6);
@@ -323,7 +347,7 @@ export function buildColossalPortainerCrane(world, batcher, cx, cz, suspendedCol
     x: cx,
     z: cz,
     w: rotatedSouth ? 34 : 54,
-    d: rotatedSouth ? 54 : 34,
+    d: IS_SCALED_WORLD && rotatedSouth ? 48 : rotatedSouth ? 54 : 34,
     height: apexY,
     color: '#facc15',
     label: 'GUINDASTE PORTAINER'

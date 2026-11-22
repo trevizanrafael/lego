@@ -4,19 +4,21 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../../../materials/LegoMaterials.js';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import { UMBRELLA_KEYS, addNeonHotelSign } from './BeachBatcherAndConstants.js';
 
 /**
- * 3B. QUIOSQUES DE PRAIA DO CALÇADÃO CENTRAL E PONTA DA PRAIA / COSTÃO OESTE
+ * 3B. QUIOSQUES DE PRAIA DO CALÇADÃO CENTRAL E PONTA DA PRAIA / COSTÃO OESTE (tamanho 1x!)
  */
 export function buildOceanfrontKiosks(world, batcher) {
-  const kioskXList = [-460, -250, 135, 420];
+  const kioskZ = ws(761);
+  const kioskXList = [-460, -250, 135, 420].map(ws);
   kioskXList.forEach((kx, idx) => {
-    buildBeachKiosk(world, batcher, kx, 761, idx, 'QUIOSQUE ORLA');
+    buildBeachKiosk(world, batcher, kx, kioskZ, idx, 'QUIOSQUE ORLA');
   });
-  const westKioskXList = [-1580, -1320, -1060, -760];
+  const westKioskXList = [-1580, -1320, -1060, -760].map(ws);
   westKioskXList.forEach((kx, idx) => {
-    buildBeachKiosk(world, batcher, kx, 761, idx + 2, 'QUIOSQUE PONTA DA PRAIA');
+    buildBeachKiosk(world, batcher, kx, kioskZ, idx + 2, 'QUIOSQUE PONTA DA PRAIA');
   });
 }
 
@@ -84,26 +86,32 @@ export function buildBeachKiosk(world, batcher, kx, kz, idx, label = 'QUIOSQUE O
 }
 
 /**
- * 5. MEGA PÍER PARQUE DE MADEIRA (540m MAR ADENTRO!), RESTAURANTE 2 ANDARES, FLIPERAMA,
- * CARROSSEL GIRATÓRIO, MONTANHA-RUSSA, TORRE BIG DROP, RODA-GIGANTE COLOSSAL, FAROL & MARINA LESTE!
+ * 5. MEGA PÍER PARQUE DE MADEIRA (540m MAR ADENTRO EM ESCALA 1x!), RESTAURANTE 2 ANDARES, FLIPERAMA,
+ * CARROSSEL GIRATÓRIO, MONTANHA-RUSSA, TORRE BIG DROP, RODA-GIGANTE COLOSSAL (73m), FAROL & MARINA LESTE!
  */
 export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   const pierX = 0;
-  // Passarela Principal do Píer: 96m de largura, de Z = 1040 até Z = 1420 (380m)
-  const mainPierZ = 1230;
+  // Em 3x, ancora o início do Mega Píer de 540m na linha d'água Sul (ws(1036) = 3108 -> 3648)!
+  const pierOriginZ = IS_SCALED_WORLD ? ws(1036) : 1030;
+  const pzOff = pierOriginZ - 1030;
+  const pz = (designZ) => designZ + pzOff;
+
+  // Passarela Principal do Píer: 96m de largura x 380m de comprimento (1x!)
+  const mainPierZ = pz(1230);
   const mainPierW = 96;
   const mainPierD = 380;
-  // Grande Praça Oceânica na Ponta Funda do Píer: 136m de largura, de Z = 1420 até Z = 1570 (150m) -> Total: 530m mar adentro!
-  const endPlazaZ = 1495;
+  // Grande Praça Oceânica na Ponta Funda do Píer: 136m de largura x 150m de comprimento (1x!)
+  const endPlazaZ = pz(1495);
   const endPlazaW = 136;
   const endPlazaD = 150;
   const deckTopY = 1.6;
+  const plazaSplitZ = pz(1420);
 
-  // Rampa Larga de Entrada do Píer saindo da Areia (Z = 1020..1042)
+  // Rampa Larga de Entrada do Píer saindo da Areia
   const entryRamp = createLegoBrick(mainPierW - 10, 1.2, 24, LEGO_COLORS.brown, { studStep: 2.5 });
-  entryRamp.position.set(pierX, 0.6, 1030);
+  entryRamp.position.set(pierX, 0.6, pierOriginZ);
   world.scene.add(entryRamp);
-  world.addCollider(pierX, 1030, mainPierW - 10, 24, 1.2, 0);
+  world.addCollider(pierX, pierOriginZ, mainPierW - 10, 24, 1.2, 0);
 
   // Tabuleiro Principal (96m x 380m) + Praça Oceânica Final (136m x 150m)
   const pierDeck = createLegoBrick(mainPierW, 1.6, mainPierD, LEGO_COLORS.brown, { studStep: 8.0 });
@@ -118,13 +126,34 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   world.addCollider(pierX, endPlazaZ, endPlazaW, endPlazaD, deckTopY, 0);
   world.mapBlocks.push({ x: pierX, z: endPlazaZ, w: endPlazaW, d: endPlazaD, color: '#78350f' });
 
+  if (IS_SCALED_WORLD && Array.isArray(world.elevatedDecks)) {
+    world.elevatedDecks.push(
+      {
+        minX: -(mainPierW * 0.5),
+        maxX: mainPierW * 0.5,
+        minZ: mainPierZ - mainPierD * 0.5,
+        maxZ: mainPierZ + mainPierD * 0.5,
+        thresholdBelow: 1.8,
+        getDeckY: () => deckTopY
+      },
+      {
+        minX: -(endPlazaW * 0.5),
+        maxX: endPlazaW * 0.5,
+        minZ: endPlazaZ - endPlazaD * 0.5,
+        maxZ: endPlazaZ + endPlazaD * 0.5,
+        thresholdBelow: 1.8,
+        getDeckY: () => deckTopY
+      }
+    );
+  }
+
   // Mais de 140 Estacas / Pilares de Madeira com Travessas fincados no Oceano sob todo o Mega Píer!
-  for (let pz = 1048; pz <= 1564; pz += 22) {
-    const halfW = pz >= 1420 ? endPlazaW * 0.5 - 4 : mainPierW * 0.5 - 4;
+  for (let pilingZ = pz(1048); pilingZ <= pz(1564); pilingZ += 22) {
+    const halfW = pilingZ >= plazaSplitZ ? endPlazaW * 0.5 - 4 : mainPierW * 0.5 - 4;
     for (const px of [-halfW, -halfW * 0.5, 0, halfW * 0.5, halfW]) {
-      batcher.addBox('wood_pilings', 1.6, 3.4, 1.6, px, -0.2, pz);
+      batcher.addBox('wood_pilings', 1.6, 3.4, 1.6, px, -0.2, pilingZ);
     }
-    batcher.addBox('wood_pilings', halfW * 2, 0.45, 0.45, 0, -0.1, pz);
+    batcher.addBox('wood_pilings', halfW * 2, 0.45, 0.45, 0, -0.1, pilingZ);
   }
 
   // Cercas Laterais Brancas de Segurança + Postes Duplos Estilo Parque Temático ao longo dos 530m
@@ -132,25 +161,26 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   batcher.addBox('trim_white', 0.5, 1.2, mainPierD, mainPierW * 0.5 - 0.6, deckTopY + 0.6, mainPierZ);
   batcher.addBox('trim_white', 0.5, 1.2, endPlazaD, -endPlazaW * 0.5 + 0.6, deckTopY + 0.6, endPlazaZ);
   batcher.addBox('trim_white', 0.5, 1.2, endPlazaD, endPlazaW * 0.5 - 0.6, deckTopY + 0.6, endPlazaZ);
-  batcher.addBox('trim_white', endPlazaW, 1.2, 0.5, pierX, deckTopY + 0.6, 1569.4);
+  batcher.addBox('trim_white', endPlazaW, 1.2, 0.5, pierX, deckTopY + 0.6, pz(1569.4));
 
-  for (let lz = 1055; lz <= 1555; lz += 25) {
-    const railX = lz >= 1420 ? endPlazaW * 0.5 - 3.5 : mainPierW * 0.5 - 3.5;
+  for (let lz = pz(1055); lz <= pz(1555); lz += 25) {
+    const railX = lz >= plazaSplitZ ? endPlazaW * 0.5 - 3.5 : mainPierW * 0.5 - 3.5;
     for (const lx of [-railX, railX]) {
       batcher.addBox('stone_black', 0.4, 5.2, 0.4, lx, deckTopY + 2.6, lz);
       batcher.addBox('window_warm', 1.1, 1.1, 1.1, lx, deckTopY + 5.4, lz);
     }
   }
 
-  // 1. PÓRTICO MONUMENTAL DE ENTRADA DO PÍER + BILHETERIAS (Z = 1046)
-  batcher.addBox('trim_white', 3.2, 14.5, 3.2, -26, deckTopY + 7.25, 1046);
-  batcher.addBox('trim_white', 3.2, 14.5, 3.2, 26, deckTopY + 7.25, 1046);
-  batcher.addBox('neon_pink', 56.0, 3.2, 1.8, 0, deckTopY + 14.8, 1046);
-  addNeonHotelSign(world, 0, deckTopY + 15.2, 1044.5, 48, 'PÍER PARQUE ATLÂNTICO ', '#00f0ff', '#fde047');
+  // 1. PÓRTICO MONUMENTAL DE ENTRADA DO PÍER + BILHETERIAS
+  const gateZ = pz(1046);
+  batcher.addBox('trim_white', 3.2, 14.5, 3.2, -26, deckTopY + 7.25, gateZ);
+  batcher.addBox('trim_white', 3.2, 14.5, 3.2, 26, deckTopY + 7.25, gateZ);
+  batcher.addBox('neon_pink', 56.0, 3.2, 1.8, 0, deckTopY + 14.8, gateZ);
+  addNeonHotelSign(world, 0, deckTopY + 15.2, gateZ - 1.5, 48, 'PÍER PARQUE ATLÂNTICO ', '#00f0ff', '#fde047');
 
-  // 2. RESTAURANTE MARÍTIMO DE 2 ANDARES COM TERRAÇO PANORÂMICO (X = -28, Z = 1125)
+  // 2. RESTAURANTE MARÍTIMO DE 2 ANDARES COM TERRAÇO PANORÂMICO (X = -28)
   const restX = -28;
-  const restZ = 1125;
+  const restZ = pz(1125);
   batcher.addBox('coastal_white', 24, 1.4, 34, restX, deckTopY + 0.7, restZ);
   batcher.addBox('glass_cyan', 22.8, 3.6, 32.8, restX, deckTopY + 3.2, restZ);
   batcher.addBox('wood_deck', 26, 0.7, 36, restX, deckTopY + 5.35, restZ);
@@ -163,9 +193,9 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   addNeonHotelSign(world, restX + 12.5, deckTopY + 8.5, restZ, 24, 'RESTAURANTE DO PÍER', '#fb923c', '#ffffff');
   world.addCollider(restX, restZ, 25, 35, deckTopY + 10.5, deckTopY);
 
-  // 3. FLIPERAMA / ARCADE NEON 3D (X = +28, Z = 1125) — camadas verticais sem z-fighting!
+  // 3. FLIPERAMA / ARCADE NEON 3D (X = +28) — camadas verticais sem z-fighting!
   const arcX = 28;
-  const arcZ = 1125;
+  const arcZ = pz(1125);
   batcher.addBox('window_warm', 22, 3.6, 32, arcX, deckTopY + 1.8, arcZ);
   batcher.addBox('neon_pink', 25, 0.9, 35, arcX, deckTopY + 4.05, arcZ);
   batcher.addBox('stone_black', 24, 3.7, 34, arcX, deckTopY + 6.35, arcZ);
@@ -174,7 +204,7 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   world.addCollider(arcX, arcZ, 25, 35, deckTopY + 9.2, deckTopY);
 
   // 4. OITO BARRAQUINHAS TEMÁTICAS COLORIDAS (Sorveteria com Casquinha Gigante, Pipoca, Churros, Tiro ao Alvo)
-  const boothZList = [1185, 1225, 1265, 1385];
+  const boothZList = [1185, 1225, 1265, 1385].map(pz);
   boothZList.forEach((bz, bIdx) => {
     for (const side of [-1, 1]) {
       const bx = side * 32.0;
@@ -193,11 +223,12 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
     }
   });
 
-  // 5. MONTANHA-RUSSA OCEÂNICA EM CIRCUITO FECHADO (Construída dinamicamente em `InteractiveAttractionsAndEmotes.js`!)
+  // 5. MONTANHA-RUSSA OCEÂNICA EM CIRCUITO FECHADO (Construída dinamicamente em `PierAmusementParkRides.js`!)
 
-  // 6. CARROSSEL CLÁSSICO GIRATÓRIO 3D (X = -16, Z = 1325) — Gira continuamente no loop!
+  // 6. CARROSSEL CLÁSSICO GIRATÓRIO 3D (X = -16) — Gira continuamente no loop!
+  const carouselZ = pz(1325);
   const carouselGroup = new THREE.Group();
-  carouselGroup.position.set(-16, deckTopY, 1325);
+  carouselGroup.position.set(-16, deckTopY, carouselZ);
   const cBase = createLegoBrick(18, 0.8, 18, LEGO_COLORS.white);
   cBase.position.y = 0.4;
   const cPillar = new THREE.Mesh(
@@ -228,11 +259,11 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   }
   world.scene.add(carouselGroup);
   world.rotatingElements.push({ mesh: carouselGroup, axis: 'y', speed: 0.85 });
-  world.addCollider(-16, 1325, 18, 18, deckTopY + 12, deckTopY);
+  world.addCollider(-16, carouselZ, 18, 18, deckTopY + 12, deckTopY);
 
-  // 7. TORRE DE QUEDA LIVRE "BIG DROP" DE 58m DE ALTURA! (X = +24, Z = 1325 — Gôndola animada em `InteractiveAttractionsAndEmotes.js`!)
+  // 7. TORRE DE QUEDA LIVRE "BIG DROP" DE 58m DE ALTURA! (X = +24 — Gôndola animada em `PierAmusementParkRides.js`!)
   const dropX = 24;
-  const dropZ = 1325;
+  const dropZ = pz(1325);
   const dropH = 58.0;
   batcher.addBox('umb_red', 5.2, dropH, 5.2, dropX, deckTopY + dropH * 0.5, dropZ);
   batcher.addBox('umb_yellow', 6.4, 3.2, 6.4, dropX, deckTopY + dropH, dropZ);
@@ -240,9 +271,9 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   world.addCollider(dropX, dropZ, 5.4, 5.4, deckTopY + dropH + 3.0, deckTopY);
 
   // ============================================================================
-  // 8. RODA-GIGANTE 3D COLOSSAL NA PRAÇA FUNDA DO PÍER (Z = 1480, Raio 32m, 16 Cabines!)
+  // 8. RODA-GIGANTE 3D COLOSSAL NA PRAÇA FUNDA DO PÍER (73m 1x, Raio 31m, 16 Cabines!)
   // ============================================================================
-  const wheelZ = 1480;
+  const wheelZ = pz(1480);
   const wheelCenterY = 42.0;
   const wheelRadius = 31.0;
   const cabinCount = 16;
@@ -332,13 +363,14 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   }
 
   world.scene.add(wheelGroup);
+  world.pierOriginZ = pierOriginZ;
+  world.pierOffsetZ = pzOff;
   world.ferrisWheelGroup = wheelGroup;
   world.ferrisWheelCabins = ferrisCabins;
   world.ferrisWheelCabinCount = cabinCount;
-  world.pierData = { zStart: 1030, zEnd: 1570, length: 540, width: mainPierW, plazaWidth: endPlazaW };
 
-  // 9. FAROL MARÍTIMO LISTRADO VERMELHO E BRANCO NA PONTA FINAL DO PÍER (Z = 1552, 36m de altura!)
-  const lhZ = 1552;
+  // 9. FAROL MARÍTIMO LISTRADO VERMELHO E BRANCO NA PONTA FINAL DO PÍER (36m de altura 1x!)
+  const lhZ = pz(1552);
   for (let s = 0; s < 6; s++) {
     const segW = 8.4 - s * 0.7;
     const segColor = s % 2 === 0 ? 'umb_red' : 'trim_white';
@@ -350,18 +382,37 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
   batcher.addBox('umb_red', 5.8, 2.2, 5.8, 0, lanternY + 5.2, lhZ);
   world.addCollider(0, lhZ, 8.5, 8.5, lanternY + 6.5, deckTopY);
 
+  world.pierData = {
+    zStart: pierOriginZ,
+    zEnd: pz(1570),
+    length: 540,
+    width: mainPierW,
+    plazaWidth: endPlazaW,
+    deckTopY,
+    offsetZ: pzOff,
+    wheelZ,
+    wheelCenterY,
+    wheelRadius,
+    dropX,
+    dropZ,
+    carouselX: -16,
+    carouselZ,
+    coasterStationZ: pz(1235),
+    lighthouseZ: lhZ
+  };
+
   // ============================================================================
-  // 10. MARINA LESTE / RAMPA NÁUTICA AMPLIADA COM DOCAS (X = +48..+150)
+  // 10. MARINA LESTE / RAMPA NÁUTICA AMPLIADA COM DOCAS (X = +48..+150, escala 1x!)
   // ============================================================================
   const marinaX = 102;
-  const marinaZ = 1145;
+  const marinaZ = pz(1145);
 
-  batcher.addBox('wood_deck', 58, 0.6, 14, 72, 0.45, 1085);
+  batcher.addBox('wood_deck', 58, 0.6, 14, 72, 0.45, pz(1085));
   batcher.addBox('wood_deck', 12, 0.55, 165, marinaX, 0.15, marinaZ);
   world.addCollider(marinaX, marinaZ, 12, 165, 0.8, 0);
   world.mapBlocks.push({ x: marinaX, z: marinaZ, w: 85, d: 165, color: '#b45309' });
 
-  const dockZList = [1095, 1135, 1175, 1215];
+  const dockZList = [1095, 1135, 1175, 1215].map(pz);
 
   dockZList.forEach((dz) => {
     batcher.addBox('wood_deck', 46, 0.45, 5.8, marinaX + 26, 0.1, dz);
@@ -382,22 +433,25 @@ export function addLegoSpeedboat(batcher, x, yWater, z, hullKey) {
 }
 
 /**
- * 6B. MARINA OESTE COM PÍER DE MADEIRA, CLUBE NÁUTICO & 4 DOCAS DE LANCHAS (X = -1380, Z = 1045..1230)
+ * 6B. MARINA OESTE COM PÍER DE MADEIRA, CLUBE NÁUTICO & 4 DOCAS DE LANCHAS (X = ws(-1380), escala 1x!)
  */
 export function buildWestMarina(world, batcher) {
-  const westMarinaX = -1380;
-  const westMarinaZ = 1135;
+  const westMarinaX = ws(-1380);
+  const mwOffZ = IS_SCALED_WORLD ? ws(1036) - 1030 : 0;
+  const clubZ = 1030 + mwOffZ;
+  const entryDeckZ = 1032 + mwOffZ;
+  const westMarinaZ = 1135 + mwOffZ;
 
-  // Clube Náutico Oeste na entrada da Marina (Z = 1032)
-  batcher.addBox('wood_deck', 56, 0.8, 26, westMarinaX, 0.4, 1032);
-  batcher.addBox('coastal_white', 38, 1.6, 16, westMarinaX, 1.6, 1030);
-  batcher.addBox('glass_cyan', 34, 4.4, 14.8, westMarinaX, 4.6, 1030);
-  batcher.addBox('coastal_turquoise', 42, 1.2, 19, westMarinaX, 7.4, 1030);
-  addNeonHotelSign(world, westMarinaX, 9.2, 1020.5, 32, 'MARINA OESTE ', '#06b6d4', '#fde047');
-  world.addCollider(westMarinaX, 1030, 38, 16, 8.5, 0);
+  // Clube Náutico Oeste na entrada da Marina (tamanho e altura 1x!)
+  batcher.addBox('wood_deck', 56, 0.8, 26, westMarinaX, 0.4, entryDeckZ);
+  batcher.addBox('coastal_white', 38, 1.6, 16, westMarinaX, 1.6, clubZ);
+  batcher.addBox('glass_cyan', 34, 4.4, 14.8, westMarinaX, 4.6, clubZ);
+  batcher.addBox('coastal_turquoise', 42, 1.2, 19, westMarinaX, 7.4, clubZ);
+  addNeonHotelSign(world, westMarinaX, 9.2, clubZ - 9.5, 32, 'MARINA OESTE ', '#06b6d4', '#fde047');
+  world.addCollider(westMarinaX, clubZ, 38, 16, 8.5, 0);
   world.mapBuildings.push({
     x: westMarinaX,
-    z: 1030,
+    z: clubZ,
     w: 42,
     d: 19,
     height: 9,
@@ -405,12 +459,12 @@ export function buildWestMarina(world, batcher) {
     label: 'MARINA OESTE'
   });
 
-  // Passarela Principal da Marina Oeste (14m x 185m avançando no mar até Z = 1225)
+  // Passarela Principal da Marina Oeste (14m x 185m em escala 1x avançando no mar!)
   batcher.addBox('wood_deck', 14, 0.65, 185, westMarinaX, 0.25, westMarinaZ);
   world.addCollider(westMarinaX, westMarinaZ, 14, 185, 0.9, 0);
   world.mapBlocks.push({ x: westMarinaX, z: westMarinaZ, w: 92, d: 185, color: '#b45309' });
 
-  const westDockZList = [1095, 1135, 1175, 1215];
+  const westDockZList = [1095, 1135, 1175, 1215].map((dz) => dz + mwOffZ);
   westDockZList.forEach((dz) => {
     batcher.addBox('wood_deck', 48, 0.48, 6.0, westMarinaX + 28, 0.15, dz);
     batcher.addBox('trim_white', 0.5, 0.95, 0.5, westMarinaX + 14, 0.6, dz - 2.4);
@@ -419,11 +473,11 @@ export function buildWestMarina(world, batcher) {
 
   world.southwestBeachData = {
     hasSouthwestLighthouse: true,
-    lighthousePos: { x: -1735, y: 15.0, z: 945, height: 67 },
+    lighthousePos: { x: ws(-1735), y: 15.0, z: ws(945), height: 67 },
     hasSandDunes: true,
     dunesCount: 4,
     ...(world.southwestBeachData || {}),
     hasWestMarina: true,
-    westMarinaPos: { x: westMarinaX, z: westMarinaZ, docksCount: westDockZList.length }
+    westMarinaPos: { x: westMarinaX, z: westMarinaZ, clubZ, dockZList: westDockZList, docksCount: westDockZList.length }
   };
 }

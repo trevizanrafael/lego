@@ -7,8 +7,10 @@
  */
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { SuburbBatcher } from '../SuburbHouseGenerator.js';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 import {
   buildResidentialSuburbBlock,
+  buildScaledNorthSuburbGrid,
   buildTransitionTownhouseAccents
 } from './north-suburb/SuburbHousesAndLotsBuilder.js';
 import {
@@ -22,12 +24,20 @@ import {
  */
 export function buildNorthSuburbAndGasStation(world) {
   const batcher = new SuburbBatcher();
+  world.suburbBlocks = [];
+
+  if (IS_SCALED_WORLD) {
+    buildScaledNorthSuburbGrid(world, batcher, {
+      buildExplosiveGasStationBlock,
+      buildSuburbCommercialPizzeriaBlock,
+      buildSuburbParkAndBasketballBlock
+    });
+    batcher.flush(world.scene);
+    return;
+  }
 
   const suburbBlockRowsZ = [-580, -712, -844, -976, -1108, -1240];
   const suburbBlockColsX = [-582, -450, -318, -186, -60, 60, 186, 318, 450];
-
-  // Registra informações dos quarteirões residenciais para inspeção e testes
-  world.suburbBlocks = [];
 
   let blockCounter = 0;
   for (let rIdx = 0; rIdx < suburbBlockRowsZ.length; rIdx++) {

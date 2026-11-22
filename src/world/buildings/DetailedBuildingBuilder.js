@@ -5,6 +5,7 @@ import {
   getFacadeMaterial,
   getFastStandardMaterial
 } from './BuildingStylesAndFacades.js';
+import { IS_SCALED_WORLD, ws, fromWs } from '../core/WorldLayoutScale.js';
 
 /**
  * Constrói e registra um Edifício Detalhado OTIMIZADO (Apenas 2 a 3 Draw Calls por edifício em vez de 31!):
@@ -13,7 +14,8 @@ import {
 export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire_glass', opts = {}) {
   const style = BUILDING_STYLES[styleKey] || BUILDING_STYLES.sapphire_glass;
   const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
-  const yBase = opts.yBase ?? (terrainY + 0.28);
+  const defaultPad = IS_SCALED_WORLD && world?._urbanBlockGrid ? 0.02 : 0.28;
+  const yBase = opts.yBase ?? (terrainY + defaultPad);
   const seed = opts.seed ?? Math.abs(Math.round(x * 7 + z * 13 + h * 3));
   const group = new THREE.Group();
   group.position.set(x, yBase, z);
@@ -56,10 +58,14 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   group.add(bodyMesh);
 
   // 2. Geometria Mesclada de Acabamento Arquitetônico Art-Deco / Brutalista (Contrafortes chanfrados 45°, cornijas e reservatório cônico!)
-  const overUndergroundZone =
-    (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
-    (x >= -375 && x <= -260 && z >= -235 && z <= -125);
-  const skirtDepth = overUndergroundZone && terrainY < 0.2 ? 0.3 : 8.5;
+  const overUndergroundZone = IS_SCALED_WORLD
+    ? (Math.abs(x) <= 115 && Math.abs(z - ws(-104)) <= 115) ||
+      (Math.abs(x - ws(-77)) <= 115 && Math.abs(z - ws(20)) <= 115) ||
+      (Math.abs(x - ws(-324)) <= 65 && Math.abs(z - ws(-168)) <= 65) ||
+      (fromWs(x) >= -185 && fromWs(x) <= 115 && fromWs(z) >= -245 && fromWs(z) <= 90)
+    : (x >= -115 && x <= 115 && z >= -210 && z <= 85) ||
+      (x >= -375 && x <= -260 && z >= -235 && z <= -125);
+  const skirtDepth = overUndergroundZone && terrainY < (IS_SCALED_WORLD ? 0.25 : 0.2) ? 0.3 : 8.5;
   const trimGeos = [];
   if (opts.groundFloor !== false && opts.foundation !== false) {
     trimGeos.push(makeTranslatedBox(w + 0.65, skirtDepth, d + 0.65, 0, -skirtDepth * 0.5 + 0.08, 0));

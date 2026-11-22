@@ -18,6 +18,7 @@ import {
   onCrossRoad,
   findPortalColumns
 } from '../StreetPortalPlanner.js';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 
 export const SUPPORT_CONFIG = {
   spacing: 30,          // Distância alvo entre apoios ao longo da linha (m)
@@ -25,9 +26,9 @@ export const SUPPORT_CONFIG = {
   minTrackY: 4.5,       // Só a partir desta altura do trilho existe estrutura elevada com pilares
   colHalf: 0.7,         // Meia largura do pilar quadrado (1.4m)
   scanStep: 0.5,        // Passo da varredura lateral do asfalto (m)
-  maxScan: 60,          // Distância lateral máxima procurando a calçada (m)
+  maxScan: IS_SCALED_WORLD ? 90 : 60,          // Distância lateral máxima procurando a calçada (m)
   sidewalkInset: 0.35,  // Folga entre a borda da calçada (meio-fio) e a face do pilar
-  sidewalkSlide: 4.0,   // Quanto o pilar pode entrar na calçada procurando lugar livre (m)
+  sidewalkSlide: IS_SCALED_WORLD ? 7.5 : 4.0,  // Quanto o pilar pode entrar na calçada procurando lugar livre (m)
   roadMargin: 0.25,     // Folga extra entre pilar e asfalto
   crossRoadMargin: 3.0, // Folga para considerar "em cima de rua transversal"
   minColumnH: 3.0,      // Abaixo disso não precisa de pilar
@@ -81,16 +82,29 @@ export function planElevatedSupports(spline, roads, opts = {}) {
 
     const x = pos.x;
     const z = pos.z;
-    if (onCrossRoad(roads, x, z, alongZ, cfg.crossRoadMargin)) return null;
+    const reach = cfg.maxScan + cfg.sidewalkSlide + cfg.colHalf + cfg.roadMargin + 6;
+    const nearRoads = [];
+    for (let i = 0; i < roads.length; i++) {
+      const r = roads[i];
+      if (Math.abs(x - r.x) <= r.w * 0.5 + reach && Math.abs(z - r.z) <= r.d * 0.5 + reach) {
+        nearRoads.push(r);
+      }
+    }
+    if (onCrossRoad(nearRoads, x, z, alongZ, cfg.crossRoadMargin)) return null;
 
     const beamTop = pos.y - cfg.deckUnderside;
     const beamY = beamTop - cfg.beamH * 0.5;
-    const corridor = parallelCorridorAt(roads, x, z, alongZ);
+    const corridor = parallelCorridorAt(nearRoads, x, z, alongZ);
     const beamTopY = beamY + cfg.beamH * 0.5;
     const beamBottomY = beamY - cfg.beamH * 0.5;
     const fits = (c) => {
       // Pilar não pode atravessar escada/passarela que esteja abaixo do topo da viga
-      if (!colOk(c.x, c.z, -Infinity, beamTopY + 0.3)) return false;
+      if (
+        isInsideAnyRoad(nearRoads, c.x, c.z, cfg.colHalf + cfg.roadMargin) ||
+        isBlocked(c.x, c.z, cfg.colHalf, -Infinity, beamTopY + 0.3)
+      ) {
+        return false;
+      }
       c.groundY = getGroundY(c.x, c.z);
       return beamY - cfg.beamH * 0.5 - c.groundY >= cfg.minColumnH;
     };
@@ -102,7 +116,7 @@ export function planElevatedSupports(spline, roads, opts = {}) {
         x,
         z,
         alongZ,
-        roads,
+        roads: nearRoads,
         isFooting: isSidewalk,
         isBuilding: isBuildingAt,
         fits,
@@ -128,8 +142,8 @@ export function planElevatedSupports(spline, roads, opts = {}) {
     return { kind, s, trackY: pos.y, beamY, alongZ, corridor, cols, beam };
   };
 
-  // 1) Trechos contínuos (resolução de 1m) onde um apoio é possível
-  const step = 1;
+  // 1) Trechos contínuos onde um apoio é possível
+  const step = IS_SCALED_WORLD ? 3 : 1;
   const intervals = [];
   let cur = null;
   for (let s = 0; s < spline.totalLength; s += step) {

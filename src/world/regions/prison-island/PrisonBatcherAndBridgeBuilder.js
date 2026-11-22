@@ -1,6 +1,17 @@
 import * as THREE from 'three';
 import { makeFastBox, flushSpatialChunkedBuckets } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ws, wsP } from '../../core/WorldLayoutScale.js';
+
+export const DESIGN_PRISON_CENTER = Object.freeze({ x: 1375, z: 1540 });
+export const PRISON_COMPOUND_ORIGIN = Object.freeze(wsP(DESIGN_PRISON_CENTER.x, DESIGN_PRISON_CENTER.z));
+export const PRISON_OFFSET_X = PRISON_COMPOUND_ORIGIN.x - DESIGN_PRISON_CENTER.x;
+export const PRISON_OFFSET_Z = PRISON_COMPOUND_ORIGIN.z - DESIGN_PRISON_CENTER.z;
+
+export const DESIGN_PRISON_DOCK = Object.freeze({ x: 928, z: 1550 });
+export const PRISON_DOCK_ORIGIN = Object.freeze(wsP(DESIGN_PRISON_DOCK.x, DESIGN_PRISON_DOCK.z));
+export const PRISON_DOCK_OFFSET_X = PRISON_DOCK_ORIGIN.x - DESIGN_PRISON_DOCK.x;
+export const PRISON_DOCK_OFFSET_Z = PRISON_DOCK_ORIGIN.z - DESIGN_PRISON_DOCK.z;
 
 /**
  * Acumulador de Geometrias 3D da Grande Ponte Blindada Estaiada & Ilha da Prisão de Segurança Máxima (2x Maior):
@@ -156,12 +167,15 @@ export class PrisonIslandBatcher {
 }
 
 export function createInitialPrisonIslandData() {
+  const bx = ws(1375);
+  const zStart = IS_SCALED_WORLD ? ws(734) : 735;
+  const zEnd = IS_SCALED_WORLD ? ws(1122) : 1125;
   return {
     bridgeAlignedWithPort: true,
-    bridgeCenterX: 1375,
-    bridgeStartZ: 735,
-    bridgeEndZ: 1125,
-    bridgeLength: 390,
+    bridgeCenterX: bx,
+    bridgeStartZ: zStart,
+    bridgeEndZ: zEnd,
+    bridgeLength: zEnd - zStart,
     bridgeLanes: 4,
     bridgeConcretePillarsCount: 0,
     bridgeSteelTowersCount: 2,
@@ -169,8 +183,8 @@ export function createInitialPrisonIslandData() {
     bridgeStayCablesCount: 0,
     bridgeStayCablesFixedOrientation: true,
     bopeCheckpointsCount: 2,
-    islandWidth: 840,
-    islandDepth: 860,
+    islandWidth: IS_SCALED_WORLD ? ws(842) : 840,
+    islandDepth: IS_SCALED_WORLD ? ws(864) : 860,
     coastalRocksCount: 0,
     hasExternalCoastGuardDock: true,
     coastGuardSpeedboatsCount: 2,
@@ -352,51 +366,77 @@ export function addBatchedLegoPerson(batcher, x, y, z, rotY = 0, preset = 'priso
 }
 
 /**
- * 1. A GRANDE PONTE BLINDADA (X = 1375, Z = 735..1125 — 390m EM LINHA RETA DO PORTO ATÉ A ILHA DA PRISÃO):
+ * 1. A GRANDE PONTE BLINDADA (X = ws(1375), Z = zStart..zEnd EM LINHA RETA DO PORTO ATÉ A ILHA DA PRISÃO):
+ * - Comprimento escala para cruzar o golfo (pilares a cada ~45.5m reais em 3x), preservando largura (46m),
+ *   altura das muretas, guaritas do BOPE e cota Y do tabuleiro em escala 1x;
  * - Cabos de aço estaiados corrigidos com `batcher.addCable(...)` descendo do topo das 2 Torres de 94m
- *   diretamente até a mureta do tabuleiro em Y = 2.2m (nunca de cabeça para baixo!);
- * - 2 Checkpoints / Bloqueios Policiais do BOPE nas duas pontas da ponte (Porto Z=746 e Prisão Z=1102).
+ *   diretamente até a mureta do tabuleiro em Y = 2.4m;
+ * - Em `WORLD_SCALE > 1`, registra o tabuleiro em `world.elevatedDecks` e constrói a Via Blindada de Acesso
+ *   ligando `zEnd` (`ws(1122)`) até o Portão Monumental Norte da fortaleza (passando por `ilha_prisao.spawn`).
  */
 export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
-  const bx = 1375;
-  const zStart = 735;
-  const zEnd = 1125;
-  const bridgeLen = zEnd - zStart; // 390m
-  const bridgeMidZ = (zStart + zEnd) * 0.5; // 930
+  const bx = ws(1375);
+  const zStart = IS_SCALED_WORLD ? ws(734) : 735;
+  const zEnd = IS_SCALED_WORLD ? ws(1122) : 1125;
+  const bridgeLen = zEnd - zStart;
+  const bridgeMidZ = (zStart + zEnd) * 0.5;
   const deckW = 46;
   const roadW = 34;
 
-  // Tabuleiro Estrutural Blindado
-  batcher.addBox('gunmetal_concrete', deckW, 2.2, bridgeLen, bx, -0.82, bridgeMidZ);
-  batcher.addBox('matte_black', roadW, 0.12, bridgeLen, bx, 0.24, bridgeMidZ);
+  const segCount = IS_SCALED_WORLD ? Math.max(2, Math.round(bridgeLen / 194)) : 1;
+  const segLen = bridgeLen / segCount;
+  const segPad = IS_SCALED_WORLD ? 0.2 : 0;
+  const stripeInset = IS_SCALED_WORLD ? 0.5 : 4;
+  for (let s = 0; s < segCount; s++) {
+    const sz = zStart + (s + 0.5) * segLen;
+    batcher.addBox('gunmetal_concrete', deckW, 2.2, segLen + segPad, bx, -0.82, sz);
+    batcher.addBox('matte_black', roadW, 0.12, segLen + segPad, bx, 0.24, sz);
+    batcher.addBox('alert_yellow', 0.45, 0.05, segLen - stripeInset, bx - 0.55, 0.31, sz);
+    batcher.addBox('alert_yellow', 0.45, 0.05, segLen - stripeInset, bx + 0.55, 0.31, sz);
+  }
+
+  if (IS_SCALED_WORLD) {
+    if (!world.elevatedDecks) world.elevatedDecks = [];
+    const getBridgeDeckY = (_x, z) => (z < zStart + 8 ? 0.3 * Math.max(0, (z - zStart) / 8) : 0.3);
+    world.elevatedDecks.push({
+      id: 'prison_armored_bridge', minX: bx - deckW * 0.5, maxX: bx + deckW * 0.5, minZ: zStart, maxZ: zEnd,
+      topY: 0.3, thresholdBelow: 2.5, getDeckY: getBridgeDeckY, getTopY: getBridgeDeckY
+    });
+  }
+
   world.addCollider(bx, bridgeMidZ, deckW, bridgeLen, 0.3, -2.0);
   world.mapRoads.push({ x: bx, z: bridgeMidZ, w: roadW, d: bridgeLen, isMain: true });
 
-  // Pintura Real de 4 Faixas: Faixa Dupla Amarela Central + Linhas Brancas Tracejadas
-  batcher.addBox('alert_yellow', 0.45, 0.05, bridgeLen - 4, bx - 0.55, 0.31, bridgeMidZ);
-  batcher.addBox('alert_yellow', 0.45, 0.05, bridgeLen - 4, bx + 0.55, 0.31, bridgeMidZ);
+  // Pintura Real de 4 Faixas: Linhas Brancas Tracejadas
   for (let zz = zStart + 10; zz <= zEnd - 10; zz += 14) {
     batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx - 8.5, 0.31, zz);
     batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx + 8.5, 0.31, zz);
   }
 
-  // Guard-Rails Metálicos Pesados + Passarelas Laterais + Muretas Laterais de Concreto Armado
+  // Guard-Rails Metálicos Pesados + Passarelas Laterais + Muretas Laterais de Concreto Armado (1x!)
   for (const side of [-1, 1]) {
     const grX = bx + side * 17.6;
     const walkX = bx + side * 20.2;
     const wallX = bx + side * 22.2;
-
-    batcher.addBox('armor_slate', 4.4, 0.36, bridgeLen, walkX, 0.46, bridgeMidZ);
-    batcher.addBox('brushed_silver', 0.48, 1.15, bridgeLen, grX, 0.88, bridgeMidZ);
-    batcher.addBox('matte_black', 0.55, 0.28, bridgeLen, grX, 1.35, bridgeMidZ);
-
-    batcher.addBox('gunmetal_concrete', 1.8, 2.4, bridgeLen, wallX, 1.48, bridgeMidZ);
-    batcher.addBox('alert_yellow', 1.9, 0.32, bridgeLen, wallX, 2.52, bridgeMidZ);
+    for (let s = 0; s < segCount; s++) {
+      const sz = zStart + (s + 0.5) * segLen;
+      batcher.addBox('armor_slate', 4.4, 0.36, segLen + segPad, walkX, 0.46, sz);
+      batcher.addBox('brushed_silver', 0.48, 1.15, segLen + segPad, grX, 0.88, sz);
+      batcher.addBox('matte_black', 0.55, 0.28, segLen + segPad, grX, 1.35, sz);
+      batcher.addBox('gunmetal_concrete', 1.8, 2.4, segLen + segPad, wallX, 1.48, sz);
+      batcher.addBox('alert_yellow', 1.9, 0.32, segLen + segPad, wallX, 2.52, sz);
+    }
     world.addCollider(wallX, bridgeMidZ, 1.8, bridgeLen, 2.7, 0.28);
   }
 
-  // 8 Pares de Pilares Maciços de Concreto Sustentando o Tabuleiro até o Oceano + Iluminação Dupla
-  const pillarZList = [768, 814, 860, 906, 954, 1000, 1046, 1092];
+  // Pares de Pilares Maciços de Concreto (~45.5m de espaçamento real em 3x; lista original exata em 1x)
+  let pillarZList = [768, 814, 860, 906, 954, 1000, 1046, 1092];
+  if (IS_SCALED_WORLD) {
+    const innerSpan = bridgeLen - 72;
+    const intervals = Math.max(2, Math.round(innerSpan / 46));
+    pillarZList = Array.from({ length: intervals + 1 }, (_, i) => zStart + 36 + (i * innerSpan) / intervals);
+  }
+
   for (const pz of pillarZList) {
     batcher.addBox('gunmetal_concrete', deckW + 6, 3.2, 6.5, bx, -2.4, pz);
     for (const side of [-1, 1]) {
@@ -413,8 +453,11 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
     }
   }
 
-  // 2 Torres Gigantes de Aço Estaiadas (H = 94m!) em Cinza-Chumbo e Amarelo-Alerta (Z = 860 e Z = 1000)
-  const towerZPositions = [860, 1000];
+  // 2 Torres Gigantes de Aço Estaiadas (H = 94m em 1x!) em Cinza-Chumbo e Amarelo-Alerta
+  const towerIdx = Math.max(1, Math.round((pillarZList.length - 1) * 0.29));
+  const towerZPositions = !IS_SCALED_WORLD
+    ? [860, 1000]
+    : [pillarZList[towerIdx], pillarZList[pillarZList.length - 1 - towerIdx]];
   const towerH = 94;
   for (const tz of towerZPositions) {
     for (const side of [-1, 1]) {
@@ -448,17 +491,7 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
           const towerAnchorZ = tz + dirZ * 2.5;
           const deckAnchorZ = tz + dirZ * spanZ;
           const deckAnchorY = 2.4;
-          batcher.addCable(
-            'brushed_silver',
-            0.42,
-            towerAnchorX,
-            towerAnchorY,
-            towerAnchorZ,
-            deckAnchorX,
-            deckAnchorY,
-            deckAnchorZ
-          );
-          // Bloco de ancoragem amarelo-alerta na mureta da ponte onde o cabo chega
+          batcher.addCable('brushed_silver', 0.42, towerAnchorX, towerAnchorY, towerAnchorZ, deckAnchorX, deckAnchorY, deckAnchorZ);
           batcher.addBox('alert_yellow', 0.95, 1.1, 1.2, deckAnchorX, 2.5, deckAnchorZ);
           world.prisonIslandData.bridgeStayCablesCount++;
         });
@@ -466,9 +499,47 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
     }
   }
 
-  // 2 Checkpoints / Bloqueios Policiais Fortificados do BOPE nas duas pontas da Ponte:
-  _buildBridgeBopeCheckpoint(world, batcher, bx, 746, 'CONTROLE PONTE — BOPE (PORTO)', 0);
-  _buildBridgeBopeCheckpoint(world, batcher, bx, 1102, 'BLOQUEIO PENITENCIÁRIO — BOPE', Math.PI);
+  // 2 Checkpoints / Bloqueios Policiais Fortificados do BOPE nas duas pontas da Ponte (tamanho 1x!):
+  _buildBridgeBopeCheckpoint(world, batcher, bx, IS_SCALED_WORLD ? zStart + 14 : 746, 'CONTROLE PONTE — BOPE (PORTO)', 0);
+  _buildBridgeBopeCheckpoint(world, batcher, bx, IS_SCALED_WORLD ? zEnd - 23 : 1102, 'BLOQUEIO PENITENCIÁRIO — BOPE', Math.PI);
+
+  if (IS_SCALED_WORLD && 1125 + PRISON_OFFSET_Z > zEnd + 8) {
+    _buildScaledPrisonApproachRoad(world, batcher, bx, zEnd, 1125 + PRISON_OFFSET_Z, roadW);
+  }
+}
+
+function _buildScaledPrisonApproachRoad(world, batcher, bx, zFrom, zTo, roadW) {
+  const len = zTo - zFrom;
+  const midZ = (zFrom + zTo) * 0.5;
+  const segCount = Math.max(2, Math.round(len / 210));
+  const segLen = len / segCount;
+
+  for (let s = 0; s < segCount; s++) {
+    const sz = zFrom + (s + 0.5) * segLen;
+    batcher.addBox('matte_black', roadW, 0.14, segLen + 0.2, bx, 0.34, sz);
+    batcher.addBox('alert_yellow', 0.45, 0.05, segLen - 0.4, bx - 0.55, 0.42, sz);
+    batcher.addBox('alert_yellow', 0.45, 0.05, segLen - 0.4, bx + 0.55, 0.42, sz);
+    for (const side of [-1, 1]) {
+      batcher.addBox('armor_slate', 5.2, 0.18, segLen + 0.2, bx + side * (roadW * 0.5 + 2.6), 0.36, sz);
+    }
+  }
+
+  for (let zz = zFrom + 12; zz <= zTo - 12; zz += 14) {
+    batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx - 8.5, 0.42, zz);
+    batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx + 8.5, 0.42, zz);
+  }
+
+  for (let pz = zFrom + 42; pz <= zTo - 32; pz += 52) {
+    for (const side of [-1, 1]) {
+      const lampX = bx + side * (roadW * 0.5 + 4.6);
+      batcher.addCylinder('dark_steel', 0.28, 0.36, 12.0, lampX, 6.3, pz, 8);
+      batcher.addBox('dark_steel', 3.4, 0.32, 0.45, lampX - side * 1.4, 12.1, pz);
+      batcher.addBox('searchlight_white', 1.6, 0.24, 0.75, lampX - side * 2.4, 11.9, pz);
+      world.addCollider(lampX, pz, 1.0, 1.0, 12.4, 0.28);
+    }
+  }
+
+  world.mapRoads.push({ x: bx, z: midZ, w: roadW, d: len, isMain: true });
 }
 
 /**

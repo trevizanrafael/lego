@@ -8,6 +8,7 @@ import {
 } from '../../../materials/LegoMaterials.js';
 import { makeFastBox } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import { createMergedCarrierMesh } from './CarrierHullAndTurbines.js';
 
 function _createCarrierCanvasTex(w, h, drawFn) {
@@ -763,14 +764,26 @@ export function buildCarrierInstancedDeckProps(world, { cfg, hullStructureGroup,
 }
 
 export function buildLegoClouds(world) {
-  const cloudCoords = [
+  const baseCloudCoords = [
     [-145, 398, -110], [150, 418, -95], [-130, 428, 35], [160, 392, 40],
     [0, 442, -230], [-210, 385, -210], [220, 405, -180],
     [-550, 275, -480], [480, 290, -560], [-320, 285, 480],
     [620, 270, 340], [-920, 265, 160], [1040, 280, 620]
   ];
+  const extraScaledCoords = IS_SCALED_WORLD
+    ? [
+        [-1480, 295, -1180], [1460, 288, -1120], [-1380, 272, 1080], [1490, 284, 1140],
+        [-780, 310, -1350], [820, 305, -1280], [-1180, 278, -420], [1240, 292, -240],
+        [-640, 282, 1320], [740, 276, 1380]
+      ]
+    : [];
 
-  cloudCoords.forEach(([cx, cy, cz]) => {
+  const cloudCoords = [...baseCloudCoords, ...extraScaledCoords];
+  const clampSpan = ws(1550);
+
+  cloudCoords.forEach(([rawX, cy, rawZ]) => {
+    const cx = IS_SCALED_WORLD ? Math.max(-clampSpan, Math.min(clampSpan, ws(rawX))) : rawX;
+    const cz = IS_SCALED_WORLD ? Math.max(-clampSpan, Math.min(clampSpan, ws(rawZ))) : rawZ;
     const cloud = new THREE.Group();
     const b1 = createLegoBrick(34, 6.0, 20, LEGO_COLORS.white, { studStep: 3.5, castShadow: false });
     const b2 = createLegoBrick(22, 5.2, 14, LEGO_COLORS.white, { studStep: 3.5, castShadow: false });
