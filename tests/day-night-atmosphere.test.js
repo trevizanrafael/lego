@@ -10,7 +10,12 @@ const { DestructibleManager } = await import('../src/world/DestructibleManager.j
 const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
 const { ThirdPersonController } = await import('../src/controls/ThirdPersonController.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
+const { getClockPhaseSvg } = await import('../src/ui/minimap/MinimapMarkersAndRadarHUD.js');
+const { installFpsCounterHud } = await import('../src/ui/hud/FpsCounterHud.js');
+const { HERO_EMOTES } = await import('../src/world/attractions/EmoteDanceAnimations.js');
 const { getCachedFacadeMaterials } = await import('../src/world/BuildingGenerator.js');
+
+const COLOR_EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.65, 2200);
@@ -29,6 +34,7 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
   it('1. Regra Crítica de 60 FPS: Zero SpotLights estáticas e exatamente 4 PointLights reais no Pool Dinâmico', () => {
     let pointLightCount = 0;
     let spotLightCount = 0;
+    let headlightSpot = null;
     scene.traverse((obj) => {
       if (obj.isPointLight) {
         pointLightCount++;
@@ -37,11 +43,15 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
       }
       if (obj.isSpotLight) {
         spotLightCount++;
+        headlightSpot = obj;
       }
     });
 
     assert.equal(pointLightCount, 4, 'Deve haver estritamente 4 PointLights reais na cena inteira');
-    assert.equal(spotLightCount, 0, 'Proibido criar SpotLights estáticas na cena');
+    assert.equal(spotLightCount, 1, 'Apenas 1 SpotLight permanente (PlayerVehicleHeadlightSpot) pré-alocada para evitar recompilação de shader');
+    assert.equal(headlightSpot?.name, 'PlayerVehicleHeadlightSpot');
+    assert.equal(headlightSpot?.visible, true, 'SpotLight permanente permanece visible=true com intensity=0 fora do carro');
+    assert.equal(headlightSpot?.intensity, 0);
     assert.ok(atm.lampNodes.length >= 180, 'Deve haver centenas de postes/lâmpadas instanciados em 3 Draw Calls');
     assert.equal(atm.starPoints.geometry.attributes.position.count, 1200, 'Campo estelar com 1.200 estrelas');
   });
@@ -65,7 +75,10 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
     assert.equal(atm.coneInstMesh.visible, false, 'Cones volumétricos ocultos de dia');
     assert.equal(atm.pointLightPool[0].intensity, 0, 'Pool de PointLights com intensity=0 de dia');
     hud.updateMinimap(controller.position, 0, 0, world.regions[0], world, 0, 0.016);
-    assert.ok(hud.minimapSubEl.textContent.includes('☀ 12:00'), 'Minimapa exibe ☀ 12:00');
+    assert.ok(hud.minimapSubEl.textContent.includes('12:00'), 'Minimapa exibe 12:00');
+    assert.equal(COLOR_EMOJI_RE.test(hud.minimapSubEl.textContent), false, 'Minimapa sem emojis coloridos');
+    assert.ok(hud.minimapSubEl.innerHTML.includes('<svg class="minimap-clock-svg"'), 'Minimapa usa SVG fino');
+    assert.equal(hud.minimapSubEl.dataset.clockIcon, 'day');
 
     // Pôr do Sol Dourado (17:45) -> Sol gigante laranja-rubro a Oeste (-X atrás do Morro da CDD!)
     atm.setTimeMode('sunset');
@@ -74,7 +87,9 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
     assert.ok(atm.sunDiscGroup.scale.x > 1.4, 'Disco Solar ampliado na Golden Hour');
     assert.ok(atm.nightFactor > 0.4 && atm.nightFactor < 0.6, 'Janelas começam a acender gradualmente no pôr do sol');
     hud.updateMinimap(controller.position, 0, 0, world.regions[0], world, 0, 0.016);
-    assert.ok(hud.minimapSubEl.textContent.includes('🌅 17:45'), 'Minimapa exibe 🌅 17:45');
+    assert.ok(hud.minimapSubEl.textContent.includes('17:45'), 'Minimapa exibe 17:45');
+    assert.equal(COLOR_EMOJI_RE.test(hud.minimapSubEl.textContent), false, 'Minimapa pôr do sol sem emojis');
+    assert.equal(hud.minimapSubEl.dataset.clockIcon, 'dusk');
   });
 
   it('3. Noite Azul-Profunda & Luar Prateado + Favela "Presépio Urbano", Arranha-Céus emissiveMap e Faróis de Carros/Metrô', () => {
@@ -117,7 +132,9 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
     assert.ok(atm._metroGlassMat.emissiveIntensity > 1.0, 'Janelas dos vagões do Metrô acesas à noite');
 
     hud.updateMinimap(controller.position, 0, 0, world.regions[0], world, 0, 0.016);
-    assert.ok(hud.minimapSubEl.textContent.includes('🌙 22:00'), 'Minimapa exibe 🌙 22:00');
+    assert.ok(hud.minimapSubEl.textContent.includes('22:00'), 'Minimapa exibe 22:00');
+    assert.equal(COLOR_EMOJI_RE.test(hud.minimapSubEl.textContent), false, 'Minimapa noturno sem emojis');
+    assert.equal(hud.minimapSubEl.dataset.clockIcon, 'night');
   });
 
   it('4. Sem clarão inicial nem queda brusca de uGlowStrength ao atravessar 17:30 -> 20:00', () => {
@@ -137,6 +154,100 @@ describe('CICLO CINEMATOGRÁFICO DIA / PÔR DO SOL DOURADO / NOITE NEON (60 FPS 
       );
       prevGlow = curGlow;
     }
+  });
+
+  it('5. Relógio Vetorial SVG (day / dusk / night) e Emotes com ZERO Emojis Coloridos Unicode', () => {
+    atm.timeHours = 12.0;
+    const clkDay = atm.getFormattedClock();
+    assert.equal(clkDay.iconKey, 'day');
+    assert.equal(clkDay.icon, '');
+    assert.equal(clkDay.timeStr, '12:00');
+    assert.equal(clkDay.display, '12:00');
+    assert.equal(COLOR_EMOJI_RE.test(clkDay.display), false);
+
+    atm.timeHours = 18.0;
+    const clkDusk = atm.getFormattedClock();
+    assert.equal(clkDusk.iconKey, 'dusk');
+    assert.equal(clkDusk.timeStr, '18:00');
+    assert.equal(COLOR_EMOJI_RE.test(clkDusk.display), false);
+
+    atm.timeHours = 23.0;
+    const clkNight = atm.getFormattedClock();
+    assert.equal(clkNight.iconKey, 'night');
+    assert.equal(clkNight.timeStr, '23:00');
+    assert.equal(COLOR_EMOJI_RE.test(clkNight.display), false);
+
+    for (const phase of ['day', 'dusk', 'night']) {
+      const svg = getClockPhaseSvg(phase);
+      assert.ok(svg.startsWith('<svg class="minimap-clock-svg"'), `SVG válido para ${phase}`);
+      assert.ok(svg.endsWith('</svg>'));
+      assert.equal(COLOR_EMOJI_RE.test(svg), false, `Zero emojis no SVG ${phase}`);
+    }
+
+    for (const emote of HERO_EMOTES) {
+      assert.equal(COLOR_EMOJI_RE.test(emote.label), false, `Emote ${emote.id} sem emoji colorido`);
+      assert.equal(COLOR_EMOJI_RE.test(emote.name), false);
+    }
+  });
+
+  it('6. Contador de FPS Frameless (#hud-fps-counter): Tiers good/warn/bad, Throttle 4x/s e Toggle showFps', () => {
+    class MockFpsHud {
+      constructor() {
+        this.settings = { showFps: true };
+        this.isTitleScreenActive = false;
+        this.isLoadingActive = false;
+        this._initFpsCounterHud();
+      }
+    }
+    installFpsCounterHud(MockFpsHud);
+
+    const mockHud = new MockFpsHud();
+    const fpsEl = globalThis.document.getElementById('hud-fps-counter');
+    assert.ok(fpsEl, '#hud-fps-counter criado no DOM');
+    assert.equal(fpsEl.classList.contains('hidden'), false, 'Visível por padrão (showFps=true)');
+
+    // Antes de 0,25s (~6 frames de 1/60s = 0,10s), o throttle 4x/s não escreve no DOM
+    for (let i = 0; i < 6; i++) {
+      mockHud.recordRenderFrameTiming(1 / 60);
+    }
+    assert.equal(mockHud._fpsRefreshCount, 0, 'Sem atualização antes da janela de 0,25s');
+
+    // Completa 1,0s cravado em 60 FPS (mais 54 frames -> 60 frames totais = 1,0s -> 4 refreshes exatos!)
+    for (let i = 0; i < 54; i++) {
+      mockHud.recordRenderFrameTiming(1 / 60);
+    }
+    assert.equal(mockHud._fpsRefreshCount, 4, 'Atualiza estritamente 4x por segundo');
+    assert.equal(mockHud.fpsStats.fps, 60);
+    assert.equal(fpsEl.dataset.tier, 'good');
+    assert.ok(fpsEl.textContent.includes('60 FPS'), `Texto 60 FPS (${fpsEl.textContent})`);
+
+    // 40 FPS (25 ms por quadro por 0,5s -> 20 quadros exatos) -> data-tier="warn"
+    for (let i = 0; i < 20; i++) {
+      mockHud.updateFpsCounterHud(0.025);
+    }
+    assert.equal(mockHud.fpsStats.fps, 40);
+    assert.equal(fpsEl.dataset.tier, 'warn');
+    assert.ok(fpsEl.textContent.includes('40 FPS'), `Texto 40 FPS (${fpsEl.textContent})`);
+
+    // 20 FPS (50 ms por quadro por 0,5s -> 10 quadros exatos) -> data-tier="bad" + pior quadro exposto
+    for (let i = 0; i < 10; i++) {
+      mockHud.updateFpsCounterHud(0.05);
+    }
+    assert.equal(mockHud.fpsStats.fps, 20);
+    assert.equal(fpsEl.dataset.tier, 'bad');
+    assert.ok(fpsEl.textContent.includes('20 FPS'), `Texto 20 FPS (${fpsEl.textContent})`);
+    assert.ok(Number(fpsEl.dataset.worstMs) >= 50, 'Pior quadro registrado em data-worst-ms');
+
+    // Toggle setShowFpsEnabled(false) oculta #hud-fps-counter imediatamente
+    mockHud.setShowFpsEnabled(false);
+    assert.equal(mockHud.settings.showFps, false);
+    assert.equal(fpsEl.classList.contains('hidden'), true);
+    assert.equal(fpsEl.style.display, 'none');
+
+    // Reativar restaura visibilidade
+    mockHud.setShowFpsEnabled(true);
+    assert.equal(mockHud.settings.showFps, true);
+    assert.equal(fpsEl.classList.contains('hidden'), false);
   });
 });
 

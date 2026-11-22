@@ -2,6 +2,7 @@ import { soundFX } from '../../audio/SoundFX.js';
 import { definePrototypeMethods } from './HudConstantsAndPortraits.js';
 
 export const HITMARKER_NORMAL_DURATION_MS = 120;
+export const HITMARKER_HEADSHOT_DURATION_MS = 165;
 export const HITMARKER_KILL_DURATION_MS = 220;
 export const KILL_FLASH_FALLBACK_DURATION_MS = 180;
 
@@ -101,7 +102,7 @@ export function installHitmarkerHud(LegoHud) {
       this.hitmarkerVariant = null;
       const el = this.hitmarkerEl;
       if (!el) return;
-      el.classList?.remove('is-visible', 'is-hit', 'is-kill');
+      el.classList?.remove('is-visible', 'is-hit', 'is-headshot', 'is-kill');
       if (el.dataset) el.dataset.variant = '';
       if (el.style) {
         el.style.opacity = '0';
@@ -109,10 +110,16 @@ export function installHitmarkerHud(LegoHud) {
       }
     },
 
-    triggerHitmarker(isKill = false) {
+    triggerHitmarker(isKill = false, opts = {}) {
       this._initHitmarkerHud();
       const kill = Boolean(isKill);
-      const durationMs = kill ? HITMARKER_KILL_DURATION_MS : HITMARKER_NORMAL_DURATION_MS;
+      const isHeadshot = Boolean(opts?.isHeadshot) && !kill;
+      const variant = kill ? 'kill' : isHeadshot ? 'headshot' : 'hit';
+      const durationMs = kill
+        ? HITMARKER_KILL_DURATION_MS
+        : isHeadshot
+          ? HITMARKER_HEADSHOT_DURATION_MS
+          : HITMARKER_NORMAL_DURATION_MS;
 
       // Reinicia o timer sem somar/acumular em rajadas rápidas
       if (this._hitmarkerTimeout) {
@@ -123,24 +130,32 @@ export function installHitmarkerHud(LegoHud) {
       this._hitmarkerRemainingSec = durationMs / 1000;
       this._hitmarkerTotalSec = this._hitmarkerRemainingSec;
       this.isHitmarkerVisible = true;
-      this.hitmarkerVariant = kill ? 'kill' : 'hit';
+      this.hitmarkerVariant = variant;
 
       const el = this.hitmarkerEl;
       if (el) {
-        el.classList?.remove('hidden', 'is-hit', 'is-kill');
-        el.classList?.add('is-visible', kill ? 'is-kill' : 'is-hit');
+        el.classList?.remove('hidden', 'is-hit', 'is-headshot', 'is-kill');
+        el.classList?.add('is-visible', `is-${variant}`);
         if (el.dataset) {
-          el.dataset.variant = kill ? 'kill' : 'hit';
+          el.dataset.variant = variant;
         }
         if (el.style) {
           el.style.opacity = '1';
           el.style.transform = kill
             ? 'translate(-50%, -50%) scale(1.38)'
-            : 'translate(-50%, -50%) scale(1)';
+            : isHeadshot
+              ? 'translate(-50%, -50%) scale(1.24)'
+              : 'translate(-50%, -50%) scale(1)';
         }
       }
 
-      if (!kill) {
+      if (isHeadshot) {
+        if (typeof soundFX.playHeadshotTink === 'function') {
+          soundFX.playHeadshotTink();
+        } else {
+          soundFX.playHitmarkerTick?.();
+        }
+      } else if (!kill) {
         soundFX.playHitmarkerTick?.();
       }
 
@@ -193,16 +208,18 @@ export function installHitmarkerHud(LegoHud) {
       if (el.style) el.style.opacity = '0';
     },
 
-    triggerPlayerKillFeedback(victimObj = null) {
+    triggerPlayerKillFeedback(victimObj = null, opts = {}) {
       this._initHitmarkerHud();
       this._playerKillCount = (this._playerKillCount || 0) + 1;
       this._lastKilledVictim = victimObj || null;
+      this._lastKillWasHeadshot = Boolean(opts?.isHeadshot);
 
       // Hitmarker vermelho arterial sempre aparece no centro da mira ao eliminar
-      this.triggerHitmarker(true);
+      this.triggerHitmarker(true, opts);
 
       const fxEnabled = this.settings?.killEffect !== false;
       if (fxEnabled) {
+        if (opts?.isHeadshot) soundFX.playHeadshotTink?.();
         soundFX.playKillConfirm?.();
         if (typeof this.onTriggerKillFlash === 'function') {
           this.onTriggerKillFlash(victimObj);

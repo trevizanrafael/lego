@@ -9,6 +9,11 @@ import { soundFX } from '../../audio/SoundFX.js';
 import { TRAIL_CUBE_GEO, SHARED_UNIT_SPHERE_20 } from './DestructibleRegistryAndCulling.js';
 import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
 import { spawnBloodHitSplatter } from '../npc-health/HumanoidHitReactions.js';
+import {
+  resolveHumanoidHitZone,
+  isPrecisionShot,
+  getEffectiveHumanoidHeight
+} from '../npc-health/HumanoidHitZones.js';
 
 const WATER_DROP_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.22, 0.22, 0.22));
 
@@ -134,33 +139,57 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
 
   _damageHumanoidObject(obj, amount, hitOrigin, isSolar, damageOpts, causedByPlayer) {
     const UNARMORED_CIVILIAN_MULT = 4.1;
+    const zoneInfo = resolveHumanoidHitZone(obj, damageOpts?.impactPoint || hitOrigin, damageOpts);
+    const isPrecision = isPrecisionShot(damageOpts);
+    const hasPhysicalShield = Boolean(
+      obj.hasRiotShield ||
+      obj.hasShield ||
+      obj.visual?.hasShield ||
+      (obj.isTankNpc && !obj.visual && obj.hasShield !== false && obj.hasRiotShield !== false)
+    );
+    const shooterOrigin = damageOpts?.shotOrigin || hitOrigin;
     let finalDamage = amount;
 
-    if (obj.isCivilianPedestrian) {
-      if (!damageOpts?.unscaledDamage) {
-        if (damageOpts?.isExplosion || damageOpts?.isCloseShotgun || damageOpts?.isShotgunPellet) {
-          finalDamage = amount * 2.5;
-        } else if (amount <= 21) {
-          finalDamage = amount * UNARMORED_CIVILIAN_MULT;
-        } else {
-          finalDamage = amount * 2.1;
-        }
+    if (damageOpts?.unscaledDamage) {
+      finalDamage = amount;
+    } else if (isPrecision && !damageOpts?.fromEnemyNpc) {
+      finalDamage = amount * zoneInfo.multiplier;
+      if (obj.isTankNpc && !zoneInfo.isHeadshot && hasPhysicalShield && shooterOrigin && obj.mesh) {
+        const fwdX = Math.sin(obj.mesh.rotation.y);
+        const fwdZ = Math.cos(obj.mesh.rotation.y);
+        const dx = shooterOrigin.x - obj.mesh.position.x;
+        const dz = shooterOrigin.z - obj.mesh.position.z;
+        if (dx * fwdX + dz * fwdZ > 0) finalDamage *= 0.6;
       }
-    } else if (obj.isCombatNpc && !damageOpts?.fromEnemyNpc && !damageOpts?.unscaledDamage) {
-      finalDamage = amount * 0.55;
-      if (obj.isTankNpc) {
-        if (hitOrigin && obj.mesh) {
-          const fwdX = Math.sin(obj.mesh.rotation.y);
-          const fwdZ = Math.cos(obj.mesh.rotation.y);
-          const dx = hitOrigin.x - obj.mesh.position.x;
-          const dz = hitOrigin.z - obj.mesh.position.z;
-          if (dx * fwdX + dz * fwdZ > 0) {
-            finalDamage *= 0.6;
-          }
-        }
+      if (obj.isBossNpc) {
+        const bossCap = Math.min(220, Math.max(1, (obj.maxHp || obj.humanoidHealth?.maxHp || 500) * 0.42));
+        finalDamage = Math.min(bossCap, finalDamage);
+      }
+    } else if (obj.isCivilianPedestrian) {
+      if (damageOpts?.isExplosion || damageOpts?.isCloseShotgun || damageOpts?.isShotgunPellet) {
+        finalDamage = amount * 2.5;
+      } else if (amount <= 21) {
+        finalDamage = amount * UNARMORED_CIVILIAN_MULT;
+      } else {
+        finalDamage = amount * 2.1;
+      }
+      finalDamage *= zoneInfo.multiplier;
+    } else if (obj.isCombatNpc && !damageOpts?.fromEnemyNpc) {
+      finalDamage = amount * 0.55 * zoneInfo.multiplier;
+      if (obj.isTankNpc && !zoneInfo.isHeadshot && hasPhysicalShield && shooterOrigin && obj.mesh) {
+        const fwdX = Math.sin(obj.mesh.rotation.y);
+        const fwdZ = Math.cos(obj.mesh.rotation.y);
+        const dx = shooterOrigin.x - obj.mesh.position.x;
+        const dz = shooterOrigin.z - obj.mesh.position.z;
+        if (dx * fwdX + dz * fwdZ > 0) finalDamage *= 0.6;
+      }
+      if (obj.isBossNpc) {
+        const bossMax = Math.max(1, (obj.maxHp || obj.humanoidHealth?.maxHp || 500) * 0.42);
+        finalDamage = Math.min(zoneInfo.isHeadshot ? Math.min(220, bossMax) : Math.min(160, bossMax), finalDamage);
+      } else if (zoneInfo.isHeadshot) {
+        finalDamage = Math.min(260, finalDamage);
+      } else if (obj.isTankNpc) {
         finalDamage = Math.min(85, finalDamage);
-      } else if (obj.isBossNpc) {
-        finalDamage = Math.min(160, finalDamage);
       } else {
         finalDamage = Math.min(95, finalDamage);
       }
@@ -182,6 +211,13 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     }
 
     const entityPos = obj.mesh?.position || obj.basePos || { x: 0, y: 0, z: 0 };
+    const effHeight = getEffectiveHumanoidHeight(obj);
+    const impactWorldPos = damageOpts?.impactPoint || {
+      x: entityPos.x,
+      y: (entityPos.y || 0) + effHeight * (zoneInfo.isHeadshot ? 0.88 : zoneInfo.isLimb ? 0.28 : 0.58),
+      z: entityPos.z
+    };
+
     const healthRes = obj.humanoidHealth.applyDamage(finalDamage, {
       hitOrigin: damageOpts?.shotOrigin || hitOrigin,
       shotDir: damageOpts?.shotDir || null,
@@ -193,7 +229,11 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     });
     obj.hp = obj.humanoidHealth.hp;
 
-    const bloodPos = { x: entityPos.x, y: (entityPos.y || 0) + (obj.height || 2.1) * 0.56, z: entityPos.z };
+    const bloodPos = {
+      x: impactWorldPos.x,
+      y: zoneInfo.isHeadshot ? impactWorldPos.y : (entityPos.y || 0) + effHeight * 0.56,
+      z: impactWorldPos.z
+    };
     const shotDir = damageOpts?.shotDir || (
       hitOrigin ? { x: entityPos.x - hitOrigin.x, y: 0.12, z: entityPos.z - hitOrigin.z } : null
     );
@@ -206,8 +246,22 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
         obj.onDamaged(healthRes.damageApplied, hitOrigin, healthRes, damageOpts);
       }
       if (causedByPlayer) {
-        this.hud?.triggerHitmarker?.(false);
-        this.onObjectDamaged?.(obj, healthRes.damageApplied, hitOrigin, { ...damageOpts, sourceIsPlayer: true });
+        this.hud?.triggerHitmarker?.(false, { isHeadshot: zoneInfo.isHeadshot });
+        this.hud?.spawnDamageNumber?.({
+          amount: healthRes.damageApplied,
+          worldPos: impactWorldPos,
+          targetObj: obj,
+          zone: zoneInfo.zone,
+          isHeadshot: zoneInfo.isHeadshot,
+          isKill: false,
+          isVehicle: false
+        });
+        this.onObjectDamaged?.(obj, healthRes.damageApplied, hitOrigin, {
+          ...damageOpts,
+          hitZone: zoneInfo.zone,
+          isHeadshot: zoneInfo.isHeadshot,
+          sourceIsPlayer: true
+        });
       }
       return;
     }
@@ -240,8 +294,22 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     });
 
     if (causedByPlayer) {
-      this.hud?.triggerPlayerKillFeedback?.(obj);
-      this.onObjectDestroyed?.(obj, hitOrigin, { ...damageOpts, sourceIsPlayer: true });
+      this.hud?.spawnDamageNumber?.({
+        amount: healthRes.damageApplied,
+        worldPos: impactWorldPos,
+        targetObj: obj,
+        zone: zoneInfo.zone,
+        isHeadshot: zoneInfo.isHeadshot,
+        isKill: true,
+        isVehicle: false
+      });
+      this.hud?.triggerPlayerKillFeedback?.(obj, { isHeadshot: zoneInfo.isHeadshot });
+      this.onObjectDestroyed?.(obj, hitOrigin, {
+        ...damageOpts,
+        hitZone: zoneInfo.zone,
+        isHeadshot: zoneInfo.isHeadshot,
+        sourceIsPlayer: true
+      });
     }
   },
 
@@ -294,6 +362,27 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       this.onObjectDamaged(obj, finalDamage, hitOrigin, {
         ...damageOpts,
         sourceIsPlayer: true
+      });
+    }
+
+    const isVehicleObj =
+      obj.type === 'car' ||
+      obj.type === 'police_helicopter' ||
+      obj.type === 'boat' ||
+      obj.type === 'aircraft' ||
+      Boolean(obj.isVehicle);
+    if (causedByPlayer && isVehicleObj) {
+      if (obj.hp > 0) {
+        this.hud?.triggerHitmarker?.(false, { isHeadshot: false, isVehicle: true });
+      }
+      this.hud?.spawnDamageNumber?.({
+        amount: finalDamage,
+        worldPos: damageOpts?.impactPoint || hitOrigin || obj.mesh?.position || obj.basePos,
+        targetObj: obj,
+        zone: 'vehicle',
+        isHeadshot: false,
+        isKill: obj.hp <= 0,
+        isVehicle: true
       });
     }
 

@@ -7,6 +7,8 @@ import { installHudConstantsAndPortraits } from './hud/HudConstantsAndPortraits.
 import { installOperatorCombatAndVehicleHud } from './hud/OperatorCombatAndVehicleHud.js';
 import { installAbilityCooldownHud } from './hud/AbilityCooldownHud.js';
 import { installHitmarkerHud } from './hud/HitmarkerHud.js';
+import { installFpsCounterHud } from './hud/FpsCounterHud.js';
+import { installDamageNumbersHud } from './hud/DamageNumbersHud.js';
 import { installSniperScopeHud } from './hud/SniperScopeHud.js';
 import { installHudMapAndWheelBridge } from './hud/HudMapAndWheelBridge.js';
 import { installCharacterGridOverlay } from './character-grid/CharacterGridOverlay.js';
@@ -158,6 +160,8 @@ export class LegoHud {
     this._initSpeedometerBars();
     this._initAbilityCooldownHud?.();
     this._initHitmarkerHud?.();
+    this._initFpsCounterHud?.();
+    this._initDamageNumbersHud?.();
     this._initSniperScopeHud?.();
     this._ensureCharacterGridDom?.();
     this._initTikTokRadioModal();
@@ -171,8 +175,9 @@ export class LegoHud {
   get isCustomsOpen() { return Boolean(this.customsStudio?.isOpen); }
   get isAircraftStudioOpen() { return Boolean(this.aircraftStudio?.isOpen); }
 
-  update(dt) {
+  update(dt, camera = null) {
     this.updateHitmarkerHud?.(dt);
+    this.updateDamageNumbersHud?.(dt, camera);
     if (this.isTitleScreenActive) {
       this._renderFavelaBackgroundCanvas(dt);
     } else if (!this.isLoadingActive && !this.isPauseMenuOpen) {
@@ -197,6 +202,8 @@ installHudConstantsAndPortraits(LegoHud);
 installOperatorCombatAndVehicleHud(LegoHud);
 installAbilityCooldownHud(LegoHud);
 installHitmarkerHud(LegoHud);
+installFpsCounterHud(LegoHud);
+installDamageNumbersHud(LegoHud);
 installSniperScopeHud(LegoHud);
 installHudMapAndWheelBridge(LegoHud);
 installCharacterGridOverlay(LegoHud);

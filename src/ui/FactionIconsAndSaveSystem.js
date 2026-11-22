@@ -131,6 +131,8 @@ export const UI_TEXTS = {
     timeOfDayLabel: 'HORÁRIO',
     timeModes: { auto: 'DINÂMICO', day: 'DIA', sunset: 'PÔR DO SOL', night: 'NOITE' },
     killEffectLabel: 'EFEITO DE KILL',
+    showFpsLabel: 'MOSTRAR FPS',
+    damageNumbersLabel: 'NÚMEROS DE DANO',
     mouseSensLabel: 'SENSIBILIDADE DO MOUSE',
     invertYLabel: 'INVERTER EIXO Y',
     controlsSectionTitle: 'LISTA DE CONTROLES',
@@ -161,6 +163,8 @@ export const UI_TEXTS = {
       fullscreen: 'Alterna a exibição do jogo entre janela e tela cheia.',
       timeMode: 'Escolhe entre ciclo automático de dia e noite ou horário fixo.',
       killEffect: 'Ativa o clarão rápido na tela e o impacto sonoro ao eliminar inimigos.',
+      showFps: 'Exibe o contador discreto de FPS e tempo de quadro no canto superior direito.',
+      damageNumbers: 'Exibe números flutuantes de dano ao acertar inimigos, civis e veículos.',
       mouseSens: 'Ajusta a velocidade de rotação da câmera ao mover o mouse.',
       invertY: 'Inverte o movimento vertical do mouse ao olhar para cima ou para baixo.',
       controlsList: 'Atalhos principais de teclado e mouse para combate, poderes e veículos.',
@@ -298,6 +302,8 @@ export const UI_TEXTS = {
     timeOfDayLabel: 'TIME OF DAY',
     timeModes: { auto: 'DYNAMIC', day: 'DAY', sunset: 'SUNSET', night: 'NIGHT' },
     killEffectLabel: 'KILL EFFECT',
+    showFpsLabel: 'SHOW FPS',
+    damageNumbersLabel: 'DAMAGE NUMBERS',
     mouseSensLabel: 'MOUSE SENSITIVITY',
     invertYLabel: 'INVERT Y AXIS',
     controlsSectionTitle: 'CONTROLS LIST',
@@ -328,6 +334,8 @@ export const UI_TEXTS = {
       fullscreen: 'Switches the game display between windowed mode and fullscreen.',
       timeMode: 'Chooses between an automatic day-night cycle or a fixed time of day.',
       killEffect: 'Enables the brief screen flash and audio thump when eliminating targets.',
+      showFps: 'Shows the compact frameless FPS and frame-time counter at the top right.',
+      damageNumbers: 'Shows floating damage numbers when hitting enemies, civilians, and vehicles.',
       mouseSens: 'Adjusts how fast the camera rotates when moving the mouse.',
       invertY: 'Inverts vertical mouse movement when looking up or down.',
       controlsList: 'Primary keyboard and mouse shortcuts for combat, powers, and vehicles.',
@@ -462,6 +470,8 @@ export const DEFAULT_GAME_SETTINGS = {
   graphicsQuality: 'auto',
   timeMode: 'auto',
   killEffect: true,
+  showFps: true,
+  damageNumbers: true,
   language: 'pt-BR',
   mouseSensitivity: 1.0,
   invertY: false,
@@ -619,6 +629,8 @@ export function loadGameSettings() {
     merged.fov = Number.isFinite(fov) ? Math.min(85, Math.max(50, fov)) : DEFAULT_GAME_SETTINGS.fov;
     merged.invertY = Boolean(merged.invertY);
     merged.killEffect = merged.killEffect !== false;
+    merged.showFps = merged.showFps !== false;
+    merged.damageNumbers = merged.damageNumbers !== false;
     return merged;
   } catch (e) {
     return defaults;

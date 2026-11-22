@@ -85,6 +85,20 @@ body.satellite-transition #kill-flash-overlay {
   transform: translate(-50%, -50%) scale(1);
 }
 
+/* Headshot crítico: X âmbar/bronze metálico (#f59e0b / #d99b16) (scale 1.24, 165ms) */
+#hud-hitmarker.is-headshot,
+.hud-hitmarker.is-headshot {
+  --hm-color: #f59e0b;
+  --hm-glow: rgba(217, 155, 22, 0.55);
+  --hm-spoke-len: 9px;
+  --hm-spoke-thick: 2.3px;
+  --hm-center-gap: 5.2px;
+  transform: translate(-50%, -50%) scale(1.24);
+  filter:
+    drop-shadow(1px 1px 0 #04060a)
+    drop-shadow(0 0 5px rgba(217, 155, 22, 0.55));
+}
+
 /* Kill confirm: X carmesim arterial (#dc2626 / #ef4444) maior (scale ~1.38, 220ms) */
 #hud-hitmarker.is-kill,
 .hud-hitmarker.is-kill {
@@ -112,6 +126,11 @@ body.satellite-transition #kill-flash-overlay {
   border-radius: 0;
   box-shadow: 0 0 4px var(--hm-glow);
   transform-origin: 0% 50%;
+}
+
+#hud-hitmarker.is-headshot .hm-spoke,
+.hud-hitmarker.is-headshot .hm-spoke {
+  background: linear-gradient(90deg, #f59e0b 0%, #d99b16 100%);
 }
 
 #hud-hitmarker.is-kill .hm-spoke,

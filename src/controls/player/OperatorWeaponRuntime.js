@@ -33,6 +33,10 @@ const MAT_PCC_DMR = markAsSharedAsset(getLegoMaterial(0xfef3c7, { emissive: 0xf5
 const MAT_PCC_PELLET = markAsSharedAsset(getLegoMaterial(0xfef08a, { emissive: 0xea580c, emissiveIntensity: 2.2, roughness: 0.15 }));
 const MAT_ARES_PULSE = markAsSharedAsset(getLegoMaterial(0x22d3ee, { emissive: 0xa855f7, emissiveIntensity: 2.65, roughness: 0.08 }));
 const MAT_ARES_LASER = markAsSharedAsset(getLegoMaterial(0xfaf5ff, { emissive: 0xc084fc, emissiveIntensity: 2.9, roughness: 0.06 }));
+const CHARGE_BEAM_MAT_POOL = Array.from({ length: 4 }, () =>
+  markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.92 }))
+);
+let chargeBeamPoolCursor = 0;
 
 const PROJ_STYLE_BY_WEAPON = {
   cv_lmg: { geo: HEAVY_TRACER_GEO, mat: MAT_CV_LMG, life: 1.2 },
@@ -598,6 +602,10 @@ export class OperatorWeaponRuntime {
         mesh,
         type: wKey === 'pcc_shotgun12' ? 'shotgun_pellet' : 'bullet',
         weaponKey: wKey,
+        chargeRatio,
+        isPrecisionWeapon: Boolean(weaponSpec.isPrecisionWeapon),
+        pierceLeft: wKey === 'pcc_dmr' ? 2 : 0,
+        hitObjects: wKey === 'pcc_dmr' ? new Set() : null,
         originPos: origin.clone(),
         vel: shotDir.clone().multiplyScalar(speed),
         life: style.life,
@@ -611,11 +619,10 @@ export class OperatorWeaponRuntime {
     }
 
     if (wKey === 'ares_charge_rifle' && Array.isArray(destructibles.timedBeams)) {
-      const beamMat = new THREE.MeshBasicMaterial({
-        color: chargeRatio >= 0.85 ? 0xfaf5ff : 0xc084fc,
-        transparent: true,
-        opacity: 0.92
-      });
+      const beamMat = CHARGE_BEAM_MAT_POOL[chargeBeamPoolCursor];
+      chargeBeamPoolCursor = (chargeBeamPoolCursor + 1) % CHARGE_BEAM_MAT_POOL.length;
+      beamMat.color.setHex(chargeRatio >= 0.85 ? 0xfaf5ff : 0xc084fc);
+      beamMat.opacity = 0.92;
       const beamMesh = new THREE.Mesh(LASER_BEAM_CYL_GEO, beamMat);
       const radius = 0.045 + chargeRatio * 0.085;
       beamMesh.position.copy(origin);
