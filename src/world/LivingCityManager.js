@@ -78,7 +78,17 @@ export class LivingCityManager {
     if (!Number.isFinite(numericRaw) || numericRaw <= 0) return 0;
     const afterRole = applyIncomingDamageMitigation(numericRaw, this.playerDamageReduction || 0);
     const abilityMult = controller?.operatorAbilities?.getIncomingDamageMultiplier?.(opts?.attackerPos || null) ?? 1.0;
-    return Math.max(1, Math.round(afterRole * abilityMult * 10) / 10);
+    const earlyWindow = Number.isFinite(Number(controller?.rollEarlyMitigationSec))
+      ? Number(controller.rollEarlyMitigationSec)
+      : 0.20;
+    const earlyMit = Number.isFinite(Number(controller?.rollEarlyMitigation))
+      ? Number(controller.rollEarlyMitigation)
+      : 0.40;
+    const isEarlyRoll = Boolean(
+      controller && Number(controller.rollImpulseTimer) > 0 && (Number(controller.rollElapsed) || 0) < earlyWindow
+    );
+    const rollMult = isEarlyRoll ? Math.max(0, 1 - earlyMit) : 1.0;
+    return Math.max(1, Math.round(afterRole * abilityMult * rollMult * 10) / 10);
   }
 
   healPlayerAndAlliesInRadius(center, radius, playerHealAmount, npcHealAmount = playerHealAmount, opts = {}) {

@@ -7,10 +7,13 @@ import { soundFX } from '../../audio/SoundFX.js';
 import { updateTitaSirensAndThrusters } from './MinifigVfxAndClothAnimator.js';
 import { updateTraversalOverlays } from './MinifigLocomotionAnimator.js';
 
+const _rollAxisScratch = new THREE.Vector3(1, 0, 0);
+
 /**
  * Processa estados exclusivos que interrompem a locomoção padrão:
  * 1) Emotes / Danças [Tecla B] (cancela instantaneamente ao andar, pular, voar ou atacar)
- * 2) Rolamento Tático 360° girando no centro de massa (garantindo y >= 0 sem entrar no chão)
+ * 2) Rolamento Tático 360° girando no centro de massa (garantindo y >= 0 sem entrar no chão,
+ *    com suporte a eixo direcional `rollLocalYaw` quando mirando em 3ª pessoa estilo GTA V)
  * Retorna `true` quando o frame já foi integralmente resolvido.
  */
 export function updateEmoteOrRollInterrupt(minifig, dt, moveSpeed, isGrounded, isFlying) {
@@ -33,16 +36,29 @@ export function updateEmoteOrRollInterrupt(minifig, dt, moveSpeed, isGrounded, i
   if (minifig.rollTimer > 0) {
     minifig.rollTimer = Math.max(0, minifig.rollTimer - dt);
     minifig.state = 'ROLL';
-    const progress = 1.0 - minifig.rollTimer / minifig.rollDuration;
-    const theta = progress * Math.PI * 2;
+    const dur = Math.max(0.01, Number(minifig.rollDuration) || 0.38);
+    const progress = 1.0 - minifig.rollTimer / dur;
 
-    // Pivô no centro do tronco (pivotY = 0.96) + impulso vertical garante y >= 0 em todos os ângulos!
-    const pivotY = 0.96;
-    const rollCenterY = pivotY + Math.sin(progress * Math.PI) * 0.32;
+    if (minifig.rollTimer <= 0) {
+      minifig.visualRoot.position.set(0, 0, 0);
+      minifig.visualRoot.rotation.set(0, 0, 0);
+      minifig.rollLocalYaw = 0;
+    } else {
+      const theta = progress * Math.PI * 2;
+      const localYaw = Number(minifig.rollLocalYaw) || 0;
+      const lx = Math.sin(localYaw);
+      const lz = Math.cos(localYaw);
 
-    minifig.visualRoot.rotation.x = theta;
-    minifig.visualRoot.position.y = rollCenterY - pivotY * Math.cos(theta);
-    minifig.visualRoot.position.z = -pivotY * Math.sin(theta);
+      // Pivô no centro do tronco (pivotY = 0.96) + impulso vertical garante y >= 0 em todos os ângulos!
+      const pivotY = 0.96;
+      const rollCenterY = pivotY + Math.sin(progress * Math.PI) * 0.32;
+
+      _rollAxisScratch.set(lz, 0, -lx);
+      minifig.visualRoot.quaternion.setFromAxisAngle(_rollAxisScratch, theta);
+      minifig.visualRoot.position.x = -lx * pivotY * Math.sin(theta);
+      minifig.visualRoot.position.y = rollCenterY - pivotY * Math.cos(theta);
+      minifig.visualRoot.position.z = -lz * pivotY * Math.sin(theta);
+    }
 
     const tuck = Math.sin(progress * Math.PI);
     minifig.upperBodyGroup.rotation.x = 0.48 * tuck;
@@ -326,9 +342,17 @@ export const combatAndEmoteMethods = {
     this.stompTimer = this.stompDuration;
   },
 
-  triggerTacticalRoll() {
+  triggerTacticalRoll(duration = null, localRollYaw = 0) {
     if (this.rollTimer > 0) return false;
-    this.rollTimer = this.rollDuration;
+    if (!this.defaultRollDuration) {
+      this.defaultRollDuration = Number(this.rollDuration) || 0.38;
+    }
+    const resolvedDuration = Number.isFinite(Number(duration)) && Number(duration) > 0
+      ? Number(duration)
+      : this.defaultRollDuration;
+    this.rollDuration = resolvedDuration;
+    this.rollTimer = resolvedDuration;
+    this.rollLocalYaw = Number.isFinite(Number(localRollYaw)) ? Number(localRollYaw) : 0;
     return true;
   },
 

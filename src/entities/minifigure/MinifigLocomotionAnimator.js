@@ -19,6 +19,7 @@ export function updateFlightAndGroundLocomotion(
   flightPitch,
   flightBank
 ) {
+  minifig.visualRoot.position.x = THREE.MathUtils.lerp(minifig.visualRoot.position.x, 0, lerpSpeed);
   minifig.visualRoot.position.z = THREE.MathUtils.lerp(minifig.visualRoot.position.z, 0, lerpSpeed);
   const targetBodyPitch = isFlying && isSupersonic ? (Math.PI * 0.48 - flightPitch) : 0;
   const targetBodyBank = isFlying ? flightBank : 0;

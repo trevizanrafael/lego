@@ -429,16 +429,19 @@ export const controllerInputAndEventsMethods = {
         break;
       case 'ControlLeft':
       case 'ControlRight':
-      case 'KeyC':
-        this.keys.descend = isDown;
-        if (
-          isDown && !e.repeat &&
-          (this.minifigure.currentHeroKey === 'caveira' || this.minifigure.currentHeroKey === 'sombra') &&
-          this.isGrounded
-        ) {
-          this._triggerTacticalRoll();
+      case 'KeyC': {
+        const hero = this.minifigure?.currentHeroKey;
+        const canCtrlRollHero = isFactionOperatorKey(hero) || hero === 'caveira' || hero === 'sombra';
+        if (canCtrlRollHero && !this.currentVehicle && !this.activeRide && !this.isFlying) {
+          this.keys.descend = false;
+          if (isDown && !e.repeat) {
+            this._triggerCtrlTacticalRoll?.();
+          }
+        } else {
+          this.keys.descend = isDown;
         }
         break;
+      }
       case 'Tab':
         e.preventDefault?.();
         if (isDown && !e.repeat) {

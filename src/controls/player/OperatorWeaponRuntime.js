@@ -130,6 +130,7 @@ export class OperatorWeaponRuntime {
 
   handlePrimaryMouseDown() {
     if (!this.isOperatorActive() || this.controller?.currentVehicle) return false;
+    if ((this.controller?.rollImpulseTimer || 0) > 0) return false;
     const op = this.getActiveOperatorSpec();
     const weaponSpec = this.getActiveWeaponSpec();
     const state = op ? this._ensureOperatorState(op.key) : null;
@@ -173,8 +174,16 @@ export class OperatorWeaponRuntime {
     const op = this.getActiveOperatorSpec();
     const weaponSpec = this.getActiveWeaponSpec();
     const state = op ? this._ensureOperatorState(op.key) : null;
+    const isRolling = (this.controller?.rollImpulseTimer || 0) > 0;
 
-    if (this.isCharging && weaponSpec?.fireMode === 'charge' && state && !state.isReloading && state.magAmmo > 0) {
+    if (
+      !isRolling &&
+      this.isCharging &&
+      weaponSpec?.fireMode === 'charge' &&
+      state &&
+      !state.isReloading &&
+      state.magAmmo > 0
+    ) {
       const maxChg = Math.max(0.01, Number(weaponSpec.maxChargeSec) || 0.85);
       const chargeRatio = THREE.MathUtils.clamp(this.chargeTime / maxChg, 0, 1);
       this.isCharging = false;
@@ -193,6 +202,7 @@ export class OperatorWeaponRuntime {
 
   startReload() {
     if (!this.isOperatorActive() || this.controller?.currentVehicle) return false;
+    if ((this.controller?.rollImpulseTimer || 0) > 0) return false;
     const op = this.getActiveOperatorSpec();
     const weaponSpec = this.getActiveWeaponSpec();
     const state = op ? this._ensureOperatorState(op.key) : null;
@@ -207,6 +217,18 @@ export class OperatorWeaponRuntime {
     state.reloadDuration = weaponSpec.reloadSec;
     soundFX.playHeroSwap?.();
     this._syncWeaponHud(weaponSpec, state);
+    return true;
+  }
+
+  cancelReload() {
+    if (!this.isOperatorActive()) return false;
+    const op = this.getActiveOperatorSpec();
+    const weaponSpec = this.getActiveWeaponSpec();
+    const state = op ? this._ensureOperatorState(op.key) : null;
+    if (!state || !state.isReloading) return false;
+    state.isReloading = false;
+    state.reloadTimer = 0;
+    if (weaponSpec) this._syncWeaponHud(weaponSpec, state);
     return true;
   }
 
@@ -255,6 +277,13 @@ export class OperatorWeaponRuntime {
 
   update(dt) {
     const safeDt = Math.max(0, Number(dt) || 0);
+    if (
+      this.controller &&
+      (this.controller.currentVehicle || this.controller.isFlying || this.controller.activeRide || this.controller.grappleState) &&
+      (this.controller.rollCooldownTimer || 0) > 0
+    ) {
+      this.controller.rollCooldownTimer = Math.max(0, this.controller.rollCooldownTimer - safeDt);
+    }
     this.isAiming = Boolean(
       this.isOperatorActive() && !this.controller?.currentVehicle && this.controller?.mouseButtons?.right
     );
@@ -270,6 +299,20 @@ export class OperatorWeaponRuntime {
     if (this.controller?.currentVehicle) {
       this.fireCooldown = Math.max(0, this.fireCooldown);
       this.resetHeldState();
+      this._syncWeaponHud(weaponSpec, state);
+      return;
+    }
+
+    const isRolling = (this.controller?.rollImpulseTimer || 0) > 0;
+    if (isRolling) {
+      if (state.isReloading) {
+        state.isReloading = false;
+        state.reloadTimer = 0;
+      }
+      this.isCharging = false;
+      this.chargeTime = 0;
+      this.spinupProgress = Math.max(0, this.spinupProgress - safeDt * 2.4);
+      if (this.fireCooldown < 0) this.fireCooldown = 0;
       this._syncWeaponHud(weaponSpec, state);
       return;
     }

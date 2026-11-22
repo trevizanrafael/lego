@@ -26,6 +26,22 @@ function freezeDeep(obj) {
   return Object.freeze(obj);
 }
 
+const AGILE_ROLL_SPEC = freezeDeep({
+  distance: 3.6,
+  duration: 0.42,
+  cooldown: 0.9,
+  earlyMitigationSec: 0.20,
+  earlyMitigation: 0.40
+});
+
+const TANK_ROLL_SPEC = freezeDeep({
+  distance: 2.6,
+  duration: 0.50,
+  cooldown: 0.9,
+  earlyMitigationSec: 0.20,
+  earlyMitigation: 0.40
+});
+
 /**
  * Pure single-role tactical baselines.
  */
@@ -36,7 +52,8 @@ export const ROLE_BASELINES = freezeDeep({
     baseHp: 420,
     damageReduction: 0.30,
     baseSpeedMult: 0.85,
-    baseDamageMult: 0.75
+    baseDamageMult: 0.75,
+    roll: TANK_ROLL_SPEC
   },
   damage: {
     id: 'damage',
@@ -44,7 +61,8 @@ export const ROLE_BASELINES = freezeDeep({
     baseHp: 210,
     damageReduction: 0.0,
     baseSpeedMult: 1.05,
-    baseDamageMult: 1.15
+    baseDamageMult: 1.15,
+    roll: AGILE_ROLL_SPEC
   },
   support: {
     id: 'support',
@@ -52,7 +70,8 @@ export const ROLE_BASELINES = freezeDeep({
     baseHp: 240,
     damageReduction: 0.0,
     baseSpeedMult: 1.00,
-    baseDamageMult: 0.55
+    baseDamageMult: 0.55,
+    roll: AGILE_ROLL_SPEC
   }
 });
 
@@ -71,7 +90,8 @@ export const HYBRID_ROLE_BASELINES = freezeDeep({
     baseHp: 380,
     damageReduction: 0.20,
     baseSpeedMult: 0.88,
-    baseDamageMult: 1.00
+    baseDamageMult: 1.00,
+    roll: TANK_ROLL_SPEC
   },
   'damage+support': {
     id: 'damage+support',
@@ -81,7 +101,8 @@ export const HYBRID_ROLE_BASELINES = freezeDeep({
     baseHp: 260,
     damageReduction: 0.05,
     baseSpeedMult: 1.00,
-    baseDamageMult: 0.90
+    baseDamageMult: 0.90,
+    roll: AGILE_ROLL_SPEC
   },
   'tank+support': {
     id: 'tank+support',
@@ -91,7 +112,8 @@ export const HYBRID_ROLE_BASELINES = freezeDeep({
     baseHp: 400,
     damageReduction: 0.25,
     baseSpeedMult: 0.85,
-    baseDamageMult: 0.70
+    baseDamageMult: 0.70,
+    roll: TANK_ROLL_SPEC
   }
 });
 
@@ -158,8 +180,16 @@ export function blendRoleBaselines(roles = ['damage']) {
     baseHp: avgHp,
     damageReduction: avgRed,
     baseSpeedMult: avgSpeed,
-    baseDamageMult: avgDamage
+    baseDamageMult: avgDamage,
+    roll: normalized.includes('tank') ? TANK_ROLL_SPEC : AGILE_ROLL_SPEC
   });
+}
+
+/**
+ * Resolves the frozen tactical roll spec for a role list without character-specific branches.
+ */
+export function resolveRoleRollSpec(roles = ['damage']) {
+  return blendRoleBaselines(roles).roll;
 }
 
 /**
