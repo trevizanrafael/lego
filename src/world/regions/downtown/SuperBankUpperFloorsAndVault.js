@@ -266,15 +266,17 @@ export function buildVaultFloor(world, B) {
   B.box('marble', S.innerMaxX - S.innerMinX - 12, 0.05, 58, 6, fy + 0.03, -175.5);
   for (let i = 0; i < 8; i++) B.box('gold', 120, 0.04, 0.4, 6, fy + 0.07, -150 - i * 7.6);
   B.box('velvet', 10, 0.05, 52, 0, fy + 0.08, -178);
-  // Parede blindada do cofre com abertura circular no centro
+  // Parede blindada do cofre com abertura circular no centro (verga alinhada ao teto fy + wallH)
+  const lintelBottomY = fy + Math.min(10.6, wallH - 0.8);
+  const lintelH = fy + wallH - lintelBottomY;
   B.box('steel', S.innerMaxX - hw, wallH, 2.8, (S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
   B.box('steel', S.innerMaxX - hw, wallH, 2.8, -(S.innerMaxX + hw) / 2, fy + wallH / 2, vz);
-  B.box('steel', hw * 2, wallH - 10.6, 2.8, 0, fy + 10.6 + (wallH - 10.6) / 2, vz);
+  B.box('steel', hw * 2, lintelH, 2.8, 0, lintelBottomY + lintelH / 2, vz);
   B.box('gold', S.innerMaxX * 2, 0.5, 3.0, 0, fy + wallH - 0.4, vz);
   B.box('gold', S.innerMaxX * 2, 0.5, 3.0, 0, fy + 0.3, vz);
   world.addCollider((S.innerMaxX + hw) / 2, vz, S.innerMaxX - hw, 2.8, fy + wallH, fy);
   world.addCollider(-(S.innerMaxX + hw) / 2, vz, S.innerMaxX - hw, 2.8, fy + wallH, fy);
-  world.addCollider(0, vz, hw * 2, 2.8, fy + wallH, fy + 10.6);
+  world.addCollider(0, vz, hw * 2, 2.8, fy + wallH, lintelBottomY);
   // Rebites e faixas de aço
   for (let x = -66; x <= 66; x += 6) {
     if (Math.abs(x) < hw + 2) continue;

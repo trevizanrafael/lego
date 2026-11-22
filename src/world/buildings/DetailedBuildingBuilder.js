@@ -178,7 +178,25 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   world.scene.add(group);
 
   if (opts.collide !== false) {
-    world.addCollider(x, z, w, d, yBase + h, Math.max(0, yBase - skirtDepth));
+    registerDetailedBuildingColliders(
+      world,
+      x,
+      z,
+      w,
+      h,
+      d,
+      yBase,
+      skirtDepth,
+      useArtDecoSetbacks,
+      tier1H,
+      tier2TopY,
+      topCrownW,
+      topCrownD,
+      shaftH,
+      pSize,
+      cornerOffsets,
+      opts
+    );
   }
 
   if (opts.registerMap !== false) {
@@ -195,4 +213,125 @@ export function buildDetailedBuilding(world, x, z, w, h, d, styleKey = 'sapphire
   }
 
   return group;
+}
+
+function registerDetailedBuildingColliders(
+  world,
+  x,
+  z,
+  w,
+  h,
+  d,
+  yBase,
+  skirtDepth,
+  useArtDecoSetbacks,
+  tier1H,
+  tier2TopY,
+  topCrownW,
+  topCrownD,
+  shaftH,
+  pSize,
+  cornerOffsets,
+  opts
+) {
+  const minY0 = opts.foundation === false ? yBase : Math.min(yBase, Math.max(0, yBase - skirtDepth));
+  const hasObb = typeof world.addObbCollider === 'function';
+  const hasCylinder = typeof world.addCylinderCollider === 'function';
+
+  // A) Corpo principal escalonado (Art-Deco 3 níveis: 1.0 -> 0.82 -> 0.64) ou fuste único
+  if (useArtDecoSetbacks) {
+    world.addCollider(x, z, w, d, yBase + tier1H, minY0);
+    world.addCollider(x, z, w * 0.82, d * 0.82, yBase + tier2TopY, yBase + tier1H);
+    world.addCollider(x, z, topCrownW, topCrownD, yBase + h, yBase + tier2TopY);
+  } else {
+    world.addCollider(x, z, w, d, yBase + h, minY0);
+  }
+
+  // B) Saia do térreo, marquises comerciais, pilares de quina 45° (OBB), aletas brutalistas e cornijas
+  if (opts.groundFloor !== false) {
+    const baseH = Math.min(6.8, h * 0.35);
+    world.addCollider(x, z, w + 0.5, d + 0.5, yBase + baseH, minY0);
+
+    if (opts.yBase === undefined || yBase < 1.5) {
+      const vitW = Math.max(4, w * 0.58);
+      world.addCollider(x, z - (d * 0.5 + 1.05), vitW + 2.0, 1.9, yBase + 5.38, yBase + 4.82);
+      world.addCollider(x, z + (d * 0.5 + 1.05), vitW + 2.0, 1.9, yBase + 5.38, yBase + 4.82);
+    }
+  }
+
+  for (const [cx, cz] of cornerOffsets) {
+    if (hasObb) {
+      world.addObbCollider(x + cx, z + cz, pSize, pSize, Math.PI / 4, yBase + shaftH, yBase);
+    } else {
+      world.addCollider(x + cx, z + cz, pSize, pSize, yBase + shaftH, yBase);
+    }
+  }
+
+  if (w >= 18 && d >= 18) {
+    world.addCollider(x, z, 0.75, d + 0.72, yBase + shaftH, yBase);
+    world.addCollider(x, z, w + 0.72, 0.75, yBase + shaftH, yBase);
+  }
+
+  for (let cy = 22; cy < shaftH - 4; cy += 28) {
+    world.addCollider(x, z, w + 1.05, d + 1.05, yBase + cy + 0.48, yBase + cy - 0.48);
+  }
+  if (useArtDecoSetbacks) {
+    world.addCollider(x, z, w + 1.25, d + 1.25, yBase + tier1H + 0.58, yBase + tier1H - 0.58);
+    world.addCollider(x, z, w * 0.82 + 1.05, d * 0.82 + 1.05, yBase + tier2TopY + 0.48, yBase + tier2TopY - 0.48);
+  }
+
+  // C) Muretas do topo, casas de máquinas/HVAC, caixa d'água cilíndrica e pináculo gótico-industrial
+  if (opts.rooftop !== false) {
+    const parapetH = 1.55;
+    const parapetThick = 1.15;
+    const cw = topCrownW;
+    const cd = topCrownD;
+    const roofY = yBase + h;
+    const innerSpanZ = Math.max(0.8, cd - parapetThick * 2);
+
+    world.addCollider(x, z - cd * 0.5 + parapetThick * 0.5, cw, parapetThick, roofY + parapetH, roofY);
+    world.addCollider(x, z + cd * 0.5 - parapetThick * 0.5, cw, parapetThick, roofY + parapetH, roofY);
+    world.addCollider(x - cw * 0.5 + parapetThick * 0.5, z, parapetThick, innerSpanZ, roofY + parapetH, roofY);
+    world.addCollider(x + cw * 0.5 - parapetThick * 0.5, z, parapetThick, innerSpanZ, roofY + parapetH, roofY);
+
+    if (w >= 14 && d >= 14) {
+      world.addCollider(
+        x - cw * 0.2,
+        z - cd * 0.18,
+        Math.min(4.2, cw * 0.34),
+        Math.min(4.6, cd * 0.36),
+        roofY + 3.4,
+        roofY
+      );
+      world.addCollider(
+        x + cw * 0.18,
+        z - cd * 0.2,
+        Math.min(3.6, cw * 0.3),
+        Math.min(3.0, cd * 0.28),
+        roofY + 1.9,
+        roofY
+      );
+
+      const wtX = cw * 0.2;
+      const wtZ = cd * 0.18;
+      if (hasCylinder) {
+        world.addCylinderCollider(x + wtX, z + wtZ, 1.72, roofY + 6.2, roofY);
+      } else {
+        world.addCollider(x + wtX, z + wtZ, 3.3, 3.3, roofY + 6.2, roofY);
+      }
+
+      if (h >= 72 || opts.spire) {
+        const spireH = opts.spireHeight || 18;
+        const spireBaseTopY = roofY + spireH * 0.38;
+        const spireBaseR = Math.min(1.65, cw * 0.13);
+        if (hasCylinder) {
+          world.addCylinderCollider(x, z, spireBaseR, spireBaseTopY, roofY);
+          world.addCylinderCollider(x, z, 0.38, roofY + spireH, spireBaseTopY);
+        } else {
+          world.addCollider(x, z, spireBaseR * 2, spireBaseR * 2, spireBaseTopY, roofY);
+          world.addCollider(x, z, 0.76, 0.76, roofY + spireH, spireBaseTopY);
+        }
+      }
+    }
+  }
 }

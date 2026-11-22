@@ -5,6 +5,65 @@ import {
   SHARED_BRAKE_LIGHT_ON_MAT
 } from './TrafficRouteSpecsAndSpawner.js';
 
+function syncTrafficObbCollider(world, col, cx, cz, halfX, halfZ, yaw, minY, maxY) {
+  if (!col) return;
+  col.shapeType = 'obb';
+  if (typeof world?.updateDynamicCollider === 'function') {
+    world.updateDynamicCollider(col, {
+      shapeType: 'obb',
+      cx,
+      cz,
+      halfX,
+      halfZ,
+      yaw,
+      minY,
+      maxY
+    });
+    return;
+  }
+  const c = Math.cos(yaw || 0);
+  const s = Math.sin(yaw || 0);
+  const extX = Math.abs(c) * halfX + Math.abs(s) * halfZ;
+  const extZ = Math.abs(s) * halfX + Math.abs(c) * halfZ;
+  Object.assign(col, {
+    shapeType: 'obb',
+    isDynamic: true,
+    cx,
+    cz,
+    halfX,
+    halfZ,
+    yaw,
+    cosYaw: c,
+    sinYaw: s,
+    minX: cx - extX,
+    maxX: cx + extX,
+    minZ: cz - extZ,
+    maxZ: cz + extZ,
+    minY,
+    maxY
+  });
+}
+
+function syncTrafficVehicleColliders(world, tv) {
+  if (!tv.col && tv.col1) tv.col = tv.col1;
+  const pos = tv.mesh.position;
+  const yaw = tv.mesh.rotation.y || 0;
+  syncTrafficObbCollider(world, tv.col, pos.x, pos.z, 1.25, 2.38, yaw, pos.y, pos.y + 1.85);
+  if (tv.col2 && tv.col2 !== tv.col) {
+    syncTrafficObbCollider(
+      world,
+      tv.col2,
+      pos.x,
+      pos.z,
+      (tv.baseW || 2.5) * 0.44,
+      (tv.baseD || 5.0) * 0.36,
+      yaw,
+      pos.y,
+      pos.y + (tv.baseH || 2.1)
+    );
+  }
+}
+
 export const trafficNetworkAndVehicleAIMethods = {
   triggerTrafficPanicNear(origin, radius = 28.0) {
     for (const tv of this.trafficVehicles) {
@@ -27,7 +86,6 @@ export const trafficNetworkAndVehicleAIMethods = {
     const leftZ = pos.z + Math.sin(rotY) * 2.35;
     const safe = this._findSafeStreetSpawn(leftX, leftZ, 1.4);
 
-    // Recicla o pedestre mais distante da piscina de 160 civis para ser o motorista ejetado (zero leak de memória!)
     let chosenPed = null;
     let maxDistSq = -1;
     for (const ped of this.pedestrians) {
@@ -63,7 +121,6 @@ export const trafficNetworkAndVehicleAIMethods = {
   _updateUrbanTraffic(dt, playerPos, controller) {
     const drivenObj = controller?.currentVehicle || null;
 
-    // Grade espacial por frame (células 28m x 28m, zero alocações) para eliminar O(N²) entre carros do trânsito!
     const TRAFFIC_CELL = 28.0;
     if (!this._trafficGrid) {
       this._trafficGrid = new Map();
@@ -126,7 +183,6 @@ export const trafficNetworkAndVehicleAIMethods = {
         tv.respawnFadeTimer = Math.max(0, tv.respawnFadeTimer - dt);
       }
 
-      // Carjacking Amigável ao entrar com [E] ou agarrar carro com o Titã Blindado
       if (obj.isDriven || obj.isGrabbed) {
         if (!tv.hijackedByPlayer) {
           tv.hijackedByPlayer = true;
@@ -140,9 +196,8 @@ export const trafficNetworkAndVehicleAIMethods = {
         continue;
       }
 
-      // Se um carro do trânsito foi roubado e depois abandonado no meio da rua longe do jogador (> 55m por 8s),
-      // recicla de volta para o fluxo normal da avenida!
       if (tv.hijackedByPlayer) {
+        syncTrafficVehicleColliders(this.world, tv);
         const distPlayer = playerPos
           ? Math.hypot(playerPos.x - tv.mesh.position.x, playerPos.z - tv.mesh.position.z)
           : 999;
@@ -152,6 +207,7 @@ export const trafficNetworkAndVehicleAIMethods = {
             tv.hijackedByPlayer = false;
             tv.abandonedTimer = 0;
             this._relocateStuckTrafficVehicle(tv, playerPos);
+            syncTrafficVehicleColliders(this.world, tv);
           }
         } else {
           tv.abandonedTimer = 0;
@@ -169,7 +225,6 @@ export const trafficNetworkAndVehicleAIMethods = {
       let slowCarInBaseLane = false;
       let nearbyCarsCount = 0;
 
-      // 1) Verifica se o jogador a pé ou o veículo do jogador está na frente (folga de 3.5m do para-choque!)
       if (playerPos) {
         const dxP = playerPos.x - pos.x;
         const dzP = playerPos.z - pos.z;
@@ -185,7 +240,6 @@ export const trafficNetworkAndVehicleAIMethods = {
         }
       }
 
-      // 2) Verifica fila de carros à frente via grade espacial O(1) (vizinhança 3x3 de 28m)!
       const tgx = Math.floor(pos.x / TRAFFIC_CELL);
       const tgz = Math.floor(pos.z / TRAFFIC_CELL);
       for (let gdx = -1; gdx <= 1; gdx++) {
@@ -201,9 +255,7 @@ export const trafficNetworkAndVehicleAIMethods = {
             const dxO = oPos.x - pos.x;
             const dzO = oPos.z - pos.z;
             const distO = Math.hypot(dxO, dzO);
-            if (distO < 8.5) {
-              nearbyCarsCount++;
-            }
+            if (distO < 8.5) nearbyCarsCount++;
 
             const distAheadO = dxO * fwdX + dzO * fwdZ;
             if (distAheadO <= 1.0 || distAheadO > 22.0) continue;
@@ -223,14 +275,11 @@ export const trafficNetworkAndVehicleAIMethods = {
               const bumperGap = distAheadO - (myHalfLen + other.baseD * 0.5);
               const isSlowOrStopped = other.hijackedByPlayer || other.currentSpeed < 3.5;
 
-              // ULTRAPASSAGEM INTELIGENTE: se houver carro lento/abandonado a < 16m na frente, muda para a faixa lateral livre!
               if (isSlowOrStopped && distAheadO < 16.0) {
                 const altLane = tv.baseLaneOffset > 0 ? tv.baseLaneOffset - 3.6 : tv.baseLaneOffset + 3.6;
                 if (isLaneSegmentClear(tv, altLane, 12.0)) {
                   tv.targetLaneOffset = altLane;
-                  if (bumperGap < 1.6) {
-                    obstacleAhead = true;
-                  }
+                  if (bumperGap < 1.6) obstacleAhead = true;
                   continue;
                 }
               }
@@ -244,7 +293,6 @@ export const trafficNetworkAndVehicleAIMethods = {
         }
       }
 
-      // Conta também viaturas de perseguição coladas ao redor (< 8.5m) para detectar cercamento!
       if (this.wantedSystem?.pursuitVehicles?.length > 0) {
         for (const pv of this.wantedSystem.pursuitVehicles) {
           if (!pv.carObj || pv.carObj.destroyed) continue;
@@ -255,7 +303,6 @@ export const trafficNetworkAndVehicleAIMethods = {
         }
       }
 
-      // Retorna suavemente para a faixa original assim que ela liberar!
       if (
         tv.targetLaneOffset !== tv.baseLaneOffset &&
         !slowCarInBaseLane &&
@@ -264,25 +311,18 @@ export const trafficNetworkAndVehicleAIMethods = {
         tv.targetLaneOffset = tv.baseLaneOffset;
       }
 
-      // 3) AUTO-DESPAWN & RESPAWN ANTI-ENGARRAFAMENTO
-      if (tv.currentSpeed < 2.0) {
-        tv.stuckTimer = (tv.stuckTimer || 0) + dt;
-      } else {
-        tv.stuckTimer = Math.max(0, (tv.stuckTimer || 0) - dt * 2.0);
-      }
+      if (tv.currentSpeed < 2.0) tv.stuckTimer = (tv.stuckTimer || 0) + dt;
+      else tv.stuckTimer = Math.max(0, (tv.stuckTimer || 0) - dt * 2.0);
 
-      if (nearbyCarsCount >= 2 && tv.currentSpeed < 3.0) {
-        tv.surroundedTimer = (tv.surroundedTimer || 0) + dt;
-      } else {
-        tv.surroundedTimer = Math.max(0, (tv.surroundedTimer || 0) - dt * 1.5);
-      }
+      if (nearbyCarsCount >= 2 && tv.currentSpeed < 3.0) tv.surroundedTimer = (tv.surroundedTimer || 0) + dt;
+      else tv.surroundedTimer = Math.max(0, (tv.surroundedTimer || 0) - dt * 1.5);
 
       if (tv.stuckTimer >= 4.2 || tv.surroundedTimer >= 2.4) {
         this._relocateStuckTrafficVehicle(tv, playerPos);
+        syncTrafficVehicleColliders(this.world, tv);
         continue;
       }
 
-      // Buzina cômica periódica até a rua liberar!
       if (shouldHonk && tv.hornCooldown <= 0 && playerPos) {
         const distToPlayer = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
         if (distToPlayer < 46.0) {
@@ -300,14 +340,11 @@ export const trafficNetworkAndVehicleAIMethods = {
         Math.min(1, dt * (accelRate / 10))
       );
 
-      // Acende as duas luzes de freio vermelhas traseiras quando freado/parado no trânsito!
       const brakingNow = obstacleAhead || tv.currentSpeed < tv.cruiseSpeed * 0.55;
       if (brakingNow !== tv.isBraking) {
         tv.isBraking = brakingNow;
         const mat = brakingNow ? SHARED_BRAKE_LIGHT_ON_MAT : SHARED_BRAKE_LIGHT_OFF_MAT;
-        for (const bl of tv.brakeLights) {
-          bl.material = mat;
-        }
+        for (const bl of tv.brakeLights) bl.material = mat;
       }
 
       if (tv.currentSpeed > 0.04) {
@@ -347,27 +384,9 @@ export const trafficNetworkAndVehicleAIMethods = {
         obj.basePos.copy(tv.mesh.position);
         obj.baseRot.copy(tv.mesh.rotation);
         obj.groundY = ny;
-
-        const isRotated90 = Math.abs(Math.sin(tv.mesh.rotation.y)) > 0.7;
-        const w = isRotated90 ? tv.baseD : tv.baseW;
-        const d = isRotated90 ? tv.baseW : tv.baseD;
-        if (tv.col1) {
-          tv.col1.minX = nx - w * 0.5;
-          tv.col1.maxX = nx + w * 0.5;
-          tv.col1.minZ = nz - d * 0.5;
-          tv.col1.maxZ = nz + d * 0.5;
-          tv.col1.minY = ny;
-          tv.col1.maxY = ny + 1.35;
-        }
-        if (tv.col2) {
-          tv.col2.minX = nx - w * 0.44;
-          tv.col2.maxX = nx + w * 0.44;
-          tv.col2.minZ = nz - d * 0.36;
-          tv.col2.maxZ = nz + d * 0.36;
-          tv.col2.minY = ny;
-          tv.col2.maxY = ny + tv.baseH;
-        }
       }
+
+      syncTrafficVehicleColliders(this.world, tv);
     }
   }
 };
