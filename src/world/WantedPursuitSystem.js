@@ -14,6 +14,7 @@ import {
   policeVehiclePursuitMethods,
   tickPursuitSpawnsAndSirens
 } from './police/PoliceVehiclePursuitAI.js';
+import { policeRoadblockMethods } from './police/PoliceRoadblocks.js';
 import { policeHelicopterAndTacticalMethods } from './police/PoliceHelicopterAndTacticalUnits.js';
 
 export { WANTED_STAR_THRESHOLDS, WANTED_TIER_INFO };
@@ -176,5 +177,6 @@ installPrototypeMethods(
   policePursuitAssetMethods,
   wantedEscalationAndEscapeMethods,
   policeVehiclePursuitMethods,
+  policeRoadblockMethods,
   policeHelicopterAndTacticalMethods
 );

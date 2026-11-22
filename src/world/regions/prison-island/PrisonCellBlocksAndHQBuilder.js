@@ -95,7 +95,7 @@ function _buildArmoredSkybridge(world, batcher, x, y, z, w, d, isAlongX) {
   // Guardas do BOPE patrulhando no teto das Passarelas Aéreas Blindadas
   addBatchedLegoPerson(batcher, x, y + 3.4, z, isAlongX ? Math.PI / 2 : 0, 'bope_guard', 'stand');
   world.prisonIslandData.guardsCount++;
-  world.addCollider(x, z, w, d, 6.5, y - 3.1);
+  world.addCollider(x, z, w, d, y + 3.4, y - 3.1);
 }
 
 /**

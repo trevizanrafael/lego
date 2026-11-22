@@ -1,199 +1,68 @@
 import * as THREE from 'three';
-import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
+import { getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { soundFX } from '../../audio/SoundFX.js';
-import { AIM_POSE, animateFactionSoldier, createFactionSoldierVisual } from '../../entities/FactionSoldierBuilder.js';
 import { getSharedPursuitGeos } from './PolicePursuitAssets.js';
-import { HumanoidHealthModel, HUMANOID_STATES } from '../npc-health/HumanoidHealthModel.js';
-import { applyHumanoidHitPose, applyHumanoidKnockbackStep } from '../npc-health/HumanoidHitReactions.js';
 import {
   spawnPoliceHelicopter,
   removeEagleHelicopter,
   clearAllPoliceHelicopters,
   updatePoliceHelicopters
 } from './PoliceHelicopterPilot.js';
+import {
+  spawnFootTrooper,
+  clearAllFootUnits,
+  updateFootUnits,
+  findTacticalCoverSpot
+} from './PoliceFootTactics.js';
+
+const TANK_SHELL_MAT = getLegoMaterial(0xf97316, {
+  emissive: 0xf59e0b,
+  emissiveIntensity: 0.9,
+  roughness: 0.22
+});
+
+function closestPointOnSegment(px, py, pz, ax, ay, az, bx, by, bz) {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const abz = bz - az;
+  const lenSq = abx * abx + aby * aby + abz * abz;
+  const t = lenSq < 1e-8 ? 0 : Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby + (pz - az) * abz) / lenSq));
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  const cz = az + abz * t;
+  return { distSq: (px - cx) ** 2 + (py - cy) ** 2 + (pz - cz) ** 2, x: cx, y: cy, z: cz };
+}
+
+function didProjectileHitWallCollider(sys, pos) {
+  const cols = typeof sys.world?.getCollidersNear === 'function'
+    ? sys.world.getCollidersNear(pos.x, pos.z, 0.8, sys._projColScratch || (sys._projColScratch = []))
+    : sys.world?.colliders;
+  if (!Array.isArray(cols)) return false;
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i];
+    if (!c || c.disabled || (c.maxY ?? 0) < 3.0) continue;
+    if (pos.x >= c.minX && pos.x <= c.maxX && pos.z >= c.minZ && pos.z <= c.maxZ && pos.y >= (c.minY ?? 0) && pos.y <= (c.maxY ?? 10)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // ============================================================================
-// TROPAS TÁTICAS A PÉ (PF & BOPE ELITE), DELEGAÇÃO DO ÁGUIA & BALÍSTICA POLICIAL
+// ORQUESTRADOR FINO: TROPAS A PÉ, HELICÓPTEROS ÁGUIA & BALÍSTICA / OBUSES 5★
 // ============================================================================
 export const policeHelicopterAndTacticalMethods = {
-  _spawnFootTrooper(spawnPos, tierStars = this.stars) {
-    if (this.footUnits.length >= (tierStars >= 5 ? 7 : tierStars >= 4 ? 6 : 4)) return null;
-    const isEliteBope = tierStars >= 5;
-    const isRiotElite = tierStars === 4;
-    const factionKey = isEliteBope || isRiotElite ? 'bope' : 'pf';
-    const roleKey = isEliteBope ? (this.footUnits.length % 2 === 0 ? 'special' : 'tank') : isRiotElite ? 'tank' : 'rifleman';
-    const soldier = createFactionSoldierVisual(factionKey, roleKey);
-
-    const root = soldier.root || new THREE.Group();
-    root.rotation.order = 'YXZ';
-    root.userData.skipStaticMerge = true;
-    if (!soldier.root) {
-      root.add(soldier.bodyRig);
-      soldier.root = root;
-    }
-    const unitScale = isEliteBope ? 1.04 : 1.0;
-    if (isEliteBope && soldier.bodyRig) soldier.bodyRig.scale.setScalar(unitScale);
-    if (!soldier.torso) soldier.torso = soldier.bodyRig;
-    if (!soldier.weapon) soldier.weapon = soldier.weaponMount;
-
-    soldier.rightArm.rotation.x = AIM_POSE.rightArmX;
-    soldier.leftArm.rotation.x = soldier.hasShield ? AIM_POSE.shieldArmX : AIM_POSE.leftArmX;
-    soldier.leftArm.rotation.z = soldier.hasShield ? 0.08 : AIM_POSE.leftArmZ;
-    soldier.root.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
-    this.scene.add(soldier.root);
-
-    const maxHp = isEliteBope ? 125 : isRiotElite ? 95 : 65;
-    const humanoidHealth = new HumanoidHealthModel({ kind: 'police', maxHp });
-    const obj = this.destructibles.registerDestructible({
-      mesh: soldier.root, type: 'npc_fighter', hp: maxHp, radius: 0.95, height: 2.05, colliders: [],
-      debrisColors: isEliteBope || isRiotElite
-        ? [0x15161a, 0x0b0c0f, 0xf59e0b, LEGO_COLORS.yellow]
-        : [0x0f1d3a, 0x111827, 0xf59e0b, LEGO_COLORS.yellow],
-      studDrops: isEliteBope
-        ? { silver: 2, gold: 8, blue: 6, purple: 1 }
-        : isRiotElite ? { silver: 3, gold: 5, blue: 2, purple: 0 } : { silver: 4, gold: 4, blue: 1, purple: 0 },
-      groundY: spawnPos.y, isPoliceUnit: true, isCombatNpc: true, isTankNpc: isRiotElite || isEliteBope, noAutoRespawn: true
-    });
-    Object.assign(obj, {
-      maxHp, isCombatNpc: true, isPoliceUnit: true, isTankNpc: isRiotElite || isEliteBope,
-      unitScale, visual: soldier, humanoidHealth
-    });
-
-    const unit = {
-      mesh: soldier.root, visual: soldier, obj, destructible: obj, humanoidHealth, unitScale,
-      faction: factionKey, role: roleKey, className: soldier.className, isEliteBope, isRiotElite,
-      walkPhase: Math.random() * Math.PI * 2, phaseOffset: Math.random() * Math.PI * 2, muzzleTimer: 0,
-      moveSpeed: isEliteBope ? 10.6 : isRiotElite ? 9.5 : 8.5,
-      shootCooldown: 0.7 + Math.random() * 0.7
-    };
-    obj.npcRef = unit;
-    this.footUnits.push(unit);
-    return unit;
+  _spawnFootTrooper(spawnPos, tierStars = this.stars, opts = null) {
+    return spawnFootTrooper(this, spawnPos, tierStars, opts);
   },
-
   _clearAllFootUnits() {
-    for (const fu of this.footUnits) {
-      const keepCorpse = fu.obj?._managedByCorpseManager ? fu.mesh : null;
-      if (fu.obj) this.destructibles.unregisterDestructible(fu.obj);
-      if (keepCorpse && this.scene) {
-        if (keepCorpse.parent !== this.scene) this.scene.add(keepCorpse);
-      } else if (fu.mesh?.parent) {
-        fu.mesh.parent.remove(fu.mesh);
-      }
-    }
-    this.footUnits.length = 0;
+    clearAllFootUnits(this);
   },
-
-  _updateFootUnits(dt, playerPos) {
-    this._footAnimClock = (this._footAnimClock || 0) + dt;
-    for (let i = this.footUnits.length - 1; i >= 0; i--) {
-      const fu = this.footUnits[i];
-      if (!fu.obj || fu.obj.destroyed) {
-        if (fu.visual?.muzzleFlash) fu.visual.muzzleFlash.visible = false;
-        const keepCorpse = fu.obj?._managedByCorpseManager ? fu.mesh : null;
-        if (fu.obj) this.destructibles.unregisterDestructible(fu.obj);
-        if (keepCorpse && this.scene) {
-          if (keepCorpse.parent !== this.scene) this.scene.add(keepCorpse);
-        } else if (fu.mesh?.parent) {
-          fu.mesh.parent.remove(fu.mesh);
-        }
-        this.footUnits.splice(i, 1);
-        continue;
-      }
-
-      const pos = fu.mesh.position;
-      const dist = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
-      if (dist > 145) {
-        this.destructibles.unregisterDestructible(fu.obj);
-        if (fu.mesh?.parent) fu.mesh.parent.remove(fu.mesh);
-        this.footUnits.splice(i, 1);
-        continue;
-      }
-
-      const vis = fu.visual;
-      if (fu.muzzleTimer > 0) {
-        fu.muzzleTimer -= dt;
-        if (fu.muzzleTimer <= 0 && vis?.muzzleFlash) vis.muzzleFlash.visible = false;
-      }
-
-      if (fu.humanoidHealth) {
-        fu.humanoidHealth.update(dt);
-        if (fu.humanoidHealth.state === HUMANOID_STATES.STAGGER || fu.humanoidHealth.state === HUMANOID_STATES.DOWNED) {
-          if (vis?.muzzleFlash) vis.muzzleFlash.visible = false;
-          applyHumanoidKnockbackStep(fu.mesh, fu.humanoidHealth, dt, (nx, nz, cx, cz) =>
-            this._isSegmentBlockedByBuilding(cx, cz, nx, nz) ? { blocked: true } : { x: nx, z: nz, valid: true }
-          );
-          const gY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(pos.x, pos.z) : 0;
-          applyHumanoidHitPose(vis, fu.humanoidHealth, gY, dt, { unitScale: fu.unitScale || 1 });
-          fu.obj.basePos.set(pos.x, gY, pos.z);
-          fu.obj.groundY = gY;
-          continue;
-        }
-      }
-
-      fu.mesh.rotation.x = 0;
-      fu.mesh.rotation.z = 0;
-      if (vis) {
-        vis.leftLeg.rotation.z = 0;
-        vis.rightLeg.rotation.z = 0;
-      }
-
-      const ang = Math.atan2(playerPos.x - pos.x, playerPos.z - pos.z);
-      fu.mesh.rotation.y = ang;
-
-      let moved = false;
-      if (dist > 11.0 && !this.isEscaping) {
-        const nx = pos.x + Math.sin(ang) * fu.moveSpeed * dt;
-        const nz = pos.z + Math.cos(ang) * fu.moveSpeed * dt;
-        if (!this._isSegmentBlockedByBuilding(pos.x, pos.z, nx, nz)) {
-          pos.x = nx;
-          pos.z = nz;
-          pos.y = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0;
-          fu.obj.basePos.copy(pos);
-          fu.obj.groundY = pos.y;
-          moved = true;
-        }
-      }
-
-      if (vis) {
-        if (moved) {
-          fu.walkPhase = (fu.walkPhase || 0) + dt * 9.0;
-          const swing = Math.sin(fu.walkPhase);
-          vis.leftLeg.rotation.x = swing * 0.62;
-          vis.rightLeg.rotation.x = -swing * 0.62;
-          vis.rightArm.rotation.x = AIM_POSE.rightArmX + swing * 0.16;
-          vis.leftArm.rotation.x = (vis.hasShield ? AIM_POSE.shieldArmX : AIM_POSE.leftArmX) - swing * 0.22;
-          vis.leftArm.rotation.z = vis.hasShield ? 0.08 : AIM_POSE.leftArmZ;
-        } else {
-          const damp = Math.max(0, 1 - dt * 10.0);
-          vis.leftLeg.rotation.x *= damp;
-          vis.rightLeg.rotation.x *= damp;
-          vis.rightArm.rotation.x = AIM_POSE.rightArmX;
-          vis.leftArm.rotation.x = vis.hasShield ? AIM_POSE.shieldArmX : AIM_POSE.leftArmX;
-          vis.leftArm.rotation.z = vis.hasShield ? 0.08 : AIM_POSE.leftArmZ;
-        }
-        animateFactionSoldier(vis, this._footAnimClock, fu.phaseOffset);
-      }
-
-      if (this.isEscaping) continue;
-
-      fu.shootCooldown -= dt;
-      if (fu.shootCooldown <= 0 && dist < 72.0 && !this._isSegmentBlockedByBuilding(pos.x, pos.z, playerPos.x, playerPos.z)) {
-        fu.shootCooldown = fu.isEliteBope ? 0.72 : fu.isRiotElite ? 0.95 : 1.35;
-        if (vis?.muzzleFlash) {
-          vis.muzzleFlash.visible = true;
-          fu.muzzleTimer = 0.08;
-        }
-        const spread = fu.isEliteBope ? 1.05 : 1.45;
-        const muzzle = new THREE.Vector3(pos.x, pos.y + (fu.isEliteBope ? 1.44 : 1.38), pos.z);
-        const aim = new THREE.Vector3(
-          playerPos.x + (Math.random() - 0.5) * spread,
-          playerPos.y + 1.0,
-          playerPos.z + (Math.random() - 0.5) * spread
-        );
-        this._spawnPursuitProjectile(muzzle, aim, 'bullet');
-      }
-    }
+  _updateFootUnits(dt, playerPos, controller = null) {
+    updateFootUnits(this, dt, playerPos, controller);
+  },
+  _findTacticalCoverSpot(fu, playerPos) {
+    return findTacticalCoverSpot(this, fu, playerPos);
   },
 
   _spawnEagleHelicopter(playerPos) {
@@ -227,7 +96,14 @@ export const policeHelicopterAndTacticalMethods = {
   },
 
   _spawnPursuitProjectile(origin, targetPos, kind = 'bullet') {
-    if (this.enemyProjectiles.length >= 28) return;
+    if (this.enemyProjectiles.length >= 44) {
+      if (kind !== 'tank_shell' && kind !== 'missile') return null;
+      const dropIdx = this.enemyProjectiles.findIndex((p) => p.kind === 'bullet');
+      if (dropIdx === -1) return null;
+      this.scene.remove(this.enemyProjectiles[dropIdx].mesh);
+      this.enemyProjectiles.splice(dropIdx, 1);
+    }
+
     const G = getSharedPursuitGeos();
     const dir = targetPos.clone().sub(origin).normalize();
     let mesh = new THREE.Mesh(G.policeBulletGeo, this.mats.policeBullet);
@@ -235,24 +111,33 @@ export const policeHelicopterAndTacticalMethods = {
     let life = 1.6;
     let damage = this.stars >= 5 ? 13 : this.stars >= 4 ? 10 : 7;
 
-    if (kind === 'missile') {
+    if (kind === 'tank_shell') {
+      if (this.mats && !this.mats.tankShell) this.mats.tankShell = TANK_SHELL_MAT;
+      mesh = new THREE.Mesh(G.missileGeo, this.mats?.tankShell || TANK_SHELL_MAT);
+      speed = 74.0;
+      life = 2.2;
+      damage = 38;
+      soundFX.playExplosion?.(0.48);
+    } else if (kind === 'missile') {
       mesh = new THREE.Mesh(G.missileGeo, this.mats.missileBody);
       speed = 38.0;
       life = 3.4;
       damage = 24;
-      soundFX.playExplosion(0.32);
+      soundFX.playExplosion?.(0.32);
     } else if (kind === 'energy_net') {
       mesh = new THREE.Mesh(G.energyNetProjectileGeo, this.mats.energyNetWire);
       speed = 46.0;
       life = 2.4;
       damage = 10;
-      soundFX.playLaserShot();
+      soundFX.playLaserShot?.();
     }
 
     mesh.position.copy(origin);
     mesh.lookAt(targetPos);
     this.scene.add(mesh);
-    this.enemyProjectiles.push({ mesh, kind, vel: dir.multiplyScalar(speed), speed, life, damage });
+    const entry = { mesh, kind, vel: dir.multiplyScalar(speed), speed, life, damage, traveled: 0 };
+    this.enemyProjectiles.push(entry);
+    return entry;
   },
 
   _clearAllEnemyProjectiles() {
@@ -274,42 +159,64 @@ export const policeHelicopterAndTacticalMethods = {
 
   _updateEnemyProjectiles(dt, playerPos, controller) {
     const targetCenter = new THREE.Vector3(playerPos.x, playerPos.y + 1.05, playerPos.z);
+    const triggerPoliceExplosion = (pos, radius, dmg) =>
+      this.destructibles?._triggerExplosion?.(pos, radius, dmg, false, false, {
+        fromPursuitPolice: true, isExplosion: true, sourceIsPlayer: false
+      });
+
     for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
       const p = this.enemyProjectiles[i];
       p.life -= dt;
 
-      if (p.kind === 'missile') {
+      if (p.kind === 'tank_shell') {
+        p.vel.y -= 4.5 * dt;
+        p.mesh.lookAt(p.mesh.position.x + p.vel.x, p.mesh.position.y + p.vel.y, p.mesh.position.z + p.vel.z);
+        if (Math.random() < 0.75) this.destructibles?.spawnFlameTrailParticle?.(p.mesh.position, 0.72, 0xf59e0b);
+      } else if (p.kind === 'missile') {
         const desiredDir = targetCenter.clone().sub(p.mesh.position).normalize();
         const curDir = p.vel.clone().normalize().lerp(desiredDir, Math.min(1, dt * 3.2)).normalize();
         p.vel.copy(curDir.multiplyScalar(p.speed));
         p.mesh.lookAt(p.mesh.position.clone().add(p.vel));
-        if (Math.random() < 0.7) this.destructibles.spawnFlameTrailParticle(p.mesh.position, 0.65, 0xf97316);
+        if (Math.random() < 0.7) this.destructibles?.spawnFlameTrailParticle?.(p.mesh.position, 0.65, 0xf97316);
       } else if (p.kind === 'energy_net') {
         p.mesh.rotation.x += dt * 8.0;
         p.mesh.rotation.y += dt * 8.0;
       }
 
+      const prevX = p.mesh.position.x;
+      const prevY = p.mesh.position.y;
+      const prevZ = p.mesh.position.z;
       p.mesh.position.addScaledVector(p.vel, dt);
+      p.traveled = (p.traveled || 0) + Math.hypot(p.mesh.position.x - prevX, p.mesh.position.y - prevY, p.mesh.position.z - prevZ);
+
       const hitRadius = controller?.currentVehicle ? 2.45 : 1.15;
+      const segHit = closestPointOnSegment(
+        targetCenter.x, targetCenter.y, targetCenter.z,
+        prevX, prevY, prevZ, p.mesh.position.x, p.mesh.position.y, p.mesh.position.z
+      );
       let removeProj = p.life <= 0;
 
-      if (p.mesh.position.distanceTo(targetCenter) <= hitRadius) {
+      if (segHit.distSq <= hitRadius * hitRadius) {
+        const impactPos = new THREE.Vector3(segHit.x, segHit.y, segHit.z);
         if (p.kind === 'energy_net') this._applyEnergyNetHit(playerPos, controller);
-        else if (p.kind === 'missile') {
-          this.destructibles._triggerExplosion(p.mesh.position.clone(), 5.2, 35, false, false, {
-            fromPursuitPolice: true, isExplosion: true, sourceIsPlayer: false
-          });
-        }
-        this.applyPursuitDamageToPlayer(p.damage, controller);
+        else if (p.kind === 'tank_shell') triggerPoliceExplosion(impactPos, 6.4, 42);
+        else if (p.kind === 'missile') triggerPoliceExplosion(impactPos, 5.2, 35);
+        this.applyPursuitDamageToPlayer(
+          p.damage, controller, p.kind === 'tank_shell' || p.kind === 'missile' ? { isExplosion: true } : {}
+        );
         removeProj = true;
       } else {
         const floorY = this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(p.mesh.position.x, p.mesh.position.z) : 0;
-        if (p.mesh.position.y <= floorY + 0.15) {
-          if (p.kind === 'missile') {
-            this.destructibles._triggerExplosion(p.mesh.position.clone(), 5.0, 30, false, false, {
-              fromPursuitPolice: true, isExplosion: true, sourceIsPlayer: false
-            });
-          }
+        const hitGround = p.mesh.position.y <= floorY + 0.15;
+        const hitBuilding =
+          (p.mesh.position.y < 24.0 && Boolean(this._isSegmentBlockedByBuilding?.(prevX, prevZ, p.mesh.position.x, p.mesh.position.z))) ||
+          (p.traveled > 4.0 && didProjectileHitWallCollider(this, p.mesh.position));
+
+        if (hitGround || hitBuilding) {
+          const impactPos = p.mesh.position.clone();
+          if (hitGround) impactPos.y = floorY + 0.15;
+          if (p.kind === 'tank_shell') triggerPoliceExplosion(impactPos, 6.4, 42);
+          else if (p.kind === 'missile') triggerPoliceExplosion(impactPos, 5.0, 30);
           removeProj = true;
         }
       }

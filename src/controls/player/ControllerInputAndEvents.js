@@ -509,6 +509,12 @@ export const controllerInputAndEventsMethods = {
       case 'KeyM':
         if (isDown && !e.repeat && this.onToggleFullMap) this.onToggleFullMap();
         break;
+      case 'F8':
+        if (isDown && !e.repeat) {
+          e.preventDefault?.();
+          this.onToggleCollisionDebug?.();
+        }
+        break;
       case 'KeyZ':
       case 'KeyP':
         if (isDown && !e.repeat && this.hud) {

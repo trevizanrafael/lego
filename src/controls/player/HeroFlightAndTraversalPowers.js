@@ -1,6 +1,18 @@
 import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
+import { raycast3D as fallbackRaycast3D } from '../../world/collision/CollisionQueries.js';
 import { UP, lerpAngle } from './CameraOrbitAndRig.js';
+
+const _heroFlyFrom = { x: 0, y: 0, z: 0 };
+const _heroFlyTo = { x: 0, y: 0, z: 0 };
+const _heroFlyMid = { x: 0, y: 0, z: 0 };
+const _heroFlySlideTo = { x: 0, y: 0, z: 0 };
+const _heroFlySweep = { point: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 0 } };
+const _heroFlySlideSweep = { point: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 0 } };
+const _grappleRayStart = { x: 0, y: 0, z: 0 };
+const _grappleRayEnd = { x: 0, y: 0, z: 0 };
+const _grappleRayOut = { point: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 0 } };
+const _grappleIgnoreCols = [];
 
 export const heroFlightAndTraversalMethods = {
   _initGrappleCableMesh() {
@@ -94,9 +106,7 @@ export const heroFlightAndTraversalMethods = {
     this.titaJumpCharging = false;
     this.titaJumpChargeTime = 0;
     if (this.minifigure) this.minifigure.titaJumpChargeRatio = 0;
-    if (this.destructibles?.updateSupernovaChargeVisual) {
-      this.destructibles.updateSupernovaChargeVisual(false, this.position);
-    }
+    this.destructibles?.updateSupernovaChargeVisual?.(false, this.position);
     if (!this.isGrounded) return;
 
     if (heldTime < 0.16) {
@@ -117,6 +127,43 @@ export const heroFlightAndTraversalMethods = {
     soundFX.playExplosion(0.9 + chargeRatio * 0.6);
   },
 
+  _raycastWorldColliders3D(origin, dir, minDist, maxDist) {
+    if (!this.world) return null;
+    const castFn = this.world.raycast3D
+      ? (a, b, opts) => this.world.raycast3D(a, b, opts)
+      : (a, b, opts) => fallbackRaycast3D(this.world, a, b, opts);
+
+    _grappleIgnoreCols.length = 0;
+    _grappleRayStart.x = origin.x + dir.x * minDist;
+    _grappleRayStart.y = origin.y + dir.y * minDist;
+    _grappleRayStart.z = origin.z + dir.z * minDist;
+    _grappleRayEnd.x = origin.x + dir.x * maxDist;
+    _grappleRayEnd.y = origin.y + dir.y * maxDist;
+    _grappleRayEnd.z = origin.z + dir.z * maxDist;
+
+    for (let pass = 0; pass < 3; pass++) {
+      const hit = castFn(_grappleRayStart, _grappleRayEnd, {
+        ignoreColliders: _grappleIgnoreCols.length > 0 ? _grappleIgnoreCols : undefined,
+        out: _grappleRayOut
+      });
+      if (!hit?.hit) return null;
+      if (hit.t === 0 && hit.collider) {
+        const c = hit.collider;
+        const nearHit = castFn(origin, _grappleRayStart, { filter: (col) => col === c });
+        if (nearHit?.hit && nearHit.distance < minDist - 1e-4) {
+          _grappleIgnoreCols.push(c);
+          continue;
+        }
+      }
+      return {
+        distance: minDist + hit.distance,
+        point: new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z),
+        collider: hit.collider
+      };
+    }
+    return null;
+  },
+
   _triggerSombraGrapple() {
     if (this.grappleState) {
       this._stopGrapple(true);
@@ -129,50 +176,10 @@ export const heroFlightAndTraversalMethods = {
     let bestT = maxGrappleDist;
     let bestAnchor = null;
 
-    if (this.world?.colliders) {
-      const endRayX = rayOrigin.x + aimDir.x * maxGrappleDist;
-      const endRayZ = rayOrigin.z + aimDir.z * maxGrappleDist;
-      const grappleCols = this.world.getCollidersAlongRay2D
-        ? this.world.getCollidersAlongRay2D(rayOrigin.x, rayOrigin.z, endRayX, endRayZ, 2.0)
-        : this.world.colliders;
-      for (const col of grappleCols) {
-        if (col.disabled) continue;
-        const colMinY = col.minY ?? 0;
-        let tMin = 0.0;
-        let tMax = bestT;
-        const axes = [
-          [rayOrigin.x, aimDir.x, col.minX, col.maxX],
-          [rayOrigin.y, aimDir.y, colMinY, col.maxY],
-          [rayOrigin.z, aimDir.z, col.minZ, col.maxZ]
-        ];
-        let hitBox = true;
-        for (const [orig, dir, minB, maxB] of axes) {
-          if (Math.abs(dir) < 1e-6) {
-            if (orig < minB || orig > maxB) {
-              hitBox = false;
-              break;
-            }
-          } else {
-            let t1 = (minB - orig) / dir;
-            let t2 = (maxB - orig) / dir;
-            if (t1 > t2) {
-              const tmp = t1;
-              t1 = t2;
-              t2 = tmp;
-            }
-            tMin = Math.max(tMin, t1);
-            tMax = Math.min(tMax, t2);
-            if (tMin > tMax) {
-              hitBox = false;
-              break;
-            }
-          }
-        }
-        if (hitBox && tMin >= 4.0 && tMin < bestT) {
-          bestT = tMin;
-          bestAnchor = rayOrigin.clone().addScaledVector(aimDir, tMin);
-        }
-      }
+    const rayHit = this._raycastWorldColliders3D(rayOrigin, aimDir, 4.0, maxGrappleDist);
+    if (rayHit) {
+      bestT = rayHit.distance;
+      bestAnchor = rayHit.point;
     }
 
     if (aimDir.y < -0.02) {
@@ -224,9 +231,7 @@ export const heroFlightAndTraversalMethods = {
     if (transferMomentum && prevGrapple && !prevGrapple.isDiveGrapple) {
       this.blastVelocity.set(this.velocity.x * 0.92, 0, this.velocity.z * 0.92);
       const horizMag = Math.hypot(this.blastVelocity.x, this.blastVelocity.z);
-      if (horizMag > 66.0) {
-        this.blastVelocity.multiplyScalar(66.0 / horizMag);
-      }
+      if (horizMag > 66.0) this.blastVelocity.multiplyScalar(66.0 / horizMag);
       this.blastJumpTimer = 0.85;
       this.velocity.y = Math.max(this.velocity.y + 8.5, 16.0);
     }
@@ -251,14 +256,12 @@ export const heroFlightAndTraversalMethods = {
     this._triggerTacticalRoll(rollInput);
     this.stealthTimer = 7.0;
     this.minifigure.setStealthVisual(true);
-    if (this.destructibles) this.destructibles.spawnSmokeBombCloud(this.position);
-    if (this.hud) {
-      this.hud.setCharacterPortrait(
-        'sombra',
-        'SOMBRA ESCARLATE [FURTIVO]',
-        'PASSO FANTASMA INVISÍVEL ATIVO (IGNORA LASERS DO BANCO!)'
-      );
-    }
+    this.destructibles?.spawnSmokeBombCloud(this.position);
+    this.hud?.setCharacterPortrait(
+      'sombra',
+      'SOMBRA ESCARLATE [FURTIVO]',
+      'PASSO FANTASMA INVISÍVEL ATIVO (IGNORA LASERS DO BANCO!)'
+    );
   },
 
   _summonAndMountTurboGhostBike() {
@@ -276,13 +279,11 @@ export const heroFlightAndTraversalMethods = {
       this.isTurboActive = false;
       this.keys.turbo = false;
       this._lastLightWallPos = this.position.clone();
-      if (this.hud) {
-        this.hud.setCharacterPortrait(
-          'turbo',
-          'TURBO FANTASMA [MOTO FANTASMA]',
-          'MOTO FANTASMA • [W] ACELERAR • [S / ESPAÇO] FREIO FORTE • SEGURE [Q] TURBO 740 KM/H'
-        );
-      }
+      this.hud?.setCharacterPortrait(
+        'turbo',
+        'TURBO FANTASMA [MOTO FANTASMA]',
+        'MOTO FANTASMA • [W] ACELERAR • [S / ESPAÇO] FREIO FORTE • SEGURE [Q] TURBO 740 KM/H'
+      );
     }
   },
 
@@ -302,13 +303,11 @@ export const heroFlightAndTraversalMethods = {
       }
       soundFX.playHeroSwap();
       soundFX.playExplosion(0.45);
-      if (this.hud) {
-        this.hud.setCharacterPortrait(
-          'turbo',
-          'TURBO FANTASMA [TURBO OVERDRIVE]',
-          'TURBO OVERDRIVE ATIVO [SEGURANDO Q] • MURALHA DE LUZ CIANO ATIVA!'
-        );
-      }
+      this.hud?.setCharacterPortrait(
+        'turbo',
+        'TURBO FANTASMA [TURBO OVERDRIVE]',
+        'TURBO OVERDRIVE ATIVO [SEGURANDO Q] • MURALHA DE LUZ CIANO ATIVA!'
+      );
     } else if (this.hud && this.minifigure.currentHeroKey === 'turbo') {
       this.hud.setCharacterPortrait(
         'turbo',
@@ -347,52 +346,14 @@ export const heroFlightAndTraversalMethods = {
       }
     }
 
-    if (this.world?.colliders) {
-      const endRayX = rayOrigin.x + aimDir.x * bestT;
-      const endRayZ = rayOrigin.z + aimDir.z * bestT;
-      const rayCols = this.world.getCollidersAlongRay2D
-        ? this.world.getCollidersAlongRay2D(rayOrigin.x, rayOrigin.z, endRayX, endRayZ, 2.0)
-        : this.world.colliders;
-      for (const col of rayCols) {
-        if (col.disabled) continue;
-        const colMinY = col.minY ?? 0;
-        let tMin = 0.0;
-        let tMax = bestT;
-        const axes = [
-          [rayOrigin.x, aimDir.x, col.minX, col.maxX],
-          [rayOrigin.y, aimDir.y, colMinY, col.maxY],
-          [rayOrigin.z, aimDir.z, col.minZ, col.maxZ]
-        ];
-        let hitBox = true;
-        for (const [orig, d, minB, maxB] of axes) {
-          if (Math.abs(d) < 1e-6) {
-            if (orig < minB || orig > maxB) {
-              hitBox = false;
-              break;
-            }
-          } else {
-            let t1 = (minB - orig) / d;
-            let t2 = (maxB - orig) / d;
-            if (t1 > t2) {
-              const tmp = t1;
-              t1 = t2;
-              t2 = tmp;
-            }
-            tMin = Math.max(tMin, t1);
-            tMax = Math.min(tMax, t2);
-            if (tMin > tMax) {
-              hitBox = false;
-              break;
-            }
-          }
-        }
-        if (hitBox && tMin >= 2.5 && tMin < bestT) {
-          bestT = tMin;
-          const hitPt = rayOrigin.clone().addScaledVector(aimDir, Math.max(1.5, tMin - 0.85));
-          if (hitPt.y >= col.maxY - 3.2) hitPt.y = col.maxY + 0.35;
-          targetPt = hitPt;
-        }
+    const blinkHit = this._raycastWorldColliders3D(rayOrigin, aimDir, 2.5, bestT);
+    if (blinkHit) {
+      bestT = blinkHit.distance;
+      const hitPt = rayOrigin.clone().addScaledVector(aimDir, Math.max(1.5, blinkHit.distance - 0.85));
+      if (blinkHit.collider && hitPt.y >= blinkHit.collider.maxY - 3.2) {
+        hitPt.y = blinkHit.collider.maxY + 0.35;
       }
+      targetPt = hitPt;
     }
 
     if (aimDir.y < -0.01) {
@@ -431,16 +392,14 @@ export const heroFlightAndTraversalMethods = {
     const nextMonster = !this.minifigure.isVortexMonster;
     this.minifigure.setVortexMonsterForm(nextMonster);
     this.cameraShakeTimer = 0.32;
-    if (this.destructibles) this.destructibles.spawnSymbioteMorphBurst(this.position, nextMonster);
-    if (this.hud) {
-      this.hud.setCharacterPortrait(
-        'vortex',
-        nextMonster ? 'VÓRTEX [COLOSSO BIG-FIG]' : 'VÓRTEX (SIMBIONTE)',
-        nextMonster
-          ? 'FORMA MONSTRUOSA ATIVA • ESMAGA PAREDES E CARROS • [F] FORMA ÁGIL'
-          : 'FORMA ÁGIL ATIVA • [F] METAMORFOSE BIG-FIG • [MOUSE 2] LAÇO ABISSAL'
-      );
-    }
+    this.destructibles?.spawnSymbioteMorphBurst(this.position, nextMonster);
+    this.hud?.setCharacterPortrait(
+      'vortex',
+      nextMonster ? 'VÓRTEX [COLOSSO BIG-FIG]' : 'VÓRTEX (SIMBIONTE)',
+      nextMonster
+        ? 'FORMA MONSTRUOSA ATIVA • ESMAGA PAREDES E CARROS • [F] FORMA ÁGIL'
+        : 'FORMA ÁGIL ATIVA • [F] METAMORFOSE BIG-FIG • [MOUSE 2] LAÇO ABISSAL'
+    );
   },
 
   _updateHeroFlight3D(dt, camForward, moveInput, hasInput, isUsingSolarBeam) {
@@ -479,11 +438,8 @@ export const heroFlightAndTraversalMethods = {
       this.velocity.y = THREE.MathUtils.lerp(this.velocity.y, targetVy, Math.min(1, dt * 16));
 
       const horizVel = Math.max(12.0, Math.hypot(this.velocity.x, this.velocity.z));
-      const targetPitchAngle = Math.atan2(this.velocity.y, horizVel);
-      this.flightPitch = THREE.MathUtils.lerp(this.flightPitch, targetPitchAngle, Math.min(1, dt * 14));
-
-      const desiredAngle = Math.atan2(horizDir.x, horizDir.z);
-      this.facingAngle = lerpAngle(this.facingAngle, desiredAngle, Math.min(1, dt * 16));
+      this.flightPitch = THREE.MathUtils.lerp(this.flightPitch, Math.atan2(this.velocity.y, horizVel), Math.min(1, dt * 14));
+      this.facingAngle = lerpAngle(this.facingAngle, Math.atan2(horizDir.x, horizDir.z), Math.min(1, dt * 16));
       this.minifigure.root.rotation.y = this.facingAngle;
 
       if (this.destructibles) {
@@ -498,13 +454,11 @@ export const heroFlightAndTraversalMethods = {
       }
     } else {
       this.flightPitch = THREE.MathUtils.lerp(this.flightPitch, 0, Math.min(1, dt * 10));
-
       if (hasInput) {
         this.velocity.x = moveInput.x * this.currentSpeed;
         this.velocity.z = moveInput.z * this.currentSpeed;
         if (!isUsingSolarBeam && !this.mouseButtons.left) {
-          const desiredAngle = Math.atan2(moveInput.x, moveInput.z);
-          this.facingAngle = lerpAngle(this.facingAngle, desiredAngle, Math.min(1, dt * 14));
+          this.facingAngle = lerpAngle(this.facingAngle, Math.atan2(moveInput.x, moveInput.z), Math.min(1, dt * 14));
           this.minifigure.root.rotation.y = this.facingAngle;
         }
       } else {
@@ -516,6 +470,47 @@ export const heroFlightAndTraversalMethods = {
       if (this.keys.jump) targetVy += 28.0;
       if (this.keys.descend) targetVy -= 26.0;
       this.velocity.y = THREE.MathUtils.lerp(this.velocity.y, targetVy, Math.min(1, dt * 14));
+    }
+
+    if (dt > 1e-6 && this.world?.sweepSphere) {
+      const flyRadius = 0.52;
+      const flyOffsetY = 1.05;
+      _heroFlyFrom.x = this.position.x;
+      _heroFlyFrom.y = this.position.y + flyOffsetY;
+      _heroFlyFrom.z = this.position.z;
+      _heroFlyTo.x = this.position.x + this.velocity.x * dt;
+      _heroFlyTo.y = this.position.y + this.velocity.y * dt + flyOffsetY;
+      _heroFlyTo.z = this.position.z + this.velocity.z * dt;
+
+      const sweep = this.world.sweepSphere(_heroFlyFrom, _heroFlyTo, flyRadius, { out: _heroFlySweep });
+      if (sweep?.hit) {
+        const nx = sweep.normal.x, ny = sweep.normal.y, nz = sweep.normal.z;
+        const dx = _heroFlyTo.x - _heroFlyFrom.x;
+        const dy = _heroFlyTo.y - _heroFlyFrom.y;
+        const dz = _heroFlyTo.z - _heroFlyFrom.z;
+        const remFrac = Math.max(0, 1 - sweep.t);
+        let rx = dx * remFrac, ry = dy * remFrac, rz = dz * remFrac;
+        const rDotN = rx * nx + ry * ny + rz * nz;
+        if (rDotN < 0) { rx -= rDotN * nx; ry -= rDotN * ny; rz -= rDotN * nz; }
+
+        _heroFlyMid.x = sweep.point.x + nx * (flyRadius + 0.02);
+        _heroFlyMid.y = sweep.point.y + ny * (flyRadius + 0.02);
+        _heroFlyMid.z = sweep.point.z + nz * (flyRadius + 0.02);
+        _heroFlySlideTo.x = _heroFlyMid.x + rx;
+        _heroFlySlideTo.y = _heroFlyMid.y + ry;
+        _heroFlySlideTo.z = _heroFlyMid.z + rz;
+
+        const slideHit = (rx * rx + ry * ry + rz * rz) > 1e-6
+          ? this.world.sweepSphere(_heroFlyMid, _heroFlySlideTo, flyRadius, { out: _heroFlySlideSweep })
+          : null;
+        const safeX = slideHit?.hit ? slideHit.x : _heroFlySlideTo.x;
+        const safeY = (slideHit?.hit ? slideHit.y : _heroFlySlideTo.y) - flyOffsetY;
+        const safeZ = slideHit?.hit ? slideHit.z : _heroFlySlideTo.z;
+
+        this.velocity.x = (safeX - this.position.x) / dt;
+        this.velocity.y = (safeY - this.position.y) / dt;
+        this.velocity.z = (safeZ - this.position.z) / dt;
+      }
     }
   }
 };

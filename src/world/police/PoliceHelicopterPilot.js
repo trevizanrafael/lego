@@ -25,7 +25,10 @@ const HELI_SPOTLIGHT_SLEW_SPEED = 62.0;
 const HELI_FUEL_SEARCH_LIMIT = 180.0; // 3 minutos sem visual -> retorna à base
 const HELI_SHOT_DOWN_COOLDOWN = 28.0;
 const MIN_BASE_SPAWN_DIST = 135.0;
+export const MIN_HELI_SPACING = 32.0;
 const DOWN_AXIS = new THREE.Vector3(0, -1, 0);
+const BEAM_ORIGIN_SCRATCH = new THREE.Vector3();
+const BEAM_VEC_SCRATCH = new THREE.Vector3();
 
 function wrapAnglePi(angle) {
   let a = angle;
@@ -67,40 +70,27 @@ function isPlayerHiddenFromHelicopter(sys, playerPos, controller) {
 
 function computeSkyscraperAvoidance(sys, heli, hx, hz, fwdX, fwdZ, baseCruiseY) {
   const buildings = sys.world?.mapBuildings;
-  let avoidX = 0;
-  let avoidZ = 0;
-  let climbY = baseCruiseY;
+  let avoidX = 0, avoidZ = 0, climbY = baseCruiseY;
   if (!Array.isArray(buildings) || buildings.length === 0) return { avoidX, avoidZ, desiredY: climbY };
-
-  const lookX = hx + fwdX * 18.0;
-  const lookZ = hz + fwdZ * 18.0;
-  const curY = heli.mesh.position.y;
-
+  const lookX = hx + fwdX * 18.0, lookZ = hz + fwdZ * 18.0, curY = heli.mesh.position.y;
   for (let i = 0; i < buildings.length; i++) {
     const b = buildings[i];
     const roofY = b.height || 10;
     if (roofY <= curY - 8.0) continue;
-    const hw = (b.w || 16) * 0.5;
-    const hd = (b.d || 16) * 0.5;
+    const hw = (b.w || 16) * 0.5, hd = (b.d || 16) * 0.5;
     if (Math.abs(hx - b.x) > hw + 30.0 || Math.abs(hz - b.z) > hd + 30.0) continue;
-
     const distNow = Math.hypot(hx - THREE.MathUtils.clamp(hx, b.x - hw, b.x + hw), hz - THREE.MathUtils.clamp(hz, b.z - hd, b.z + hd));
     const distAhead = Math.hypot(lookX - THREE.MathUtils.clamp(lookX, b.x - hw, b.x + hw), lookZ - THREE.MathUtils.clamp(lookZ, b.z - hd, b.z + hd));
     if (distNow > 26.0 && distAhead > 24.0) continue;
-
     if (roofY <= baseCruiseY + 22.0) climbY = Math.max(climbY, roofY + 10.0);
-
-    const fromCenterX = hx - b.x;
-    const fromCenterZ = hz - b.z;
+    const fromCenterX = hx - b.x, fromCenterZ = hz - b.z;
     const centerLen = Math.max(0.001, Math.hypot(fromCenterX, fromCenterZ));
-    const normX = fromCenterX / centerLen;
-    const normZ = fromCenterZ / centerLen;
+    const normX = fromCenterX / centerLen, normZ = fromCenterZ / centerLen;
     const tangSign = normX * fwdZ - normZ * fwdX >= 0 ? 1 : -1;
     const proximity = 1.0 - Math.min(26.0, Math.min(distNow, distAhead)) / 26.0;
     const pushWeight = 42.0 * (0.35 + proximity * 0.95);
     avoidX += (normX * 0.65 - normZ * tangSign * 0.75) * pushWeight;
     avoidZ += (normZ * 0.65 + normX * tangSign * 0.75) * pushWeight;
-
     if (distNow < 3.5 && roofY > curY - 4.0) {
       heli.mesh.position.x = b.x + normX * (Math.max(hw, hd) + 3.8);
       heli.mesh.position.z = b.z + normZ * (Math.max(hw, hd) + 3.8);
@@ -114,6 +104,57 @@ function getEstimatedPlayerSpeed(sys, controller) {
   if (controller?.currentVehicle) return Math.abs(controller.vehicleSpeed || 0);
   if (controller?.velocity) return Math.hypot(controller.velocity.x || 0, controller.velocity.z || 0);
   return sys._lastMoveSpeed || 0;
+}
+
+function disposeHelicopterSpotlight(sys, heli) {
+  if (!heli) return;
+  for (const m of [heli.coneMesh, heli.discMesh]) {
+    if (!m) continue;
+    m.visible = false;
+    if (m.parent) m.parent.remove(m);
+    else sys?.scene?.remove?.(m);
+  }
+  if (!heli._spotlightDisposed) {
+    heli._spotlightDisposed = true;
+    if (heli.coneMat && heli.coneMat !== sys?.mats?.spotlightCone) heli.coneMat.dispose?.();
+    if (heli.discMat && heli.discMat !== sys?.mats?.spotlightDisc) heli.discMat.dispose?.();
+  }
+}
+
+function computePeerHeliRepulsion(sys, heli, heliIndex, hx, hz) {
+  let steerX = 0, steerZ = 0, pushVx = 0, pushVz = 0, closeNormX = 0, closeNormZ = 0, closeFactor = 0;
+  const helis = sys.policeHelicopters;
+  if (!Array.isArray(helis) || helis.length < 2) {
+    return { steerX, steerZ, pushVx, pushVz, closeNormX, closeNormZ, closeFactor };
+  }
+  for (let j = 0; j < helis.length; j++) {
+    if (j === heliIndex) continue;
+    const other = helis[j];
+    if (!other || other === heli || other.obj?.destroyed || other.retreatingToBase || !other.mesh?.position) continue;
+    const dx = hx - other.mesh.position.x;
+    const dz = hz - other.mesh.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist >= 40.0) continue;
+
+    const nx = dist > 1e-4 ? dx / dist : Math.cos(heliIndex * Math.PI);
+    const nz = dist > 1e-4 ? dz / dist : Math.sin(heliIndex * Math.PI);
+    const steerWeight = 48.0 * (1.0 - dist / 40.0) + (dist < MIN_HELI_SPACING ? 58.0 * (1.0 - dist / MIN_HELI_SPACING) : 0);
+    steerX += (nx * 0.8 - nz * 0.42) * steerWeight;
+    steerZ += (nz * 0.8 + nx * 0.42) * steerWeight;
+
+    if (dist < MIN_HELI_SPACING) {
+      const closeness = 1.0 - dist / MIN_HELI_SPACING;
+      const accel = 26.0 + closeness * 48.0;
+      pushVx += nx * accel;
+      pushVz += nz * accel;
+      if (closeness > closeFactor) {
+        closeFactor = closeness;
+        closeNormX = nx;
+        closeNormZ = nz;
+      }
+    }
+  }
+  return { steerX, steerZ, pushVx, pushVz, closeNormX, closeNormZ, closeFactor };
 }
 
 export function spawnPoliceHelicopter(sys, playerPos) {
@@ -131,7 +172,6 @@ export function spawnPoliceHelicopter(sys, playerPos) {
 
   const refPos = playerPos || sys._lastPlayerPos || new THREE.Vector3(0, 0.5, -220);
   const base = pickPoliceHelipadBase(refPos, sys.policeHelicopters);
-  const slotIdx = sys.policeHelicopters.length;
   const G = getSharedPursuitGeos();
 
   const heliGroup = new THREE.Group();
@@ -153,9 +193,11 @@ export function spawnPoliceHelicopter(sys, playerPos) {
   heliGroup.add(hull, canopy, rotor, strobeRed, strobeBlue);
   sys.scene.add(heliGroup);
 
-  const coneMesh = new THREE.Mesh(G.spotlightConeGeo, sys.mats.spotlightCone);
+  const coneMat = sys.mats.spotlightCone.clone();
+  const discMat = sys.mats.spotlightDisc.clone();
+  const coneMesh = new THREE.Mesh(G.spotlightConeGeo, coneMat);
   coneMesh.visible = false;
-  const discMesh = new THREE.Mesh(G.spotlightDiscGeo, sys.mats.spotlightDisc);
+  const discMesh = new THREE.Mesh(G.spotlightDiscGeo, discMat);
   discMesh.visible = false;
   sys.scene.add(coneMesh, discMesh);
 
@@ -172,23 +214,22 @@ export function spawnPoliceHelicopter(sys, playerPos) {
   if (sys._lastKnownPlayerPos && sys._lastKnownPlayerPos.lengthSq() < 0.001 && refPos) {
     sys._lastKnownPlayerPos.copy(refPos);
   }
+  if (typeof sys._heliOrbitPhase !== 'number') sys._heliOrbitPhase = 0.4;
 
   const heli = {
-    mesh: heliGroup, hull, canopy, rotor, strobeRed, strobeBlue, coneMesh, discMesh, obj,
+    mesh: heliGroup, hull, canopy, rotor, strobeRed, strobeBlue,
+    coneMesh, discMesh, coneMat, discMat, _spotlightDisposed: false, _coneOpacityInit: false, obj,
     vel: new THREE.Vector3(0, 0, 0), heading: initialHeading,
     maxSpeed: HELI_MAX_SPEED, maxAccel: HELI_MAX_ACCEL, maxTurnRate: HELI_MAX_TURN_RATE,
     groundConeRadius: HELI_GROUND_CONE_RADIUS,
     lookGroundPos: new THREE.Vector3(initLookX, initLookY + 0.08, initLookZ),
     hasVisual: false, arrivingFromBase: true, searchTimer: 0, fuelSearchElapsed: 0, retreatingToBase: false,
     baseOrigin: { id: base.id, x: base.x, y: base.y, z: base.z },
-    orbitPhase: slotIdx * Math.PI + 0.4, shootTimer: 1.55, pitchAngle: 0, rollAngle: 0
+    orbitPhase: sys._heliOrbitPhase, shootTimer: 1.55, pitchAngle: 0, rollAngle: 0
   };
 
   obj.onShattered = () => {
-    for (const m of [coneMesh, discMesh]) {
-      m.visible = false;
-      if (m.parent) m.parent.remove(m);
-    }
+    disposeHelicopterSpotlight(sys, heli);
     if (Array.isArray(sys.policeHelicopters)) {
       const idx = sys.policeHelicopters.indexOf(heli);
       if (idx !== -1) sys.policeHelicopters.splice(idx, 1);
@@ -204,12 +245,7 @@ export function spawnPoliceHelicopter(sys, playerPos) {
 
 export function removeSinglePoliceHelicopter(sys, heli) {
   if (!heli) return;
-  for (const m of [heli.coneMesh, heli.discMesh]) {
-    if (!m) continue;
-    m.visible = false;
-    if (m.parent) m.parent.remove(m);
-    else sys.scene?.remove?.(m);
-  }
+  disposeHelicopterSpotlight(sys, heli);
   if (heli.obj) {
     heli.obj.onShattered = null;
     sys.destructibles?.unregisterDestructible?.(heli.obj);
@@ -230,6 +266,7 @@ export function clearAllPoliceHelicopters(sys) {
   }
   sys.policeHelicopters.length = 0;
   sys.eagleHeli = null;
+  sys._heliOrbitPhase = 0.4;
 }
 
 export function removeEagleHelicopter(sys, targetHeli = null) {
@@ -237,9 +274,10 @@ export function removeEagleHelicopter(sys, targetHeli = null) {
   else clearAllPoliceHelicopters(sys);
 }
 
-function stepSingleHelicopter(sys, heli, idx, subDt, playerPos, controller) {
+function refreshHeliVisualState(sys, heli, playerPos, controller) {
   const pos = heli.mesh.position;
   const hiddenFromAir = isPlayerHiddenFromHelicopter(sys, playerPos, controller);
+  heli._hiddenFromAir = hiddenFromAir;
   const isActivePursuit = sys.pursuitState ? sys.pursuitState === 'PURSUIT' : !sys.isEscaping;
   const horizDistToPlayer = Math.hypot(pos.x - playerPos.x, pos.z - playerPos.z);
   const distPlayerToCone = Math.hypot(heli.lookGroundPos.x - playerPos.x, heli.lookGroundPos.z - playerPos.z);
@@ -264,11 +302,12 @@ function stepSingleHelicopter(sys, heli, idx, subDt, playerPos, controller) {
       heli.lookGroundPos.z += toPz * pullRatio;
     }
   }
+}
 
-  let goalX;
-  let goalZ;
-  let desiredLookX;
-  let desiredLookZ;
+function stepSingleHelicopter(sys, heli, heliIndex, activeCount, subDt, playerPos) {
+  const pos = heli.mesh.position;
+  const phaseOffset = heliIndex * Math.PI;
+  let goalX, goalZ, desiredLookX, desiredLookZ;
 
   if (heli.retreatingToBase) {
     goalX = heli.baseOrigin.x;
@@ -279,40 +318,45 @@ function stepSingleHelicopter(sys, heli, idx, subDt, playerPos, controller) {
     heli.fuelSearchElapsed = 0;
     heli.searchTimer = 0;
     if (sys._lastKnownPlayerPos) sys._lastKnownPlayerPos.copy(playerPos);
-    heli.orbitPhase += subDt * 0.55;
-    goalX = playerPos.x + Math.cos(heli.orbitPhase) * 22.0;
-    goalZ = playerPos.z + Math.sin(heli.orbitPhase) * 22.0;
-    desiredLookX = playerPos.x;
-    desiredLookZ = playerPos.z;
+    const orbitAngle = heli.orbitPhase + phaseOffset;
+    const orbitRadius = activeCount > 1 ? 28.0 : 22.0;
+    const lookSpread = activeCount > 1 ? 6.5 : 0.0;
+    goalX = playerPos.x + Math.cos(orbitAngle) * orbitRadius;
+    goalZ = playerPos.z + Math.sin(orbitAngle) * orbitRadius;
+    desiredLookX = playerPos.x + Math.cos(orbitAngle) * lookSpread;
+    desiredLookZ = playerPos.z + Math.sin(orbitAngle) * lookSpread;
   } else {
     heli.fuelSearchElapsed += subDt;
     if (heli.fuelSearchElapsed >= HELI_FUEL_SEARCH_LIMIT) heli.retreatingToBase = true;
     heli.searchTimer += subDt;
-    const lkx = sys._lastKnownPlayerPos ? sys._lastKnownPlayerPos.x : playerPos.x;
-    const lkz = sys._lastKnownPlayerPos ? sys._lastKnownPlayerPos.z : playerPos.z;
+    const centerOffset = activeCount > 1 ? 14.0 : 0.0;
+    const lkx = (sys._lastKnownPlayerPos ? sys._lastKnownPlayerPos.x : playerPos.x) + Math.cos(phaseOffset) * centerOffset;
+    const lkz = (sys._lastKnownPlayerPos ? sys._lastKnownPlayerPos.z : playerPos.z) + Math.sin(phaseOffset) * centerOffset;
     const spiralRadius = 18.0 + ((heli.searchTimer * 4.2) % 85.0);
-    const spiralAngle = heli.orbitPhase + heli.searchTimer * 0.55;
-    const spiralX = lkx + Math.cos(spiralAngle) * spiralRadius;
-    const spiralZ = lkz + Math.sin(spiralAngle) * spiralRadius;
-    goalX = spiralX;
-    goalZ = spiralZ;
-    const distToSpiral = Math.hypot(spiralX - pos.x, spiralZ - pos.z);
+    const spiralAngle = heli.orbitPhase + phaseOffset + heli.searchTimer * 0.55;
+    goalX = lkx + Math.cos(spiralAngle) * spiralRadius;
+    goalZ = lkz + Math.sin(spiralAngle) * spiralRadius;
+    const distToSpiral = Math.hypot(goalX - pos.x, goalZ - pos.z);
     const useLead = heli.arrivingFromBase && distToSpiral > 85.0;
-    desiredLookX = useLead ? pos.x + ((spiralX - pos.x) / distToSpiral) * 28.0 : spiralX;
-    desiredLookZ = useLead ? pos.z + ((spiralZ - pos.z) / distToSpiral) * 28.0 : spiralZ;
+    desiredLookX = useLead ? pos.x + ((goalX - pos.x) / distToSpiral) * 28.0 : goalX;
+    desiredLookZ = useLead ? pos.z + ((goalZ - pos.z) / distToSpiral) * 28.0 : goalZ;
   }
 
   const localGroundY = sys.world?.getTerrainHeightAt ? sys.world.getTerrainHeightAt(pos.x, pos.z) : 0;
-  let baseDesiredY = localGroundY + 46.0 + (idx % 2) * 6.0;
-  if (heli.hasVisual && !hiddenFromAir && playerPos.y > localGroundY + 10.0) {
-    baseDesiredY = Math.max(baseDesiredY, playerPos.y + 36.0);
+  let baseDesiredY = localGroundY + 44.0 + (heliIndex % 2) * 9.0;
+  if (heli.hasVisual && !heli._hiddenFromAir && playerPos.y > localGroundY + 10.0) {
+    baseDesiredY = Math.max(baseDesiredY, playerPos.y + 34.0 + (heliIndex % 2) * 9.0);
   }
 
   const { avoidX, avoidZ, desiredY } = computeSkyscraperAvoidance(
     sys, heli, pos.x, pos.z, Math.sin(heli.heading), Math.cos(heli.heading), baseDesiredY
   );
+  const peer = computePeerHeliRepulsion(sys, heli, heliIndex, pos.x, pos.z);
+  const totalAvoidX = avoidX + peer.steerX;
+  const totalAvoidZ = avoidZ + peer.steerZ;
+
   const distToGoal = Math.hypot(goalX - pos.x, goalZ - pos.z);
-  const headingErr = wrapAnglePi(Math.atan2(goalX - pos.x + avoidX, goalZ - pos.z + avoidZ) - heli.heading);
+  const headingErr = wrapAnglePi(Math.atan2(goalX - pos.x + totalAvoidX, goalZ - pos.z + totalAvoidZ) - heli.heading);
   const maxTurnStep = heli.maxTurnRate * subDt;
   const appliedTurn = THREE.MathUtils.clamp(headingErr, -maxTurnStep, maxTurnStep);
   heli.heading = wrapAnglePi(heli.heading + appliedTurn);
@@ -334,6 +378,17 @@ function stepSingleHelicopter(sys, heli, idx, subDt, playerPos, controller) {
   } else {
     heli.vel.x = desiredVx;
     heli.vel.z = desiredVz;
+  }
+
+  if (peer.closeFactor > 0) {
+    const inwardDot = heli.vel.x * peer.closeNormX + heli.vel.z * peer.closeNormZ;
+    if (inwardDot < 0) {
+      const damp = Math.min(1.0, peer.closeFactor * 1.7);
+      heli.vel.x -= peer.closeNormX * inwardDot * damp;
+      heli.vel.z -= peer.closeNormZ * inwardDot * damp;
+    }
+    heli.vel.x += peer.pushVx * subDt;
+    heli.vel.z += peer.pushVz * subDt;
   }
 
   // Hard-cap estrito: velocidade horizontal NUNCA ultrapassa 55.0 m/s!
@@ -391,15 +446,44 @@ export function updatePoliceHelicopters(sys, dt, playerPos, controller) {
       sys.eagleHeliRespawnCooldown = Math.max(sys.eagleHeliRespawnCooldown || 0, HELI_SHOT_DOWN_COOLDOWN);
       continue;
     }
-
     heli.rotor.rotation.y += safeDt * 28.0;
     heli.strobeRed.material = redPhase ? sys.mats.strobeRedOn : sys.mats.strobeOff;
     heli.strobeBlue.material = !redPhase ? sys.mats.strobeBlueOn : sys.mats.strobeOff;
+  }
 
-    for (let s = 0; subDt > 0 && s < subSteps; s++) {
-      stepSingleHelicopter(sys, heli, i, subDt, playerPos, controller);
+  const helis = sys.policeHelicopters;
+  if (helis.length === 0) {
+    syncEagleHeliAlias(sys);
+    return;
+  }
+
+  for (let s = 0; subDt > 0 && s < subSteps; s++) {
+    let anyHasVisual = false;
+    for (let i = 0; i < helis.length; i++) {
+      refreshHeliVisualState(sys, helis[i], playerPos, controller);
+      if (helis[i].hasVisual && !helis[i].retreatingToBase) anyHasVisual = true;
     }
+    if (anyHasVisual) {
+      if (helis.length === 1) {
+        helis[0].orbitPhase += subDt * 0.55;
+        sys._heliOrbitPhase = helis[0].orbitPhase;
+      } else {
+        sys._heliOrbitPhase = (typeof sys._heliOrbitPhase === 'number' ? sys._heliOrbitPhase : (helis[0].orbitPhase || 0.4)) + subDt * 0.55;
+        for (let i = 0; i < helis.length; i++) helis[i].orbitPhase = sys._heliOrbitPhase;
+      }
+    }
+    for (let i = 0; i < helis.length; i++) {
+      stepSingleHelicopter(sys, helis[i], i, helis.length, subDt, playerPos);
+    }
+  }
 
+  const inTunnel = Boolean(sys._isPlayerInUndergroundTunnel?.(playerPos));
+  const activeSpots = helis.length;
+  const spotAtten = 1.0 / Math.sqrt(Math.max(1, activeSpots));
+  const camPos = controller?.camera?.position || sys.hud?._lastController?.camera?.position || null;
+
+  for (let i = helis.length - 1; i >= 0; i--) {
+    const heli = helis[i];
     const pos = heli.mesh.position;
     const horizDistToPlayer = Math.hypot(pos.x - playerPos.x, pos.z - playerPos.z);
     if (heli.retreatingToBase) {
@@ -409,19 +493,34 @@ export function updatePoliceHelicopters(sys, dt, playerPos, controller) {
       }
     }
 
-    const showSpotlight = nightFactor > 0.16 && !heli.retreatingToBase;
+    const showSpotlight = nightFactor > 0.16 && !heli.retreatingToBase && !inTunnel;
+    const underViaduct = Boolean(sys._isPlayerUnderViaduct?.(heli.lookGroundPos));
     heli.coneMesh.visible = showSpotlight;
-    heli.discMesh.visible = showSpotlight;
+    heli.discMesh.visible = showSpotlight && !underViaduct;
     if (showSpotlight) {
-      const origin = new THREE.Vector3(pos.x, pos.y - 1.2, pos.z);
-      const beamVec = heli.lookGroundPos.clone().sub(origin);
-      heli.coneMesh.position.copy(origin);
-      heli.coneMesh.scale.set(6.2, Math.max(6.0, beamVec.length()), 6.2);
-      heli.coneMesh.quaternion.setFromUnitVectors(DOWN_AXIS, beamVec.normalize());
-      sys.mats.spotlightCone.opacity = 0.14 + nightFactor * 0.16;
+      BEAM_ORIGIN_SCRATCH.set(pos.x, pos.y - 1.2, pos.z);
+      BEAM_VEC_SCRATCH.copy(heli.lookGroundPos).sub(BEAM_ORIGIN_SCRATCH);
+      const beamLen = Math.max(6.0, BEAM_VEC_SCRATCH.length());
+      heli.coneMesh.position.copy(BEAM_ORIGIN_SCRATCH);
+      heli.coneMesh.scale.set(3.2, beamLen, 3.2);
+      heli.coneMesh.quaternion.setFromUnitVectors(DOWN_AXIS, BEAM_VEC_SCRATCH.normalize());
+
+      const baseConeOpacity = (0.032 + nightFactor * 0.026) * spotAtten;
+      const distPlayerToLook = Math.hypot(playerPos.x - heli.lookGroundPos.x, playerPos.z - heli.lookGroundPos.z);
+      const distCamToLook = camPos ? Math.hypot(camPos.x - heli.lookGroundPos.x, camPos.z - heli.lookGroundPos.z) : Infinity;
+      const horizDistToLook = Math.min(distPlayerToLook, distCamToLook);
+      const nearFade = horizDistToLook < 6.0 ? THREE.MathUtils.smoothstep(horizDistToLook, 3.2, 6.0) : 1.0;
+      const targetConeOpacity = THREE.MathUtils.lerp(Math.min(0.018, baseConeOpacity), baseConeOpacity, nearFade);
+      const coneMat = heli.coneMat || heli.coneMesh.material;
+      coneMat.opacity = heli._coneOpacityInit
+        ? THREE.MathUtils.lerp(coneMat.opacity, targetConeOpacity, Math.min(1, safeDt * 14.0))
+        : targetConeOpacity;
+      heli._coneOpacityInit = true;
+
       heli.discMesh.position.copy(heli.lookGroundPos);
-      heli.discMesh.scale.setScalar(6.8);
-      sys.mats.spotlightDisc.opacity = 0.22 + nightFactor * 0.2;
+      heli.discMesh.scale.setScalar(4.2);
+      const discMat = heli.discMat || heli.discMesh.material;
+      discMat.opacity = (0.055 + nightFactor * 0.045) * spotAtten;
     }
 
     if (sys.stars >= 4 && heli.hasVisual && !sys.isEscaping && !heli.retreatingToBase) {

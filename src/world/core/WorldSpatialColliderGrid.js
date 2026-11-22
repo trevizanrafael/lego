@@ -1,163 +1,100 @@
 /**
  * WorldSpatialColliderGrid.js
- * Grade espacial 2D O(1) de colisores AABB em células de 32m x 32m + lista dinâmica rápida
- * para veículos, portões e plataformas móveis (`TestBlockWorld.prototype`).
+ * Fachada fina retrocompatível (`TestBlockWorld.prototype`) para o subsistema modular
+ * `src/world/collision/` (células 32m x 32m, formas 'box'/'obb'/'cylinder', sweeps e raycast 3D).
  */
 
-export function packColliderCell(cx, cz) {
-  return ((cx & 0xffff) << 16) | (cz & 0xffff);
-}
+import {
+  packColliderCell,
+  addBoxCollider,
+  addObbCollider,
+  addCylinderCollider,
+  addTieredCollider,
+  promoteDynamicCollider,
+  updateDynamicCollider,
+  removeCollider,
+  queryCollidersNear2D,
+  queryCollidersAlongSegment2D
+} from '../collision/CollisionWorldIndex.js';
+import {
+  projectSlideVelocity2D,
+  overlapCapsule,
+  resolveCapsulePenetration,
+  overlapOrientedBox,
+  resolveObbPenetration,
+  sweepSphere,
+  sweepOrientedBox,
+  raycast3D
+} from '../collision/CollisionQueries.js';
+
+export { packColliderCell, projectSlideVelocity2D };
 
 export const worldSpatialColliderMethods = {
   addCollider(x, z, width, depth, height = 10, minY = 0, opts = {}) {
-    const isDynamic = Boolean(opts.isDynamic);
-    const col = {
-      minX: x - width * 0.5,
-      maxX: x + width * 0.5,
-      minZ: z - depth * 0.5,
-      maxZ: z + depth * 0.5,
-      minY,
-      maxY: height,
-      disabled: false,
-      isDynamic,
-      _qid: 0,
-      _gridKeys: null
-    };
-    this.colliders.push(col);
-
-    if (isDynamic) {
-      this._dynamicColliders.push(col);
-    } else {
-      const cs = this.colliderCellSize;
-      const minCX = Math.floor(col.minX / cs);
-      const maxCX = Math.floor(col.maxX / cs);
-      const minCZ = Math.floor(col.minZ / cs);
-      const maxCZ = Math.floor(col.maxZ / cs);
-      const keys = [];
-      for (let cx = minCX; cx <= maxCX; cx++) {
-        for (let cz = minCZ; cz <= maxCZ; cz++) {
-          const k = packColliderCell(cx, cz);
-          keys.push(k);
-          let bucket = this._colliderGrid.get(k);
-          if (!bucket) {
-            bucket = [];
-            this._colliderGrid.set(k, bucket);
-          }
-          bucket.push(col);
-        }
-      }
-      col._gridKeys = keys;
-    }
-
-    return col;
+    return addBoxCollider(this, x, z, width, depth, height, minY, opts);
   },
 
-  /**
-   * Move um colisor de veículo/portão para a lista dinâmica rápida para que atualizações de minX..maxZ funcionem em tempo real!
-   */
+  addObbCollider(cx, cz, width, depth, yaw = 0, maxY = 10, minY = 0, opts = {}) {
+    return addObbCollider(this, cx, cz, width, depth, yaw, maxY, minY, opts);
+  },
+
+  addCylinderCollider(cx, cz, radius, maxY = 10, minY = 0, opts = {}) {
+    return addCylinderCollider(this, cx, cz, radius, maxY, minY, opts);
+  },
+
+  addTieredCollider(x, z, tiers = [], opts = {}) {
+    return addTieredCollider(this, x, z, tiers, opts);
+  },
+
   promoteDynamicCollider(col) {
-    if (!col || col.isDynamic) return;
-    if (Array.isArray(col._gridKeys)) {
-      for (let i = 0; i < col._gridKeys.length; i++) {
-        const bucket = this._colliderGrid.get(col._gridKeys[i]);
-        if (bucket) {
-          const idx = bucket.indexOf(col);
-          if (idx !== -1) bucket.splice(idx, 1);
-        }
-      }
-      col._gridKeys = null;
-    }
-    col.isDynamic = true;
-    this._dynamicColliders.push(col);
+    return promoteDynamicCollider(this, col);
   },
 
-  /**
-   * Consulta espacial O(1) em células 32m x 32m (~25 colisores em vez de ~9.000 por frame!)
-   */
+  updateDynamicCollider(col, patch = null) {
+    return updateDynamicCollider(this, col, patch);
+  },
+
+  removeCollider(col) {
+    return removeCollider(this, col);
+  },
+
   getCollidersNear(x, z, radius = 2.5, out = null) {
-    if (out) {
-      out.length = 0;
-    } else {
-      out = [];
-    }
-    const qid = ++this._colliderQueryId;
-    const cs = this.colliderCellSize;
-    const minCX = Math.floor((x - radius) / cs);
-    const maxCX = Math.floor((x + radius) / cs);
-    const minCZ = Math.floor((z - radius) / cs);
-    const maxCZ = Math.floor((z + radius) / cs);
-
-    for (let cx = minCX; cx <= maxCX; cx++) {
-      for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const bucket = this._colliderGrid.get(packColliderCell(cx, cz));
-        if (!bucket) continue;
-        for (let i = 0; i < bucket.length; i++) {
-          const col = bucket[i];
-          if (col.disabled || col._qid === qid) continue;
-          col._qid = qid;
-          out.push(col);
-        }
-      }
-    }
-
-    for (let i = 0; i < this._dynamicColliders.length; i++) {
-      const col = this._dynamicColliders[i];
-      if (col.disabled || col._qid === qid) continue;
-      if (
-        x + radius >= col.minX &&
-        x - radius <= col.maxX &&
-        z + radius >= col.minZ &&
-        z - radius <= col.maxZ
-      ) {
-        col._qid = qid;
-        out.push(col);
-      }
-    }
-
-    return out;
+    return queryCollidersNear2D(this, x, z, radius, out);
   },
 
-  /**
-   * Consulta espacial ao longo de um segmento 2D (câmera em 3ª pessoa, gancho e mira)
-   */
   getCollidersAlongRay2D(x0, z0, x1, z1, pad = 1.5, out = null) {
-    const minX = Math.min(x0, x1) - pad;
-    const maxX = Math.max(x0, x1) + pad;
-    const minZ = Math.min(z0, z1) - pad;
-    const maxZ = Math.max(z0, z1) + pad;
-    if (out) {
-      out.length = 0;
-    } else {
-      out = [];
-    }
-    const qid = ++this._colliderQueryId;
-    const cs = this.colliderCellSize;
-    const minCX = Math.floor(minX / cs);
-    const maxCX = Math.floor(maxX / cs);
-    const minCZ = Math.floor(minZ / cs);
-    const maxCZ = Math.floor(maxZ / cs);
+    return queryCollidersAlongSegment2D(this, x0, z0, x1, z1, pad, out);
+  },
 
-    for (let cx = minCX; cx <= maxCX; cx++) {
-      for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const bucket = this._colliderGrid.get(packColliderCell(cx, cz));
-        if (!bucket) continue;
-        for (let i = 0; i < bucket.length; i++) {
-          const col = bucket[i];
-          if (col.disabled || col._qid === qid) continue;
-          col._qid = qid;
-          out.push(col);
-        }
-      }
-    }
+  overlapCapsule(pos, radius, height, opts = {}) {
+    return overlapCapsule(this, pos, radius, height, opts);
+  },
 
-    for (let i = 0; i < this._dynamicColliders.length; i++) {
-      const col = this._dynamicColliders[i];
-      if (col.disabled || col._qid === qid) continue;
-      if (col.maxX >= minX && col.minX <= maxX && col.maxZ >= minZ && col.minZ <= maxZ) {
-        col._qid = qid;
-        out.push(col);
-      }
-    }
-    return out;
+  resolveCapsulePenetration(pos, radius, height, opts = {}) {
+    return resolveCapsulePenetration(this, pos, radius, height, opts);
+  },
+
+  overlapOrientedBox(cx, cz, halfX, halfZ, yaw, minY, maxY, opts = {}) {
+    return overlapOrientedBox(this, cx, cz, halfX, halfZ, yaw, minY, maxY, opts);
+  },
+
+  resolveObbPenetration(cx, cz, halfX, halfZ, yaw, minY, maxY, opts = {}) {
+    return resolveObbPenetration(this, cx, cz, halfX, halfZ, yaw, minY, maxY, opts);
+  },
+
+  sweepSphere(from, to, radius, opts = {}) {
+    return sweepSphere(this, from, to, radius, opts);
+  },
+
+  sweepOrientedBox(from, to, halfX, halfZ, yaw, minY, maxY, opts = {}) {
+    return sweepOrientedBox(this, from, to, halfX, halfZ, yaw, minY, maxY, opts);
+  },
+
+  raycast3D(from, to, opts = {}) {
+    return raycast3D(this, from, to, opts);
+  },
+
+  projectSlideVelocity2D(vx, vz, nx, nz, friction = 0, out = null) {
+    return projectSlideVelocity2D(vx, vz, nx, nz, friction, out);
   }
 };
