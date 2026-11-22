@@ -27,7 +27,8 @@ export const GOTHAM_NOIR_SHADER = {
     uDesaturate: { value: 0.34 },
     uContrast: { value: 1.15 },
     uVignette: { value: 0.44 },
-    uGrain: { value: 0.016 }
+    uGrain: { value: 0.016 },
+    uKillFlash: { value: 0.0 }
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -43,6 +44,7 @@ export const GOTHAM_NOIR_SHADER = {
     uniform float uContrast;
     uniform float uVignette;
     uniform float uGrain;
+    uniform float uKillFlash;
     varying vec2 vUv;
 
     void main() {
@@ -74,6 +76,15 @@ export const GOTHAM_NOIR_SHADER = {
       float distSq = dot(centered, centered) * 2.15;
       float vig = clamp(1.0 - distSq * uVignette, 0.38, 1.0);
       col *= vig;
+
+      // Pulso curto branco-frio dessaturado e contrastado ao eliminar alvo (estilo GTA V)
+      if (uKillFlash > 0.0) {
+        luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+        col = mix(col, vec3(luma), uKillFlash * 0.78);
+        col = clamp(col + vec3(0.22, 0.23, 0.25) * uKillFlash, 0.0, 1.0);
+        float edgeWeight = clamp(distSq * 0.85, 0.0, 1.0) * uKillFlash;
+        col = clamp((col - 0.5) * (1.0 + 0.32 * edgeWeight) + 0.5, 0.0, 1.0);
+      }
 
       // Micro-grão sutil de película urbana
       float noise = fract(sin(dot(vUv * vec2(1280.0, 720.0) + fract(uTime * 0.37), vec2(12.9898, 78.233))) * 43758.5453);
@@ -164,6 +175,15 @@ export class GraphicsPipeline {
     this.fxaaPass = null;
     this.smaaPass = null;
     this._noirTime = 0;
+
+    // Estado do pulso pós-FX de Kill estilo GTA V (0.18s sem acumular)
+    this.killFlashEnabled = true;
+    this._killFlashTimer = 0;
+    this._killFlashDuration = 0.18;
+    this.killFlashIntensity = 0;
+    this.killFlashCount = 0;
+    this._killFlashOverlayEl = null;
+    this._usingCssKillFlashFallback = false;
 
     this._activeProfile = { ...PRESET_PROFILES.medium };
 
@@ -450,7 +470,80 @@ export class GraphicsPipeline {
     }
   }
 
+  _ensureKillFlashOverlay() {
+    if (this._killFlashOverlayEl) return this._killFlashOverlayEl;
+    if (typeof document === 'undefined') return null;
+    let el = typeof document.getElementById === 'function' ? document.getElementById('kill-flash-overlay') : null;
+    if (!el && typeof document.createElement === 'function') { el = document.createElement('div'); if (el) el.id = 'kill-flash-overlay'; }
+    if (!el) return null;
+    el.classList?.add('kill-flash-overlay');
+    el.setAttribute?.('aria-hidden', 'true');
+    const attached = Boolean(el.isConnected || el.parentNode || (Array.isArray(document.body?.children) && document.body.children.includes(el)));
+    if (!attached && document.body?.appendChild) document.body.appendChild(el);
+    this._killFlashOverlayEl = el;
+    return el;
+  }
+
+  _syncKillFlashOverlay(intensity = 0) {
+    const k = Math.max(0, Math.min(1, Number(intensity) || 0));
+    if (k <= 0.0005 && !this._killFlashOverlayEl) return;
+    const el = this._ensureKillFlashOverlay();
+    if (!el) return;
+    const active = k > 0.0005;
+    el.classList?.remove('hidden');
+    el.classList?.toggle('is-active', active);
+    if (el.style) el.style.opacity = active ? String(Number(k.toFixed(4))) : '0';
+  }
+
+  setKillEffectEnabled(enabled = true) {
+    this.killFlashEnabled = Boolean(enabled);
+    if (!this.killFlashEnabled) {
+      this._killFlashTimer = 0;
+      this.killFlashIntensity = 0;
+      this._usingCssKillFlashFallback = false;
+      if (this.noirPass?.uniforms?.uKillFlash) this.noirPass.uniforms.uKillFlash.value = 0.0;
+      this._syncKillFlashOverlay(0);
+    }
+    return this.killFlashEnabled;
+  }
+
+  pulseKillFlash() {
+    if (!this.killFlashEnabled) return false;
+    this._killFlashTimer = this._killFlashDuration;
+    this.killFlashIntensity = 1.0;
+    this.killFlashCount += 1;
+
+    const shaderActive = Boolean(
+      !this.isHeadless && this.composer && this._activeProfile?.useComposer &&
+      this._activeProfile?.noirGrade !== false && this.noirPass &&
+      this.noirPass.enabled !== false && this.noirPass.uniforms?.uKillFlash
+    );
+    if (this.noirPass?.uniforms?.uKillFlash) this.noirPass.uniforms.uKillFlash.value = 1.0;
+
+    if (!shaderActive) {
+      this._usingCssKillFlashFallback = true;
+      this._syncKillFlashOverlay(1.0);
+    } else if (this._usingCssKillFlashFallback) {
+      this._usingCssKillFlashFallback = false;
+      this._syncKillFlashOverlay(0);
+    }
+    return true;
+  }
+
+  _updateKillFlash(dt = 0.016) {
+    if (this._killFlashTimer <= 0) return;
+    this._killFlashTimer = Math.max(0, this._killFlashTimer - Math.max(0, Number(dt) || 0));
+    const k = this._killFlashTimer > 0 ? Math.pow(this._killFlashTimer / this._killFlashDuration, 1.6) : 0;
+    this.killFlashIntensity = k;
+    if (this.noirPass?.uniforms?.uKillFlash) this.noirPass.uniforms.uKillFlash.value = k;
+    if (this._usingCssKillFlashFallback || this.isHeadless || !this.composer || !this._activeProfile?.useComposer || !this._activeProfile?.noirGrade) {
+      this._syncKillFlashOverlay(k);
+      if (k <= 0) this._usingCssKillFlashFallback = false;
+    }
+  }
+
   render(dt = 0.016) {
+    this._updateKillFlash(dt);
     if (this.isHeadless || !this.renderer || !this.scene || !this.camera) return;
     this._updateAutoDRS(dt);
     this._noirTime += Math.min(0.05, dt || 0.016);

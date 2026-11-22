@@ -4,6 +4,8 @@ import { animateFactionSoldier } from '../../entities/FactionSoldierBuilder.js';
 import { BANK_SPEC } from '../regions/SuperBankBuilder.js';
 import { FACTION_THEME } from './TerritoryZonesAndConfigs.js';
 import { updateAllyHqUnitBehavior } from './GarrisonPeaceAndAlliesAI.js';
+import { HUMANOID_STATES } from '../npc-health/HumanoidHealthModel.js';
+import { applyHumanoidHitPose, applyHumanoidKnockbackStep } from '../npc-health/HumanoidHitReactions.js';
 import {
   ensureSharedWarGeometries,
   ALLY_BULLET_MAT,
@@ -26,7 +28,16 @@ export const invasionSquadCombatMethods = {
       const npc = this.combatNpcs[i];
       const obj = npc.destructible;
       if (!obj || obj.destroyed) {
-        if (obj) this.destructibles.unregisterDestructible(obj);
+        if (obj) {
+          const keepCorpse = obj._managedByCorpseManager ? npc.visual?.root : null;
+          if (npc.visual?.allyMarker) npc.visual.allyMarker.visible = false;
+          if (npc.visual?.muzzleFlash) npc.visual.muzzleFlash.visible = false;
+          if (npc.visual?.drone) npc.visual.drone.visible = false;
+          this.destructibles.unregisterDestructible(obj);
+          if (keepCorpse && this.scene && keepCorpse.parent !== this.scene) {
+            this.scene.add(keepCorpse);
+          }
+        }
         this.combatNpcs.splice(i, 1);
         continue;
       }
@@ -35,7 +46,6 @@ export const invasionSquadCombatMethods = {
       const pos = root.position;
       npc.visual.allyMarker.visible = npc.isAllied;
       npc.visual.allyMarker.rotation.y += dt * 2.8;
-      animateFactionSoldier(npc.visual, this._animClock, npc.patrolAngle);
 
       if (npc.muzzleTimer > 0) {
         npc.muzzleTimer -= dt;
@@ -47,6 +57,37 @@ export const invasionSquadCombatMethods = {
       if (obj._signalMarkedTimer > 0) {
         obj._signalMarkedTimer = Math.max(0, obj._signalMarkedTimer - dt);
       }
+
+      if (npc.humanoidHealth) {
+        npc.humanoidHealth.update(dt);
+        if (
+          npc.humanoidHealth.state === HUMANOID_STATES.STAGGER ||
+          npc.humanoidHealth.state === HUMANOID_STATES.DOWNED
+        ) {
+          npc.visual.muzzleFlash.visible = false;
+          applyHumanoidKnockbackStep(root, npc.humanoidHealth, dt, (nx, nz) => {
+            const res = this.livingCity._resolveBuildingCollision(
+              nx,
+              nz,
+              npc.isBoss ? 1.85 : 0.95
+            );
+            return { x: res.x, z: res.z, valid: true };
+          });
+          const gY = this._groundAt(pos.x, pos.z, pos.y);
+          applyHumanoidHitPose(npc.visual, npc.humanoidHealth, gY, dt, {
+            unitScale: npc.unitScale || 1
+          });
+          obj.basePos.set(pos.x, gY, pos.z);
+          obj.groundY = gY;
+          continue;
+        }
+      }
+
+      root.rotation.x = 0;
+      root.rotation.z = 0;
+      npc.visual.leftLeg.rotation.z = 0;
+      npc.visual.rightLeg.rotation.z = 0;
+      animateFactionSoldier(npc.visual, this._animClock, npc.patrolAngle);
 
       if (npc.stunTimer > 0) {
         npc.stunTimer = Math.max(0, npc.stunTimer - dt);
@@ -227,21 +268,12 @@ export const invasionSquadCombatMethods = {
       npc.fireCooldown -= dt;
       if (bestTargetPos && bestDist < 54 && npc.fireCooldown <= 0) {
         npc.fireCooldown =
-          npc.heavyClass === 'elite'
-            ? 0.2 // atira pra caramba
-            : npc.heavyClass === 'brute'
-              ? 0.75
-              : npc.isBoss
-                ? 0.55
-                : npc.role === 'tank'
-                  ? 0.95
-                  : npc.role === 'special'
-                    ? npc.faction === 'cv'
-                      ? 3.2 // RPG: lento e pesado
-                      : npc.faction === 'ares'
-                        ? 0.42 // drone: rajada rápida
-                        : 1.1
-                    : 0.82 + Math.random() * 0.35;
+          npc.heavyClass === 'elite' ? 0.2 :
+          npc.heavyClass === 'brute' ? 0.75 :
+          npc.isBoss ? 0.55 :
+          npc.role === 'tank' ? 0.95 :
+          npc.role === 'special' ? (npc.faction === 'cv' ? 3.2 : npc.faction === 'ares' ? 0.42 : 1.1) :
+          0.82 + Math.random() * 0.35;
         if (this._hasClearLineOfSight(pos.x, pos.z, bestTargetPos.x, bestTargetPos.z)) {
           this._fireUnitProjectile(npc, bestTargetPos, bestTargetNpc);
         }
@@ -261,9 +293,7 @@ export const invasionSquadCombatMethods = {
     const origin = npc.visual.root.position;
     const isRpg = npc.role === 'special' && npc.faction === 'cv';
     const isDrone = npc.role === 'special' && npc.faction === 'ares' && npc.visual.drone;
-    const startY =
-      origin.y +
-      (npc.isBoss ? 3.1 : npc.hitH ? npc.hitH * 0.6 : isDrone ? 2.7 : isRpg ? 1.62 : 1.38);
+    const startY = origin.y + (npc.isBoss ? 3.1 : npc.hitH ? npc.hitH * 0.6 : isDrone ? 2.7 : isRpg ? 1.62 : 1.38);
     const targetY = (targetPos.y ?? origin.y) + (targetNpc?.isBoss ? 2.6 : 1.2);
 
     const dir = new THREE.Vector3(
@@ -274,11 +304,7 @@ export const invasionSquadCombatMethods = {
 
     const bulletMesh = new THREE.Mesh(
       isRpg ? geos.rocketGeo : geos.bulletGeo,
-      isRpg
-        ? ROCKET_MAT
-        : npc.isAllied
-          ? ALLY_BULLET_MAT
-          : getFactionBulletMat(npc.faction, theme.hex)
+      isRpg ? ROCKET_MAT : npc.isAllied ? ALLY_BULLET_MAT : getFactionBulletMat(npc.faction, theme.hex)
     );
     bulletMesh.position.set(origin.x + dir.x * 1.1, startY, origin.z + dir.z * 1.1);
     bulletMesh.lookAt(bulletMesh.position.clone().add(dir));
@@ -293,21 +319,13 @@ export const invasionSquadCombatMethods = {
       vel: dir.multiplyScalar(npc.isBoss ? 48 : isRpg ? 26 : 42),
       isAllied: npc.isAllied,
       damage:
-        npc.heavyClass === 'elite'
-          ? 6
-          : npc.heavyClass === 'brute'
-            ? 13
-            : npc.isBoss
-              ? 16
-              : isRpg
-                ? 22
-                : isDrone
-                  ? 4
-                  : npc.faction === 'guard'
-                    ? 5
-                    : npc.role === 'tank'
-                      ? 11
-                      : 8,
+        npc.heavyClass === 'elite' ? 6 :
+        npc.heavyClass === 'brute' ? 13 :
+        npc.isBoss ? 16 :
+        isRpg ? 22 :
+        isDrone ? 4 :
+        npc.faction === 'guard' ? 5 :
+        npc.role === 'tank' ? 11 : 8,
       splash: isRpg ? 5.5 : 0,
       life: isRpg ? 2.4 : 1.45
     });
@@ -344,7 +362,9 @@ export const invasionSquadCombatMethods = {
       );
       if (d < 11.5) {
         this.destructibles.damageObject(other.destructible, 65, bPos, false, {
-          fromEnemyNpc: true
+          fromEnemyNpc: true,
+          isExplosion: true,
+          sourceIsPlayer: false
         });
       }
     }
@@ -412,7 +432,13 @@ export const invasionSquadCombatMethods = {
             p.damage * 2.2,
             p.mesh.position,
             false,
-            { fromEnemyNpc: true }
+            {
+              fromEnemyNpc: true,
+              isExplosion: Boolean(p.splash),
+              sourceIsPlayer: false,
+              shotOrigin: p.originPos || null,
+              shotDir: p.vel
+            }
           );
           hit = true;
           break;
@@ -464,7 +490,7 @@ export const invasionSquadCombatMethods = {
     });
 
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xfacc15,
+      color: 0xf59e0b,
       transparent: true,
       opacity: 0.9,
       side: THREE.DoubleSide
@@ -486,7 +512,7 @@ export const invasionSquadCombatMethods = {
           damage * 3 * (1 - d / (radius * 1.4)),
           center,
           false,
-          { fromEnemyNpc: true }
+          { fromEnemyNpc: true, isExplosion: true, sourceIsPlayer: false }
         );
       }
     }
@@ -504,7 +530,11 @@ export const invasionSquadCombatMethods = {
     pos.y += 1.0;
     this._npcExplosion(pos, 6.5, 30, npc.isAllied, controller, zoneState);
     if (npc.destructible && !npc.destructible.destroyed) {
-      this.destructibles.damageObject(npc.destructible, 99999, pos, false, { fromEnemyNpc: true });
+      this.destructibles.damageObject(npc.destructible, 99999, pos, false, {
+        fromEnemyNpc: true,
+        isExplosion: true,
+        sourceIsPlayer: false
+      });
     }
   },
 

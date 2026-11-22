@@ -6,6 +6,8 @@ import { loadGameSettings } from './FactionIconsAndSaveSystem.js';
 import { installHudConstantsAndPortraits } from './hud/HudConstantsAndPortraits.js';
 import { installOperatorCombatAndVehicleHud } from './hud/OperatorCombatAndVehicleHud.js';
 import { installAbilityCooldownHud } from './hud/AbilityCooldownHud.js';
+import { installHitmarkerHud } from './hud/HitmarkerHud.js';
+import { installSniperScopeHud } from './hud/SniperScopeHud.js';
 import { installHudMapAndWheelBridge } from './hud/HudMapAndWheelBridge.js';
 import { installCharacterGridOverlay } from './character-grid/CharacterGridOverlay.js';
 import { installHudRadioModalBridge } from './hud/HudRadioModalBridge.js';
@@ -155,6 +157,8 @@ export class LegoHud {
     this._initHearts();
     this._initSpeedometerBars();
     this._initAbilityCooldownHud?.();
+    this._initHitmarkerHud?.();
+    this._initSniperScopeHud?.();
     this._ensureCharacterGridDom?.();
     this._initTikTokRadioModal();
     this._initTitleScreenAndPauseMenu();
@@ -168,6 +172,7 @@ export class LegoHud {
   get isAircraftStudioOpen() { return Boolean(this.aircraftStudio?.isOpen); }
 
   update(dt) {
+    this.updateHitmarkerHud?.(dt);
     if (this.isTitleScreenActive) {
       this._renderFavelaBackgroundCanvas(dt);
     } else if (!this.isLoadingActive && !this.isPauseMenuOpen) {
@@ -191,6 +196,8 @@ export class LegoHud {
 installHudConstantsAndPortraits(LegoHud);
 installOperatorCombatAndVehicleHud(LegoHud);
 installAbilityCooldownHud(LegoHud);
+installHitmarkerHud(LegoHud);
+installSniperScopeHud(LegoHud);
 installHudMapAndWheelBridge(LegoHud);
 installCharacterGridOverlay(LegoHud);
 installHudRadioModalBridge(LegoHud);

@@ -32,7 +32,9 @@ import {
   playSatelliteZoomStepSfx,
   playNpcGunshotSfx,
   playHealTickSfx,
-  playEmoteJingleSfx
+  playEmoteJingleSfx,
+  playKillConfirmSfx,
+  playHitmarkerTickSfx
 } from './sfx/CombatAndUiSoundEffects.js';
 
 /**
@@ -80,6 +82,8 @@ class SoundFX {
   playNpcGunshot(faction = 'cv', isRpg = false, volumeScale = 1.0) { return playNpcGunshotSfx(this, faction, isRpg, volumeScale); }
   playHealTick() { return playHealTickSfx(this); }
   playEmoteJingle(emoteIdx = 0) { return playEmoteJingleSfx(this, emoteIdx); }
+  playKillConfirm() { return playKillConfirmSfx(this); }
+  playHitmarkerTick() { return playHitmarkerTickSfx(this); }
 }
 
 export const soundFX = new SoundFX();

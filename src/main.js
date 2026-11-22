@@ -62,6 +62,16 @@ class LegoCityGame {
         this.graphicsPipeline.setPreset(quality);
       }
     };
+    this.hud.onChangeKillEffect = (enabled) => {
+      this.graphicsPipeline?.setKillEffectEnabled?.(enabled);
+    };
+    this.hud.onTriggerKillFlash = () => {
+      if (this.graphicsPipeline) {
+        this.graphicsPipeline.pulseKillFlash();
+      } else {
+        this.hud._pulseCssKillFlashFallback?.();
+      }
+    };
     this.hud.onWarmupStep = (stage, stepIdx) => {
       return this._executeWarmupStep(stage, stepIdx);
     };
@@ -206,6 +216,7 @@ class LegoCityGame {
       this.world,
       initialQuality
     );
+    this.graphicsPipeline.setKillEffectEnabled?.(this.hud?.settings?.killEffect !== false);
     this.controller.onToggleFullMap = () => {
       this.hud.toggleFullMap(this.world, this.controller);
     };

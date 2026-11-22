@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { soundFX } from '../../audio/SoundFX.js';
+import { HUMANOID_STATES } from '../npc-health/HumanoidHealthModel.js';
+import {
+  applyHumanoidHitPose,
+  applyHumanoidKnockbackStep,
+  resetHumanoidLimbPose
+} from '../npc-health/HumanoidHitReactions.js';
 import {
   ARCHETYPE_PRESETS,
   SHARED_CIV_PROP_GEOS,
@@ -132,11 +137,7 @@ export const pedestrianBehaviorAndReactionsMethods = {
     }
   },
 
-  /**
-   * COMÉDIA LEGO SEM PUNIÇÃO: Ao acertar soco/explosão ou esbarrar de carro em um civil,
-   * ele dá um salto acrobático cômico para trás/lado, solta 2 a 3 Studs Prateados/Azuis de susto e corre de mãos pro alto!
-   */
-  _triggerCivilianSlapstickHit(ped, hitOrigin) {
+  _onCivilianDamaged(ped, hitOrigin, healthRes = null) {
     const root = ped.visual.root;
     const ox = hitOrigin?.x ?? root.position.x + 1;
     const oz = hitOrigin?.z ?? root.position.z + 1;
@@ -152,48 +153,61 @@ export const pedestrianBehaviorAndReactionsMethods = {
     }
 
     ped.isChatGroup = false;
-    ped.slapstickTimer = 0.65;
-    ped.slapstickDuration = 0.65;
-    ped.knockVelX = dx * 9.5;
-    ped.knockVelZ = dz * 9.5;
-    ped.panicTimer = 5.0;
+    ped.diveTimer = 0;
+    ped.crouchPanicTimer = 0;
     ped.panicDirX = dx;
     ped.panicDirZ = dz;
-    ped.state = 'PANIC';
     this._setPedestrianFace(ped, 'civ_panic');
 
-    if (ped.slapstickCooldown <= 0) {
-      ped.slapstickCooldown = 2.2;
-      soundFX.playPlasticHit();
-      if (this.destructibles) {
-        const groundY = this.world.getTerrainHeightAt
-          ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
-          : 0;
-        const dropSpec = ped.id % 2 === 0 ? { silver: 2, blue: 1 } : { silver: 2 };
-        this.destructibles.spawnRewardStudFountain(root.position, groundY, dropSpec);
-      }
+    if (healthRes?.killed) {
+      ped.isDeadCorpse = true;
+      ped.panicTimer = 0;
+      ped.state = 'DEAD';
+      return;
     }
+
+    ped.panicTimer = Math.max(ped.panicTimer || 0, 6.5);
+    ped.state = 'PANIC';
   },
 
   /**
-   * Pânico Cômico LEGO (5.0s) num raio de 28m quando o jogador atira, explode ou soca perto dos civis!
+   * Pânico urbano realista quando há tiros, explosões ou mortes perto dos civis.
+   * Quando `isLethalWitness === true`, parte das testemunhas agacha em choque com as mãos na cabeça
+   * por 1.4s antes de sair correndo em pânico, enquanto outras disparam na hora.
    */
-  triggerPedestrianPanicNear(origin, radius = 28.0) {
-    const clampR = Math.min(34.0, Math.max(18.0, radius));
+  triggerPedestrianPanicNear(origin, radius = 28.0, isLethalWitness = false) {
+    const clampR = Math.min(36.0, Math.max(18.0, radius));
     this.triggerTrafficPanicNear(origin, 26.0);
     for (const ped of this.pedestrians) {
+      if (ped.isDeadCorpse || ped.humanoidHealth?.isDead()) continue;
       const pos = ped.visual.root.position;
       const dx = pos.x - origin.x;
       const dz = pos.z - origin.z;
       const dist = Math.hypot(dx, dz);
       if (dist <= clampR) {
         ped.isChatGroup = false;
-        ped.panicTimer = 5.0;
+        ped.panicTimer = Math.max(ped.panicTimer || 0, isLethalWitness ? 6.8 : 5.2);
         ped.state = 'PANIC';
-        const len = Math.max(0.1, dist);
-        ped.panicDirX = dx / len;
-        ped.panicDirZ = dz / len;
+        if (dist > 0.15) {
+          ped.panicDirX = dx / dist;
+          ped.panicDirZ = dz / dist;
+        } else if (Math.hypot(ped.panicDirX || 0, ped.panicDirZ || 0) < 0.2) {
+          const fallbackAng = (ped.id || 1) * 1.73;
+          ped.panicDirX = Math.sin(fallbackAng);
+          ped.panicDirZ = Math.cos(fallbackAng);
+        }
         this._setPedestrianFace(ped, 'civ_panic');
+
+        if (
+          isLethalWitness &&
+          dist > 1.8 &&
+          (!ped.humanoidHealth || ped.humanoidHealth.state === HUMANOID_STATES.ALIVE) &&
+          (ped.crouchPanicTimer || 0) <= 0 &&
+          ped.id % 3 === 0
+        ) {
+          ped.crouchPanicTimer = 1.4;
+          ped.visual.root.rotation.y = Math.atan2(-dx, -dz);
+        }
       }
     }
   },
@@ -222,8 +236,11 @@ export const pedestrianBehaviorAndReactionsMethods = {
       const ped = this.pedestrians[i];
       const vis = ped.visual;
       const root = vis.root;
+      const health = ped.humanoidHealth;
 
-      if (ped.slapstickCooldown > 0) ped.slapstickCooldown = Math.max(0, ped.slapstickCooldown - dt);
+      if (ped.vehicleHitCooldown > 0) {
+        ped.vehicleHitCooldown = Math.max(0, ped.vehicleHitCooldown - dt);
+      }
       if (ped.photoFlashTimer > 0) {
         ped.photoFlashTimer -= dt;
         if (ped.photoFlashTimer <= 0 && vis.cameraFlashMesh) {
@@ -243,13 +260,56 @@ export const pedestrianBehaviorAndReactionsMethods = {
           root.visible = isCloseVisible;
           root.matrixWorldAutoUpdate = isCloseVisible;
         }
-        if (!isCloseVisible) continue;
+        if (!isCloseVisible && !ped.isDeadCorpse && !health?.isDead()) continue;
         distToPlayer = Math.sqrt(dSq);
       }
 
-      if (isDrivingCar && playerSpeed > 3.5 && distToPlayer < 2.85 && ped.slapstickTimer <= 0) {
-        this._triggerCivilianSlapstickHit(ped, playerPos);
-      } else if (carSpeedingNearSidewalk && distToPlayer < 12.5 && ped.slapstickTimer <= 0) {
+      const terrainYNow = this.world.getTerrainHeightAt
+        ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
+        : 0;
+      const baseYNow = this._getPedestrianGroundY(root.position.x, root.position.z, terrainYNow);
+
+      // Corpo morto permanece deitado sob controle do HumanoidCorpseManager até expirar/reciclar
+      if (ped.isDeadCorpse || health?.state === HUMANOID_STATES.DEAD) {
+        ped.state = 'DEAD';
+        if (vis.cameraFlashMesh) vis.cameraFlashMesh.visible = false;
+        if (health) {
+          applyHumanoidHitPose(vis, health, baseYNow, dt, {
+            sinkOffset: ped._corpseSinkOffset || 0
+          });
+        }
+        continue;
+      }
+
+      // Atropelamento proporcional à velocidade (playerSpeed > 6 fere; > 16 derruba ou mata!)
+      if (
+        isDrivingCar &&
+        playerSpeed > 6.0 &&
+        distToPlayer < 2.85 &&
+        (ped.vehicleHitCooldown || 0) <= 0
+      ) {
+        ped.vehicleHitCooldown = 0.65;
+        const runOverDmg =
+          playerSpeed > 21.0
+            ? 115
+            : playerSpeed > 16.0
+              ? 68 + (playerSpeed - 16.0) * 9.5
+              : 24 + (playerSpeed - 6.0) * 4.2;
+        if (this.destructibles && ped.destructible) {
+          this.destructibles.damageObject(ped.destructible, runOverDmg, playerPos, false, {
+            sourceIsPlayer: true,
+            unscaledDamage: true,
+            isExplosion: playerSpeed > 14.0
+          });
+          if (ped.isDeadCorpse || health?.isDead()) {
+            continue;
+          }
+        }
+      } else if (
+        carSpeedingNearSidewalk &&
+        distToPlayer < 12.5 &&
+        (!health || health.state === HUMANOID_STATES.ALIVE)
+      ) {
         const relX = root.position.x - playerPos.x;
         const relZ = root.position.z - playerPos.z;
         const ahead = relX * carFwdX + relZ * carFwdZ;
@@ -261,10 +321,44 @@ export const pedestrianBehaviorAndReactionsMethods = {
           ped.diveVelZ = -carFwdX * sideSign * 11.5;
         }
         ped.isChatGroup = false;
-        ped.panicTimer = 5.0;
+        ped.crouchPanicTimer = 0;
+        ped.panicTimer = Math.max(ped.panicTimer || 0, 5.0);
         ped.panicDirX = dxFromPlayer / Math.max(0.1, distToPlayer);
         ped.panicDirZ = dzFromPlayer / Math.max(0.1, distToPlayer);
         this._setPedestrianFace(ped, 'civ_panic');
+      }
+
+      // Reações físicas de STAGGER e DOWNED (1.2s caído + 0.35s levantando -> corre normal em pânico!)
+      if (health) {
+        const wasReacting =
+          health.state === HUMANOID_STATES.STAGGER || health.state === HUMANOID_STATES.DOWNED;
+        health.update(dt);
+
+        if (health.state === HUMANOID_STATES.STAGGER || health.state === HUMANOID_STATES.DOWNED) {
+          applyHumanoidKnockbackStep(root, health, dt, (nx, nz) => {
+            if (!this._isValidDryLandForPedestrian(nx, nz)) return { blocked: true };
+            const col = this._resolveBuildingCollision(nx, nz, 1.05);
+            return { x: col.x, z: col.z, valid: true };
+          });
+          const tY = this.world.getTerrainHeightAt
+            ? this.world.getTerrainHeightAt(root.position.x, root.position.z)
+            : 0;
+          const bY = this._getPedestrianGroundY(root.position.x, root.position.z, tY);
+          applyHumanoidHitPose(vis, health, bY, dt);
+          if (ped.destructible) {
+            ped.destructible.basePos.set(root.position.x, bY, root.position.z);
+            ped.destructible.groundY = tY;
+          }
+          continue;
+        }
+
+        if (wasReacting && health.state === HUMANOID_STATES.ALIVE) {
+          resetHumanoidLimbPose(vis);
+          ped.crouchPanicTimer = 0;
+          ped.panicTimer = Math.max(ped.panicTimer || 0, 6.0);
+          ped.state = 'PANIC';
+          this._setPedestrianFace(ped, 'civ_panic');
+        }
       }
 
       ped.animTime += dt;
@@ -272,22 +366,28 @@ export const pedestrianBehaviorAndReactionsMethods = {
       let moveX = 0;
       let moveZ = 0;
       let speed = 0;
+      root.rotation.x = 0;
+      root.rotation.z = 0;
+      vis.leftLeg.rotation.z = 0;
+      vis.rightLeg.rotation.z = 0;
       vis.leftArm.rotation.z = -0.06;
       vis.rightArm.rotation.z = 0.06;
       vis.headYaw = 0;
 
-      if (ped.slapstickTimer > 0) {
-        ped.slapstickTimer = Math.max(0, ped.slapstickTimer - dt);
-        const u = 1.0 - ped.slapstickTimer / ped.slapstickDuration;
-        hopHeight = Math.sin(u * Math.PI) * 2.35;
-        root.position.x += ped.knockVelX * dt;
-        root.position.z += ped.knockVelZ * dt;
-        root.rotation.x = u * Math.PI * 2;
-        vis.leftArm.rotation.x = -2.8;
-        vis.rightArm.rotation.x = -2.8;
-        vis.leftLeg.rotation.x = 0.7;
-        vis.rightLeg.rotation.x = -0.7;
-        if (ped.slapstickTimer <= 0) {
+      if (ped.crouchPanicTimer > 0) {
+        ped.crouchPanicTimer = Math.max(0, ped.crouchPanicTimer - dt);
+        ped.state = 'PANIC';
+        this._setPedestrianFace(ped, 'civ_panic');
+        hopHeight = -0.24;
+        root.rotation.x = 0.24;
+        const tremble = Math.sin(ped.animTime * 28.0) * 0.08;
+        vis.leftArm.rotation.x = -2.85 + tremble;
+        vis.leftArm.rotation.z = 0.42;
+        vis.rightArm.rotation.x = -2.85 - tremble;
+        vis.rightArm.rotation.z = -0.42;
+        vis.leftLeg.rotation.x = -0.52;
+        vis.rightLeg.rotation.x = 0.52;
+        if (ped.crouchPanicTimer <= 0) {
           root.rotation.x = 0;
         }
       } else if (ped.diveTimer > 0) {

@@ -130,6 +130,7 @@ export const UI_TEXTS = {
     fullscreenLabel: 'TELA CHEIA',
     timeOfDayLabel: 'HORÁRIO',
     timeModes: { auto: 'DINÂMICO', day: 'DIA', sunset: 'PÔR DO SOL', night: 'NOITE' },
+    killEffectLabel: 'EFEITO DE KILL',
     mouseSensLabel: 'SENSIBILIDADE DO MOUSE',
     invertYLabel: 'INVERTER EIXO Y',
     controlsSectionTitle: 'LISTA DE CONTROLES',
@@ -159,6 +160,7 @@ export const UI_TEXTS = {
       fov: 'Define a abertura da câmera em terceira pessoa durante a exploração.',
       fullscreen: 'Alterna a exibição do jogo entre janela e tela cheia.',
       timeMode: 'Escolhe entre ciclo automático de dia e noite ou horário fixo.',
+      killEffect: 'Ativa o clarão rápido na tela e o impacto sonoro ao eliminar inimigos.',
       mouseSens: 'Ajusta a velocidade de rotação da câmera ao mover o mouse.',
       invertY: 'Inverte o movimento vertical do mouse ao olhar para cima ou para baixo.',
       controlsList: 'Atalhos principais de teclado e mouse para combate, poderes e veículos.',
@@ -295,6 +297,7 @@ export const UI_TEXTS = {
     fullscreenLabel: 'FULLSCREEN',
     timeOfDayLabel: 'TIME OF DAY',
     timeModes: { auto: 'DYNAMIC', day: 'DAY', sunset: 'SUNSET', night: 'NIGHT' },
+    killEffectLabel: 'KILL EFFECT',
     mouseSensLabel: 'MOUSE SENSITIVITY',
     invertYLabel: 'INVERT Y AXIS',
     controlsSectionTitle: 'CONTROLS LIST',
@@ -324,6 +327,7 @@ export const UI_TEXTS = {
       fov: 'Sets the third-person camera field of view while exploring.',
       fullscreen: 'Switches the game display between windowed mode and fullscreen.',
       timeMode: 'Chooses between an automatic day-night cycle or a fixed time of day.',
+      killEffect: 'Enables the brief screen flash and audio thump when eliminating targets.',
       mouseSens: 'Adjusts how fast the camera rotates when moving the mouse.',
       invertY: 'Inverts vertical mouse movement when looking up or down.',
       controlsList: 'Primary keyboard and mouse shortcuts for combat, powers, and vehicles.',
@@ -457,6 +461,7 @@ export const DEFAULT_GAME_SETTINGS = {
   showRegionToast: true,
   graphicsQuality: 'auto',
   timeMode: 'auto',
+  killEffect: true,
   language: 'pt-BR',
   mouseSensitivity: 1.0,
   invertY: false,
@@ -613,6 +618,7 @@ export function loadGameSettings() {
     const fov = Number(merged.fov);
     merged.fov = Number.isFinite(fov) ? Math.min(85, Math.max(50, fov)) : DEFAULT_GAME_SETTINGS.fov;
     merged.invertY = Boolean(merged.invertY);
+    merged.killEffect = merged.killEffect !== false;
     return merged;
   } catch (e) {
     return defaults;

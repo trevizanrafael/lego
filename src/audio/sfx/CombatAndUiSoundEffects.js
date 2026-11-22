@@ -545,3 +545,79 @@ export function playEmoteJingleSfx(sfx, emoteIdx = 0) {
     osc.stop(t + 0.13);
   });
 }
+
+export function playKillConfirmSfx(sfx) {
+  const ctx = sfx._ensureContext();
+  if (!ctx) return false;
+  const now = ctx.currentTime;
+  const targetBus = sfx.sfxBus || ctx.destination;
+  let postNode = targetBus;
+  if (typeof ctx.createDynamicsCompressor === 'function') {
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold?.setValueAtTime?.(-16, now);
+    comp.knee?.setValueAtTime?.(8, now);
+    comp.ratio?.setValueAtTime?.(6, now);
+    comp.attack?.setValueAtTime?.(0.002, now);
+    comp.release?.setValueAtTime?.(0.09, now);
+    comp.connect(targetBus);
+    postNode = comp;
+  }
+
+  // Sub-drop grave e seco estilo GTA V (115 Hz -> 36 Hz em 0.15s) + transiente lowpass (620 Hz -> 180 Hz em 0.045s)
+  const subOsc = ctx.createOscillator();
+  const bodyOsc = ctx.createOscillator();
+  const subGain = ctx.createGain();
+  subOsc.type = 'sine';
+  subOsc.frequency.setValueAtTime(115, now);
+  subOsc.frequency.exponentialRampToValueAtTime(36, now + 0.15);
+  bodyOsc.type = 'triangle';
+  bodyOsc.frequency.setValueAtTime(96, now);
+  bodyOsc.frequency.exponentialRampToValueAtTime(36, now + 0.145);
+  subGain.gain.setValueAtTime(0.28, now);
+  subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.155);
+  subOsc.connect(subGain);
+  bodyOsc.connect(subGain);
+  subGain.connect(postNode);
+
+  const thudOsc = ctx.createOscillator();
+  const lpFilter = ctx.createBiquadFilter();
+  const thudGain = ctx.createGain();
+  thudOsc.type = 'triangle';
+  thudOsc.frequency.setValueAtTime(620, now);
+  thudOsc.frequency.exponentialRampToValueAtTime(180, now + 0.045);
+  lpFilter.type = 'lowpass';
+  lpFilter.frequency.setValueAtTime(520, now);
+  lpFilter.Q.setValueAtTime(0.85, now);
+  thudGain.gain.setValueAtTime(0.19, now);
+  thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.048);
+  thudOsc.connect(lpFilter);
+  lpFilter.connect(thudGain);
+  thudGain.connect(postNode);
+
+  subOsc.start(now); bodyOsc.start(now); thudOsc.start(now);
+  subOsc.stop(now + 0.16); bodyOsc.stop(now + 0.155); thudOsc.stop(now + 0.05);
+  return true;
+}
+
+export function playHitmarkerTickSfx(sfx) {
+  const ctx = sfx._ensureContext();
+  if (!ctx) return false;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const lpFilter = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(1180, now);
+  osc.frequency.exponentialRampToValueAtTime(420, now + 0.022);
+  lpFilter.type = 'lowpass';
+  lpFilter.frequency.setValueAtTime(1650, now);
+  lpFilter.Q.setValueAtTime(0.7, now);
+  gain.gain.setValueAtTime(0.075, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.022);
+  osc.connect(lpFilter);
+  lpFilter.connect(gain);
+  gain.connect(sfx.sfxBus || ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.024);
+  return true;
+}

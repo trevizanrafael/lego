@@ -4,6 +4,7 @@ import { mergeBufferGeometries } from '../BuildingGenerator.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { createFactionSoldierVisual, AIM_POSE } from '../../entities/FactionSoldierBuilder.js';
 import { FACTION_THEME } from './TerritoryZonesAndConfigs.js';
+import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
 
 // ============================================================================
 // GEOMETRIAS PRÉ-FUNDIDAS COMPARTILHADAS, UNIDADES DE COMBATE & COMBOIOS 3D
@@ -234,6 +235,7 @@ export const combatUnitsAndConvoysMethods = {
 
     const safePos = this._findSafeZonePos(x, z, isBoss || heavyClass ? 2.2 : 1.15, y);
     const root = new THREE.Group();
+    root.rotation.order = 'YXZ';
     root.userData.skipStaticMerge = true;
 
     const unitScale =
@@ -290,11 +292,18 @@ export const combatUnitsAndConvoysMethods = {
       groundY: safePos.y
     });
 
+    const humanoidHealth = new HumanoidHealthModel({
+      kind: isBoss || heavyClass ? 'boss' : 'soldier',
+      maxHp: hp
+    });
+    destructible.maxHp = hp;
     destructible.isCombatNpc = true;
     destructible.isTankNpc = isTank;
     destructible.isBossNpc = isBoss || Boolean(heavyClass);
     destructible.isAlliedToPlayer = isAllied;
     destructible.noAutoRespawn = true;
+    destructible.unitScale = unitScale;
+    destructible.humanoidHealth = humanoidHealth;
 
     const npc = {
       faction,
@@ -302,6 +311,8 @@ export const combatUnitsAndConvoysMethods = {
       isAllied,
       isMecha: isBoss,
       isBoss,
+      unitScale,
+      humanoidHealth,
       outpostId,
       patrolAnchor: patrolAnchor || { x: safePos.x, z: safePos.z },
       patrolAngle: Math.random() * Math.PI * 2,
@@ -329,6 +340,8 @@ export const combatUnitsAndConvoysMethods = {
       },
       className: soldier.className
     };
+    destructible.visual = npc.visual;
+    destructible.npcRef = npc;
 
     destructible.onShattered = () => {
       if (npc.isBankRobber) this.bankHeist.onRobberDefeated(npc);
@@ -474,7 +487,7 @@ export const combatUnitsAndConvoysMethods = {
     // Efeito visual de derrapagem/desembarque tático
     this.destructibles.spawnHeroSwapEffect(
       new THREE.Vector3(cx, cy + 0.4, cz),
-      FACTION_THEME[convoy.faction]?.hex || 0xfacc15
+      FACTION_THEME[convoy.faction]?.hex || 0xf59e0b
     );
 
     const offsets = [

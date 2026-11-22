@@ -3,6 +3,8 @@ import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { AIM_POSE, animateFactionSoldier, createFactionSoldierVisual } from '../../entities/FactionSoldierBuilder.js';
 import { getSharedPursuitGeos } from './PolicePursuitAssets.js';
+import { HumanoidHealthModel, HUMANOID_STATES } from '../npc-health/HumanoidHealthModel.js';
+import { applyHumanoidHitPose, applyHumanoidKnockbackStep } from '../npc-health/HumanoidHitReactions.js';
 
 // ============================================================================
 // HELICÓPTERO ÁGUIA/BOPE (HOLOFOTE NOTURNO), TROPAS A PÉ, DRONES & COMBATE
@@ -17,12 +19,14 @@ export const policeHelicopterAndTacticalMethods = {
     const soldier = createFactionSoldierVisual(factionKey, roleKey);
 
     const root = soldier.root || new THREE.Group();
+    root.rotation.order = 'YXZ';
     root.userData.skipStaticMerge = true;
     if (!soldier.root) {
       root.add(soldier.bodyRig);
       soldier.root = root;
     }
-    if (isExo && soldier.bodyRig) soldier.bodyRig.scale.setScalar(1.08);
+    const unitScale = isExo ? 1.08 : 1.0;
+    if (isExo && soldier.bodyRig) soldier.bodyRig.scale.setScalar(unitScale);
     if (!soldier.torso) soldier.torso = soldier.bodyRig;
     if (!soldier.weapon) soldier.weapon = soldier.weaponMount;
 
@@ -32,16 +36,18 @@ export const policeHelicopterAndTacticalMethods = {
     soldier.root.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
     this.scene.add(soldier.root);
 
+    const maxHp = isExo ? 120 : isRiotElite ? 95 : 65;
+    const humanoidHealth = new HumanoidHealthModel({ kind: 'police', maxHp });
     const obj = this.destructibles.registerDestructible({
       mesh: soldier.root,
       type: 'npc_fighter',
-      hp: isExo ? 120 : isRiotElite ? 95 : 65,
+      hp: maxHp,
       radius: 0.95,
       height: 2.05,
       colliders: [],
       debrisColors: isExo || isRiotElite
-        ? [0x15161a, 0x0b0c0f, 0xfacc15, LEGO_COLORS.yellow]
-        : [0x0f1d3a, 0x111827, 0xfacc15, LEGO_COLORS.yellow],
+        ? [0x15161a, 0x0b0c0f, 0xf59e0b, LEGO_COLORS.yellow]
+        : [0x0f1d3a, 0x111827, 0xf59e0b, LEGO_COLORS.yellow],
       studDrops: isExo
         ? { silver: 2, gold: 8, blue: 6, purple: 1 }
         : isRiotElite
@@ -53,12 +59,17 @@ export const policeHelicopterAndTacticalMethods = {
       isTankNpc: isRiotElite || isExo,
       noAutoRespawn: true
     });
+    obj.maxHp = maxHp;
     obj.isCombatNpc = true;
+    obj.isPoliceUnit = true;
     obj.isTankNpc = isRiotElite || isExo;
+    obj.unitScale = unitScale;
     obj.visual = soldier;
+    obj.humanoidHealth = humanoidHealth;
 
     const unit = {
       mesh: soldier.root, visual: soldier, obj, destructible: obj,
+      humanoidHealth, unitScale,
       faction: factionKey, role: roleKey, className: soldier.className,
       isExo, isRiotElite,
       walkPhase: Math.random() * Math.PI * 2,
@@ -68,14 +79,20 @@ export const policeHelicopterAndTacticalMethods = {
       shootCooldown: 0.7 + Math.random() * 0.7,
       specialCooldown: 2.2 + Math.random() * 1.5
     };
+    obj.npcRef = unit;
     this.footUnits.push(unit);
     return unit;
   },
 
   _clearAllFootUnits() {
     for (const fu of this.footUnits) {
+      const keepCorpse = fu.obj?._managedByCorpseManager ? fu.mesh : null;
       if (fu.obj) this.destructibles.unregisterDestructible(fu.obj);
-      if (fu.mesh?.parent) fu.mesh.parent.remove(fu.mesh);
+      if (keepCorpse && this.scene) {
+        if (keepCorpse.parent !== this.scene) this.scene.add(keepCorpse);
+      } else if (fu.mesh?.parent) {
+        fu.mesh.parent.remove(fu.mesh);
+      }
     }
     this.footUnits.length = 0;
   },
@@ -85,8 +102,14 @@ export const policeHelicopterAndTacticalMethods = {
     for (let i = this.footUnits.length - 1; i >= 0; i--) {
       const fu = this.footUnits[i];
       if (!fu.obj || fu.obj.destroyed) {
+        if (fu.visual?.muzzleFlash) fu.visual.muzzleFlash.visible = false;
+        const keepCorpse = fu.obj?._managedByCorpseManager ? fu.mesh : null;
         if (fu.obj) this.destructibles.unregisterDestructible(fu.obj);
-        if (fu.mesh?.parent) fu.mesh.parent.remove(fu.mesh);
+        if (keepCorpse && this.scene) {
+          if (keepCorpse.parent !== this.scene) this.scene.add(keepCorpse);
+        } else if (fu.mesh?.parent) {
+          fu.mesh.parent.remove(fu.mesh);
+        }
         this.footUnits.splice(i, 1);
         continue;
       }
@@ -103,6 +126,36 @@ export const policeHelicopterAndTacticalMethods = {
       if (fu.muzzleTimer > 0) {
         fu.muzzleTimer -= dt;
         if (fu.muzzleTimer <= 0 && vis?.muzzleFlash) vis.muzzleFlash.visible = false;
+      }
+
+      if (fu.humanoidHealth) {
+        fu.humanoidHealth.update(dt);
+        if (
+          fu.humanoidHealth.state === HUMANOID_STATES.STAGGER ||
+          fu.humanoidHealth.state === HUMANOID_STATES.DOWNED
+        ) {
+          if (vis?.muzzleFlash) vis.muzzleFlash.visible = false;
+          applyHumanoidKnockbackStep(fu.mesh, fu.humanoidHealth, dt, (nx, nz, cx, cz) => {
+            if (this._isSegmentBlockedByBuilding(cx, cz, nx, nz)) return { blocked: true };
+            return { x: nx, z: nz, valid: true };
+          });
+          const gY = this.world?.getTerrainHeightAt
+            ? this.world.getTerrainHeightAt(pos.x, pos.z)
+            : 0;
+          applyHumanoidHitPose(vis, fu.humanoidHealth, gY, dt, {
+            unitScale: fu.unitScale || 1
+          });
+          fu.obj.basePos.set(pos.x, gY, pos.z);
+          fu.obj.groundY = gY;
+          continue;
+        }
+      }
+
+      fu.mesh.rotation.x = 0;
+      fu.mesh.rotation.z = 0;
+      if (vis) {
+        vis.leftLeg.rotation.z = 0;
+        vis.rightLeg.rotation.z = 0;
       }
 
       const ang = Math.atan2(playerPos.x - pos.x, playerPos.z - pos.z);
@@ -202,7 +255,7 @@ export const policeHelicopterAndTacticalMethods = {
 
     const obj = this.destructibles.registerDestructible({
       mesh: heliGroup, type: 'police_helicopter', hp: 260, radius: 3.6, height: 3.2, colliders: [],
-      debrisColors: [0x111827, LEGO_COLORS.white, 0x38bdf8, 0xfacc15],
+      debrisColors: [0x111827, LEGO_COLORS.white, 0x38bdf8, 0xf59e0b],
       studDrops: { silver: 0, gold: 12, blue: 8, purple: 2 },
       groundY: 0, isPoliceUnit: true, noAutoRespawn: true
     });
@@ -490,7 +543,9 @@ export const policeHelicopterAndTacticalMethods = {
           this._applyEnergyNetHit(playerPos, controller);
         } else if (p.kind === 'missile') {
           this.destructibles._triggerExplosion(p.mesh.position.clone(), 5.2, 35, false, false, {
-            fromPursuitPolice: true
+            fromPursuitPolice: true,
+            isExplosion: true,
+            sourceIsPlayer: false
           });
         }
         this.applyPursuitDamageToPlayer(p.damage, controller);
@@ -502,7 +557,9 @@ export const policeHelicopterAndTacticalMethods = {
         if (p.mesh.position.y <= floorY + 0.15) {
           if (p.kind === 'missile') {
             this.destructibles._triggerExplosion(p.mesh.position.clone(), 5.0, 30, false, false, {
-              fromPursuitPolice: true
+              fromPursuitPolice: true,
+              isExplosion: true,
+              sourceIsPlayer: false
             });
           }
           removeProj = true;

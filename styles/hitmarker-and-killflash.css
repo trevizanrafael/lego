@@ -1,0 +1,152 @@
+/* =========================================================================
+   HITMARKER TÁTICO CENTRAL & KILL FLASH PÓS-FX FALLBACK (ESTILO GTA V NOIR)
+   Estética AAA Frameless Angular — Zero pílulas redondas, alto contraste
+   ========================================================================= */
+
+#kill-flash-overlay,
+.kill-flash-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(226, 236, 248, 0.30) 0%,
+      rgba(196, 212, 232, 0.20) 56%,
+      rgba(4, 6, 10, 0.42) 100%
+    );
+  backdrop-filter: saturate(0.24) contrast(1.18) brightness(1.14);
+  -webkit-backdrop-filter: saturate(0.24) contrast(1.18) brightness(1.14);
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
+}
+
+#kill-flash-overlay.is-active,
+.kill-flash-overlay.is-active {
+  opacity: 1;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#kill-flash-overlay.hidden,
+.kill-flash-overlay.hidden,
+body.title-or-loading-active #kill-flash-overlay,
+body.satellite-transition #kill-flash-overlay {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+/* =========================================================================
+   HITMARKER EM 'X' VAZADO NO CENTRO DA MIRA (#hud-hitmarker)
+   ========================================================================= */
+
+#hud-hitmarker,
+.hud-hitmarker {
+  --hm-color: #f8fafc;
+  --hm-glow: rgba(248, 250, 252, 0.28);
+  --hm-spoke-len: 8px;
+  --hm-spoke-thick: 2px;
+  --hm-center-gap: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%) scale(0.88);
+  transform-origin: 50% 50%;
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  border-radius: 0;
+  filter: drop-shadow(1px 1px 0 #04060a);
+  transition:
+    opacity 0.09s ease-out,
+    transform 0.09s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+#hud-hitmarker.is-visible,
+.hud-hitmarker.is-visible {
+  opacity: 1;
+}
+
+/* Acerto normal: X branco tático (#f8fafc) compacto (120ms) */
+#hud-hitmarker.is-hit,
+.hud-hitmarker.is-hit {
+  --hm-color: #f8fafc;
+  --hm-glow: rgba(248, 250, 252, 0.32);
+  --hm-spoke-len: 8px;
+  --hm-spoke-thick: 2px;
+  --hm-center-gap: 5px;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Kill confirm: X carmesim arterial (#dc2626 / #ef4444) maior (scale ~1.38, 220ms) */
+#hud-hitmarker.is-kill,
+.hud-hitmarker.is-kill {
+  --hm-color: #ef4444;
+  --hm-glow: rgba(220, 38, 38, 0.68);
+  --hm-spoke-len: 9px;
+  --hm-spoke-thick: 2.4px;
+  --hm-center-gap: 5.5px;
+  transform: translate(-50%, -50%) scale(1.38);
+  filter:
+    drop-shadow(1px 1px 0 #04060a)
+    drop-shadow(0 0 6px rgba(220, 38, 38, 0.65));
+}
+
+/* 4 hastes diagonais angulares com centro vazado para não cobrir o ponto da mira */
+#hud-hitmarker .hm-spoke,
+.hud-hitmarker .hm-spoke {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--hm-spoke-len);
+  height: var(--hm-spoke-thick);
+  background: var(--hm-color);
+  outline: 1px solid #04060a;
+  border-radius: 0;
+  box-shadow: 0 0 4px var(--hm-glow);
+  transform-origin: 0% 50%;
+}
+
+#hud-hitmarker.is-kill .hm-spoke,
+.hud-hitmarker.is-kill .hm-spoke {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* Diagonal superior-esquerda (225 deg a partir do centro vazado) */
+#hud-hitmarker .hm-tl,
+.hud-hitmarker .hm-tl {
+  transform: translateY(-50%) rotate(225deg) translateX(var(--hm-center-gap));
+}
+
+/* Diagonal superior-direita (315 deg a partir do centro vazado) */
+#hud-hitmarker .hm-tr,
+.hud-hitmarker .hm-tr {
+  transform: translateY(-50%) rotate(315deg) translateX(var(--hm-center-gap));
+}
+
+/* Diagonal inferior-esquerda (135 deg a partir do centro vazado) */
+#hud-hitmarker .hm-bl,
+.hud-hitmarker .hm-bl {
+  transform: translateY(-50%) rotate(135deg) translateX(var(--hm-center-gap));
+}
+
+/* Diagonal inferior-direita (45 deg a partir do centro vazado) */
+#hud-hitmarker .hm-br,
+.hud-hitmarker .hm-br {
+  transform: translateY(-50%) rotate(45deg) translateX(var(--hm-center-gap));
+}
+
+#hud-hitmarker.hidden,
+.hud-hitmarker.hidden,
+body.title-or-loading-active #hud-hitmarker,
+body.satellite-transition #hud-hitmarker {
+  display: none !important;
+  opacity: 0 !important;
+}

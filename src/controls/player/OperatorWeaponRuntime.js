@@ -65,6 +65,8 @@ export class OperatorWeaponRuntime {
     this.chargeTime = 0;
     this.spinupProgress = 0;
     this.isAiming = false;
+    this.isScopedIn = false;
+    this._scopeRecoilKick = 0;
     this._muzzleScratch = new THREE.Vector3();
     this._dirScratch = new THREE.Vector3();
     this._spreadScratch = new THREE.Vector3();
@@ -117,6 +119,7 @@ export class OperatorWeaponRuntime {
     }
 
     const hud = this.controller?.hud;
+    hud?.updateSniperScopeHud?.({ active: false });
     if (isFactionOperatorKey(charKey)) {
       const weaponSpec = getWeaponSpec(getOperatorSpec(charKey)?.weaponKey);
       const state = this._ensureOperatorState(charKey);
@@ -225,7 +228,10 @@ export class OperatorWeaponRuntime {
     const op = this.getActiveOperatorSpec();
     const weaponSpec = this.getActiveWeaponSpec();
     const state = op ? this._ensureOperatorState(op.key) : null;
-    if (!state || !state.isReloading) return false;
+    if (!state || !state.isReloading) {
+      if (this.isScopedIn) this.syncScopeState(weaponSpec, state);
+      return false;
+    }
     state.isReloading = false;
     state.reloadTimer = 0;
     if (weaponSpec) this._syncWeaponHud(weaponSpec, state);
@@ -251,6 +257,53 @@ export class OperatorWeaponRuntime {
     return true;
   }
 
+  _setScopedIn(nextScoped) {
+    const active = Boolean(nextScoped);
+    const wasScoped = Boolean(this.isScopedIn);
+    this.isScopedIn = active;
+    const visRoot = this.controller?.minifigure?.visualRoot;
+    if (!visRoot) return;
+    if (active) visRoot.visible = false;
+    else if (wasScoped || visRoot.visible === false) visRoot.visible = true;
+  }
+
+  syncScopeState(weaponSpecArg = null, stateArg = null) {
+    const ctrl = this.controller;
+    const opActive = this.isOperatorActive();
+    this.isAiming = Boolean(opActive && !ctrl?.currentVehicle && !ctrl?.activeRide && ctrl?.mouseButtons?.right);
+    const op = opActive ? this.getActiveOperatorSpec() : null;
+    const weaponSpec = weaponSpecArg || (op ? getWeaponSpec(op.weaponKey) : null);
+    const state = stateArg || (op ? this._ensureOperatorState(op.key) : null);
+    const shouldScope = Boolean(
+      opActive && weaponSpec?.hasScope && state && this.isAiming && !state.isReloading &&
+      !ctrl?.currentVehicle && !ctrl?.activeRide && !ctrl?.fastTravelState?.active &&
+      (ctrl?.rollImpulseTimer || 0) <= 0 && (ctrl?.minifigure?.rollTimer || 0) <= 0
+    );
+    this._setScopedIn(shouldScope);
+
+    const hud = ctrl?.hud;
+    if (!hud?.updateSniperScopeHud) return shouldScope;
+    if (!shouldScope || !weaponSpec || !state) {
+      hud.updateSniperScopeHud({ active: false });
+      return false;
+    }
+    const aimDist = (ctrl?.destructibles?.getAimTargetPoint && ctrl?.camera)
+      ? ctrl.destructibles.getAimTargetPoint(ctrl.camera, 160).distance
+      : 0;
+    hud.updateSniperScopeHud({
+      active: true,
+      weaponKey: weaponSpec.key,
+      scopeTheme: weaponSpec.scopeTheme || 'pcc_cobalt',
+      zoomLabel: weaponSpec.scopeZoomLabel || '4.0X',
+      distanceMeters: Math.round(aimDist),
+      inMag: state.magAmmo,
+      magSize: weaponSpec.magSize,
+      reserve: state.reserveAmmo,
+      recoilKick: this._scopeRecoilKick || 0
+    });
+    return true;
+  }
+
   resetHeldState() {
     this.isTriggerHeld = false;
     this.isCharging = false;
@@ -258,6 +311,14 @@ export class OperatorWeaponRuntime {
     this.spinupProgress = 0;
     this.semiReady = true;
     this.isAiming = false;
+    this._scopeRecoilKick = 0;
+    this._setScopedIn(false);
+    this.controller?.hud?.updateSniperScopeHud?.({ active: false });
+  }
+
+  getAimSensitivityScale() {
+    if (!this.isOperatorActive() || this.controller?.currentVehicle) return 1.0;
+    return this.isScopedIn ? (this.getActiveWeaponSpec()?.aimSensitivityScale || 0.5) : (this.isAiming ? 0.75 : 1.0);
   }
 
   getMoveSpeedMultiplier() {
@@ -270,7 +331,10 @@ export class OperatorWeaponRuntime {
 
   getDesiredAimFov() {
     if (this.isOperatorActive() && !this.controller?.currentVehicle && Boolean(this.controller?.mouseButtons?.right)) {
-      return this.getActiveWeaponSpec()?.aimFov ?? null;
+      const weaponSpec = this.getActiveWeaponSpec();
+      if (!weaponSpec) return null;
+      if (weaponSpec.hasScope && !this.isScopedIn) return null;
+      return weaponSpec.aimFov ?? null;
     }
     return null;
   }
@@ -284,10 +348,19 @@ export class OperatorWeaponRuntime {
     ) {
       this.controller.rollCooldownTimer = Math.max(0, this.controller.rollCooldownTimer - safeDt);
     }
+    if (this._scopeRecoilKick > 0) {
+      this._scopeRecoilKick = Math.max(0, this._scopeRecoilKick - safeDt * 7.5);
+    }
     this.isAiming = Boolean(
-      this.isOperatorActive() && !this.controller?.currentVehicle && this.controller?.mouseButtons?.right
+      this.isOperatorActive() && !this.controller?.currentVehicle && !this.controller?.activeRide && this.controller?.mouseButtons?.right
     );
-    if (!this.isOperatorActive()) return;
+    if (!this.isOperatorActive()) {
+      if (this.isScopedIn) {
+        this._setScopedIn(false);
+        this.controller?.hud?.updateSniperScopeHud?.({ active: false });
+      }
+      return;
+    }
 
     const op = this.getActiveOperatorSpec();
     const weaponSpec = this.getActiveWeaponSpec();
@@ -386,30 +459,31 @@ export class OperatorWeaponRuntime {
     this.controller?.operatorAbilities?.notifyPrimaryWeaponFired?.();
     this._alignActorToCrosshair();
     this.controller?.minifigure?.triggerShoot?.();
+    if (this.isScopedIn) this._scopeRecoilKick = 1.0;
 
     const pos = this.controller?.position || new THREE.Vector3();
     const angle = Number(this.controller?.facingAngle) || 0;
-    const origin = this._muzzleScratch.set(
-      pos.x + Math.sin(angle) * 1.02 - Math.cos(angle) * 0.44,
-      pos.y + 1.28,
-      pos.z + Math.cos(angle) * 1.02 + Math.sin(angle) * 0.44
-    );
+    let origin;
+    if (this.isScopedIn && this.controller?.camera?.getWorldDirection) {
+      this.controller.camera.getWorldDirection(this._dirScratch);
+      origin = this._muzzleScratch.set(
+        pos.x + this._dirScratch.x * 0.85, pos.y + 1.64 + this._dirScratch.y * 0.85, pos.z + this._dirScratch.z * 0.85
+      );
+    } else {
+      origin = this._muzzleScratch.set(
+        pos.x + Math.sin(angle) * 1.02 - Math.cos(angle) * 0.44, pos.y + 1.28, pos.z + Math.cos(angle) * 1.02 + Math.sin(angle) * 0.44
+      );
+    }
     this.controller?.world?.livingCity?.triggerPedestrianPanicNear?.(origin, 32);
 
     const destructibles = this.controller?.destructibles;
     const maxRange = (Number(weaponSpec.falloffEnd) || 65) + 25;
     const aimData = (destructibles?.getAimTargetPoint && this.controller?.camera)
       ? destructibles.getAimTargetPoint(this.controller.camera, maxRange)
-      : {
-          point: new THREE.Vector3(pos.x + Math.sin(angle) * 25, pos.y + 1.28, pos.z + Math.cos(angle) * 25),
-          hitObj: null,
-          distance: 25
-        };
+      : { point: new THREE.Vector3(pos.x + Math.sin(angle) * 25, pos.y + 1.28, pos.z + Math.cos(angle) * 25), hitObj: null, distance: 25 };
 
     let damage = computeWeaponShotDamage(weaponSpec, op.damageMultiplier, aimData.distance, chargeRatio);
-    if ((aimData.hitObj?._signalMarkedTimer ?? 0) > 0) {
-      damage = Number((damage * 1.20).toFixed(4));
-    }
+    if ((aimData.hitObj?._signalMarkedTimer ?? 0) > 0) damage = Number((damage * 1.20).toFixed(4));
     this._spawnBallisticProjectiles(weaponSpec, origin, aimData.point, damage, chargeRatio);
     return true;
   }
@@ -469,7 +543,9 @@ export class OperatorWeaponRuntime {
         damage,
         isSolar: false,
         canBreakCrackedWall: canBreakCracked,
-        canBreakSilver: false
+        canBreakSilver: false,
+        sourceIsPlayer: !this.controller?.isAiBot,
+        isCloseShotgun: weaponSpec.key === 'pcc_shotgun12'
       });
     }
 
@@ -495,6 +571,7 @@ export class OperatorWeaponRuntime {
   }
 
   _syncWeaponHud(weaponSpec, state) {
+    this.syncScopeState(weaponSpec, state);
     const hud = this.controller?.hud;
     if (!hud?.updateWeaponAmmoHud || !weaponSpec || !state) return;
     const reloadProgress = state.isReloading && state.reloadDuration > 0

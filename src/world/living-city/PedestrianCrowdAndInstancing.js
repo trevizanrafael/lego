@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { getTerritoryZoneAt } from '../FactionWarSystem.js';
+import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
+import { resetHumanoidLimbPose } from '../npc-health/HumanoidHitReactions.js';
 import {
   NPC_HEAD_GEO,
   NPC_FACE_SHELL_GEO,
@@ -123,7 +125,7 @@ export const pedestrianCrowdAndInstancingMethods = {
       if (!root || !root.visible) continue;
 
       _PED_QUAT.setFromEuler(root.rotation);
-      _PED_ROOT_MAT4.compose(root.position, _PED_QUAT, _PED_SCALE_ONE);
+      _PED_ROOT_MAT4.compose(root.position, _PED_QUAT, root.scale || _PED_SCALE_ONE);
 
       // Cintura (cor da calça igual aos operadores) em y = 0.72
       composePart(_PED_ROOT_MAT4, 0, 0.72, 0, 0, 0, 0);
@@ -140,9 +142,9 @@ export const pedestrianCrowdAndInstancingMethods = {
       pushMat(decalPool, _PED_WORLD_MAT4);
 
       // Pernas esquerda e direita (pivô y = 0.72 -> sola toca y = 0.00 exato)
-      composePart(_PED_ROOT_MAT4, -0.21, 0.72, 0, vis.leftLeg.rotation.x, 0, 0);
+      composePart(_PED_ROOT_MAT4, -0.21, 0.72, 0, vis.leftLeg.rotation.x, 0, vis.leftLeg.rotation.z || 0);
       pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
-      composePart(_PED_ROOT_MAT4, 0.21, 0.72, 0, vis.rightLeg.rotation.x, 0, 0);
+      composePart(_PED_ROOT_MAT4, 0.21, 0.72, 0, vis.rightLeg.rotation.x, 0, vis.rightLeg.rotation.z || 0);
       pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
 
       // Cabeça humana + Shell de expressão transparente + Cabelo/Boné em y = 1.95 (base headGroup = 1.62)
@@ -217,10 +219,23 @@ export const pedestrianCrowdAndInstancingMethods = {
 
     const terrainY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(safe.x, safe.z) : 0;
     const baseY = this._getPedestrianGroundY(safe.x, safe.z, terrainY);
+    visual.root.rotation.order = 'YXZ';
     visual.root.position.set(safe.x, baseY, safe.z);
     if (isChatGroup) {
       visual.root.rotation.y = chatPartnerAngle;
     }
+
+    const humanoidHealth = new HumanoidHealthModel({
+      kind: 'civilian',
+      maxHp: 100,
+      onRecoveredFromDowned: () => {
+        ped.isChatGroup = false;
+        ped.crouchPanicTimer = 0;
+        ped.panicTimer = Math.max(ped.panicTimer || 0, 6.0);
+        ped.state = 'PANIC';
+        this._setPedestrianFace(ped, 'civ_panic');
+      }
+    });
 
     const ped = {
       id: seed,
@@ -244,15 +259,17 @@ export const pedestrianCrowdAndInstancingMethods = {
       panicTimer: 0,
       panicDirX: 0,
       panicDirZ: 1,
+      crouchPanicTimer: 0,
+      vehicleHitCooldown: 0,
       diveTimer: 0,
       diveVelX: 0,
       diveVelZ: 0,
-      slapstickTimer: 0,
-      slapstickDuration: 0.65,
-      slapstickCooldown: 0,
       knockVelX: 0,
       knockVelZ: 0,
+      isDeadCorpse: false,
+      _corpseSinkOffset: 0,
       animTime: seed * 0.77,
+      humanoidHealth,
       destructible: null
     };
 
@@ -260,17 +277,23 @@ export const pedestrianCrowdAndInstancingMethods = {
       const dObj = this.destructibles.registerDestructible({
         mesh: visual.root,
         type: 'pedestrian_civilian',
-        hp: 999999,
+        hp: 100,
         radius: 0.95,
         height: 2.25,
         colliders: [],
         debrisColors: [visual.torsoHex, visual.legHex],
         studDrops: { silver: 2, gold: 0, blue: 1, purple: 0 },
-        groundY: terrainY
+        groundY: terrainY,
+        noAutoRespawn: true
       });
+      dObj.maxHp = 100;
       dObj.isCivilianPedestrian = true;
-      dObj.onDamaged = (_amount, hitOrigin) => {
-        this._triggerCivilianSlapstickHit(ped, hitOrigin);
+      dObj.noAutoRespawn = true;
+      dObj.pedestrianRef = ped;
+      dObj.visual = visual;
+      dObj.humanoidHealth = humanoidHealth;
+      dObj.onDamaged = (_amount, hitOrigin, healthRes) => {
+        this._onCivilianDamaged(ped, hitOrigin, healthRes);
       };
       ped.destructible = dObj;
     }
@@ -409,6 +432,7 @@ export const pedestrianCrowdAndInstancingMethods = {
     for (let i = 0; i < this.pedestrians.length; i++) {
       if (recycledCount >= maxRecyclesPerTick) break;
       const ped = this.pedestrians[i];
+      if (ped.isDeadCorpse || ped.humanoidHealth?.isDead()) continue;
       const root = ped.visual.root;
       const dist = Math.hypot(root.position.x - playerPos.x, root.position.z - playerPos.z);
       if (dist <= 125.0) continue;
@@ -449,12 +473,17 @@ export const pedestrianCrowdAndInstancingMethods = {
 
         root.position.set(safe.x, pedGroundY, safe.z);
         root.rotation.set(0, 0, 0);
+        root.scale.set(1, 1, 1);
         root.visible = true;
         root.matrixWorldAutoUpdate = true;
+        resetHumanoidLimbPose(ped.visual);
 
         ped.panicTimer = 0;
-        ped.slapstickTimer = 0;
+        ped.crouchPanicTimer = 0;
+        ped.vehicleHitCooldown = 0;
         ped.diveTimer = 0;
+        ped.isDeadCorpse = false;
+        ped._corpseSinkOffset = 0;
         ped.state = 'NORMAL';
         ped.isChatGroup = i % 7 === 0;
         ped.chatPartnerAngle = ang + Math.PI * 0.5;
@@ -462,8 +491,13 @@ export const pedestrianCrowdAndInstancingMethods = {
         ped.z1 = end1Ok ? az1 : safe.z;
         ped.x2 = end2Ok ? ax2 : safe.x + (walkAlongX ? 16 : 0);
         ped.z2 = end2Ok ? az2 : safe.z + (walkAlongX ? 0 : 16);
+        ped.humanoidHealth?.reset(100);
 
         if (ped.destructible) {
+          ped.destructible.hp = 100;
+          ped.destructible.maxHp = 100;
+          ped.destructible.destroyed = false;
+          ped.destructible.isDeadCorpse = false;
           ped.destructible.basePos.copy(root.position);
           ped.destructible.groundY = terrainY;
         }
@@ -473,6 +507,53 @@ export const pedestrianCrowdAndInstancingMethods = {
         break;
       }
       if (!placed) continue;
+    }
+  },
+
+  recycleDeadPedestrianOutOfSight(ped, spawn) {
+    if (!ped || !spawn) return;
+    const root = ped.visual.root;
+    const newArch = this._pickArchetypeForCoords(spawn.x, spawn.z, ped.id + 11);
+    this._rethemePedestrianArchetype(ped, newArch, ped.id + 11);
+
+    const walkAlongX = ped.id % 2 === 0;
+    const halfSeg = 22.0 + (ped.id % 4) * 5.0;
+    const ax1 = walkAlongX ? spawn.x - halfSeg : spawn.x;
+    const az1 = walkAlongX ? spawn.z : spawn.z - halfSeg;
+    const ax2 = walkAlongX ? spawn.x + halfSeg : spawn.x;
+    const az2 = walkAlongX ? spawn.z : spawn.z + halfSeg;
+    const end1Ok = !this._isInsideBuilding(ax1, az1, 1.1) && this._isValidDryLandForPedestrian(ax1, az1);
+    const end2Ok = !this._isInsideBuilding(ax2, az2, 1.1) && this._isValidDryLandForPedestrian(ax2, az2);
+
+    root.position.set(spawn.x, spawn.y, spawn.z);
+    root.rotation.set(0, 0, 0);
+    root.scale.set(1, 1, 1);
+    root.visible = true;
+    root.matrixWorldAutoUpdate = true;
+    resetHumanoidLimbPose(ped.visual);
+
+    ped.isDeadCorpse = false;
+    ped._corpseSinkOffset = 0;
+    ped.panicTimer = 0;
+    ped.crouchPanicTimer = 0;
+    ped.vehicleHitCooldown = 0;
+    ped.diveTimer = 0;
+    ped.state = 'NORMAL';
+    ped.isChatGroup = false;
+    ped.x1 = end1Ok ? ax1 : spawn.x;
+    ped.z1 = end1Ok ? az1 : spawn.z;
+    ped.x2 = end2Ok ? ax2 : spawn.x + (walkAlongX ? 16 : 0);
+    ped.z2 = end2Ok ? az2 : spawn.z + (walkAlongX ? 0 : 16);
+    this._setPedestrianFace(ped, ped.normalFaceKey);
+    ped.humanoidHealth?.reset(100);
+
+    if (ped.destructible) {
+      ped.destructible.hp = 100;
+      ped.destructible.maxHp = 100;
+      ped.destructible.destroyed = false;
+      ped.destructible.isDeadCorpse = false;
+      ped.destructible.basePos.set(spawn.x, spawn.y, spawn.z);
+      ped.destructible.groundY = spawn.terrainY ?? 0;
     }
   },
 

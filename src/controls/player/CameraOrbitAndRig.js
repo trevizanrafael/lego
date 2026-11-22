@@ -267,7 +267,7 @@ export const cameraOrbitAndRigMethods = {
     const opAimFov = !this.currentVehicle ? this.operatorWeapons?.getDesiredAimFov?.() : null;
     const desiredFov = THREE.MathUtils.clamp(
       typeof opAimFov === 'number'
-        ? opAimFov + fovDelta * 0.35
+        ? (this.operatorWeapons?.isScopedIn ? opAimFov : opAimFov + fovDelta * 0.35)
         : (this.isSupersonic || this.isTurboActive || isSombraGrapple)
           ? 74 + fovDelta
           : isCaveiraBlast
@@ -277,12 +277,48 @@ export const cameraOrbitAndRigMethods = {
               : isAimingBeam
                 ? 53 + fovDelta * 0.5
                 : baseUserFov,
-      32,
+      20,
       98
     );
+    const fovLerpRate = this.operatorWeapons?.isScopedIn ? 18 : 10;
     if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
-      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, desiredFov, Math.min(1, dt * 10));
+      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, desiredFov, Math.min(1, dt * fovLerpRate));
       this.camera.updateProjectionMatrix();
+    }
+
+    if (this.operatorWeapons?.isScopedIn) {
+      const cosPitchScoped = Math.cos(this.pitch);
+      const sinPitchScoped = Math.sin(this.pitch);
+      if (!this._camViewDir) this._camViewDir = new THREE.Vector3();
+      const scopedDir = this._camViewDir
+        .set(-Math.sin(this.yaw) * cosPitchScoped, -sinPitchScoped, -Math.cos(this.yaw) * cosPitchScoped)
+        .normalize();
+
+      let eyeX = this.position.x;
+      let eyeY = this.position.y + 1.68;
+      let eyeZ = this.position.z;
+      if (this.cameraShakeTimer > 0) {
+        this.cameraShakeTimer = Math.max(0, this.cameraShakeTimer - dt);
+        const shakeAmp = this.cameraShakeTimer * 0.16;
+        eyeX += (Math.random() - 0.5) * shakeAmp;
+        eyeY += (Math.random() - 0.5) * shakeAmp;
+      }
+      const recoilKick = Number(this.operatorWeapons?._scopeRecoilKick) || 0;
+      const kickPitchOffset = recoilKick * 0.012;
+
+      this.cameraLookTarget.set(eyeX, eyeY, eyeZ);
+      this.camera.position.set(eyeX, eyeY, eyeZ);
+      if (Math.abs(this.camera.near - 0.35) > 0.04) {
+        this.camera.near = 0.35;
+        this.camera.updateProjectionMatrix();
+      }
+      this.camera.lookAt(
+        eyeX + scopedDir.x * 40,
+        eyeY + (scopedDir.y + kickPitchOffset) * 40,
+        eyeZ + scopedDir.z * 40
+      );
+      this.camera.updateMatrixWorld?.();
+      return;
     }
 
     const vehicleScale = this.currentVehicle?.mesh?.userData?.vehicleSpec?.cameraDistScale ?? 1.0;

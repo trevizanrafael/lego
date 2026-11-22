@@ -1,0 +1,208 @@
+/* =========================================================================
+   LUNETA ÓPTICA TÁTICA 4.0X — PCC CONTADOR (NOIR TÁTICO URBANO ANGULAR)
+   Zero caixotes SaaS, zero pílulas redondas, cortes chanfrados em 45 graus
+   ========================================================================= */
+
+body.sniper-scope-active #crosshair,
+#crosshair.scope-hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+body.title-or-loading-active #sniper-scope-overlay,
+body.satellite-transition #sniper-scope-overlay {
+  display: none !important;
+}
+
+#sniper-scope-overlay,
+.sniper-scope-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#sniper-scope-overlay.hidden,
+.sniper-scope-overlay.hidden {
+  display: none !important;
+}
+
+/* Máscara perimetral escura de objetiva óptica com vinheta densa */
+.sniper-scope-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(4, 6, 10, 0) 0%,
+    rgba(4, 6, 10, 0.04) 26%,
+    rgba(8, 18, 38, 0.34) 33%,
+    rgba(4, 6, 10, 0.92) 36.5%,
+    #010103 44%,
+    #010103 100%
+  );
+}
+
+/* Reflexo antirreflexo azul-cobalto sutil nas bordas internas da lente */
+.sniper-scope-glint {
+  position: absolute;
+  width: min(76vh, 76vw);
+  height: min(76vh, 76vw);
+  background:
+    radial-gradient(
+      circle at 28% 24%,
+      rgba(56, 189, 248, 0.11) 0%,
+      rgba(37, 99, 235, 0.05) 28%,
+      transparent 56%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      transparent 63%,
+      rgba(37, 99, 235, 0.22) 68.5%,
+      rgba(56, 189, 248, 0.28) 70%,
+      transparent 72%
+    );
+  clip-path: polygon(
+    29% 2%,
+    71% 2%,
+    98% 29%,
+    98% 71%,
+    71% 98%,
+    29% 98%,
+    2% 71%,
+    2% 29%
+  );
+}
+
+/* Palco central do retículo + telemetria (recebe micro-impulso de recuo) */
+.sniper-scope-reticle-stage {
+  position: relative;
+  width: min(74vh, 74vw);
+  height: min(74vh, 74vw);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+  transition: transform 0.05s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sniper-scope-svg-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.92));
+}
+
+.sniper-scope-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Cantoneiras chanfradas frameless de telemetria lateral */
+.sniper-scope-wing {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: linear-gradient(90deg, rgba(4, 6, 10, 0.78) 0%, rgba(8, 11, 18, 0.42) 100%);
+  clip-path: polygon(
+    8px 0,
+    100% 0,
+    calc(100% - 8px) 100%,
+    0 100%
+  );
+}
+
+.sniper-scope-wing.wing-left {
+  right: calc(100% - 26px);
+  transform: translateY(-50%);
+  border-left: 2px solid #2563eb;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.28);
+}
+
+.sniper-scope-wing.wing-right {
+  left: calc(100% - 26px);
+  transform: translateY(-50%);
+  border-right: 2px solid #38bdf8;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.28);
+}
+
+.sniper-scope-telemetry-txt {
+  font-family: var(--font-tactical, 'Chakra Petch', sans-serif);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #dce3ee;
+  white-space: nowrap;
+  text-shadow: 0 2px 6px #000000;
+}
+
+.sniper-scope-range-txt {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: #7dd3fc;
+  white-space: nowrap;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.35), 0 2px 6px #000000;
+}
+
+/* Contador compacto de munição na base interna da lente */
+.sniper-scope-bottom {
+  position: absolute;
+  bottom: 9.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 16px 4px;
+  background: rgba(4, 6, 10, 0.68);
+  border-top: 1px solid rgba(56, 189, 248, 0.36);
+  clip-path: polygon(
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 100%,
+    0 100%
+  );
+}
+
+.sniper-scope-ammo-txt {
+  font-family: var(--font-display, 'Teko', sans-serif);
+  font-size: 1.48rem;
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: 0.09em;
+  font-variant-numeric: tabular-nums;
+  color: #f8fafc;
+  text-shadow: 0 2px 8px #000000;
+}
+
+.sniper-scope-ammo-txt.is-low-ammo {
+  color: #dc2626;
+  text-shadow: 0 0 10px rgba(220, 38, 38, 0.55), 0 2px 8px #000000;
+}
+
+@media (max-width: 980px) {
+  .sniper-scope-wing.wing-left {
+    left: 14px;
+    right: auto;
+    top: calc(50% - 42px);
+  }
+  .sniper-scope-wing.wing-right {
+    right: 14px;
+    left: auto;
+    top: calc(50% - 42px);
+  }
+}
