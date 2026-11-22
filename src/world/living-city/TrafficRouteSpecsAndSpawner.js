@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { ensureVehicleNightLights } from '../DayNightAtmosphereManager.js';
+import { attachVehicleOccupants, restoreDefaultOccupants } from '../vehicles/VehicleOccupants.js';
 
 export const SHARED_BRAKE_LIGHT_OFF_MAT = new THREE.MeshBasicMaterial({ color: 0x450a0a });
 export const SHARED_BRAKE_LIGHT_ON_MAT = new THREE.MeshBasicMaterial({ color: 0xff1e1e });
@@ -232,6 +233,14 @@ export const trafficRouteSpecsAndSpawnerMethods = {
         groundY: yBase
       });
       destructibleEntry = this.destructibles.objects[this.destructibles.objects.length - 1];
+      attachVehicleOccupants(destructibleEntry, {
+        source: 'traffic',
+        carType: cfg.type,
+        isPoliceVehicle,
+        isMoto,
+        isBus,
+        seedIndex: this.trafficVehicles.length
+      });
     }
 
     const cruiseSpeed = isBus
@@ -348,6 +357,12 @@ export const trafficRouteSpecsAndSpawnerMethods = {
     obj.basePos.copy(tv.mesh.position);
     obj.baseRot.copy(tv.mesh.rotation);
     obj.groundY = ny;
+    obj.hp = obj.maxHp;
+    obj.isBurning = false;
+    obj.engineFireTimer = 0;
+    obj.damageStage = 'intact';
+    obj.driverKilled = false;
+    restoreDefaultOccupants(obj);
 
     const isRotated90 = Math.abs(Math.sin(rotY)) > 0.7;
     const w = isRotated90 ? tv.baseD : tv.baseW;

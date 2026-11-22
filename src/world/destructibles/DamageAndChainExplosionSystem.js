@@ -14,6 +14,7 @@ import {
   isPrecisionShot,
   getEffectiveHumanoidHeight
 } from '../npc-health/HumanoidHitZones.js';
+import { tryHitVehicleOccupantFromShot } from '../vehicles/VehicleOccupants.js';
 
 const WATER_DROP_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.22, 0.22, 0.22));
 
@@ -126,7 +127,7 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     };
     const blastCandidates = this.getObjectsNear(center.x, center.z, radius + 3.0);
     for (const obj of blastCandidates) {
-      if (obj.destroyed || obj.isDriven || obj.isGrabbed) continue;
+      if (obj.destroyed || obj.isGrabbed) continue;
       const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
       const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
       const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
@@ -350,8 +351,21 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       return;
     }
 
+    if (obj.type === 'car' && !damageOpts?.isExplosion) {
+      tryHitVehicleOccupantFromShot(
+        this,
+        obj,
+        damageOpts?.impactPoint || hitOrigin,
+        amount,
+        { ...damageOpts, sourceIsPlayer: causedByPlayer }
+      );
+    }
+
     const finalDamage = amount;
     obj.hp -= finalDamage;
+    if (causedByPlayer && obj.type === 'car') {
+      obj._lastDamagedByPlayer = true;
+    }
     obj.shakeTimer = 0.2;
     if (!obj._isDynamicIndexed) this.wakeObjectMatrix(obj.mesh);
     this.world?.livingCity?.triggerPedestrianPanicNear(obj.basePos, 28);
@@ -387,6 +401,9 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     }
 
     if (obj.hp > 0) {
+      if (obj.type === 'car') {
+        this._syncVehicleDamageStageOnHit?.(obj, causedByPlayer);
+      }
       if (finalDamage >= 5) {
         soundFX.playPlasticHit();
         this._spawnDebris(obj, 2, 0.6);
@@ -397,6 +414,15 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
   },
 
   _shatterObject(obj, hitOrigin = null, damageOpts = {}) {
+    if (obj.type === 'car') {
+      this._explodeVehicleObject(obj, hitOrigin, damageOpts);
+      return;
+    }
+    if (obj.type === 'police_helicopter') {
+      this._startHelicopterTailspinCrash(obj, hitOrigin, damageOpts);
+      return;
+    }
+
     const causedByPlayer =
       damageOpts?.sourceIsPlayer !== undefined
         ? Boolean(damageOpts.sourceIsPlayer)
@@ -418,7 +444,8 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     if (typeof obj.onShattered === 'function') {
       obj.onShattered();
     }
-    if (typeof this.onObjectDestroyed === 'function' && causedByPlayer) {
+    const skipCollateralPropChaos = Boolean(obj.isStreetProp && damageOpts?._fromVehicleExplosion);
+    if (typeof this.onObjectDestroyed === 'function' && causedByPlayer && !skipCollateralPropChaos) {
       this.onObjectDestroyed(obj, hitOrigin, {
         ...damageOpts,
         sourceIsPlayer: true
@@ -443,7 +470,9 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
     const upwardBoost = obj.type === 'car' || obj.type === 'gas_pump' ? 1.65 : isBig ? 1.25 : 0.95;
     this._spawnDebris(obj, pieceCount, upwardBoost);
 
-    this._spawnStudShower(obj);
+    if (!(damageOpts?._chainDepth >= 1)) {
+      this._spawnStudShower(obj);
+    }
 
     if (obj.type === 'hydrant') {
       this._createWaterGeyser(obj.basePos.clone(), obj.groundY);
@@ -456,7 +485,8 @@ export const DAMAGE_AND_CHAIN_EXPLOSION_METHODS = {
       blastCenter.y += 1.0;
       this._triggerExplosion(blastCenter, 36.0, 110, false, true, {
         sourceIsPlayer: causedByPlayer,
-        isExplosion: true
+        isExplosion: true,
+        _chainDepth: (damageOpts?._chainDepth || 0) + 1
       });
     }
   },

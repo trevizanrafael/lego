@@ -5,6 +5,7 @@ import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { createFactionSoldierVisual, AIM_POSE } from '../../entities/FactionSoldierBuilder.js';
 import { FACTION_THEME } from './TerritoryZonesAndConfigs.js';
 import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
+import { attachVehicleOccupants, disembarkOccupants } from '../vehicles/VehicleOccupants.js';
 
 // ============================================================================
 // GEOMETRIAS PRÉ-FUNDIDAS COMPARTILHADAS, UNIDADES DE COMBATE & COMBOIOS 3D
@@ -440,6 +441,19 @@ export const combatUnitsAndConvoysMethods = {
       }
     }
 
+    const squadRoles = roles
+      ? roles.slice(0, 6)
+      : isAllied
+        ? ['rifleman', 'rifleman', 'tank', 'medic']
+        : ['rifleman', 'rifleman', 'tank'];
+    attachVehicleOccupants(destructible, {
+      source: 'convoy',
+      carType: vType,
+      faction,
+      isAllied: Boolean(isAllied),
+      count: Math.min(4, squadRoles.length)
+    });
+
     const convoy = {
       faction,
       isAllied,
@@ -451,11 +465,7 @@ export const combatUnitsAndConvoysMethods = {
       speed: 24.0,
       maxTravelTimer: 4.5,
       disembarked: false,
-      squadRoles: roles
-        ? roles.slice(0, 6)
-        : isAllied
-          ? ['rifleman', 'rifleman', 'tank', 'medic']
-          : ['rifleman', 'rifleman', 'tank'],
+      squadRoles,
       anchor: target ? { x: target.x, z: target.z } : null,
       outpostId: target?.id || null
     };
@@ -466,6 +476,7 @@ export const combatUnitsAndConvoysMethods = {
   _disembarkConvoySquad(convoy) {
     if (convoy.disembarked) return;
     convoy.disembarked = true;
+    disembarkOccupants(convoy.destructible, Infinity);
 
     const cx = convoy.mesh.position.x;
     const cz = convoy.mesh.position.z;
@@ -529,13 +540,18 @@ export const combatUnitsAndConvoysMethods = {
       const dz = cv.targetZ - cv.mesh.position.z;
       const dist = Math.hypot(dx, dz);
 
-      if (dist <= 3.2 || cv.maxTravelTimer <= 0) {
+      if (dist <= 3.2 || cv.maxTravelTimer <= 0 || cv.destructible.driverKilled) {
         this._disembarkConvoySquad(cv);
         this.activeConvoyDrops.splice(i, 1);
         continue;
       }
 
-      const step = Math.min(dist, cv.speed * dt);
+      const engineMult = this.destructibles?.getVehicleEngineSpeedMultiplier
+        ? this.destructibles.getVehicleEngineSpeedMultiplier(cv.destructible)
+        : 1.0;
+      const effSpeed = cv.speed * engineMult;
+      cv.destructible._aiCurrentSpeed = effSpeed;
+      const step = Math.min(dist, effSpeed * dt);
       const nx = cv.mesh.position.x + (dx / dist) * step;
       const nz = cv.mesh.position.z + (dz / dist) * step;
       const resolved = this.livingCity._resolveBuildingCollision(nx, nz, 2.1);

@@ -30,6 +30,9 @@ import {
 import {
   VORTEX_SYMBIOTE_HERO_VFX_METHODS
 } from './destructibles/VortexSymbioteHeroVfx.js';
+import {
+  VEHICLE_WRECK_AND_FIRE_METHODS
+} from './destructibles/VehicleWreckAndFire.js';
 
 export { STUD_TIERS };
 
@@ -81,6 +84,8 @@ export class DestructibleManager {
     this._fxPool = [];
     this.lightWallSegments = [];
     this.timedBeams = [];
+    this._crashingHelis = [];
+    this._playerKnockoutRecoverTimer = 0;
     this._turboGhostBikeObj = null;
     this._vortexComboStep = 0;
 
@@ -104,7 +109,17 @@ export class DestructibleManager {
       } else if (!obj.destroyed) {
         obj.hp = obj.maxHp;
         obj.heatLevel = 0;
+        obj.isBurning = false;
+        obj.engineFireTimer = 0;
+        obj.damageStage = 'intact';
+        obj.driverKilled = false;
       }
+    }
+    if (Array.isArray(this._crashingHelis)) {
+      for (const ch of this._crashingHelis) {
+        if (ch.mesh) ch.mesh.parent?.remove(ch.mesh);
+      }
+      this._crashingHelis.length = 0;
     }
     for (const s of this.ambientStuds) {
       s.collected = false;
@@ -149,6 +164,8 @@ export class DestructibleManager {
    */
   update(dt, playerPosition, cameraForward = null) {
     this._updateCullingShakeAndRespawn(dt, playerPosition, cameraForward);
+    this._updateDamagedAndBurningVehicles(dt, playerPosition);
+    this._updateCrashingHelicopters(dt);
     this._updateProjectiles(dt);
     this._updateThrownCars(dt);
     this._updateGrenades(dt);
@@ -162,6 +179,7 @@ export class DestructibleManager {
 installNonEnumerablePrototypeMethods(DestructibleManager.prototype, [
   DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS,
   DAMAGE_AND_CHAIN_EXPLOSION_METHODS,
+  VEHICLE_WRECK_AND_FIRE_METHODS,
   DEBRIS_AND_STUD_MAGNET_METHODS,
   PROJECTILES_AND_BALLISTICS_METHODS,
   BALLISTICS_SIMULATION_UPDATE_METHODS,

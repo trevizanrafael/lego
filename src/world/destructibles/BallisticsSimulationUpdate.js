@@ -297,8 +297,11 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
         const thrownNear = this.getObjectsNear(cx, cz, 5.5);
         for (const obj of thrownNear) {
           if (obj.destroyed || obj === carObj || obj.isDriven) continue;
-          const dHoriz = Math.hypot(cx - obj.basePos.x, cz - obj.basePos.z);
-          const dVert = Math.abs(cy - (obj.basePos.y + obj.height * 0.5));
+          const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+          const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+          const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+          const dHoriz = Math.hypot(cx - ox, cz - oz);
+          const dVert = Math.abs(cy - (oy + obj.height * 0.5));
           if (dHoriz <= obj.radius + 2.2 && dVert <= obj.height + 1.8) {
             hitAny = true;
             break;
@@ -310,11 +313,10 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
         const fromPlayer = tc.sourceIsPlayer !== undefined ? Boolean(tc.sourceIsPlayer) : true;
         const blastPos = carObj.mesh.position.clone();
         carObj.basePos.copy(blastPos);
-        this._shatterObject(carObj, blastPos, { sourceIsPlayer: fromPlayer });
-        this._triggerExplosion(blastPos, 9.5, 180, false, true, {
+        this._shatterObject(carObj, blastPos, {
+          sourceIsPlayer: fromPlayer,
           canBreakCrackedWall: true,
           canBreakSilver: true,
-          sourceIsPlayer: fromPlayer,
           isExplosion: true
         });
         this.thrownCars.splice(i, 1);
@@ -370,8 +372,11 @@ export const BALLISTICS_SIMULATION_UPDATE_METHODS = {
         const grenObjs = this.getObjectsNear(gx, gz, 3.0);
         for (const obj of grenObjs) {
           if (obj.destroyed) continue;
-          const dHoriz = Math.hypot(gx - obj.basePos.x, gz - obj.basePos.z);
-          const dVert = Math.abs(gy - (obj.basePos.y + obj.height * 0.5));
+          const ox = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
+          const oy = obj._isDynamicIndexed ? (obj.mesh?.position?.y ?? obj.basePos.y) : obj.basePos.y;
+          const oz = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
+          const dHoriz = Math.hypot(gx - ox, gz - oz);
+          const dVert = Math.abs(gy - (oy + obj.height * 0.5));
           if (dHoriz <= obj.radius + r && dVert <= obj.height * 0.6 + r) {
             hitCollision = true;
             break;

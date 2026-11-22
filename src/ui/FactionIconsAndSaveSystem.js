@@ -112,6 +112,7 @@ export const UI_TEXTS = {
     resetTerritoriesFeedback: 'Territórios reiniciados.',
     pauseCtx: { region: 'Região', hero: 'Herói', faction: 'Facção', studs: 'Studs', bases: 'Bases', playTime: 'Tempo de jogo' },
     pauseStats: { goldenBricks: 'BLOCOS DOURADOS', territories: 'TERRITÓRIOS', playTime: 'DE JOGO' },
+    pauseKillboard: { title: 'BAIXAS', total: 'TOTAL', police: 'POL', civilian: 'CIV', cv: 'CV', pcc: 'PCC', ares: 'ARES' },
     quitChoices: {
       title: 'SAIR PARA O MENU',
       message: 'Deseja salvar seu progresso antes de voltar ao menu inicial?',
@@ -283,6 +284,7 @@ export const UI_TEXTS = {
     resetTerritoriesFeedback: 'Territories reset.',
     pauseCtx: { region: 'Region', hero: 'Hero', faction: 'Faction', studs: 'Studs', bases: 'Bases', playTime: 'Play time' },
     pauseStats: { goldenBricks: 'GOLD BRICKS', territories: 'TERRITORIES', playTime: 'PLAYED' },
+    pauseKillboard: { title: 'KILLS', total: 'TOTAL', police: 'POL', civilian: 'CIV', cv: 'CV', pcc: 'PCC', ares: 'ARES' },
     quitChoices: {
       title: 'QUIT TO MENU',
       message: 'Save your progress before returning to the main menu?',
@@ -488,10 +490,28 @@ export function loadAllSaveSlots() {
   return [null, null, null];
 }
 
+export function normalizeSessionKills(raw = null) {
+  const src = raw && typeof raw === 'object' ? raw : null;
+  const police = Math.max(0, Math.floor(Number(src?.police) || 0));
+  const civilian = Math.max(0, Math.floor(Number(src?.civilian) || 0));
+  const cv = Math.max(0, Math.floor(Number(src?.cv) || 0));
+  const pcc = Math.max(0, Math.floor(Number(src?.pcc) || 0));
+  const ares = Math.max(0, Math.floor(Number(src?.ares) || 0));
+  const sum = police + civilian + cv + pcc + ares;
+  const rawTotal = Number(src?.total);
+  const total = Number.isFinite(rawTotal) && rawTotal >= sum ? Math.floor(rawTotal) : sum;
+  return { total, police, civilian, cv, pcc, ares };
+}
+
 export function writeSaveSlot(slotIndex, data = {}) {
   const slots = loadAllSaveSlots();
   const prev = slots[slotIndex];
   const validFaction = FACTION_DATA[data.faction] ? data.faction : 'cv';
+  const sessionKills = data.sessionKills && typeof data.sessionKills === 'object'
+    ? normalizeSessionKills(data.sessionKills)
+    : prev?.sessionKills && typeof prev.sessionKills === 'object'
+      ? normalizeSessionKills(prev.sessionKills)
+      : normalizeSessionKills(null);
   const customHero = data.customHero && typeof data.customHero === 'object'
     ? { ...data.customHero }
     : prev?.customHero && typeof prev.customHero === 'object'
@@ -546,6 +566,7 @@ export function writeSaveSlot(slotIndex, data = {}) {
     customGarage,
     aircraftCustom,
     radioState,
+    sessionKills,
     savedAtMs,
     playTimeSec,
     updatedAt: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
