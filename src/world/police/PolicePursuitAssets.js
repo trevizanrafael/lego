@@ -227,23 +227,23 @@ export const policePursuitAssetMethods = {
       exoArmor: getLegoMaterial(0x0f172a, { metalness: 0.68, roughness: 0.18 }),
       exoNeon: new THREE.MeshBasicMaterial({ color: 0x00f0ff }),
       exoRed: new THREE.MeshBasicMaterial({ color: 0xef4444 }),
-      strobeRedOn: new THREE.MeshBasicMaterial({ color: 0xff2a2a }),
-      strobeBlueOn: new THREE.MeshBasicMaterial({ color: 0x2563eb }),
+      strobeRedOn: new THREE.MeshBasicMaterial({ color: 0xb91c1c }),
+      strobeBlueOn: new THREE.MeshBasicMaterial({ color: 0x1d4ed8 }),
       strobeOff: getLegoMaterial(0x1e293b),
       heliGlass: getLegoMaterial(0x38bdf8, { transparent: true, opacity: 0.55, roughness: 0.08 }),
       spotlightCone: new THREE.MeshBasicMaterial({
-        color: 0xf8fafc,
+        color: 0x64748b,
         transparent: true,
-        opacity: 0.2,
-        blending: THREE.AdditiveBlending,
+        opacity: 0.045,
+        blending: THREE.NormalBlending,
         depthWrite: false,
-        side: THREE.DoubleSide
+        side: THREE.FrontSide
       }),
       spotlightDisc: new THREE.MeshBasicMaterial({
-        color: 0xfef9c3,
+        color: 0x94a3b8,
         transparent: true,
-        opacity: 0.34,
-        blending: THREE.AdditiveBlending,
+        opacity: 0.085,
+        blending: THREE.NormalBlending,
         depthWrite: false
       }),
       orangePlastic: getLegoMaterial(LEGO_COLORS.orange),

@@ -8,6 +8,7 @@ import { ThirdPersonController } from './controls/ThirdPersonController.js';
 import { LegoHud } from './ui/LegoHud.js';
 import { GraphicsPipeline } from './graphics/GraphicsPipeline.js';
 import { getStaticMinimapCache } from './ui/minimap/MinimapTerrainAndRoadsPainter.js';
+import { CollisionDebugOverlay, isCollisionDebugAllowed } from './world/collision/CollisionDebugOverlay.js';
 
 class LegoCityGame {
   constructor() {
@@ -220,6 +221,13 @@ class LegoCityGame {
     this.controller.onToggleFullMap = () => {
       this.hud.toggleFullMap(this.world, this.controller);
     };
+    this.controller.onToggleCollisionDebug = () => {
+      if (!isCollisionDebugAllowed()) return;
+      if (!this.collisionDebugOverlay) {
+        this.collisionDebugOverlay = new CollisionDebugOverlay(this.scene);
+      }
+      this.collisionDebugOverlay.toggle();
+    };
 
     this._engineReady = true;
     return true;
@@ -405,6 +413,7 @@ class LegoCityGame {
       this._camFwd.z = -Math.cos(this.controller.yaw || 0);
       this.destructibles.update(dt, pos, this._camFwd);
       this.world.update(dt, pos, this.controller);
+      this.collisionDebugOverlay?.update(dt, this.world, pos, this.controller);
     }
     this.hud.update(baseDt);
 
