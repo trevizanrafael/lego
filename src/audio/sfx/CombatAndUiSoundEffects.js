@@ -764,11 +764,12 @@ export function playScopeZoomClickSfx(sfx, zoom = 4.0) {
   const ctx = sfx._ensureContext();
   if (!ctx) return false;
   const now = ctx.currentTime;
-  const z = Math.max(1, Math.min(10, Number(zoom) || 4.0));
+  const z = Math.max(1, Math.min(100, Number(zoom) || 4.0));
+  const pitch = 920 + Math.log10(z) * 420;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'triangle';
-  osc.frequency.setValueAtTime(920 + z * 70, now);
+  osc.frequency.setValueAtTime(pitch, now);
   osc.frequency.exponentialRampToValueAtTime(480, now + 0.016);
   gain.gain.setValueAtTime(0.055, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.016);

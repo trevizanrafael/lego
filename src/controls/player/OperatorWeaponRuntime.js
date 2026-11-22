@@ -37,7 +37,7 @@ const MAT_ARES_LASER = markAsSharedAsset(getLegoMaterial(0xfaf5ff, { emissive: 0
 const PROJ_STYLE_BY_WEAPON = {
   cv_lmg: { geo: HEAVY_TRACER_GEO, mat: MAT_CV_LMG, life: 1.2 },
   cv_pistol: { geo: COMPACT_BULLET_GEO, mat: MAT_CV_PISTOL, life: 1.25 },
-  pcc_dmr: { geo: DMR_SLUG_GEO, mat: MAT_PCC_DMR, life: 0.95 },
+  pcc_dmr: { geo: DMR_SLUG_GEO, mat: MAT_PCC_DMR, life: 2.0 },
   pcc_shotgun12: { geo: BUCKSHOT_PELLET_GEO, mat: MAT_PCC_PELLET, life: 0.44 },
   ares_pulse_minigun: { geo: PULSE_BOLT_GEO, mat: MAT_ARES_PULSE, life: 1.15 },
   ares_charge_rifle: { geo: DMR_SLUG_GEO, mat: MAT_ARES_LASER, life: 1.15 }
@@ -261,7 +261,7 @@ export class OperatorWeaponRuntime {
   setScopeZoom(nextZoom, playClick = false) {
     const weaponSpec = this.getActiveWeaponSpec();
     const minZ = weaponSpec?.scopeMinZoom ?? 1.0;
-    const maxZ = weaponSpec?.scopeMaxZoom ?? 10.0;
+    const maxZ = weaponSpec?.scopeMaxZoom ?? 100.0;
     const raw = Number.isFinite(Number(nextZoom)) ? Number(nextZoom) : (weaponSpec?.scopeDefaultZoom ?? 4.0);
     const clamped = Math.round(THREE.MathUtils.clamp(raw, minZ, maxZ) * 10) / 10;
     const changed = Math.abs(clamped - this.scopeZoom) >= 0.05;
@@ -275,8 +275,14 @@ export class OperatorWeaponRuntime {
     if (!this.isScopedIn) return false;
     const dy = Number(deltaY) || 0;
     if (dy === 0) return true;
-    const step = this.getActiveWeaponSpec()?.scopeZoomStep ?? 0.5;
-    this.setScopeZoom(this.scopeZoom + (dy < 0 ? step : -step), true);
+    const cur = this.scopeZoom || 4.0;
+    let step;
+    if (dy < 0) {
+      step = cur < 4.0 ? 0.5 : cur < 10.0 ? 1.0 : cur < 30.0 ? 2.5 : 10.0;
+    } else {
+      step = cur <= 4.0 ? 0.5 : cur <= 10.0 ? 1.0 : cur <= 30.0 ? 2.5 : 10.0;
+    }
+    this.setScopeZoom(cur + (dy < 0 ? step : -step), true);
     return true;
   }
 
@@ -311,12 +317,12 @@ export class OperatorWeaponRuntime {
       return false;
     }
     const minZ = weaponSpec.scopeMinZoom ?? 1.0;
-    const maxZ = weaponSpec.scopeMaxZoom ?? 10.0;
+    const maxZ = weaponSpec.scopeMaxZoom ?? 100.0;
     this.scopeZoom = Math.round(
       THREE.MathUtils.clamp(Number(this.scopeZoom) || weaponSpec.scopeDefaultZoom || 4.0, minZ, maxZ) * 10
     ) / 10;
     const aimDist = (ctrl?.destructibles?.getAimTargetPoint && ctrl?.camera)
-      ? ctrl.destructibles.getAimTargetPoint(ctrl.camera, 380).distance
+      ? ctrl.destructibles.getAimTargetPoint(ctrl.camera, 1250).distance
       : 0;
     hud.updateSniperScopeHud({
       active: true,
@@ -348,7 +354,7 @@ export class OperatorWeaponRuntime {
   getAimSensitivityScale() {
     if (!this.isOperatorActive() || this.controller?.currentVehicle) return 1.0;
     if (this.isScopedIn) {
-      return THREE.MathUtils.clamp(0.88 / Math.max(1, this.scopeZoom || 4.0), 0.085, 0.88);
+      return THREE.MathUtils.clamp(0.88 / Math.max(1, this.scopeZoom || 4.0), 0.0085, 0.88);
     }
     return this.isAiming ? 0.75 : 1.0;
   }
@@ -372,10 +378,12 @@ export class OperatorWeaponRuntime {
           50,
           85
         );
-        const zoom = THREE.MathUtils.clamp(this.scopeZoom || 4.0, 1.0, 10.0);
+        const minZ = weaponSpec.scopeMinZoom ?? 1.0;
+        const maxZ = weaponSpec.scopeMaxZoom ?? 100.0;
+        const zoom = THREE.MathUtils.clamp(this.scopeZoom || 4.0, minZ, maxZ);
         const halfRad = (baseUserFov * Math.PI) / 360;
         const zoomedFov = (2 * Math.atan(Math.tan(halfRad) / zoom) * 180) / Math.PI;
-        return Number(zoomedFov.toFixed(3));
+        return Number(zoomedFov.toFixed(4));
       }
       return weaponSpec.aimFov ?? null;
     }

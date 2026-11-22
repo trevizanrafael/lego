@@ -164,12 +164,12 @@ describe('Wave 2 — Humanoid Health (ALIVE/STAGGER/DOWNED/DEAD), GTA Blood, Cor
     assert.equal(hud.sniperScopeZoomEl?.textContent, '1.0X');
     assert.ok(camera.fov >= 52, `Em 1.0X o FOV deve abrir para ~58° (atual=${camera.fov.toFixed(1)}°)`);
 
-    // Scroll para cima até 10.0X!
-    for (let i = 0; i < 24; i++) controller.operatorWeapons.handleScopeWheel(-100);
-    for (let i = 0; i < 24; i++) controller.update(0.04);
-    assert.equal(controller.operatorWeapons.scopeZoom, 10.0, 'Scroll para cima deve ir até 10.0X');
-    assert.equal(hud.sniperScopeZoomEl?.textContent, '10.0X');
-    assert.ok(camera.fov <= 8.5, `Em 10.0X o FOV deve fechar para ~6.5° (atual=${camera.fov.toFixed(2)}°)`);
+    // Scroll para cima até 100.0X (passos progressivos: 0.5X -> 1.0X -> 2.5X -> 10.0X)!
+    for (let i = 0; i < 32; i++) controller.operatorWeapons.handleScopeWheel(-100);
+    for (let i = 0; i < 30; i++) controller.update(0.04);
+    assert.equal(controller.operatorWeapons.scopeZoom, 100.0, 'Scroll para cima deve ir até 100.0X');
+    assert.equal(hud.sniperScopeZoomEl?.textContent, '100.0X');
+    assert.ok(camera.fov <= 1.0, `Em 100.0X o FOV deve fechar para ~0.64° (atual=${camera.fov.toFixed(3)}°)`);
     assert.equal(controller.targetDistance, initialDist, 'Scroll dentro da luneta não deve alterar targetDistance 3ª pessoa');
 
     // Disparo supersônico (520 m/s) acerta alvo fino sem tunneling mesmo num passo de 60 FPS (dt = 0.016s -> ~8.3m/frame)

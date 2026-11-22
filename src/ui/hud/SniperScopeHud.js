@@ -33,7 +33,7 @@ function formatScopeZoom(zoom, zoomLabel) {
     return zoomLabel.trim().toUpperCase();
   }
   const num = Number(zoom);
-  const clamped = Number.isFinite(num) && num > 0 ? Math.max(1.0, Math.min(10.0, num)) : 4.0;
+  const clamped = Number.isFinite(num) && num > 0 ? Math.max(1.0, Math.min(100.0, num)) : 4.0;
   return `${clamped.toFixed(1)}X`;
 }
 

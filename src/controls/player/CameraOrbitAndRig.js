@@ -277,11 +277,11 @@ export const cameraOrbitAndRigMethods = {
               : isAimingBeam
                 ? 53 + fovDelta * 0.5
                 : baseUserFov,
-      4.5,
+      0.45,
       98
     );
-    const fovLerpRate = this.operatorWeapons?.isScopedIn ? 24 : 10;
-    if (Math.abs(this.camera.fov - desiredFov) > 0.05) {
+    const fovLerpRate = this.operatorWeapons?.isScopedIn ? 26 : 10;
+    if (Math.abs(this.camera.fov - desiredFov) > 0.004) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, desiredFov, Math.min(1, dt * fovLerpRate));
       this.camera.updateProjectionMatrix();
     }
@@ -294,31 +294,42 @@ export const cameraOrbitAndRigMethods = {
         .set(-Math.sin(this.yaw) * cosPitchScoped, -sinPitchScoped, -Math.cos(this.yaw) * cosPitchScoped)
         .normalize();
 
+      const curZoom = Math.max(1, Number(this.operatorWeapons?.scopeZoom) || 4.0);
+      const shakeAtten = 1 / Math.sqrt(curZoom);
       let eyeX = this.position.x;
       let eyeY = this.position.y + 1.68;
       let eyeZ = this.position.z;
       if (this.cameraShakeTimer > 0) {
         this.cameraShakeTimer = Math.max(0, this.cameraShakeTimer - dt);
-        const shakeAmp = this.cameraShakeTimer * 0.16;
+        const shakeAmp = this.cameraShakeTimer * 0.16 * shakeAtten;
         eyeX += (Math.random() - 0.5) * shakeAmp;
         eyeY += (Math.random() - 0.5) * shakeAmp;
       }
       const recoilKick = Number(this.operatorWeapons?._scopeRecoilKick) || 0;
-      const kickPitchOffset = recoilKick * 0.012;
+      const kickPitchOffset = (recoilKick * 0.012) / Math.sqrt(Math.max(1, curZoom * 0.25));
 
       this.cameraLookTarget.set(eyeX, eyeY, eyeZ);
       this.camera.position.set(eyeX, eyeY, eyeZ);
-      if (Math.abs(this.camera.near - 0.35) > 0.04) {
-        this.camera.near = 0.35;
+      if (this._savedBaseFar === undefined) this._savedBaseFar = this.camera.far || 2200;
+      const scopedNear = curZoom >= 25 ? 1.6 : curZoom >= 10 ? 0.85 : 0.35;
+      const scopedFar = Math.max(this._savedBaseFar, 3800);
+      if (Math.abs(this.camera.near - scopedNear) > 0.04 || Math.abs(this.camera.far - scopedFar) > 1) {
+        this.camera.near = scopedNear;
+        this.camera.far = scopedFar;
         this.camera.updateProjectionMatrix();
       }
       this.camera.lookAt(
-        eyeX + scopedDir.x * 40,
-        eyeY + (scopedDir.y + kickPitchOffset) * 40,
-        eyeZ + scopedDir.z * 40
+        eyeX + scopedDir.x * 80,
+        eyeY + (scopedDir.y + kickPitchOffset) * 80,
+        eyeZ + scopedDir.z * 80
       );
       this.camera.updateMatrixWorld?.();
       return;
+    }
+
+    if (this._savedBaseFar !== undefined && Math.abs(this.camera.far - this._savedBaseFar) > 1) {
+      this.camera.far = this._savedBaseFar;
+      this.camera.updateProjectionMatrix();
     }
 
     const vehicleScale = this.currentVehicle?.mesh?.userData?.vehicleSpec?.cameraDistScale ?? 1.0;
