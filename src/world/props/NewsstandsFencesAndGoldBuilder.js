@@ -6,6 +6,7 @@ import {
 } from '../../materials/LegoMaterials.js';
 import { IS_SCALED_WORLD, ROAD, ws, wsStreetAnchored } from '../core/WorldLayoutScale.js';
 import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
+import { spawnBreakableWhiteFence } from '../SuburbHouseGenerator.js';
 
 function getSidewalkSurfaceY(world, px, pz) {
   const baseTerrain = world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : 0;
@@ -33,39 +34,7 @@ export function buildNewsstandsAndFences(world) {
     const anchored = wsStreetAnchored(spec.x, spec.z, { halfW: 1.2, halfD: 0.4 });
     const fx = anchored.x + spec.dx;
     const fz = anchored.z;
-    const sidewalkY = getSidewalkSurfaceY(world, fx, fz);
-    const fenceGroup = new THREE.Group();
-    fenceGroup.position.set(fx, sidewalkY, fz);
-    fenceGroup.rotation.y = spec.rotY;
-
-    const railTop = createLegoBrick(2.2, 0.9, 0.25, LEGO_COLORS.white, {
-      studStep: 0.45,
-      castShadow: false
-    });
-    railTop.traverse((c) => {
-      if (c.isMesh) c.castShadow = false;
-    });
-    railTop.position.set(0, 0.45, 0);
-    fenceGroup.add(railTop);
-    world.scene.add(fenceGroup);
-
-    const col = world.addCollider(fx, fz, 2.2, 0.45, sidewalkY + 0.95, sidewalkY);
-
-    if (world.destructibles) {
-      world.destructibles.registerDestructible({
-        mesh: fenceGroup,
-        type: 'fence',
-        hp: 10,
-        radius: 1.25,
-        height: 1.0,
-        colliders: [col],
-        debrisColors: [LEGO_COLORS.white, LEGO_COLORS.lightGrey],
-        studDrops: { silver: 3, gold: 1, blue: 0, purple: 0 },
-        groundY: sidewalkY,
-        isStreetProp: true,
-        chaosValue: 2
-      });
-    }
+    spawnBreakableWhiteFence(world, fx, fz, 2.2, spec.rotY);
   });
 }
 

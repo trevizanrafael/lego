@@ -9,9 +9,9 @@ import {
   getStyleVertexTintColor
 } from './BuildingFamiliesAndAtlas.js';
 
-export const BUILDING_LOD_CHUNK_SIZE = 320;
-export const BUILDING_LOD1_DISTANCE = 300;
-export const BUILDING_LOD2_DISTANCE = 1180;
+export const BUILDING_LOD_CHUNK_SIZE = 1800;
+export const BUILDING_LOD1_DISTANCE = 270;
+export const BUILDING_LOD2_DISTANCE = 1020;
 
 const _COLOR_CACHE = new Map();
 let _sharedTrimAndGroundVcMat = null;

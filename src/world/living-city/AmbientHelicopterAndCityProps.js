@@ -601,9 +601,9 @@ export const ambientHelicopterAndCityPropsMethods = {
         sp.kind === 'hotdog' ? 0xfacc15 : sp.kind === 'icecream' ? 0x38bdf8 : 0xfde68a;
 
       const cartGroup = new THREE.Group();
-      const body = createLegoBrick(1.9, 1.05, 1.15, primaryHex, { studStep: 0.55 });
+      const body = createLegoBrick(1.9, 1.05, 1.15, primaryHex, { studs: false });
       body.position.set(0, 0.72, 0);
-      const counterTop = createLegoBrick(2.02, 0.16, 1.25, LEGO_COLORS.white, { studStep: 0.55 });
+      const counterTop = createLegoBrick(2.02, 0.16, 1.25, LEGO_COLORS.white, { studs: false });
       counterTop.position.set(0, 1.32, 0);
 
       const wheelMat = getLegoMaterial(LEGO_COLORS.black, { roughness: 0.35 });

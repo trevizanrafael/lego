@@ -8,7 +8,8 @@
 import * as THREE from 'three';
 import {
   LEGO_COLORS,
-  getLegoMaterial
+  getLegoMaterial,
+  markAsSharedAsset
 } from '../../materials/LegoMaterials.js';
 import {
   optimizeStaticGroupMeshes,
@@ -18,8 +19,57 @@ import {
 } from '../BuildingGenerator.js';
 import { VEHICLE_SPECS } from './VehicleSpecsCatalog.js';
 
-const SHARED_FLAME_MAT = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-const SHARED_AFTERBURNER_MAT = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+const SHARED_FLAME_MAT = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+const SHARED_AFTERBURNER_MAT = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+
+const SHARED_WHEEL_VC_GEO_CACHE = new Map();
+const SHARED_WHEEL_VC_MAT = markAsSharedAsset(
+  getSharedVertexColorMaterial({
+    roughness: 0.32,
+    metalness: 0.28,
+    clearcoat: 0.28,
+    emissive: 0x000000,
+    emissiveIntensity: 0
+  })
+);
+const SHARED_TURBO_FLAME_GEO_CACHE = new Map();
+const SHARED_EXHAUST_FLAME_GEO_CACHE = new Map();
+let SHARED_NAVAL_AIR_GLASS_MAT = null;
+let _fullVehicleRebuildFactory = null;
+
+export function setFullVehicleRebuildFactory(fn) {
+  _fullVehicleRebuildFactory = fn;
+}
+
+function getSharedNavalAirGlassMat() {
+  if (!SHARED_NAVAL_AIR_GLASS_MAT) {
+    SHARED_NAVAL_AIR_GLASS_MAT = markAsSharedAsset(
+      getLegoMaterial(0x070b13, { roughness: 0.12, metalness: 0.5 })
+    );
+    SHARED_NAVAL_AIR_GLASS_MAT.userData = {
+      ...SHARED_NAVAL_AIR_GLASS_MAT.userData,
+      isVehicleGlass: true
+    };
+  }
+  return SHARED_NAVAL_AIR_GLASS_MAT;
+}
+
+function getSharedTurboFlameGeo(xOffsets) {
+  const key = xOffsets.join(',');
+  let geo = SHARED_TURBO_FLAME_GEO_CACHE.get(key);
+  if (!geo) {
+    const coneGeos = [];
+    for (const ex of xOffsets) {
+      const g = new THREE.ConeGeometry(0.24, 1.45, 8);
+      g.rotateX(-Math.PI / 2);
+      g.translate(ex, 0, -0.58);
+      coneGeos.push(g);
+    }
+    geo = markAsSharedAsset(mergeBufferGeometries(coneGeos));
+    SHARED_TURBO_FLAME_GEO_CACHE.set(key, geo);
+  }
+  return geo;
+}
 
 /**
  * Retorna os parâmetros PBR de acabamento automotivo (fosco, perolado, cromado ou brilhante).
@@ -150,10 +200,14 @@ export function cloneVehicleProto(proto) {
       spinGroup: srcToClone.get(pw.spinGroup),
       isFront: pw.isFront
     }));
+  } else if (Array.isArray(proto.userData?.wheels)) {
+    cloned.userData.wheels = [];
   }
   if (protoFlameGroup) {
     const cf = srcToClone.get(protoFlameGroup);
     cloned.userData.turboFlames = cf ? [cf] : [];
+  } else if (Array.isArray(proto.userData?.turboFlames)) {
+    cloned.userData.turboFlames = [];
   }
   if (protoFlameMesh) {
     cloned.userData.turboFlameMesh = srcToClone.get(protoFlameMesh) || null;
@@ -171,6 +225,7 @@ export function createVehicleMaterialContext(cfg = {}) {
   const type = cfg.type || 'apex_gtx';
   const spec = VEHICLE_SPECS[type] || VEHICLE_SPECS.apex_gtx;
   const group = new THREE.Group();
+  const trafficLite = Boolean(cfg.trafficLite || cfg.finishStyle === 'traffic_lite');
 
   const bodyColor = cfg.color ?? 0xfacc15;
   const roofColor = cfg.roofColor ?? LEGO_COLORS.black;
@@ -182,6 +237,7 @@ export function createVehicleMaterialContext(cfg = {}) {
 
   group.userData.carType = type;
   group.userData.initialColors = { color: bodyColor, roofColor };
+  if (trafficLite) group.userData._trafficLite = true;
 
   const bodyMat = getLegoMaterial(bodyColor, finishOpts);
   const darkTrimMat = getLegoMaterial(LEGO_COLORS.charcoal, { roughness: 0.35 });
@@ -201,16 +257,25 @@ export function createVehicleMaterialContext(cfg = {}) {
     metalness: 0.58,
     clearcoat: 0.88
   });
-  glassMat.userData = { ...glassMat.userData, isVehicleGlass: true };
-  const headlightMat = getLegoMaterial(0xfef3c7, { emissive: 0xfde68a, emissiveIntensity: 1.05 });
-  headlightMat.userData = { ...headlightMat.userData, isVehicleHeadlight: true };
-  const taillightMat = getLegoMaterial(0x991b1b, { emissive: 0xdc2626, emissiveIntensity: 0.95 });
+  if (!trafficLite) {
+    glassMat.userData = { ...glassMat.userData, isVehicleGlass: true };
+  }
+  const headlightMat = trafficLite
+    ? getLegoMaterial(0xfef3c7, { roughness: 0.2 })
+    : getLegoMaterial(0xfef3c7, { emissive: 0xfde68a, emissiveIntensity: 1.05 });
+  if (!trafficLite) {
+    headlightMat.userData = { ...headlightMat.userData, isVehicleHeadlight: true };
+  }
+  const taillightMat = trafficLite
+    ? getLegoMaterial(0xdc2626, { roughness: 0.25 })
+    : getLegoMaterial(0x991b1b, { emissive: 0xdc2626, emissiveIntensity: 0.95 });
   const gunmetalTrimMat = getLegoMaterial(0x1e2430, { metalness: 0.48, roughness: 0.34 });
 
   return {
     type,
     spec,
     group,
+    trafficLite,
     bodyColor,
     roofColor,
     finishOpts,
@@ -552,6 +617,7 @@ export function attachStandardWheelsAndFinalize(group, ctx, dims) {
   const {
     type,
     spec,
+    trafficLite,
     customWheelMat,
     tireMat,
     goldMat,
@@ -582,38 +648,69 @@ export function attachStandardWheelsAndFinalize(group, ctx, dims) {
           ? gunmetalTrimMat
           : silverMat);
 
-  const wheels = [];
-  const tireGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.42, 16);
-  tireGeo.rotateZ(Math.PI / 2);
-  const hubGeo = new THREE.CylinderGeometry(wheelRadius * 0.6, wheelRadius * 0.6, 0.44, 12);
-  hubGeo.rotateZ(Math.PI / 2);
-  const wheelGeo = mergeColoredGeometries([
-    { geo: tireGeo, color: tireMat.color },
-    { geo: hubGeo, color: hubMat.color }
-  ]);
-  const hubIsEmissive = Boolean(hubMat.emissive && hubMat.emissive.getHex() !== 0 && (hubMat.emissiveIntensity ?? 0) > 0);
-  const wheelMat = getSharedVertexColorMaterial({
-    roughness: customWheelMat ? (customWheelMat.roughness ?? 0.24) : 0.32,
-    metalness: customWheelMat ? Math.min(0.45, customWheelMat.metalness ?? 0.25) : 0.28,
-    clearcoat: customWheelMat ? (customWheelMat.clearcoat ?? 0.45) : 0.28,
-    emissive: hubIsEmissive ? hubMat.emissive : 0x000000,
-    emissiveIntensity: hubIsEmissive ? 0.3 : 0
-  });
-
-  for (const wz of zPositions) {
-    for (const wx of [-wheelX, wheelX]) {
-      const steerGroup = new THREE.Group();
-      steerGroup.position.set(wx, wheelRadius, wz);
-      const spinGroup = new THREE.Group();
-
-      const wheelMesh = new THREE.Mesh(wheelGeo, wheelMat);
-      spinGroup.add(wheelMesh);
-      steerGroup.add(spinGroup);
-      group.add(steerGroup);
-      wheels.push({ steerGroup, spinGroup, isFront: wz > 0.5 });
-    }
+  const wheelGeoKey = `${wheelRadius}|${tireMat.color.getHex()}|${hubMat.color.getHex()}`;
+  let wheelGeo = SHARED_WHEEL_VC_GEO_CACHE.get(wheelGeoKey);
+  if (!wheelGeo) {
+    const tireGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.42, 16);
+    tireGeo.rotateZ(Math.PI / 2);
+    const hubGeo = new THREE.CylinderGeometry(wheelRadius * 0.6, wheelRadius * 0.6, 0.44, 12);
+    hubGeo.rotateZ(Math.PI / 2);
+    wheelGeo = markAsSharedAsset(
+      mergeColoredGeometries([
+        { geo: tireGeo, color: tireMat.color },
+        { geo: hubGeo, color: hubMat.color }
+      ])
+    );
+    SHARED_WHEEL_VC_GEO_CACHE.set(wheelGeoKey, wheelGeo);
   }
-  group.userData.wheels = wheels;
+
+  const hubIsEmissive = Boolean(
+    hubMat.emissive && hubMat.emissive.getHex() !== 0 && (hubMat.emissiveIntensity ?? 0) > 0
+  );
+  const wheelMat =
+    !customWheelMat && !hubIsEmissive
+      ? SHARED_WHEEL_VC_MAT
+      : getSharedVertexColorMaterial({
+          roughness: customWheelMat ? (customWheelMat.roughness ?? 0.24) : 0.32,
+          metalness: customWheelMat ? Math.min(0.45, customWheelMat.metalness ?? 0.25) : 0.28,
+          clearcoat: customWheelMat ? (customWheelMat.clearcoat ?? 0.45) : 0.28,
+          emissive: hubIsEmissive ? hubMat.emissive : 0x000000,
+          emissiveIntensity: hubIsEmissive ? 0.3 : 0
+        });
+
+  if (trafficLite || group.userData?._trafficLite) {
+    for (const wz of zPositions) {
+      for (const wx of [-wheelX, wheelX]) {
+        const wheelMesh = new THREE.Mesh(wheelGeo, wheelMat);
+        wheelMesh.position.set(wx, wheelRadius, wz);
+        group.add(wheelMesh);
+      }
+    }
+    group.userData._deferredWheelSpec = {
+      wheelX,
+      wheelRadius,
+      zPositions: [...zPositions],
+      wheelGeo,
+      wheelMat
+    };
+    group.userData.wheels = [];
+  } else {
+    const wheels = [];
+    for (const wz of zPositions) {
+      for (const wx of [-wheelX, wheelX]) {
+        const steerGroup = new THREE.Group();
+        steerGroup.position.set(wx, wheelRadius, wz);
+        const spinGroup = new THREE.Group();
+        const wheelMesh = new THREE.Mesh(wheelGeo, wheelMat);
+        spinGroup.add(wheelMesh);
+        steerGroup.add(spinGroup);
+        group.add(steerGroup);
+        wheels.push({ steerGroup, spinGroup, isFront: wz > 0.5 });
+      }
+    }
+    group.userData.wheels = wheels;
+  }
+
   const rm = group.userData._roofMeta;
   group.userData.chassisDims = {
     w: chassisW,
@@ -659,24 +756,37 @@ export function addPoliceLightbar(group, y, z) {
  * Acopla chamas de nitro traseiras e otimiza malhas estáticas preservando grupos móveis.
  */
 export function attachTurboFlames(group, xOffsets, y, z) {
+  if (group.userData?._trafficLite) {
+    // Caso o construtor (ex.: buildUrbanBusMesh) tenha criado steerGroups antes, permite mesclá-los no chassi estático!
+    if (Array.isArray(group.userData.wheels) && group.userData.wheels.length > 0 && !group.userData._deferredWheelSpec) {
+      const sampleMesh = group.userData.wheels[0]?.spinGroup?.children?.[0] || null;
+      group.userData._deferredWheelSpec = {
+        wheelX: Math.abs(group.userData.wheels[0]?.steerGroup?.position?.x || 1.3),
+        wheelRadius: group.userData.chassisDims?.wheelRadius ?? 0.52,
+        zPositions: Array.from(new Set(group.userData.wheels.map((w) => w.steerGroup.position.z))),
+        wheelGeo: sampleMesh?.geometry || null,
+        wheelMat: sampleMesh?.material || null
+      };
+      group.userData.wheels = [];
+    }
+    group.userData._deferredFlameSpec = { xOffsets: [...xOffsets], y, z };
+    group.userData.turboFlames = [];
+    group.userData.turboFlameMesh = null;
+    optimizeStaticGroupMeshes(group, [group.userData.turretGroup]);
+    return;
+  }
+
   const fGroup = new THREE.Group();
   fGroup.position.set(0, y, z);
   fGroup.visible = false;
   fGroup.userData.isNitroFlame = true;
-  const coneGeos = [];
-  for (const ex of xOffsets) {
-    const g = new THREE.ConeGeometry(0.24, 1.45, 8);
-    g.rotateX(-Math.PI / 2);
-    g.translate(ex, 0, -0.58);
-    coneGeos.push(g);
-  }
-  const flameMesh = new THREE.Mesh(mergeBufferGeometries(coneGeos), SHARED_FLAME_MAT);
+
+  const flameMesh = new THREE.Mesh(getSharedTurboFlameGeo(xOffsets), SHARED_FLAME_MAT);
   flameMesh.userData.isNitroFlame = true;
   fGroup.add(flameMesh);
   group.add(fGroup);
 
-  const turboFlames = [fGroup];
-  group.userData.turboFlames = turboFlames;
+  group.userData.turboFlames = [fGroup];
   group.userData.turboFlameMesh = flameMesh;
   const wheelSteerGroups = Array.isArray(group.userData.wheels)
     ? group.userData.wheels.map((w) => w.steerGroup)
@@ -689,19 +799,91 @@ export function attachTurboFlames(group, xOffsets, y, z) {
 }
 
 /**
+ * Promove sob demanda um carro `trafficLite` caso o jogador entre nele ou faça carjacking.
+ */
+export function upgradeTrafficLiteCarIfNeeded(group) {
+  if (!group?.userData?._trafficLite) return group;
+
+  if (typeof group.userData._customTrafficLiteUpgrade === 'function') {
+    group.userData._customTrafficLiteUpgrade(group);
+    group.userData._trafficLite = false;
+    return group;
+  }
+
+  if (_fullVehicleRebuildFactory && group.userData.carType) {
+    const occupants = group.userData._occupantsGroup || null;
+    const modGroup = group.getObjectByName?.('lego_customs_mod_group') || null;
+    const brakeLights = group.userData._trafficBrakeLights || null;
+    const initCols = group.userData.initialColors || {};
+    const rebuildCfg = {
+      ...(group.userData._fullRebuildCfg || {}),
+      type: group.userData.carType,
+      color: group.userData._fullRebuildCfg?.color ?? initCols.color,
+      roofColor: group.userData._fullRebuildCfg?.roofColor ?? initCols.roofColor,
+      trafficLite: false
+    };
+
+    const keepSet = new Set([occupants, modGroup, brakeLights].filter(Boolean));
+    for (let i = group.children.length - 1; i >= 0; i--) {
+      const ch = group.children[i];
+      if (!keepSet.has(ch)) group.remove(ch);
+    }
+
+    const full = _fullVehicleRebuildFactory(rebuildCfg);
+    while (full.children.length > 0) {
+      const ch = full.children[0];
+      full.remove(ch);
+      group.add(ch);
+    }
+    group.userData.wheels = full.userData.wheels || [];
+    group.userData.turretGroup = full.userData.turretGroup || null;
+    group.userData.turboFlames = full.userData.turboFlames || [];
+    group.userData.turboFlameMesh = full.userData.turboFlameMesh || null;
+    group.userData.chassisDims = full.userData.chassisDims || group.userData.chassisDims;
+    group.userData._trafficLite = false;
+    group.matrixAutoUpdate = true;
+    group.matrixWorldAutoUpdate = true;
+    return group;
+  }
+
+  const df = group.userData._deferredFlameSpec;
+  if (df && (!Array.isArray(group.userData.turboFlames) || group.userData.turboFlames.length === 0)) {
+    const fGroup = new THREE.Group();
+    fGroup.position.set(0, df.y, df.z);
+    fGroup.visible = false;
+    fGroup.userData.isNitroFlame = true;
+    const flameMesh = new THREE.Mesh(getSharedTurboFlameGeo(df.xOffsets), SHARED_FLAME_MAT);
+    flameMesh.castShadow = false;
+    flameMesh.userData.isNitroFlame = true;
+    fGroup.add(flameMesh);
+    group.add(fGroup);
+    group.userData.turboFlames = [fGroup];
+    group.userData.turboFlameMesh = flameMesh;
+  }
+  group.userData._trafficLite = false;
+  return group;
+}
+
+/**
  * Acopla cones de pós-combustão / turbo aquático e aéreo em embarcações e aeronaves.
  */
 export function attachExhaustFlames(group, positions, scale = 1.0) {
   const fGroup = new THREE.Group();
   fGroup.visible = false;
-  const coneGeos = [];
-  for (const [ex, ey, ez] of positions) {
-    const g = new THREE.ConeGeometry(0.32 * scale, 2.2 * scale, 8);
-    g.rotateX(-Math.PI / 2);
-    g.translate(ex, ey, ez - 0.95 * scale);
-    coneGeos.push(g);
+  const key = `${scale}|${positions.map((p) => p.join(',')).join(';')}`;
+  let geo = SHARED_EXHAUST_FLAME_GEO_CACHE.get(key);
+  if (!geo) {
+    const coneGeos = [];
+    for (const [ex, ey, ez] of positions) {
+      const g = new THREE.ConeGeometry(0.32 * scale, 2.2 * scale, 8);
+      g.rotateX(-Math.PI / 2);
+      g.translate(ex, ey, ez - 0.95 * scale);
+      coneGeos.push(g);
+    }
+    geo = markAsSharedAsset(mergeBufferGeometries(coneGeos));
+    SHARED_EXHAUST_FLAME_GEO_CACHE.set(key, geo);
   }
-  fGroup.add(new THREE.Mesh(mergeBufferGeometries(coneGeos), SHARED_AFTERBURNER_MAT));
+  fGroup.add(new THREE.Mesh(geo, SHARED_AFTERBURNER_MAT));
   group.add(fGroup);
   group.userData.turboFlames = [fGroup];
 }
@@ -726,13 +908,7 @@ export function createNavalAirMaterialContext(cfg = {}) {
   const goldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.6, roughness: 0.18 });
   const orangeMat = getLegoMaterial(LEGO_COLORS.orange, { roughness: 0.25 });
   const redMat = getLegoMaterial(LEGO_COLORS.red, { emissive: 0xdc2626, emissiveIntensity: 0.5 });
-  const glassMat = new THREE.MeshPhysicalMaterial({
-    color: 0x38bdf8,
-    roughness: 0.1,
-    metalness: 0.35,
-    clearcoat: 0.8,
-    clearcoatRoughness: 0.08
-  });
+  const glassMat = getSharedNavalAirGlassMat();
 
   return {
     type,

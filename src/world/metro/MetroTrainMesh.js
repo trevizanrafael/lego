@@ -10,8 +10,19 @@
 // As MEDIDAS e a INTERFACE são as mesmas do vagão anterior (largura 4.6m, comprimento 13.6m, piso a 0.65m,
 // teto a ~5.45m, portas de 2.80m em z = ±2.85) — embarque, colisão e teto andável continuam iguais.
 import * as THREE from 'three';
-import { SHARED_STUD_GEO } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from '../BuildingGenerator.js';
+import { SHARED_STUD_GEO, markAsSharedAsset } from '../../materials/LegoMaterials.js';
+import {
+  mergeBufferGeometries,
+  mergeColoredGeometries,
+  makeTranslatedBox
+} from '../BuildingGenerator.js';
+
+const SHARED_METRO_SOLID_VC_MAT = markAsSharedAsset(
+  new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.3, metalness: 0.1 })
+);
+const SHARED_METRO_BASIC_VC_MAT = markAsSharedAsset(
+  new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true })
+);
 
 export const METRO_CAR_DIMENSIONS = {
   width: 4.6,
@@ -47,7 +58,8 @@ export function createLegoMetroCarMesh(isFrontCab, isRearCab, materials) {
     glass: [],
     seat: [],
     floor: [],
-    light: []
+    light: [],
+    glowEntries: []
   };
 
   // 1) Chassi, piso e truques com rodas à mostra
@@ -117,14 +129,16 @@ export function createLegoMetroCarMesh(isFrontCab, isRearCab, materials) {
       geos.yellow.push(makeTranslatedBox(carW - 0.4, 0.42, 0.12, 0, floorY + 0.98, ez + zSign * 0.25));
       geos.black.push(makeTranslatedBox(carW + 0.06, 0.34, 0.5, 0, floorY + 0.1, ez + zSign * 0.12));
       geos.black.push(makeTranslatedBox(1.9, 0.42, 0.1, 0, roofBottomY - 0.2, ez + zSign * 0.04));
-      const sign = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.3, 0.04), materials.signGlow);
-      sign.position.set(0, roofBottomY - 0.2, ez + zSign * 0.1);
-      group.add(sign);
+      geos.glowEntries.push({
+        geo: makeTranslatedBox(1.7, 0.3, 0.04, 0, roofBottomY - 0.2, ez + zSign * 0.1),
+        color: materials.signGlow.color
+      });
       const lightMat = zSign > 0 ? materials.headlight : materials.taillight;
       for (const hx of [-1.6, 1.6]) {
-        const hl = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.24, 0.1), lightMat);
-        hl.position.set(hx, floorY + 0.55, ez + zSign * 0.26);
-        group.add(hl);
+        geos.glowEntries.push({
+          geo: makeTranslatedBox(0.6, 0.24, 0.1, hx, floorY + 0.55, ez + zSign * 0.26),
+          color: lightMat.color
+        });
       }
     } else {
       // Passagem entre vagões com sanfona preta
@@ -139,23 +153,35 @@ export function createLegoMetroCarMesh(isFrontCab, isRearCab, materials) {
   addEnd(1, isFrontCab);
   addEnd(-1, isRearCab);
 
-  const addMerged = (list, mat, castShadow = false) => {
-    if (list.length === 0) return;
-    const m = new THREE.Mesh(mergeBufferGeometries(list), mat);
-    for (let i = 0; i < list.length; i++) list[i].dispose();
-    m.castShadow = castShadow;
-    m.receiveShadow = true;
-    group.add(m);
+  const solidEntries = [];
+  const pushVc = (list, color) => {
+    for (let i = 0; i < list.length; i++) solidEntries.push({ geo: list[i], color });
   };
-  addMerged(geos.body, materials.white, true);
-  addMerged(geos.skirt, materials.grey, true);
-  addMerged(geos.black, materials.dark, false);
-  addMerged(geos.yellow, materials.yellow, false);
-  addMerged(geos.roof, materials.roof, true);
-  addMerged(geos.glass, materials.glass, false);
-  addMerged(geos.seat, materials.seat, false);
-  addMerged(geos.floor, materials.floor, false);
-  addMerged(geos.light, materials.interiorLight, false);
+  pushVc(geos.body, materials.white.color);
+  pushVc(geos.skirt, materials.grey.color);
+  pushVc(geos.black, materials.dark.color);
+  pushVc(geos.yellow, materials.yellow.color);
+  pushVc(geos.roof, materials.roof.color);
+  pushVc(geos.seat, materials.seat.color);
+  pushVc(geos.floor, materials.floor.color);
+
+  if (solidEntries.length > 0) {
+    const solidMesh = new THREE.Mesh(mergeColoredGeometries(solidEntries), SHARED_METRO_SOLID_VC_MAT);
+    solidMesh.castShadow = true;
+    solidMesh.receiveShadow = true;
+    group.add(solidMesh);
+  }
+  for (let i = 0; i < geos.light.length; i++) {
+    geos.glowEntries.push({ geo: geos.light[i], color: materials.interiorLight.color });
+  }
+  if (geos.glowEntries.length > 0) {
+    const glowMesh = new THREE.Mesh(mergeColoredGeometries(geos.glowEntries), SHARED_METRO_BASIC_VC_MAT);
+    group.add(glowMesh);
+  }
+  if (geos.glass.length > 0) {
+    const glassMesh = new THREE.Mesh(mergeBufferGeometries(geos.glass), materials.glass);
+    group.add(glassMesh);
+  }
 
   // 5) Pinos LEGO no teto (2 fileiras ao longo do vagão)
   const studXs = [-1.6, 1.6];
@@ -181,17 +207,14 @@ export function createLegoMetroCarMesh(isFrontCab, isRearCab, materials) {
     for (const doorCenterZ of METRO_CAR_DIMENSIONS.doorCentersZ) {
       for (const leafDir of [-1, 1]) {
         const baseZ = doorCenterZ + leafDir * 0.7;
-        const leafGeos = [
-          makeTranslatedBox(0.11, 1.18, 1.4, 0, floorY + 0.62, 0),
-          makeTranslatedBox(0.11, 0.5, 1.4, 0, floorY + 3.55, 0),
-          makeTranslatedBox(0.11, 2.2, 0.16, 0, floorY + 2.3, -0.62),
-          makeTranslatedBox(0.11, 2.2, 0.16, 0, floorY + 2.3, 0.62)
+        const leafEntries = [
+          { geo: makeTranslatedBox(0.11, 1.18, 1.4, 0, floorY + 0.62, 0), color: materials.yellow.color },
+          { geo: makeTranslatedBox(0.11, 0.5, 1.4, 0, floorY + 3.55, 0), color: materials.yellow.color },
+          { geo: makeTranslatedBox(0.11, 2.2, 0.16, 0, floorY + 2.3, -0.62), color: materials.yellow.color },
+          { geo: makeTranslatedBox(0.11, 2.2, 0.16, 0, floorY + 2.3, 0.62), color: materials.yellow.color },
+          { geo: makeTranslatedBox(0.06, 2.12, 1.06, 0, floorY + 2.3, 0), color: materials.dark.color }
         ];
-        const leafMesh = new THREE.Mesh(mergeBufferGeometries(leafGeos), materials.yellow);
-        for (let i = 0; i < leafGeos.length; i++) leafGeos[i].dispose();
-        const leafWin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.12, 1.06), materials.glass);
-        leafWin.position.y = floorY + 2.3;
-        leafMesh.add(leafWin);
+        const leafMesh = new THREE.Mesh(mergeColoredGeometries(leafEntries), SHARED_METRO_SOLID_VC_MAT);
         leafMesh.position.set(dx, 0, baseZ);
         group.add(leafMesh);
 

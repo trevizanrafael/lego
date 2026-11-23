@@ -27,7 +27,8 @@ import {
   buildVaultBoxCabin,
   attachStandardWheelsAndFinalize,
   addPoliceLightbar,
-  attachTurboFlames
+  attachTurboFlames,
+  upgradeTrafficLiteCarIfNeeded
 } from './vehicles/VehicleChassisPrimitives.js';
 
 import {
@@ -70,6 +71,7 @@ export {
   attachStandardWheelsAndFinalize,
   addPoliceLightbar,
   attachTurboFlames,
+  upgradeTrafficLiteCarIfNeeded,
   buildUrbanBusMesh,
   buildOpenTopCabin,
   applyCivilianAndSportsDetails,

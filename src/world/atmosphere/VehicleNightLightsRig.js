@@ -2,12 +2,24 @@ import * as THREE from 'three';
 import { markAsSharedAsset } from '../../materials/LegoMaterials.js';
 import { mergeBufferGeometries } from '../BuildingGenerator.js';
 
-// Geometrias e Materiais Compartilhados para os Faróis Noturnos de Todos os Carros e Trens (Zero GC!)
+// Geometrias e Materiais Compartilhados para os Faróis Noturnos (Zero GC + 2 Draw Calls Instanciados no Trânsito!)
 let SHARED_HEADLIGHT_CONE_GEO = null;
 let SHARED_HEADLIGHT_CONE_MAT = null;
 let SHARED_TAILLIGHT_GLOW_GEO = null;
 let SHARED_TAILLIGHT_GLOW_MAT = null;
 const SHARED_VEHICLE_LIGHT_RIG_GEOS = new Map();
+
+export const MAX_TRAFFIC_LIGHT_PAIRS = 96;
+export const MAX_TRAFFIC_LIGHT_INSTANCES = MAX_TRAFFIC_LIGHT_PAIRS * 2;
+const TRAFFIC_LIGHT_MAX_DIST_SQ = 195 * 195;
+
+// Temporários pré-alocados no módulo (Zero alocação de heap por frame!)
+const _tmpMat4 = new THREE.Matrix4();
+const _localMat4 = new THREE.Matrix4();
+const _tmpPos = new THREE.Vector3();
+const _tmpQuat = new THREE.Quaternion();
+const _tmpScale = new THREE.Vector3(1, 1, 1);
+const _instCursor = { headIdx: 0, tailIdx: 0 };
 
 export function ensureSharedVehicleLightAssets() {
   if (SHARED_HEADLIGHT_CONE_GEO) return;
@@ -27,6 +39,10 @@ export function ensureSharedVehicleLightAssets() {
       side: THREE.DoubleSide
     })
   );
+  SHARED_HEADLIGHT_CONE_MAT.userData = {
+    ...SHARED_HEADLIGHT_CONE_MAT.userData,
+    isDynamicMaterial: true
+  };
 
   SHARED_TAILLIGHT_GLOW_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.46, 0.26, 0.16));
   SHARED_TAILLIGHT_GLOW_MAT = markAsSharedAsset(
@@ -38,6 +54,10 @@ export function ensureSharedVehicleLightAssets() {
       depthWrite: false
     })
   );
+  SHARED_TAILLIGHT_GLOW_MAT.userData = {
+    ...SHARED_TAILLIGHT_GLOW_MAT.userData,
+    isDynamicMaterial: true
+  };
 }
 
 /**
@@ -72,6 +92,118 @@ export function ensurePermanentPlayerHeadlightSpot(mgr) {
     }
   }
   return mgr._playerHeadlightSpot;
+}
+
+/**
+ * Garante sob demanda os 2 `THREE.InstancedMesh` globais para todos os faróis e lanternas
+ * noturnas dos veículos de trânsito IA e comboios motorizados (2 Draw Calls totais!).
+ */
+function ensureTrafficNightLightInstancedMeshes(mgr) {
+  if (!mgr || !mgr.scene) return false;
+  ensureSharedVehicleLightAssets();
+
+  if (!mgr._trafficHeadlightInst) {
+    const hInst = new THREE.InstancedMesh(
+      SHARED_HEADLIGHT_CONE_GEO,
+      SHARED_HEADLIGHT_CONE_MAT,
+      MAX_TRAFFIC_LIGHT_INSTANCES
+    );
+    hInst.name = 'TrafficHeadlightConesInst';
+    hInst.frustumCulled = false;
+    hInst.castShadow = false;
+    hInst.receiveShadow = false;
+    hInst.count = 0;
+    hInst.visible = false;
+    hInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mgr.scene.add(hInst);
+    mgr._trafficHeadlightInst = hInst;
+  } else if (!mgr._trafficHeadlightInst.parent) {
+    mgr.scene.add(mgr._trafficHeadlightInst);
+  }
+
+  if (!mgr._trafficTaillightInst) {
+    const tInst = new THREE.InstancedMesh(
+      SHARED_TAILLIGHT_GLOW_GEO,
+      SHARED_TAILLIGHT_GLOW_MAT,
+      MAX_TRAFFIC_LIGHT_INSTANCES
+    );
+    tInst.name = 'TrafficTaillightGlowInst';
+    tInst.frustumCulled = false;
+    tInst.castShadow = false;
+    tInst.receiveShadow = false;
+    tInst.count = 0;
+    tInst.visible = false;
+    tInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mgr.scene.add(tInst);
+    mgr._trafficTaillightInst = tInst;
+  } else if (!mgr._trafficTaillightInst.parent) {
+    mgr.scene.add(mgr._trafficTaillightInst);
+  }
+
+  return true;
+}
+
+function appendInstancedVehicleLights(carMesh, spec, headInst, tailInst, cursor) {
+  const carType = carMesh.userData?.carType || '';
+  const isMoto = Boolean(spec?.isMotorcycle || carType.startsWith('moto_'));
+  const isBus =
+    spec?.id === 'onibus_urbano' ||
+    spec?.id === 'carro_forte' ||
+    carType === 'onibus_urbano' ||
+    carType === 'carro_forte';
+  const needed = isMoto ? 1 : 2;
+  if (
+    cursor.headIdx + needed > MAX_TRAFFIC_LIGHT_INSTANCES ||
+    cursor.tailIdx + needed > MAX_TRAFFIC_LIGHT_INSTANCES
+  ) {
+    return false;
+  }
+
+  const halfLen = isBus ? 4.6 : isMoto ? 1.35 : 2.35;
+  const xSep = isMoto ? 0.0 : isBus ? 1.05 : 0.82;
+  const headY = isBus ? 0.85 : 0.68;
+
+  let baseMat;
+  if (carMesh.parent && !carMesh.parent.isScene) {
+    carMesh.updateMatrixWorld();
+    baseMat = carMesh.matrixWorld;
+  } else {
+    carMesh.updateMatrix();
+    baseMat = carMesh.matrix;
+  }
+
+  if (isMoto) {
+    _tmpPos.set(0, headY, halfLen);
+    _tmpQuat.identity();
+    _tmpScale.set(0.75, 0.75, 0.9);
+    _localMat4.compose(_tmpPos, _tmpQuat, _tmpScale);
+    _tmpMat4.multiplyMatrices(baseMat, _localMat4);
+    headInst.setMatrixAt(cursor.headIdx++, _tmpMat4);
+
+    _localMat4.identity();
+    _localMat4.setPosition(0, headY + 0.05, -halfLen);
+    _tmpMat4.multiplyMatrices(baseMat, _localMat4);
+    tailInst.setMatrixAt(cursor.tailIdx++, _tmpMat4);
+    return true;
+  }
+
+  _localMat4.identity();
+  _localMat4.setPosition(-xSep, headY, halfLen);
+  _tmpMat4.multiplyMatrices(baseMat, _localMat4);
+  headInst.setMatrixAt(cursor.headIdx++, _tmpMat4);
+
+  _localMat4.setPosition(xSep, headY, halfLen);
+  _tmpMat4.multiplyMatrices(baseMat, _localMat4);
+  headInst.setMatrixAt(cursor.headIdx++, _tmpMat4);
+
+  _localMat4.setPosition(-xSep, headY + 0.04, -halfLen - 0.05);
+  _tmpMat4.multiplyMatrices(baseMat, _localMat4);
+  tailInst.setMatrixAt(cursor.tailIdx++, _tmpMat4);
+
+  _localMat4.setPosition(xSep, headY + 0.04, -halfLen - 0.05);
+  _tmpMat4.multiplyMatrices(baseMat, _localMat4);
+  tailInst.setMatrixAt(cursor.tailIdx++, _tmpMat4);
+  return true;
 }
 
 function getMergedVehicleRigGeos(isMoto, isBus, halfLen, xSep, headY) {
@@ -110,7 +242,7 @@ function getMergedVehicleRigGeos(isMoto, isBus, halfLen, xSep, headY) {
 }
 
 /**
- * Anexa sob demanda (apenas 1x por veículo) 1 Mesh unificada para os faróis e 1 para lanternas traseiras!
+ * Anexa sob demanda (apenas para o veículo conduzido pelo jogador) 1 Mesh unificada para os faróis e 1 para lanternas.
  */
 export function ensureVehicleNightLights(carGroup, spec = null, mgr = null) {
   if (mgr) ensurePermanentPlayerHeadlightSpot(mgr);
@@ -129,11 +261,14 @@ export function ensureVehicleNightLights(carGroup, spec = null, mgr = null) {
 
   const rig = new THREE.Group();
   rig.name = 'vehicle_night_light_rig';
+  rig.userData.isNightLightRig = true;
   rig.visible = false;
 
   const { conesGeo, tailsGeo } = getMergedVehicleRigGeos(isMoto, isBus, halfLen, xSep, headY);
   const conesMesh = new THREE.Mesh(conesGeo, SHARED_HEADLIGHT_CONE_MAT);
   const tailsMesh = new THREE.Mesh(tailsGeo, SHARED_TAILLIGHT_GLOW_MAT);
+  conesMesh.userData.isNightHeadlightCone = true;
+  tailsMesh.userData.isNightHeadlightCone = true;
   conesMesh.matrixAutoUpdate = false;
   tailsMesh.matrixAutoUpdate = false;
   conesMesh.updateMatrix();
@@ -146,7 +281,7 @@ export function ensureVehicleNightLights(carGroup, spec = null, mgr = null) {
 }
 
 // ============================================================================
-// VAGÕES DO METRÔ ILUMINADOS À NOITE + FARÓIS DE CARROS / COMBOIOS / JOGADOR
+// VAGÕES DO METRÔ ILUMINADOS À NOITE + FARÓIS INSTANCIADOS DO TRÂNSITO/COMBOIOS
 // ============================================================================
 export function initMetroNightEnhancements(mgr) {
   ensureSharedVehicleLightAssets();
@@ -172,13 +307,15 @@ export function initMetroNightEnhancements(mgr) {
       }
     });
 
-    const coneGroup = new THREE.Group();
+    const conePairGeos = [];
     for (const sx of [-1.25, 1.25]) {
-      const cone = new THREE.Mesh(SHARED_HEADLIGHT_CONE_GEO, SHARED_HEADLIGHT_CONE_MAT);
-      cone.position.set(sx, 1.35, 6.85);
-      cone.scale.set(1.35, 1.35, 1.65);
-      coneGroup.add(cone);
+      const cg = SHARED_HEADLIGHT_CONE_GEO.clone();
+      cg.scale(1.35, 1.35, 1.65);
+      cg.translate(sx, 1.35, 6.85);
+      conePairGeos.push(cg);
     }
+    const coneGroup = new THREE.Group();
+    coneGroup.add(new THREE.Mesh(markAsSharedAsset(mergeBufferGeometries(conePairGeos)), SHARED_HEADLIGHT_CONE_MAT));
     coneGroup.visible = false;
     leadCar.group.add(coneGroup);
     mgr.metroLeadCones.push(coneGroup);
@@ -245,39 +382,72 @@ export function updateAllVehicleHeadlights(mgr, playerPos, controller, vehicleLi
     }
   }
 
-  const lc = mgr.world.livingCity;
-  if (!lc) return;
+  if (!vehicleLightsOn) {
+    if (mgr._trafficHeadlightInst) {
+      mgr._trafficHeadlightInst.count = 0;
+      mgr._trafficHeadlightInst.visible = false;
+    }
+    if (mgr._trafficTaillightInst) {
+      mgr._trafficTaillightInst.count = 0;
+      mgr._trafficTaillightInst.visible = false;
+    }
+    return;
+  }
 
-  // Faróis e lanternas nos carros em movimento do Trânsito Urbano (culling suave a 220m para 60 FPS!)
+  const lc = mgr.world?.livingCity;
+  if (!lc || !ensureTrafficNightLightInstancedMeshes(mgr)) {
+    if (mgr._trafficHeadlightInst) {
+      mgr._trafficHeadlightInst.count = 0;
+      mgr._trafficHeadlightInst.visible = false;
+    }
+    if (mgr._trafficTaillightInst) {
+      mgr._trafficTaillightInst.count = 0;
+      mgr._trafficTaillightInst.visible = false;
+    }
+    return;
+  }
+
+  const headInst = mgr._trafficHeadlightInst;
+  const tailInst = mgr._trafficTaillightInst;
+  _instCursor.headIdx = 0;
+  _instCursor.tailIdx = 0;
+
   if (Array.isArray(lc.trafficVehicles)) {
     for (let i = 0; i < lc.trafficVehicles.length; i++) {
       const tv = lc.trafficVehicles[i];
-      if (!tv.mesh || !tv.destructible || tv.destructible.destroyed) continue;
-      if (tv.destructible === drivenObj) continue;
-
-      const rig = ensureVehicleNightLights(tv.mesh, tv.spec);
-      if (!rig) continue;
-
-      if (!vehicleLightsOn || tv.hijackedByPlayer) {
-        rig.visible = false;
-        continue;
-      }
+      if (!tv.mesh || !tv.mesh.visible || !tv.destructible || tv.destructible.destroyed) continue;
+      if (tv.destructible.isBurnedWreck || tv.destructible === drivenObj || tv.hijackedByPlayer) continue;
       if (playerPos) {
         const dx = tv.mesh.position.x - playerPos.x;
         const dz = tv.mesh.position.z - playerPos.z;
-        rig.visible = dx * dx + dz * dz < 220 * 220;
-      } else {
-        rig.visible = true;
+        if (dx * dx + dz * dz > TRAFFIC_LIGHT_MAX_DIST_SQ) continue;
+      }
+      if (!appendInstancedVehicleLights(tv.mesh, tv.spec, headInst, tailInst, _instCursor)) {
+        break;
       }
     }
   }
 
-  // Faróis nos Comboios Motorizados da Guerra Territorial quando ativos à noite!
   if (lc.factionWar && Array.isArray(lc.factionWar.activeConvoyDrops)) {
-    for (const cv of lc.factionWar.activeConvoyDrops) {
-      if (!cv.mesh) continue;
-      const rig = ensureVehicleNightLights(cv.mesh, cv.mesh.userData?.vehicleSpec);
-      if (rig) rig.visible = vehicleLightsOn;
+    for (let i = 0; i < lc.factionWar.activeConvoyDrops.length; i++) {
+      const cv = lc.factionWar.activeConvoyDrops[i];
+      if (!cv.mesh || !cv.mesh.visible) continue;
+      if (cv.carObj?.destroyed || cv.carObj?.isBurnedWreck || (drivenObj && cv.carObj === drivenObj)) continue;
+      if (playerPos) {
+        const dx = cv.mesh.position.x - playerPos.x;
+        const dz = cv.mesh.position.z - playerPos.z;
+        if (dx * dx + dz * dz > TRAFFIC_LIGHT_MAX_DIST_SQ) continue;
+      }
+      if (!appendInstancedVehicleLights(cv.mesh, cv.mesh.userData?.vehicleSpec, headInst, tailInst, _instCursor)) {
+        break;
+      }
     }
   }
+
+  headInst.count = _instCursor.headIdx;
+  tailInst.count = _instCursor.tailIdx;
+  headInst.visible = _instCursor.headIdx > 0;
+  tailInst.visible = _instCursor.tailIdx > 0;
+  if (_instCursor.headIdx > 0) headInst.instanceMatrix.needsUpdate = true;
+  if (_instCursor.tailIdx > 0) tailInst.instanceMatrix.needsUpdate = true;
 }

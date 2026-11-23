@@ -369,7 +369,17 @@ function consolidateSingleMaterial(m, obj, dynamicMats, remapMap) {
   }
 
   if (m.map || m.emissiveMap || m.alphaMap) {
-    const texKey = `${m.type}|${m.map?.uuid || ''}|${m.emissiveMap?.uuid || ''}|${m.alphaMap?.uuid || ''}|${m.transparent ? 1 : 0}`;
+    if (
+      m.transparent &&
+      (m.opacity ?? 1) >= 0.92 &&
+      !m.alphaMap &&
+      (m.blending === undefined || m.blending === THREE.NormalBlending)
+    ) {
+      m.alphaTest = Math.max(m.alphaTest || 0, 0.42);
+      m.transparent = false;
+      m.depthWrite = true;
+    }
+    const texKey = `${m.type}|${m.map?.uuid || ''}|${m.emissiveMap?.uuid || ''}|${m.alphaMap?.uuid || ''}|${m.transparent ? 1 : 0}|${Math.round((m.alphaTest || 0) * 20)}|${m.polygonOffset ? 1 : 0}`;
     let sharedTexMat = SHARED_TEXTURED_POOL.get(texKey);
     if (!sharedTexMat) {
       if (m.isMeshPhysicalMaterial && !m.transparent) {
@@ -380,7 +390,12 @@ function consolidateSingleMaterial(m, obj, dynamicMats, remapMap) {
           emissiveMap: m.emissiveMap || null,
           emissiveIntensity: m.emissiveIntensity ?? 0,
           roughness: m.roughness ?? 0.35,
-          metalness: m.metalness ?? 0.08
+          metalness: m.metalness ?? 0.08,
+          alphaTest: m.alphaTest || 0,
+          side: m.side ?? THREE.FrontSide,
+          polygonOffset: Boolean(m.polygonOffset),
+          polygonOffsetFactor: m.polygonOffsetFactor || 0,
+          polygonOffsetUnits: m.polygonOffsetUnits || 0
         });
         markAsSharedAsset(sharedTexMat);
       } else {

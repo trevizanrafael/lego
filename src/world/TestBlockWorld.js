@@ -13,6 +13,7 @@ import { applySavedAircraftConfigsToCarrier } from './AircraftCustomGarage.js';
 import { buildSuperBancoCentral } from './regions/SuperBankBuilder.js';
 import { buildHeroTowerComplex, buildCentralParkAndLake, buildDowntownSkyscrapersAndTransitionBlocks } from './regions/DowntownBuilder.js';
 import { buildNorthSuburbAndGasStation } from './regions/NorthSuburbBuilder.js';
+import { finalizeSuburbBreakableInstancedProps } from './SuburbHouseGenerator.js';
 import { buildSouthBeachAndFerrisWheel } from './regions/SouthBeachBuilder.js';
 import { buildEastCanalIndustrialAndPort } from './regions/EastPortBuilder.js';
 import { buildWestHighwayAndAirport } from './regions/WestAirportBuilder.js';
@@ -111,13 +112,12 @@ export class TestBlockWorld {
     if (this._buildingLodBatcher) {
       this._buildingLodBatcher.flushToScene(this.scene);
     }
+    finalizeSuburbBreakableInstancedProps(this);
     this._finalizeMergedSidewalks();
     this._finalizeInstancedTrees();
-    const staticPhaseChildren = new Set(this.scene.children);
 
     // 10. Cidade Viva (PASSO 7): Trânsito em Movimento, Pedestres com Pânico, Patrulhas do BOPE e Guerra das 3 Facções (CV, PCC e A.R.E.S.)
     this.livingCity = new LivingCityManager(this, this.destructibles, this.destructibles?.hud);
-    const beforeAtmosIdx = this.scene.children.length;
 
     // 11. Ciclo Cinematográfico Dia / Pôr do Sol Dourado / Noite Neon + Iluminação Artificial 60 FPS!
     const savedTimeMode = this.destructibles?.hud?.settings?.timeMode || 'auto';
@@ -125,9 +125,7 @@ export class TestBlockWorld {
 
     // 12. Atrações Interativas Vivas: Baile Funk da CDD + Parque de Diversões Embarcável no Mega Píer!
     this.attractions = new InteractiveAttractionsManager(this);
-    for (let i = beforeAtmosIdx; i < this.scene.children.length; i++) {
-      staticPhaseChildren.add(this.scene.children[i]);
-    }
+    const staticPhaseChildren = new Set(this.scene.children);
 
     // 13. Sub-regiões pré-alocadas (zero GC em getRegionAt) + Deduplicação Global de Materiais + Congelamento de Matrizes Estáticas!
     this._subRegions = this._createStaticSubRegions();

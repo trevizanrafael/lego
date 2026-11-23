@@ -181,6 +181,94 @@ function _makeUvScaledBox(w, h, d, lx, ly, lz, tileW = 24, tileH = 44) {
  * - Elimina 100% de caixas sobrepostas / coplanares e faixas finas horizontais (zero pisca-pisca!)
  * - Usa coordenadas locais centradas em (0, 0, 0) para máxima precisão de profundidade em qualquer altitude
  */
+const BEACH_LOD_CHUNK_SIZE = 840;
+
+class BeachChunkLodBatcher {
+  constructor() {
+    this.chunks = new Map();
+  }
+
+  addTower(tb, worldX, worldY, worldZ) {
+    const gx = Math.floor(worldX / BEACH_LOD_CHUNK_SIZE);
+    const gz = Math.floor(worldZ / BEACH_LOD_CHUNK_SIZE);
+    const key = `${gx},${gz}`;
+    let ch = this.chunks.get(key);
+    if (!ch) {
+      ch = {
+        originX: (gx + 0.5) * BEACH_LOD_CHUNK_SIZE,
+        originZ: (gz + 0.5) * BEACH_LOD_CHUNK_SIZE,
+        lodFacades: [new Map(), new Map(), new Map()],
+        lodSolids: [[], [], []],
+        lodBasics: [[], [], []]
+      };
+      this.chunks.set(key, ch);
+    }
+    const dx = worldX - ch.originX;
+    const dy = worldY;
+    const dz = worldZ - ch.originZ;
+    for (let li = 0; li < 3; li++) {
+      for (const [mat, geos] of tb.lodFacades[li].entries()) {
+        if (!geos.length) continue;
+        let dst = ch.lodFacades[li].get(mat);
+        if (!dst) {
+          dst = [];
+          ch.lodFacades[li].set(mat, dst);
+        }
+        for (let i = 0; i < geos.length; i++) {
+          geos[i].translate(dx, dy, dz);
+          dst.push(geos[i]);
+        }
+      }
+      for (let i = 0; i < tb.lodSolids[li].length; i++) {
+        const e = tb.lodSolids[li][i];
+        e.geo.translate(dx, dy, dz);
+        ch.lodSolids[li].push(e);
+      }
+      for (let i = 0; i < tb.lodBasics[li].length; i++) {
+        const e = tb.lodBasics[li][i];
+        e.geo.translate(dx, dy, dz);
+        ch.lodBasics[li].push(e);
+      }
+    }
+  }
+
+  flush(world) {
+    const distances = [0, 320, 1020];
+    const solidVcMat = _getSharedBeachSolidVcMat();
+    const basicVcMat = _getSharedBeachBasicVcMat();
+    for (const ch of this.chunks.values()) {
+      const lod = new THREE.LOD();
+      lod.position.set(ch.originX, 0, ch.originZ);
+      for (let li = 0; li < 3; li++) {
+        const grp = new THREE.Group();
+        for (const [mat, geos] of ch.lodFacades[li].entries()) {
+          if (!geos.length) continue;
+          const m = new THREE.Mesh(mergeBufferGeometries(geos), mat);
+          m.castShadow = li === 0;
+          m.receiveShadow = li < 2;
+          grp.add(m);
+        }
+        if (ch.lodSolids[li].length > 0) {
+          const sm = new THREE.Mesh(mergeColoredGeometries(ch.lodSolids[li]), solidVcMat);
+          sm.castShadow = li === 0;
+          sm.receiveShadow = li < 2;
+          grp.add(sm);
+        }
+        if (ch.lodBasics[li].length > 0) {
+          const bm = new THREE.Mesh(mergeColoredGeometries(ch.lodBasics[li]), basicVcMat);
+          bm.castShadow = false;
+          bm.receiveShadow = false;
+          grp.add(bm);
+        }
+        lod.addLevel(grp, distances[li]);
+      }
+      world.scene.add(lod);
+      world.southBeachHotelLODs.push(lod);
+    }
+    this.chunks.clear();
+  }
+}
+
 export class BeachTowerBuilder {
   constructor() {
     this.lodFacades = [new Map(), new Map(), new Map()];
@@ -313,6 +401,7 @@ function _addCleanBalconiesLOD0(tb, bx, byBase, bz, bw, bd, height, intervalY = 
 }
 
 export function buildCoastalHotelBlocks(world, batcher) {
+  world._beachLodBatcher = new BeachChunkLodBatcher();
   const hotelColsDesignX = [-582, -450, -318, -186, -60, 60, 186, 318, 450];
   const bd = 96;
   const innerD = bd - 10; // 86m (sempre 1x!)
@@ -428,6 +517,8 @@ export function buildCoastalHotelBlocks(world, batcher) {
   });
 
   if (IS_SCALED_WORLD) buildCoastalOrganicBlocksAndBoulevards(world, batcher);
+  world._beachLodBatcher.flush(world);
+  world._beachLodBatcher = null;
 }
 
 function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, isFrontRow = false, signText = null) {
@@ -492,9 +583,13 @@ function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, is
   tb.addSolid(1, 'crown_cap', palette.hex, upperW * 0.58, 5.0, upperD * 0.52, 0, totalH + 2.5, upperZOff);
   tb.addSolid(0, 'spire', 0xfacc15, 1.1, 11.0, 1.1, 0, totalH + 10.5, upperZOff, { basic: true });
 
-  const lod = tb.buildLOD(x, yBase, z);
-  world.scene.add(lod);
-  world.southBeachHotelLODs.push(lod);
+  if (world._beachLodBatcher) {
+    world._beachLodBatcher.addTower(tb, x, yBase, z);
+  } else {
+    const lod = tb.buildLOD(x, yBase, z);
+    world.scene.add(lod);
+    world.southBeachHotelLODs.push(lod);
+  }
 
   const roofY = yBase + totalH;
   if (signText) {
@@ -704,9 +799,13 @@ function buildSignatureOceanfrontHotel(world, batcher, x, z, w, d, spec) {
     addNeonHotelSign(world, x, H + 4.5, z + td * 0.5 + 4.2, 38, spec.name, '#06b6d4', '#fde047');
   }
 
-  const lod = tb.buildLOD(x, yBase, z);
-  world.scene.add(lod);
-  world.southBeachHotelLODs.push(lod);
+  if (world._beachLodBatcher) {
+    world._beachLodBatcher.addTower(tb, x, yBase, z);
+  } else {
+    const lod = tb.buildLOD(x, yBase, z);
+    world.scene.add(lod);
+    world.southBeachHotelLODs.push(lod);
+  }
 
   world.addCollider(x, z, w, d, H + 4.0, yBase);
   world.mapBuildings.push({

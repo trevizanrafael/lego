@@ -133,10 +133,15 @@ test('Prédios da orla da praia têm LOD 3 níveis, texturas com mipmaps e brilh
   const dest = new DestructibleManager(scene);
   const world = new TestBlockWorld(scene, dest);
 
+  assert.ok(Array.isArray(world.southBeachHotels), 'southBeachHotels deve existir');
+  assert.ok(
+    world.southBeachHotels.length >= 30,
+    `Orla deve ter >= 30 torres costeiras registradas (${world.southBeachHotels.length})`
+  );
   assert.ok(Array.isArray(world.southBeachHotelLODs), 'southBeachHotelLODs deve existir');
   assert.ok(
-    world.southBeachHotelLODs.length >= 30,
-    `Orla deve ter >= 30 torres com LOD próprio (${world.southBeachHotelLODs.length})`
+    world.southBeachHotelLODs.length >= 6,
+    `Orla deve agrupar torres em >= 6 chunks THREE.LOD (${world.southBeachHotelLODs.length})`
   );
   assert.ok(Array.isArray(world.southBeachEmissiveMats), 'southBeachEmissiveMats deve existir');
   assert.ok(

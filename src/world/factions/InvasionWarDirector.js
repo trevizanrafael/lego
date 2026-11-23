@@ -325,7 +325,10 @@ export const invasionWarDirectorMethods = {
       }
     }
     if (zoneState && !zoneState.conqueredByPlayer) {
-      for (const op of zoneState.outposts) op.ownerFaction = zoneState.ownerFaction;
+      for (const op of zoneState.outposts) {
+        op.ownerFaction = zoneState.ownerFaction;
+        if (op.spotlightMat) op.spotlightMat.opacity = 0.12;
+      }
       zoneState.captureZones.forEach((cz) => cz.reset());
       this._syncZone3DColors(zoneState.id);
     }
@@ -348,20 +351,46 @@ export const invasionWarDirectorMethods = {
     this._animClock += dt;
     if (controller) this._lastController = controller;
 
-    // Anima antenas de radar e giroflex dos 9 Outposts
-    for (const st of Object.values(this.territories)) {
+    // Anima antenas de radar e giroflex dos 9 Outposts apenas na zona em guerra
+    // ou quando o jogador está próximo (< 360m..420m), dormindo outposts distantes!
+    const px = playerPos.x;
+    const pz = playerPos.z;
+    for (const zKey in this.territories) {
+      const st = this.territories[zKey];
       const inThisWar = this.isInvasionActive && this.activeZoneId === st.id;
-      for (const op of st.outposts) {
+      if (!inThisWar) {
+        const b = st.spec?.bounds;
+        const cx = b ? (b.minX + b.maxX) * 0.5 : 0;
+        const cz = b ? (b.minZ + b.maxZ) * 0.5 : 0;
+        let nearTerritory = b ? (Math.abs(px - cx) < 420 && Math.abs(pz - cz) < 420) : true;
+        if (!nearTerritory) {
+          for (let oi = 0; oi < st.outposts.length; oi++) {
+            const op = st.outposts[oi];
+            if (Math.abs(px - op.x) < 360 && Math.abs(pz - op.z) < 360) {
+              nearTerritory = true;
+              break;
+            }
+          }
+        }
+        if (!nearTerritory) continue;
+      }
+
+      const dishStep = dt * (inThisWar ? 3.8 : 1.1);
+      const sirenStep = dt * (inThisWar ? 9.5 : 1.5);
+      const spotOpacity = inThisWar
+        ? 0.16 + 0.12 * Math.abs(Math.sin(this._animClock * 6.5))
+        : 0.12;
+
+      for (let oi = 0; oi < st.outposts.length; oi++) {
+        const op = st.outposts[oi];
         if (op.dishGroup) {
-          op.dishGroup.rotation.y += dt * (inThisWar ? 3.8 : 1.1);
+          op.dishGroup.rotation.y += dishStep;
         }
         if (op.sirenBar) {
-          op.sirenBar.rotation.y += dt * (inThisWar ? 9.5 : 1.5);
+          op.sirenBar.rotation.y += sirenStep;
         }
-        if (op.spotlightMat) {
-          op.spotlightMat.opacity = inThisWar
-            ? 0.16 + 0.12 * Math.abs(Math.sin(this._animClock * 6.5))
-            : 0.12;
+        if (op.spotlightMat && op.spotlightMat.opacity !== spotOpacity) {
+          op.spotlightMat.opacity = spotOpacity;
         }
       }
     }
@@ -413,11 +442,16 @@ export const invasionWarDirectorMethods = {
     } else if (this.activeZoneId && !hysteresisZone) {
       // DESENGAJAMENTO LIMPO AO SAIR DO TERRITÓRIO PARA A CIDADE CIVIL!
       const leftZone = this.territories[this.activeZoneId];
-      if (this.isInvasionActive && leftZone && !leftZone.conqueredByPlayer) {
-        // Saiu no meio da invasão: postos tomados voltam ao dono
-        for (const op of leftZone.outposts) op.ownerFaction = leftZone.ownerFaction;
-        leftZone.captureZones.forEach((cz) => cz.reset());
-        this._syncZone3DColors(leftZone.id);
+      if (leftZone) {
+        for (const op of leftZone.outposts) {
+          if (op.spotlightMat) op.spotlightMat.opacity = 0.12;
+        }
+        if (this.isInvasionActive && !leftZone.conqueredByPlayer) {
+          // Saiu no meio da invasão: postos tomados voltam ao dono
+          for (const op of leftZone.outposts) op.ownerFaction = leftZone.ownerFaction;
+          leftZone.captureZones.forEach((cz) => cz.reset());
+          this._syncZone3DColors(leftZone.id);
+        }
       }
       this.objectiveHud?.hide();
       this._cleanupActiveZoneUnits();
@@ -560,9 +594,15 @@ export const invasionWarDirectorMethods = {
     if (zoneState.alliedWaveTimer <= 0) {
       zoneState.alliedWaveTimer = 12;
       if (allyCount < 8) {
-        const alliedOps = zoneState.outposts.filter((o) => o.ownerFaction === this.playerFaction);
-        if (alliedOps.length > 0 && Math.random() < 0.5) {
-          const srcOp = alliedOps[alliedOps.length - 1];
+        let srcOp = null;
+        for (let oi = zoneState.outposts.length - 1; oi >= 0; oi--) {
+          const candOp = zoneState.outposts[oi];
+          if (candOp.ownerFaction === this.playerFaction) {
+            srcOp = candOp;
+            break;
+          }
+        }
+        if (srcOp && Math.random() < 0.5) {
           this._spawnCombatUnit({
             faction: this.playerFaction,
             role: hasAlliedMedic ? 'rifleman' : 'medic',

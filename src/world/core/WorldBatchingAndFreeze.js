@@ -5,18 +5,116 @@
  */
 
 import * as THREE from 'three';
-import { LEGO_COLORS, createLegoBrick } from '../../materials/LegoMaterials.js';
+import { LEGO_COLORS, createLegoBrick, getLegoMaterial, markAsSharedAsset } from '../../materials/LegoMaterials.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import {
-  buildDetailedBuilding,
-  makeFastBox,
-  flushSpatialChunkedBuckets
+  buildDetailedBuilding, makeFastBox, flushSpatialChunkedBuckets,
+  mergeBufferGeometries, mergeColoredGeometries
 } from '../BuildingGenerator.js';
 import { createLegoCarMesh } from '../StreetPropsBuilder.js';
 import { buildUrbanDowntownBlock } from '../regions/DowntownBuilder.js';
 import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from '../MetroSystemBuilder.js';
-import { WORLD_SCALE, IS_SCALED_WORLD, ROAD, ws, fromWs } from './WorldLayoutScale.js';
+import { IS_SCALED_WORLD, ROAD, ws, fromWs } from './WorldLayoutScale.js';
 import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
+import { collectProtectedDynamicMaterials } from '../../graphics/MaterialRegistry.js';
+
+const _WHITE_COL = new THREE.Color(0xffffff);
+let _sharedLooseStdVcMat = null;
+let _sharedLooseStdOffsetVcMat = null;
+let _sharedLooseBasicVcMat = null;
+let _sharedLooseBasicOffsetVcMat = null;
+
+function getSharedLooseStdVcMaterial(withPolygonOffset = false) {
+  if (withPolygonOffset) {
+    if (!_sharedLooseStdOffsetVcMat) {
+      _sharedLooseStdOffsetVcMat = markAsSharedAsset(
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          vertexColors: true,
+          roughness: 0.5,
+          metalness: 0.12,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1
+        })
+      );
+    }
+    return _sharedLooseStdOffsetVcMat;
+  }
+  if (!_sharedLooseStdVcMat) {
+    _sharedLooseStdVcMat = markAsSharedAsset(
+      new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.5, metalness: 0.12 })
+    );
+  }
+  return _sharedLooseStdVcMat;
+}
+
+function extractSignSliceGeo(srcGeo, idxStart, idxCount, worldMat4) {
+  const pos = srcGeo.attributes.position;
+  const norm = srcGeo.attributes.normal;
+  const uv = srcGeo.attributes.uv;
+  const srcIdx = srcGeo.index?.array;
+  if (!pos || !srcIdx || srcIdx.length < idxStart + idxCount) return null;
+
+  const remap = new Int32Array(pos.count).fill(-1);
+  const usedVerts = [];
+  const subIndices = new Uint16Array(idxCount);
+  for (let i = 0; i < idxCount; i++) {
+    const oldVi = srcIdx[idxStart + i];
+    let newVi = remap[oldVi];
+    if (newVi === -1) {
+      newVi = usedVerts.length;
+      remap[oldVi] = newVi;
+      usedVerts.push(oldVi);
+    }
+    subIndices[i] = newVi;
+  }
+
+  const vCount = usedVerts.length;
+  const pArr = new Float32Array(vCount * 3);
+  const nArr = new Float32Array(vCount * 3);
+  const uArr = uv ? new Float32Array(vCount * 2) : null;
+  for (let k = 0; k < vCount; k++) {
+    const vi = usedVerts[k];
+    pArr[k * 3] = pos.getX(vi);
+    pArr[k * 3 + 1] = pos.getY(vi);
+    pArr[k * 3 + 2] = pos.getZ(vi);
+    if (norm) {
+      nArr[k * 3] = norm.getX(vi);
+      nArr[k * 3 + 1] = norm.getY(vi);
+      nArr[k * 3 + 2] = norm.getZ(vi);
+    }
+    if (uArr) {
+      uArr[k * 2] = uv.getX(vi);
+      uArr[k * 2 + 1] = uv.getY(vi);
+    }
+  }
+
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pArr, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nArr, 3));
+  if (uArr) out.setAttribute('uv', new THREE.BufferAttribute(uArr, 2));
+  out.setIndex(new THREE.BufferAttribute(subIndices, 1));
+  out.applyMatrix4(worldMat4);
+  return out;
+}
+
+function getSharedLooseBasicVcMaterial(withPolygonOffset = false) {
+  if (withPolygonOffset) {
+    if (!_sharedLooseBasicOffsetVcMat) {
+      _sharedLooseBasicOffsetVcMat = markAsSharedAsset(
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff, vertexColors: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+        })
+      );
+    }
+    return _sharedLooseBasicOffsetVcMat;
+  }
+  if (!_sharedLooseBasicVcMat) {
+    _sharedLooseBasicVcMat = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }));
+  }
+  return _sharedLooseBasicVcMat;
+}
 
 export const worldBatchingAndFreezeMethods = {
   _freezeStaticSceneGraph(staticPhaseChildren) {
@@ -25,8 +123,10 @@ export const worldBatchingAndFreezeMethods = {
     this.scene.matrixAutoUpdate = false;
 
     const dynamicRoots = new Set();
-    const addDyn = (obj) => {
-      if (obj && obj.isObject3D) dynamicRoots.add(obj);
+    const addDyn = (obj) => { if (obj && obj.isObject3D) dynamicRoots.add(obj); };
+    const addDynList = (list, fn) => {
+      if (!Array.isArray(list)) return;
+      for (let i = 0; i < list.length; i++) addDyn(fn ? fn(list[i]) : list[i]);
     };
 
     addDyn(this.beaconGroup);
@@ -34,35 +134,17 @@ export const worldBatchingAndFreezeMethods = {
     addDyn(this.sunLight);
     addDyn(this.sunLight?.target);
     addDyn(this.ferrisWheelGroup);
-    if (Array.isArray(this.ferrisWheelCabins)) {
-      for (const cab of this.ferrisWheelCabins) addDyn(cab);
-    }
-    if (Array.isArray(this.clouds)) {
-      for (const c of this.clouds) addDyn(c);
-    }
-    if (Array.isArray(this.rotatingElements)) {
-      for (const rot of this.rotatingElements) addDyn(rot?.mesh);
-    }
-    if (Array.isArray(this.cargoShips)) {
-      for (const ship of this.cargoShips) addDyn(ship?.mesh || ship);
-    }
-    if (Array.isArray(this.superBankData?.gates)) {
-      for (const g of this.superBankData.gates) addDyn(g?.mesh || g);
-    }
+    addDynList(this.ferrisWheelCabins);
+    addDynList(this.clouds);
+    addDynList(this.rotatingElements, (r) => r?.mesh);
+    addDynList(this.cargoShips, (s) => s?.mesh || s);
+    addDynList(this.superBankData?.gates, (g) => g?.mesh || g);
     if (Array.isArray(this.metroSystem?.trains)) {
-      for (const tr of this.metroSystem.trains) {
-        if (Array.isArray(tr.cars)) {
-          for (const car of tr.cars) addDyn(car?.group);
-        }
-      }
+      for (const tr of this.metroSystem.trains) addDynList(tr?.cars, (c) => c?.group);
     }
     if (this.destructibles) {
-      if (Array.isArray(this.destructibles._dynamicObjects)) {
-        for (const obj of this.destructibles._dynamicObjects) addDyn(obj?.mesh);
-      }
-      if (Array.isArray(this.destructibles.ambientStuds)) {
-        for (const s of this.destructibles.ambientStuds) addDyn(s?.mesh);
-      }
+      addDynList(this.destructibles._dynamicObjects, (o) => o?.mesh);
+      addDynList(this.destructibles.ambientStuds, (s) => s?.mesh);
       addDyn(this.destructibles.solarBeamGroup);
       addDyn(this.destructibles.solarMuzzleGroup);
       addDyn(this.destructibles.beamHitSphere);
@@ -70,37 +152,69 @@ export const worldBatchingAndFreezeMethods = {
     }
     if (this.atmosphere) {
       addDyn(this.atmosphere.celestialRoot);
-      if (Array.isArray(this.atmosphere.pointLightPool)) {
-        for (const pl of this.atmosphere.pointLightPool) addDyn(pl);
-      }
-      if (Array.isArray(this.atmosphere.lighthouseBeams)) {
-        for (const lb of this.atmosphere.lighthouseBeams) addDyn(lb?.pivot);
-      }
-      if (Array.isArray(this.atmosphere.metroLeadCones)) {
-        for (const mc of this.atmosphere.metroLeadCones) addDyn(mc);
-      }
+      addDynList(this.atmosphere.pointLightPool);
+      addDynList(this.atmosphere.lighthouseBeams, (lb) => lb?.pivot);
+      addDynList(this.atmosphere.metroLeadCones);
     }
-    if (Array.isArray(this.favelaBaileSkytrackers)) {
-      for (const st of this.favelaBaileSkytrackers) addDyn(st?.pivot);
-    }
+    addDynList(this.favelaBaileSkytrackers, (st) => st?.pivot);
     if (this.attractions) {
-      if (Array.isArray(this.attractions.baileWoofers)) {
-        for (const w of this.attractions.baileWoofers) addDyn(w?.pivot);
-      }
-      if (Array.isArray(this.attractions.baileEqBars)) {
-        for (const b of this.attractions.baileEqBars) addDyn(b);
-      }
+      addDynList(this.attractions.baileWoofers, (w) => w?.pivot);
+      addDynList(this.attractions.baileEqBars);
       addDyn(this.attractions.djRig?.root);
       if (this.attractions.baileCrowd?.allInstMeshes) {
         for (const im of this.attractions.baileCrowd.allInstMeshes) addDyn(im);
       }
-      if (Array.isArray(this.attractions.baileLaserPivots)) {
-        for (const ls of this.attractions.baileLaserPivots) addDyn(ls?.pivot);
-      }
-      if (Array.isArray(this.attractions.coasterCars)) {
-        for (const c of this.attractions.coasterCars) addDyn(c);
-      }
+      addDynList(this.attractions.baileLaserPivots, (ls) => ls?.pivot);
+      addDynList(this.attractions.coasterCars);
       addDyn(this.attractions.bigDropGondola);
+    }
+    if (this.territoryInfra && typeof this.territoryInfra === 'object') {
+      for (const infra of Object.values(this.territoryInfra)) {
+        if (!infra) continue;
+        addDynList(infra.gates, (g) => g?.flagMesh);
+        if (Array.isArray(infra.outposts)) {
+          for (const op of infra.outposts) {
+            if (!op) continue;
+            addDyn(op.ringMesh);
+            addDyn(op.beaconMesh);
+            addDyn(op.dishGroup);
+            addDyn(op.sirenBar);
+            addDyn(op.spotlightCone);
+          }
+        }
+      }
+    }
+    if (this.livingCity) {
+      addDynList(this.livingCity.trafficVehicles, (tv) => tv?.mesh || tv);
+      addDyn(this.livingCity.civilianSkyHeli?.group || this.livingCity.civilianSkyHeli?.mesh || this.livingCity.civilianSkyHeli);
+      addDynList(this.livingCity.combatNpcs, (n) => n?.visual?.root || n?.mesh);
+      addDynList(this.livingCity.npcProjectiles, (p) => p?.mesh || p);
+      addDynList(this.livingCity.healStations, (h) => h?.group || h?.mesh);
+      addDynList(this.livingCity.healthCrystals, (c) => c?.mesh || c);
+      if (this.livingCity._pedInstPools) {
+        for (const p of Object.values(this.livingCity._pedInstPools)) {
+          if (p?.isObject3D) addDyn(p);
+          else if (Array.isArray(p)) addDynList(p);
+        }
+      }
+      const fw = this.livingCity.factionWar;
+      if (fw) {
+        addDynList(fw.combatNpcs, (n) => n?.visual?.root || n?.mesh);
+        addDynList(fw.projectiles, (p) => p?.mesh || p);
+        addDynList(fw.healBeams, (b) => b?.mesh || b);
+        for (const zs of Object.values(fw.territories || fw.zoneStates || {})) {
+          if (!zs) continue;
+          addDynList(zs.garrisonUnits, (u) => u?.visual?.root || u?.mesh);
+          addDynList(zs.captureZones, (cz) => cz?.group || cz?.ringMesh);
+        }
+      }
+      const wsSys = this.livingCity.wantedSystem;
+      if (wsSys) {
+        addDynList(wsSys.activeUnits, (u) => u?.mesh || u?.visual?.root);
+        addDynList(wsSys.policeCars, (u) => u?.mesh || u);
+        addDynList(wsSys.helicopters, (h) => h?.mesh || h?.group || h);
+        addDynList(wsSys.roadblocks, (rb) => rb?.group || rb?.mesh);
+      }
     }
 
     const dynamicSubtreeSet = new Set();
@@ -110,21 +224,17 @@ export const worldBatchingAndFreezeMethods = {
         dynamicSubtreeSet.add(child);
         if (child.userData) child.userData._keepDynamicMatrix = true;
       });
-      let p = dyn.parent;
-      while (p && p !== this.scene) {
-        ancestorSet.add(p);
-        p = p.parent;
-      }
+      for (let p = dyn.parent; p && p !== this.scene; p = p.parent) ancestorSet.add(p);
     }
+
+    this._batchLooseStaticSceneMeshes(staticPhaseChildren, dynamicSubtreeSet);
 
     const freezeBranch = (node) => {
       if (dynamicSubtreeSet.has(node)) return;
       if (ancestorSet.has(node)) {
         node.matrixAutoUpdate = false;
         node.matrixWorldAutoUpdate = true;
-        for (let i = 0; i < node.children.length; i++) {
-          freezeBranch(node.children[i]);
-        }
+        for (let i = 0; i < node.children.length; i++) freezeBranch(node.children[i]);
         return;
       }
       node.traverse((n) => {
@@ -134,8 +244,312 @@ export const worldBatchingAndFreezeMethods = {
     };
 
     for (const rootChild of staticPhaseChildren) {
-      if (rootChild && rootChild.parent === this.scene) {
-        freezeBranch(rootChild);
+      if (rootChild && rootChild.parent === this.scene) freezeBranch(rootChild);
+    }
+  },
+
+  _batchLooseStaticSceneMeshes(staticPhaseChildren, dynamicSubtreeSet) {
+    if (!this.scene || !staticPhaseChildren) return;
+    this.scene.updateMatrixWorld(true);
+
+    const noMergeSet = new Set(dynamicSubtreeSet);
+    const markSubtree = (root) => { if (root && typeof root.traverse === 'function') root.traverse((c) => noMergeSet.add(c)); };
+    for (const obj of this.destructibles?.objects || []) markSubtree(obj?.mesh);
+    for (const fc of this.favelaSoccerFloodCones || []) markSubtree(fc?.mesh);
+    for (const sb of this.favelaSummitBeacons || []) markSubtree(sb?.group);
+    for (const bm of this.helicarrierNightFX?.beaconMeshes || []) markSubtree(bm);
+    markSubtree(this.helicarrierShowcaseHolo);
+
+    const protectedDynamicMats = collectProtectedDynamicMaterials(this);
+    const CHUNK_SIZE = 1200;
+    const OUTER_CHUNK_SIZE = 3600;
+    const worldBox = new THREE.Box3();
+    const nearScratch = [];
+    const buckets = new Map();
+    let matIdSeq = 0;
+    const matIds = new WeakMap();
+    const getMatId = (mat) => {
+      let id = matIds.get(mat);
+      if (id === undefined) { id = ++matIdSeq; matIds.set(mat, id); }
+      return id;
+    };
+
+    const pushToBucket = (bKey, kind, mat, wb, castS, recvS, itemPayload) => {
+      let bucket = buckets.get(bKey);
+      if (!bucket) {
+        bucket = {
+          kind, mat, minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity,
+          minZ: Infinity, maxZ: -Infinity, anyCastShadow: false, anyReceiveShadow: false, items: []
+        };
+        buckets.set(bKey, bucket);
+      }
+      if (wb.min.x < bucket.minX) bucket.minX = wb.min.x;
+      if (wb.max.x > bucket.maxX) bucket.maxX = wb.max.x;
+      if (wb.min.y < bucket.minY) bucket.minY = wb.min.y;
+      if (wb.max.y > bucket.maxY) bucket.maxY = wb.max.y;
+      if (wb.min.z < bucket.minZ) bucket.minZ = wb.min.z;
+      if (wb.max.z > bucket.maxZ) bucket.maxZ = wb.max.z;
+      if (castS) bucket.anyCastShadow = true;
+      if (recvS) bucket.anyReceiveShadow = true;
+      bucket.items.push(itemPayload);
+    };
+
+    const signNodesToRemove = [];
+
+    const visit = (node) => {
+      if (
+        !node || node.visible === false || noMergeSet.has(node) || node.isLOD ||
+        node.userData?.isDetailedBuilding || node.userData?.skipStaticMerge ||
+        node.name === 'CollisionDebugOverlay'
+      ) return;
+
+      // Decompõe placas multi-material estáticas do SignBoardHelper (6 grupos -> 1 VC + 1 Atlas por chunk!)
+      if (
+        node.isMesh && !node.isInstancedMesh && node.frustumCulled !== false &&
+        Array.isArray(node.material) && node.material.length === 6 &&
+        node.material[4]?.userData?.isSignAtlasMaterial && node.geometry?.index
+      ) {
+        if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+        const bb = node.geometry.boundingBox;
+        if (bb && !bb.isEmpty()) {
+          worldBox.copy(bb).applyMatrix4(node.matrixWorld);
+          if (Number.isFinite(worldBox.min.x + worldBox.max.x + worldBox.min.y + worldBox.max.y + worldBox.min.z + worldBox.max.z)) {
+            const cx = (worldBox.min.x + worldBox.max.x) * 0.5;
+            const cz = (worldBox.min.z + worldBox.max.z) * 0.5;
+            const cs = Math.abs(cx) > 3600 || Math.abs(cz) > 3600 ? OUTER_CHUNK_SIZE : CHUNK_SIZE;
+            const cKey = `${cs}:${Math.floor(cx / cs)},${Math.floor(cz / cs)}`;
+            const faceMat = node.material[4];
+            const isDouble = node.material[5] === faceMat;
+            const edgeGeo = extractSignSliceGeo(node.geometry, 0, isDouble ? 24 : 36, node.matrixWorld);
+            const faceGeo = extractSignSliceGeo(node.geometry, 24, isDouble ? 12 : 6, node.matrixWorld);
+            if (!isDouble && edgeGeo && node.geometry.index.count >= 36) {
+              // single-sided: edge indices 0..23 + back face 30..35
+              const e1 = extractSignSliceGeo(node.geometry, 0, 24, node.matrixWorld);
+              const e2 = extractSignSliceGeo(node.geometry, 30, 6, node.matrixWorld);
+              const edgeMerged = e1 && e2 ? mergeBufferGeometries([e1, e2]) : edgeGeo;
+              pushToBucket(`vcStd|${cKey}`, 'vcStd', node.material[0], worldBox, false, false, { preBuiltGeo: edgeMerged, mat: node.material[0] });
+            } else if (edgeGeo) {
+              pushToBucket(`vcStd|${cKey}`, 'vcStd', node.material[0], worldBox, false, false, { preBuiltGeo: edgeGeo, mat: node.material[0] });
+            }
+            if (faceGeo) {
+              pushToBucket(`byMat|${cKey}|${getMatId(faceMat)}`, 'byMat', faceMat, worldBox, false, false, { preBuiltGeo: faceGeo, mat: faceMat });
+            }
+            signNodesToRemove.push(node);
+            return;
+          }
+        }
+      }
+
+      if (
+        node.isMesh && !node.isInstancedMesh && node.frustumCulled !== false &&
+        node.material && !Array.isArray(node.material) && !node.userData?.isWater && !node.userData?.isOcean
+      ) {
+        const mat = node.material;
+        const posAttr = node.geometry?.attributes?.position;
+        const colAttr = node.geometry?.attributes?.color;
+        const matHex = mat.color?.getHex?.();
+        if (
+          posAttr && posAttr.count > 0 && posAttr.count <= 180000 &&
+          (!colAttr || colAttr.itemSize === 3) && !mat.userData?.hasAnimatedLegoWater &&
+          !mat.uniforms && mat.side !== THREE.BackSide && matHex !== 0x0369a1 &&
+          !(node.castShadow && matHex === 0xcbd5e1)
+        ) {
+          if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+          const bb = node.geometry.boundingBox;
+          if (bb && !bb.isEmpty()) {
+            worldBox.copy(bb).applyMatrix4(node.matrixWorld);
+            if (Number.isFinite(worldBox.min.x + worldBox.max.x + worldBox.min.y + worldBox.max.y + worldBox.min.z + worldBox.max.z)) {
+              const cx = (worldBox.min.x + worldBox.max.x) * 0.5;
+              const cz = (worldBox.min.z + worldBox.max.z) * 0.5;
+              const cs = Math.abs(cx) > 3600 || Math.abs(cz) > 3600 ? OUTER_CHUNK_SIZE : CHUNK_SIZE;
+              const cKey = `${cs}:${Math.floor(cx / cs)},${Math.floor(cz / cs)}`;
+              const isDynMat = protectedDynamicMats.has(mat);
+              const noTex = !mat.map && !mat.emissiveMap && !mat.alphaMap;
+
+              let bKey = null;
+              let kind = null;
+              if (!isDynMat && !mat.transparent && !mat.isMeshBasicMaterial && noTex) {
+                kind = mat.polygonOffset ? 'vcStdPo' : 'vcStd';
+                bKey = `${kind}|${cKey}`;
+              } else if (!isDynMat && mat.isMeshBasicMaterial && !mat.transparent && noTex) {
+                kind = mat.polygonOffset ? 'vcBasicPo' : 'vcBasic';
+                bKey = `${kind}|${cKey}`;
+              } else if (
+                !mat.transparent ||
+                (!mat.map && !mat.alphaMap &&
+                  (mat.blending === THREE.AdditiveBlending || mat.depthWrite === false || mat.isMeshPhysicalMaterial || mat.isMeshBasicMaterial))
+              ) {
+                kind = 'byMat';
+                bKey = `byMat|${cKey}|${getMatId(mat)}`;
+              }
+
+              if (bKey) {
+                pushToBucket(bKey, kind, mat, worldBox, node.castShadow, node.receiveShadow, { node, mat });
+              }
+            }
+          }
+        }
+      }
+
+      if (node.children?.length) {
+        for (let i = 0; i < node.children.length; i++) visit(node.children[i]);
+      }
+    };
+
+    for (const rootChild of staticPhaseChildren) {
+      if (rootChild && rootChild.parent === this.scene) visit(rootChild);
+    }
+
+    const bucketHasColliderOverlap = (b) => {
+      const spanX = b.maxX - b.minX;
+      const spanZ = b.maxZ - b.minZ;
+      const height = b.maxY - b.minY;
+      if (spanX < 2.4 || spanZ < 2.4 || height < 2.4) return true;
+      const cx = (b.minX + b.maxX) * 0.5;
+      const cz = (b.minZ + b.maxZ) * 0.5;
+      const nearby = typeof this.getCollidersNear === 'function'
+        ? this.getCollidersNear(cx, cz, Math.hypot(spanX, spanZ) * 0.5 + 1.0, nearScratch)
+        : (this.colliders || []);
+      for (let i = 0; i < nearby.length; i++) {
+        const c = nearby[i];
+        if (!c || c.disabled) continue;
+        const cMinY = Math.min(c.minY, c.maxY);
+        const cMaxY = Math.max(c.minY, c.maxY);
+        if (
+          c.maxX > b.minX + 0.1 && c.minX < b.maxX - 0.1 &&
+          cMaxY > b.minY + 0.1 && cMinY < b.maxY - 0.1 &&
+          c.maxZ > b.minZ + 0.1 && c.minZ < b.maxZ - 0.1
+        ) return true;
+      }
+      return false;
+    };
+
+    // Agrupa buckets pequenos rejeitados por spanOk num super-chunk regional por kind/mat
+    const fallbackSuperBuckets = new Map();
+    for (const [bKey, b] of buckets.entries()) {
+      const ok =
+        b.items.length >= 2 &&
+        (b.maxX - b.minX > 148 || b.maxZ - b.minZ > 148 || b.maxY - b.minY < 2.4 || bucketHasColliderOverlap(b));
+      if (ok) continue;
+      buckets.delete(bKey);
+      const superKey = b.kind === 'byMat' ? `super|byMat|${getMatId(b.mat)}` : `super|${b.kind}`;
+      let sb = fallbackSuperBuckets.get(superKey);
+      if (!sb) {
+        sb = {
+          kind: b.kind, mat: b.mat, minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity,
+          minZ: Infinity, maxZ: -Infinity, anyCastShadow: false, anyReceiveShadow: false, items: []
+        };
+        fallbackSuperBuckets.set(superKey, sb);
+      }
+      if (b.minX < sb.minX) sb.minX = b.minX;
+      if (b.maxX > sb.maxX) sb.maxX = b.maxX;
+      if (b.minY < sb.minY) sb.minY = b.minY;
+      if (b.maxY > sb.maxY) sb.maxY = b.maxY;
+      if (b.minZ < sb.minZ) sb.minZ = b.minZ;
+      if (b.maxZ > sb.maxZ) sb.maxZ = b.maxZ;
+      if (b.anyCastShadow) sb.anyCastShadow = true;
+      if (b.anyReceiveShadow) sb.anyReceiveShadow = true;
+      for (let i = 0; i < b.items.length; i++) sb.items.push(b.items[i]);
+    }
+    for (const [sKey, sb] of fallbackSuperBuckets.entries()) {
+      buckets.set(sKey, sb);
+    }
+
+    const touchedParents = new Set();
+    for (let i = 0; i < signNodesToRemove.length; i++) {
+      const sn = signNodesToRemove[i];
+      if (sn.parent) {
+        touchedParents.add(sn.parent);
+        sn.parent.remove(sn);
+        staticPhaseChildren.delete(sn);
+      }
+    }
+
+    const sharedStdVcMat = getSharedLooseStdVcMaterial(false);
+    const sharedStdOffsetVcMat = getSharedLooseStdVcMaterial(true);
+    const sharedBasicVcMat = getSharedLooseBasicVcMaterial(false);
+    const sharedBasicOffsetVcMat = getSharedLooseBasicVcMaterial(true);
+
+    for (const b of buckets.values()) {
+      const hasPreBuilt = b.items.some((it) => Boolean(it.preBuiltGeo));
+      if (b.items.length < 2 && !hasPreBuilt) continue;
+      const spanOk =
+        b.maxX - b.minX > 148 ||
+        b.maxZ - b.minZ > 148 ||
+        b.maxY - b.minY < 2.4 ||
+        bucketHasColliderOverlap(b);
+      if (!spanOk) continue;
+
+      let mergedGeo;
+      let mergedMat;
+      const isVc = b.kind === 'vcStd' || b.kind === 'vcStdPo' || b.kind === 'vcBasic' || b.kind === 'vcBasicPo';
+      if (isVc) {
+        const entries = new Array(b.items.length);
+        for (let i = 0; i < b.items.length; i++) {
+          const it = b.items[i];
+          const cloned = it.preBuiltGeo ? it.preBuiltGeo : it.node.geometry.clone();
+          if (!it.preBuiltGeo) cloned.applyMatrix4(it.node.matrixWorld);
+          if (!cloned.attributes.normal) cloned.computeVertexNormals();
+          const hasExistingVc = Boolean(cloned.attributes.color);
+          const col = hasExistingVc
+            ? _WHITE_COL
+            : (b.kind === 'vcStd' || b.kind === 'vcStdPo') && it.mat?.emissive && it.mat.emissive.getHex() !== 0 && (it.mat.emissiveIntensity ?? 0) > 0.25
+              ? it.mat.emissive
+              : (it.mat?.color || _WHITE_COL);
+          entries[i] = { geo: cloned, color: col };
+        }
+        mergedGeo = mergeColoredGeometries(entries);
+        mergedMat =
+          b.kind === 'vcStd'
+            ? sharedStdVcMat
+            : b.kind === 'vcStdPo'
+              ? sharedStdOffsetVcMat
+              : b.kind === 'vcBasicPo'
+                ? sharedBasicOffsetVcMat
+                : sharedBasicVcMat;
+      } else {
+        const geos = new Array(b.items.length);
+        for (let i = 0; i < b.items.length; i++) {
+          const it = b.items[i];
+          const cloned = it.preBuiltGeo ? it.preBuiltGeo : it.node.geometry.clone();
+          if (!it.preBuiltGeo) cloned.applyMatrix4(it.node.matrixWorld);
+          if (!cloned.attributes.normal) cloned.computeVertexNormals();
+          geos[i] = cloned;
+        }
+        mergedGeo = mergeBufferGeometries(geos);
+        mergedMat = b.mat;
+      }
+
+      const isBasic = b.kind === 'vcBasic' || b.kind === 'vcBasicPo' || Boolean(mergedMat.isMeshBasicMaterial);
+      const mergedMesh = new THREE.Mesh(mergedGeo, mergedMat);
+      mergedMesh.castShadow = !isBasic && !mergedMat.transparent && b.anyCastShadow;
+      mergedMesh.receiveShadow = !isBasic && b.anyReceiveShadow;
+      mergedMesh.matrixAutoUpdate = false;
+      mergedMesh.updateMatrix();
+      this.scene.add(mergedMesh);
+      staticPhaseChildren.add(mergedMesh);
+
+      for (let i = 0; i < b.items.length; i++) {
+        const oldNode = b.items[i].node;
+        if (oldNode && oldNode.parent) {
+          touchedParents.add(oldNode.parent);
+          oldNode.parent.remove(oldNode);
+          staticPhaseChildren.delete(oldNode);
+        }
+      }
+    }
+
+    for (const p of touchedParents) {
+      for (let cur = p; cur && cur !== this.scene; ) {
+        const nextParent = cur.parent;
+        if (
+          !cur.isMesh && !cur.isLight && !cur.isLOD && !cur.isPoints &&
+          !cur.isLine && !noMergeSet.has(cur) && cur.children.length === 0 && nextParent
+        ) {
+          nextParent.remove(cur);
+          if (nextParent === this.scene) staticPhaseChildren.delete(cur);
+          cur = nextParent;
+        } else break;
       }
     }
   },
@@ -157,12 +571,23 @@ export const worldBatchingAndFreezeMethods = {
     const addSkirt = opts.yBase === undefined && opts.foundation !== false && skirtDepth > 0.5;
     const totalH = addSkirt ? h + skirtDepth : h;
     const centerY = addSkirt ? yBase + h * 0.5 - skirtDepth * 0.5 : yBase + h * 0.5;
-    const mesh = createLegoBrick(w, totalH, d, colorHex, {
+    const matOpts = {
       studs: opts.studs ?? false,
       studStep: opts.studStep ?? 3.5,
       roughness: opts.roughness ?? 0.24,
       metalness: opts.metalness ?? 0.08
-    });
+    };
+    let mesh;
+    if (!opts.studs) {
+      mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, totalH, d),
+        getLegoMaterial(colorHex, matOpts)
+      );
+      mesh.castShadow = opts.castShadow ?? true;
+      mesh.receiveShadow = opts.receiveShadow ?? true;
+    } else {
+      mesh = createLegoBrick(w, totalH, d, colorHex, matOpts);
+    }
     mesh.position.set(x, centerY, z);
     this.scene.add(mesh);
 
@@ -332,7 +757,7 @@ export const worldBatchingAndFreezeMethods = {
     canopyGeo.translate(0, 3.8, 0);
     const canopyMat = new THREE.MeshStandardMaterial({ color: LEGO_COLORS.green, roughness: 0.35 });
 
-    const treeChunk = ws(256);
+    const treeChunk = ws(720);
     const chunks = new Map();
     for (let i = 0; i < count; i++) {
       const t = this._treeInstances[i];
@@ -393,10 +818,7 @@ export const worldBatchingAndFreezeMethods = {
     const coreGeo = new THREE.CylinderGeometry(0.45, 0.45, 240, 12, 1, true);
     coreGeo.translate(0, 120, 0);
     const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false
+      color: 0xffffff
     });
     this.beaconCore = new THREE.Mesh(coreGeo, coreMat);
 
@@ -428,7 +850,7 @@ export const worldBatchingAndFreezeMethods = {
 
   _setupSkyAndLights() {
     this.scene.background = new THREE.Color(0x0a101a);
-    this.scene.fog = new THREE.FogExp2(0x0a101a, 0.00042 / WORLD_SCALE);
+    this.scene.fog = new THREE.FogExp2(0x0a101a, 0.00082);
 
     const hemiLight = new THREE.HemisphereLight(0x1f2d42, 0x05070c, 0.24);
     hemiLight.position.set(0, 480, 0);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { getLegoMaterial, markAsSharedAsset } from '../../materials/LegoMaterials.js';
+import { markAsSharedAsset } from '../../materials/LegoMaterials.js';
+import { makeFastBox, mergeColoredGeometries } from '../BuildingGenerator.js';
 import { HumanoidHealthModel, HUMANOID_STATES } from '../npc-health/HumanoidHealthModel.js';
 import { spawnBloodHitSplatter } from '../npc-health/HumanoidHitReactions.js';
 
@@ -8,97 +9,129 @@ import { spawnBloodHitSplatter } from '../npc-health/HumanoidHitReactions.js';
  * Sistema leve (60 FPS, zero-GC) de ocupantes sentados visíveis nas cabines de veículos IA,
  * desembarque sincronizado, tiro no motorista pelo para-brisa, ejeção de corpos carbonizados
  * e contagem exata de multi-kills por explosão.
+ *
+ * M3: Cada variante de busto `(category, subKind, idx % 4)` e corpo carbonizado é pré-fundida
+ * via `mergeColoredGeometries` em 1 única `BufferGeometry` compartilhada com `SHARED_OCCUPANT_VC_MAT`
+ * (1 `THREE.Mesh` por ocupante sentado em vez de 5!).
  */
 
-let SHARED_OCCUPANT_ASSETS = null;
+export const SHARED_OCCUPANT_VC_MAT = markAsSharedAsset(
+  new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    roughness: 0.56,
+    metalness: 0.1
+  })
+);
 
-function ensureOccupantAssets() {
-  if (SHARED_OCCUPANT_ASSETS) return SHARED_OCCUPANT_ASSETS;
-  const sh = markAsSharedAsset;
-  SHARED_OCCUPANT_ASSETS = {
-    torsoGeo: sh(new THREE.BoxGeometry(0.56, 0.48, 0.32)),
-    shouldersGeo: sh(new THREE.BoxGeometry(0.72, 0.22, 0.28)),
-    headGeo: sh(new THREE.CylinderGeometry(0.2, 0.2, 0.32, 10)),
-    helmetGeo: sh(new THREE.CylinderGeometry(0.24, 0.23, 0.2, 10)),
-    capVisorGeo: sh(new THREE.BoxGeometry(0.32, 0.06, 0.26)),
-    corpseTorsoGeo: sh(new THREE.BoxGeometry(0.68, 0.72, 0.36)),
-    corpseLegsGeo: sh(new THREE.BoxGeometry(0.62, 0.68, 0.32)),
-    corpseHeadGeo: sh(new THREE.CylinderGeometry(0.22, 0.22, 0.36, 10)),
-    mats: {
-      skinYellow: sh(getLegoMaterial(0xd4a017, { roughness: 0.45 })),
-      balaclava: sh(getLegoMaterial(0x111827, { roughness: 0.72 })),
-      policeTorso: sh(getLegoMaterial(0x172554, { roughness: 0.52 })),
-      policeCap: sh(getLegoMaterial(0x0f172a, { roughness: 0.45 })),
-      bopeTorso: sh(getLegoMaterial(0x090a0d, { roughness: 0.62, metalness: 0.2 })),
-      bopeHelmet: sh(getLegoMaterial(0x18181b, { roughness: 0.48, metalness: 0.32 })),
-      cvTorso: sh(getLegoMaterial(0x991b1c, { roughness: 0.55 })),
-      cvCap: sh(getLegoMaterial(0x18181b, { roughness: 0.65 })),
-      pccTorso: sh(getLegoMaterial(0x1e3a8a, { roughness: 0.52 })),
-      pccHelmet: sh(getLegoMaterial(0x090a0d, { roughness: 0.58 })),
-      aresTorso: sh(getLegoMaterial(0x475569, { roughness: 0.38, metalness: 0.48 })),
-      aresHelmet: sh(getLegoMaterial(0x7e22ce, { roughness: 0.28, metalness: 0.42 })),
-      civShirts: [
-        sh(getLegoMaterial(0x334155, { roughness: 0.58 })),
-        sh(getLegoMaterial(0x7c2d12, { roughness: 0.6 })),
-        sh(getLegoMaterial(0x1e3a5f, { roughness: 0.58 })),
-        sh(getLegoMaterial(0x3f3f46, { roughness: 0.6 }))
-      ],
-      civHair: [
-        sh(getLegoMaterial(0x18181b, { roughness: 0.7 })),
-        sh(getLegoMaterial(0x451a03, { roughness: 0.72 }))
-      ],
-      charredBody: sh(getLegoMaterial(0x18181b, { roughness: 0.94, metalness: 0.14 })),
-      charredAsh: sh(getLegoMaterial(0x27272a, { roughness: 0.9, metalness: 0.1 }))
-    }
-  };
-  return SHARED_OCCUPANT_ASSETS;
-}
+const SHARED_CHARRED_CORPSE_VC_MAT = markAsSharedAsset(
+  new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    roughness: 0.92,
+    metalness: 0.12
+  })
+);
 
-function resolvePalette(A, category, subKind, idx = 0) {
-  const M = A.mats;
+const SHARED_BUST_VC_GEO_CACHE = new Map();
+let SHARED_CHARRED_CORPSE_VC_GEO = null;
+
+const PALETTE_COLORS = {
+  skinYellow: new THREE.Color(0xd4a017),
+  balaclava: new THREE.Color(0x111827),
+  policeTorso: new THREE.Color(0x172554),
+  policeCap: new THREE.Color(0x0f172a),
+  bopeTorso: new THREE.Color(0x090a0d),
+  bopeHelmet: new THREE.Color(0x18181b),
+  cvTorso: new THREE.Color(0x991b1c),
+  cvCap: new THREE.Color(0x18181b),
+  pccTorso: new THREE.Color(0x1e3a8a),
+  pccHelmet: new THREE.Color(0x090a0d),
+  aresTorso: new THREE.Color(0x475569),
+  aresHelmet: new THREE.Color(0x7e22ce),
+  civShirts: [
+    new THREE.Color(0x334155),
+    new THREE.Color(0x7c2d12),
+    new THREE.Color(0x1e3a5f),
+    new THREE.Color(0x3f3f46)
+  ],
+  civHair: [new THREE.Color(0x18181b), new THREE.Color(0x451a03)],
+  charredBody: new THREE.Color(0x18181b),
+  charredAsh: new THREE.Color(0x27272a)
+};
+
+function resolvePalette(category, subKind, idx = 0) {
+  const C = PALETTE_COLORS;
   if (category === 'police') {
     return subKind === 'bope'
-      ? { torso: M.bopeTorso, head: M.balaclava, headgear: M.bopeHelmet, hasVisor: false }
-      : { torso: M.policeTorso, head: M.skinYellow, headgear: M.policeCap, hasVisor: true };
+      ? { torso: C.bopeTorso, head: C.balaclava, headgear: C.bopeHelmet, hasVisor: false }
+      : { torso: C.policeTorso, head: C.skinYellow, headgear: C.policeCap, hasVisor: true };
   }
-  if (category === 'cv') return { torso: M.cvTorso, head: M.balaclava, headgear: M.cvCap, hasVisor: true };
-  if (category === 'pcc') return { torso: M.pccTorso, head: M.balaclava, headgear: M.pccHelmet, hasVisor: false };
-  if (category === 'ares') return { torso: M.aresTorso, head: M.balaclava, headgear: M.aresHelmet, hasVisor: false };
+  if (category === 'cv') return { torso: C.cvTorso, head: C.balaclava, headgear: C.cvCap, hasVisor: true };
+  if (category === 'pcc') return { torso: C.pccTorso, head: C.balaclava, headgear: C.pccHelmet, hasVisor: false };
+  if (category === 'ares') return { torso: C.aresTorso, head: C.balaclava, headgear: C.aresHelmet, hasVisor: false };
   return {
-    torso: M.civShirts[idx % M.civShirts.length],
-    head: M.skinYellow,
-    headgear: M.civHair[idx % M.civHair.length],
+    torso: C.civShirts[idx % C.civShirts.length],
+    head: C.skinYellow,
+    headgear: C.civHair[idx % C.civHair.length],
     hasVisor: idx % 2 === 0
   };
 }
 
+function getMergedBustGeometry(category, subKind, idx = 0) {
+  const variantIdx = ((idx % 4) + 4) % 4;
+  const cacheKey =
+    category === 'police'
+      ? `police|${subKind === 'bope' ? 'bope' : 'std'}`
+      : category === 'cv' || category === 'pcc' || category === 'ares'
+        ? category
+        : `civilian|${variantIdx}`;
+
+  let merged = SHARED_BUST_VC_GEO_CACHE.get(cacheKey);
+  if (merged) return merged;
+
+  const pal = resolvePalette(category, subKind, variantIdx);
+  const headGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.32, 10);
+  headGeo.translate(0, 0.64, 0);
+  const helmetGeo = new THREE.CylinderGeometry(0.24, 0.23, 0.2, 10);
+  helmetGeo.translate(0, 0.78, 0);
+
+  const parts = [
+    { geo: makeFastBox(0.56, 0.48, 0.32, 0, 0.24, 0), color: pal.torso },
+    { geo: makeFastBox(0.72, 0.22, 0.28, 0, 0.36, 0), color: pal.torso },
+    { geo: headGeo, color: pal.head },
+    { geo: helmetGeo, color: pal.headgear }
+  ];
+  if (pal.hasVisor) {
+    parts.push({ geo: makeFastBox(0.32, 0.06, 0.26, 0, 0.73, 0.14), color: pal.headgear });
+  }
+
+  merged = markAsSharedAsset(mergeColoredGeometries(parts));
+  SHARED_BUST_VC_GEO_CACHE.set(cacheKey, merged);
+  return merged;
+}
+
+function getMergedCharredCorpseGeometry() {
+  if (SHARED_CHARRED_CORPSE_VC_GEO) return SHARED_CHARRED_CORPSE_VC_GEO;
+  const headGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.36, 10);
+  headGeo.translate(0, 0.74, 0);
+  SHARED_CHARRED_CORPSE_VC_GEO = markAsSharedAsset(
+    mergeColoredGeometries([
+      { geo: makeFastBox(0.68, 0.72, 0.36, 0, 0.18, 0), color: PALETTE_COLORS.charredBody },
+      { geo: makeFastBox(0.62, 0.68, 0.32, 0, -0.52, 0), color: PALETTE_COLORS.charredAsh },
+      { geo: headGeo, color: PALETTE_COLORS.charredBody }
+    ])
+  );
+  return SHARED_CHARRED_CORPSE_VC_GEO;
+}
+
 function buildSeatedBustMesh(category, subKind, seatPose, idx = 0) {
-  const A = ensureOccupantAssets();
-  const pal = resolvePalette(A, category, subKind, idx);
-  const bust = new THREE.Group();
+  const mergedBustGeo = getMergedBustGeometry(category, subKind, idx);
+  const bust = new THREE.Mesh(mergedBustGeo, SHARED_OCCUPANT_VC_MAT);
+  bust.castShadow = false;
+  bust.receiveShadow = false;
   bust.userData.isOccupantBust = true;
   bust.userData.skipStaticMerge = true;
-
-  const torso = new THREE.Mesh(A.torsoGeo, pal.torso);
-  torso.position.y = 0.24;
-  const shoulders = new THREE.Mesh(A.shouldersGeo, pal.torso);
-  shoulders.position.y = 0.36;
-  const head = new THREE.Mesh(A.headGeo, pal.head);
-  head.position.y = 0.64;
-  const headgear = new THREE.Mesh(A.helmetGeo, pal.headgear);
-  headgear.position.y = 0.78;
-  for (const m of [torso, shoulders, head, headgear]) {
-    m.castShadow = false;
-    m.receiveShadow = false;
-  }
-  bust.add(torso, shoulders, head, headgear);
-
-  if (pal.hasVisor) {
-    const visor = new THREE.Mesh(A.capVisorGeo, pal.headgear);
-    visor.position.set(0, 0.73, 0.14);
-    visor.castShadow = false;
-    bust.add(visor);
-  }
   bust.position.set(seatPose.x, seatPose.y, seatPose.z);
   bust.scale.setScalar(seatPose.scale ?? 0.82);
   if (seatPose.leanX) bust.rotation.x = seatPose.leanX;
@@ -106,7 +139,6 @@ function buildSeatedBustMesh(category, subKind, seatPose, idx = 0) {
 }
 
 function createCharredCorpseGroup(seed = 0) {
-  const A = ensureOccupantAssets();
   const root = new THREE.Group();
   root.userData.skipStaticMerge = true;
   const body = new THREE.Group();
@@ -114,17 +146,10 @@ function createCharredCorpseGroup(seed = 0) {
   body.rotation.z = ((seed % 3) - 1) * 0.22;
   body.position.y = 0.2;
 
-  const torso = new THREE.Mesh(A.corpseTorsoGeo, A.mats.charredBody);
-  torso.position.set(0, 0.18, 0);
-  const legs = new THREE.Mesh(A.corpseLegsGeo, A.mats.charredAsh);
-  legs.position.set(0, -0.52, 0);
-  const head = new THREE.Mesh(A.corpseHeadGeo, A.mats.charredBody);
-  head.position.set(0, 0.74, 0);
-  for (const m of [torso, legs, head]) {
-    m.castShadow = false;
-    m.receiveShadow = false;
-  }
-  body.add(torso, legs, head);
+  const singleMesh = new THREE.Mesh(getMergedCharredCorpseGeometry(), SHARED_CHARRED_CORPSE_VC_MAT);
+  singleMesh.castShadow = false;
+  singleMesh.receiveShadow = false;
+  body.add(singleMesh);
   root.add(body);
   return root;
 }

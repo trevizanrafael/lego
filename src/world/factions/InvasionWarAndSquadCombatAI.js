@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
+import { markAsSharedAsset } from '../../materials/LegoMaterials.js';
 import { animateFactionSoldier } from '../../entities/FactionSoldierBuilder.js';
 import { BANK_SPEC } from '../regions/SuperBankBuilder.js';
 import { AgentSeparationSystem, computeDistinctArrivalSlot } from '../collision/AgentSeparation.js';
@@ -10,25 +11,131 @@ import { HUMANOID_STATES } from '../npc-health/HumanoidHealthModel.js';
 import { applyHumanoidHitPose, applyHumanoidKnockbackStep } from '../npc-health/HumanoidHitReactions.js';
 import { ensureSharedWarGeometries, ALLY_BULLET_MAT, ROCKET_MAT, getFactionBulletMat } from './CombatUnitsAndConvoys3D.js';
 
+const COMBAT_CELL = 24.0;
 const _capPos = { x: 0, y: 0, z: 0 };
 const _capOut = {};
+let _capIgnoreCols = null;
+const _capFilter = (col) => !_capIgnoreCols || _capIgnoreCols.indexOf(col) === -1;
+const _capOpts = { stepUpHeight: 0.38, ignoreColliders: null, filter: _capFilter, out: _capOut };
 const _slideOut = { vx: 0, vz: 0, x: 0, z: 0 };
+const _stepOut = { x: 0, z: 0, collided: false };
+const _slotOut = { x: 0, z: 0, radius: 0, angle: 0, ring: 0 };
+const _kbOut = { x: 0, z: 0, valid: true };
+
+const _dirTmp = new THREE.Vector3();
+const _lookTmp = new THREE.Vector3();
+const _c4PosTmp = new THREE.Vector3();
+
+const _projectilePool = [];
+const _flashShockwavePool = [];
+const _ringShockwavePool = [];
+
+function packCombatCell(gx, gz) {
+  return ((gx & 0xffff) << 16) | (gz & 0xffff);
+}
+
+function rebuildCombatSpatialGrid(sys) {
+  let grid = sys._combatGrid;
+  let used = sys._combatUsedBuckets;
+  if (!grid) {
+    grid = new Map();
+    used = [];
+    sys._combatGrid = grid;
+    sys._combatUsedBuckets = used;
+  } else {
+    for (let i = 0; i < used.length; i++) used[i].length = 0;
+    used.length = 0;
+  }
+
+  const list = sys.combatNpcs;
+  for (let i = 0; i < list.length; i++) {
+    const u = list[i];
+    if (!u?.destructible || u.destructible.destroyed) continue;
+    const p = u.visual.root.position;
+    const key = packCombatCell(Math.floor(p.x / COMBAT_CELL), Math.floor(p.z / COMBAT_CELL));
+    let bucket = grid.get(key);
+    if (!bucket) {
+      bucket = [];
+      grid.set(key, bucket);
+    }
+    if (bucket.length === 0) used.push(bucket);
+    bucket.push(u);
+  }
+  return grid;
+}
+
+function acquireProjectileSlot(geo, mat) {
+  for (let i = 0; i < _projectilePool.length; i++) {
+    const slot = _projectilePool[i];
+    if (!slot.active || !slot.mesh.parent) {
+      slot.mesh.geometry = geo;
+      slot.mesh.material = mat;
+      slot.active = true;
+      return slot;
+    }
+  }
+  const mesh = new THREE.Mesh(geo, mat);
+  const slot = {
+    mesh,
+    originPos: new THREE.Vector3(),
+    vel: new THREE.Vector3(),
+    isAllied: false,
+    damage: 0,
+    splash: 0,
+    life: 0,
+    active: true
+  };
+  _projectilePool.push(slot);
+  return slot;
+}
+
+function acquireShockwaveSlot(isFlash, geo, colorHex, initScale, life) {
+  const pool = isFlash ? _flashShockwavePool : _ringShockwavePool;
+  for (let i = 0; i < pool.length; i++) {
+    const slot = pool[i];
+    if (!slot.active || !slot.mesh.parent) {
+      slot.mesh.geometry = geo;
+      slot.mat.color.setHex(colorHex);
+      slot.mat.opacity = 0.9;
+      slot.scale = initScale;
+      slot.mesh.scale.setScalar(initScale);
+      slot.life = life;
+      slot.isFlash = isFlash;
+      slot.active = true;
+      return slot;
+    }
+  }
+  const mat = markAsSharedAsset(
+    new THREE.MeshBasicMaterial(
+      isFlash
+        ? { color: colorHex, transparent: true, opacity: 0.9, depthWrite: false }
+        : { color: colorHex, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }
+    )
+  );
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.scale.setScalar(initScale);
+  const slot = { mesh, mat, scale: initScale, life, isFlash, active: true, _pooled: true };
+  pool.push(slot);
+  return slot;
+}
 
 function resolveSoldierCapsule(sys, npc, candX, candZ, curY) {
   const radius = npc.isBoss ? 0.92 : 0.48, height = npc.isBoss ? 2.6 : 2.0;
   if (typeof sys.world?.resolveCapsulePenetration === 'function') {
     const ownCols = npc.destructible?.colliders;
     _capPos.x = candX; _capPos.y = curY; _capPos.z = candZ;
-    return sys.world.resolveCapsulePenetration(_capPos, radius, height, {
-      stepUpHeight: 0.38, ignoreColliders: ownCols,
-      filter: (col) => !ownCols || ownCols.indexOf(col) === -1, out: _capOut
-    });
+    _capIgnoreCols = ownCols && ownCols.length > 0 ? ownCols : null;
+    _capOpts.ignoreColliders = _capIgnoreCols;
+    return sys.world.resolveCapsulePenetration(_capPos, radius, height, _capOpts);
   }
   return sys.livingCity._resolveBuildingCollision(candX, candZ, npc.isBoss ? 1.85 : 0.95);
 }
 
 function stepFactionSoldier(sys, npc, pos, dx, dz, dist, stepDist) {
-  if (dist < 1e-4 || stepDist <= 1e-4) return { x: pos.x, z: pos.z, collided: false };
+  if (dist < 1e-4 || stepDist <= 1e-4) {
+    _stepOut.x = pos.x; _stepOut.z = pos.z; _stepOut.collided = false;
+    return _stepOut;
+  }
   let dirX = dx / dist, dirZ = dz / dist;
   if (npc._avoidX || npc._avoidZ) {
     dirX += npc._avoidX * 0.55; dirZ += npc._avoidZ * 0.55;
@@ -53,7 +160,8 @@ function stepFactionSoldier(sys, npc, pos, dx, dz, dist, stepDist) {
       }
     }
   }
-  return { x: fx, z: fz, collided };
+  _stepOut.x = fx; _stepOut.z = fz; _stepOut.collided = collided;
+  return _stepOut;
 }
 
 function applySafeSoldierFloorPos(sys, pos, nx, nz) {
@@ -63,8 +171,8 @@ function applySafeSoldierFloorPos(sys, pos, nx, nz) {
   return true;
 }
 
-function separateCombatSquads(sys) {
-  const sepSys = sys._factionSeparationSys || (sys._factionSeparationSys = new AgentSeparationSystem({ cellSize: 4.0, maxActiveDist: 185, passes: 4 }));
+function separateCombatSquads(sys, playerPos) {
+  const sepSys = sys._factionSeparationSys || (sys._factionSeparationSys = new AgentSeparationSystem({ cellSize: 4.0, maxActiveDist: 185, passes: 2 }));
   const agents = sys._factionSepAgents || (sys._factionSepAgents = []);
   const pool = sys._factionSepPool || (sys._factionSepPool = []);
   agents.length = 0;
@@ -82,11 +190,12 @@ function separateCombatSquads(sys) {
   if (agents.length < 2) return;
 
   for (let iter = 0; iter < 2; iter++) {
-    sepSys.separateAgents(agents, null);
+    sepSys.separateAgents(agents, playerPos || null);
     let wallClamped = false;
     for (let i = 0; i < agents.length; i++) {
       const a = agents[i], npc = a.npc, pos = npc.visual.root.position;
       if (iter === 0) { npc._avoidX = a.avoidX; npc._avoidZ = a.avoidZ; }
+      if (a.sepPushX === 0 && a.sepPushZ === 0) continue;
       const res = resolveSoldierCapsule(sys, npc, pos.x + a.sepPushX, pos.z + a.sepPushZ, pos.y);
       if (res.collided) wallClamped = true;
       if (applySafeSoldierFloorPos(sys, pos, res.x, res.z)) {
@@ -101,8 +210,11 @@ function separateCombatSquads(sys) {
 
 export const invasionSquadCombatMethods = {
   _updateCombatUnitsAndHealBeams(dt, playerPos, controller, zoneState) {
-    for (const beam of this.healBeams) beam.visible = false;
-    const healState = { beamIdx: 0, playerBeingHealed: false };
+    this._aiTick = ((this._aiTick || 0) + 1) | 0;
+    for (let bi = 0; bi < this.healBeams.length; bi++) this.healBeams[bi].visible = false;
+    const healState = this._healStateScratch || (this._healStateScratch = { beamIdx: 0, playerBeingHealed: false });
+    healState.beamIdx = 0;
+    healState.playerBeingHealed = false;
 
     let alliedTotal = 0, enemyTotal = 0;
     for (let k = 0; k < this.combatNpcs.length; k++) {
@@ -110,6 +222,11 @@ export const invasionSquadCombatMethods = {
       if (!u?.destructible || u.destructible.destroyed) continue;
       u._slotIndex = u.isAllied ? alliedTotal++ : enemyTotal++;
     }
+
+    const combatGrid = rebuildCombatSpatialGrid(this);
+    const throttleAI = dt < 0.08;
+    const isPlayerStealthed = Boolean(controller?.operatorAbilities?.isStealthed?.() || (controller?.stealthTimer || 0) > 0);
+    const curZoneIdx = zoneState ? zoneState.activeIndex : -1;
 
     for (let i = this.combatNpcs.length - 1; i >= 0; i--) {
       const npc = this.combatNpcs[i], obj = npc.destructible;
@@ -128,7 +245,7 @@ export const invasionSquadCombatMethods = {
 
       const root = npc.visual.root, pos = root.position;
       npc.visual.allyMarker.visible = npc.isAllied;
-      npc.visual.allyMarker.rotation.y += dt * 2.8;
+      if (npc.isAllied) npc.visual.allyMarker.rotation.y += dt * 2.8;
       if (npc.muzzleTimer > 0 && (npc.muzzleTimer -= dt) <= 0) npc.visual.muzzleFlash.visible = false;
       if (obj._signalMarkedTimer > 0) obj._signalMarkedTimer = Math.max(0, obj._signalMarkedTimer - dt);
 
@@ -138,7 +255,8 @@ export const invasionSquadCombatMethods = {
           npc.visual.muzzleFlash.visible = false;
           applyHumanoidKnockbackStep(root, npc.humanoidHealth, dt, (nx, nz) => {
             const res = resolveSoldierCapsule(this, npc, nx, nz, pos.y);
-            return { x: res.x, z: res.z, valid: true };
+            _kbOut.x = res.x; _kbOut.z = res.z; _kbOut.valid = true;
+            return _kbOut;
           });
           const gY = this._groundAt(pos.x, pos.z, pos.y);
           applyHumanoidHitPose(npc.visual, npc.humanoidHealth, gY, dt, { unitScale: npc.unitScale || 1 });
@@ -174,91 +292,183 @@ export const invasionSquadCombatMethods = {
           healState.playerBeingHealed = true;
         }
         if (dPlayer > 6.5) {
-          const mSlot = computeDistinctArrivalSlot(playerPos.x, playerPos.z, slotIdx, Math.max(1, sideCount), 4.5, 2.5);
+          const mSlot = computeDistinctArrivalSlot(playerPos.x, playerPos.z, slotIdx, Math.max(1, sideCount), 4.5, 2.5, _slotOut);
           const mdx = mSlot.x - pos.x, mdz = mSlot.z - pos.z, md = Math.hypot(mdx, mdz);
           const res = stepFactionSoldier(this, npc, pos, mdx, mdz, md, Math.min(md, npc.speed * dt));
           applySafeSoldierFloorPos(this, pos, res.x, res.z);
           root.rotation.y = Math.atan2(playerPos.x - pos.x, playerPos.z - pos.z);
           npc.walkPhase += dt * 8.5;
-          npc.visual.leftLeg.rotation.x = Math.sin(npc.walkPhase) * 0.55;
-          npc.visual.rightLeg.rotation.x = -Math.sin(npc.walkPhase) * 0.55;
+          const sw = Math.sin(npc.walkPhase) * 0.55;
+          npc.visual.leftLeg.rotation.x = sw;
+          npc.visual.rightLeg.rotation.x = -sw;
           obj.basePos.copy(pos);
           continue;
         }
       }
 
       if (npc.retreating && npc.patrolAnchor) {
-        const rGoal = sideCount > 1 ? computeDistinctArrivalSlot(npc.patrolAnchor.x, npc.patrolAnchor.z, slotIdx, sideCount, 2.4, 2.0) : npc.patrolAnchor;
+        const rGoal = sideCount > 1
+          ? computeDistinctArrivalSlot(npc.patrolAnchor.x, npc.patrolAnchor.z, slotIdx, sideCount, 2.4, 2.0, _slotOut)
+          : npc.patrolAnchor;
         const rdx = rGoal.x - pos.x, rdz = rGoal.z - pos.z, rd = Math.hypot(rdx, rdz);
         if (rd < 2.8) {
           npc.retreating = false;
+          npc._cachedDecision = false;
         } else {
           const step = Math.min(rd, npc.speed * 1.25 * dt);
           const res = stepFactionSoldier(this, npc, pos, rdx, rdz, rd, step);
-          if (res.collided && Math.hypot(res.x - pos.x, res.z - pos.z) < step * 0.08) npc.retreating = false;
+          if (res.collided && Math.hypot(res.x - pos.x, res.z - pos.z) < step * 0.08) {
+            npc.retreating = false;
+            npc._cachedDecision = false;
+          }
           applySafeSoldierFloorPos(this, pos, res.x, res.z);
           root.rotation.y = Math.atan2(rdx, rdz);
           npc.walkPhase += dt * 11;
-          npc.visual.leftLeg.rotation.x = Math.sin(npc.walkPhase) * 0.7;
-          npc.visual.rightLeg.rotation.x = -Math.sin(npc.walkPhase) * 0.7;
+          const sw = Math.sin(npc.walkPhase) * 0.7;
+          npc.visual.leftLeg.rotation.x = sw;
+          npc.visual.rightLeg.rotation.x = -sw;
           obj.basePos.copy(pos);
           continue;
         }
       }
 
-      let bestTargetPos = null, bestTargetNpc = null, bestDist = 72;
-      for (const other of this.combatNpcs) {
-        if (other === npc || other.isAllied === npc.isAllied || !other.destructible || other.destructible.destroyed) continue;
-        const oPos = other.visual.root.position;
-        if (Math.abs(oPos.y - pos.y) > 4.5) continue;
-        const d = Math.hypot(oPos.x - pos.x, oPos.z - pos.z);
-        if (d < bestDist) { bestDist = d; bestTargetNpc = other; bestTargetPos = oPos; }
-      }
+      const cachedNpcDead =
+        npc._cachedBestTargetNpc &&
+        (!npc._cachedBestTargetNpc.destructible || npc._cachedBestTargetNpc.destructible.destroyed);
+      const stealthInvalidated = npc._cachedTargetIsPlayer && isPlayerStealthed;
+      const modeChanged = npc._cachedMode !== this.activeMode || npc._cachedZoneIdx !== curZoneIdx;
+      const shouldThink =
+        !throttleAI ||
+        !npc._cachedDecision ||
+        (i + this._aiTick) % 6 === 0 ||
+        cachedNpcDead ||
+        stealthInvalidated ||
+        modeChanged;
 
-      const isPlayerStealthed = Boolean(controller?.operatorAbilities?.isStealthed?.() || (controller?.stealthTimer || 0) > 0);
-      if (!npc.isAllied && !isPlayerStealthed) {
-        const dPlayer = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
-        if (dPlayer < bestDist * 0.92 && dPlayer < 65 && Math.abs(playerPos.y - pos.y) < 4.5) {
-          bestDist = dPlayer; bestTargetNpc = null; bestTargetPos = playerPos;
+      let bestTargetPos = null;
+      let bestTargetNpc = null;
+      let bestDist = 72;
+
+      if (shouldThink) {
+        let bestDistSq = 72 * 72;
+        const cgx = Math.floor(pos.x / COMBAT_CELL);
+        const cgz = Math.floor(pos.z / COMBAT_CELL);
+        for (let dx = -3; dx <= 3; dx++) {
+          for (let dz = -3; dz <= 3; dz++) {
+            const bucket = combatGrid.get(packCombatCell(cgx + dx, cgz + dz));
+            if (!bucket || bucket.length === 0) continue;
+            for (let bi = 0; bi < bucket.length; bi++) {
+              const other = bucket[bi];
+              if (other === npc || other.isAllied === npc.isAllied || !other.destructible || other.destructible.destroyed) continue;
+              const oPos = other.visual.root.position;
+              if (Math.abs(oPos.y - pos.y) > 4.5) continue;
+              const ddx = oPos.x - pos.x, ddz = oPos.z - pos.z;
+              const dSq = ddx * ddx + ddz * ddz;
+              if (dSq < bestDistSq) {
+                bestDistSq = dSq;
+                bestTargetNpc = other;
+                bestTargetPos = oPos;
+              }
+            }
+          }
+        }
+        if (bestTargetPos) bestDist = Math.sqrt(bestDistSq);
+
+        if (!npc.isAllied && !isPlayerStealthed) {
+          const dPlayer = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
+          if (dPlayer < bestDist * 0.92 && dPlayer < 65 && Math.abs(playerPos.y - pos.y) < 4.5) {
+            bestDist = dPlayer;
+            bestTargetNpc = null;
+            bestTargetPos = playerPos;
+          }
+        }
+
+        let moveTarget = bestTargetPos, stopRange = npc.isBoss ? 14.0 : 16.5, useFormationSlot = false;
+        if (!moveTarget && npc.isAllied && this.activeMode === 'BANK_HEIST') {
+          moveTarget = Math.abs(playerPos.y - pos.y) < 3 ? playerPos : npc.patrolAnchor;
+          stopRange = 3.5; useFormationSlot = sideCount > 1;
+        } else if (!moveTarget && npc.isAllied && zoneState && this.activeMode === 'COUNTER_ATTACK') {
+          moveTarget = npc.patrolAnchor || zoneState.spec.bossCourtyard;
+          stopRange = 3.0; useFormationSlot = sideCount > 1;
+        } else if (!moveTarget && npc.isAllied && zoneState) {
+          const nextOp = zoneState.outposts[zoneState.activeIndex];
+          moveTarget = nextOp || (zoneState.bossPhaseTriggered ? zoneState.spec.bossCourtyard : null) || playerPos;
+          stopRange = 2.5; useFormationSlot = sideCount > 1;
+        } else if (!moveTarget && !npc.isAllied && npc.patrolAnchor) {
+          moveTarget = npc.patrolAnchor;
+          stopRange = sideCount > 1 ? 1.5 : 3.5; useFormationSlot = sideCount > 1;
+        } else if (moveTarget && sideCount > 1) {
+          useFormationSlot = true;
+        }
+        if (npc.role === 'special' && npc.faction === 'pcc' && bestTargetPos && !npc.isAllied) {
+          stopRange = 1.2; useFormationSlot = false;
+        }
+
+        let goalX = 0, goalZ = 0, effStop = stopRange;
+        if (moveTarget) {
+          const goal = useFormationSlot
+            ? computeDistinctArrivalSlot(
+                moveTarget.x,
+                moveTarget.z,
+                slotIdx,
+                sideCount,
+                bestTargetPos ? Math.min(stopRange * 0.65, 6.5) : 2.6,
+                bestTargetPos ? 3.2 : 2.2,
+                _slotOut
+              )
+            : moveTarget;
+          goalX = goal.x;
+          goalZ = goal.z;
+          effStop = useFormationSlot && !bestTargetPos ? 0.9 : (useFormationSlot ? Math.max(1.8, stopRange * 0.55) : stopRange);
+        }
+
+        npc._cachedDecision = true;
+        npc._cachedMode = this.activeMode;
+        npc._cachedZoneIdx = curZoneIdx;
+        npc._cachedBestTargetNpc = bestTargetNpc;
+        npc._cachedTargetIsPlayer = bestTargetPos === playerPos;
+        npc._cachedHasTarget = Boolean(bestTargetPos);
+        npc._cachedHasMove = Boolean(moveTarget);
+        npc._cachedUseSlot = useFormationSlot;
+        npc._cachedGoalX = goalX;
+        npc._cachedGoalZ = goalZ;
+        npc._cachedLookX = moveTarget ? moveTarget.x : 0;
+        npc._cachedLookZ = moveTarget ? moveTarget.z : 0;
+        npc._cachedStopRange = effStop;
+      } else {
+        if (npc._cachedTargetIsPlayer && !isPlayerStealthed && Math.abs(playerPos.y - pos.y) < 4.5) {
+          bestTargetPos = playerPos;
+          bestTargetNpc = null;
+          bestDist = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
+        } else if (npc._cachedBestTargetNpc?.destructible && !npc._cachedBestTargetNpc.destructible.destroyed) {
+          bestTargetNpc = npc._cachedBestTargetNpc;
+          bestTargetPos = bestTargetNpc.visual.root.position;
+          if (Math.abs(bestTargetPos.y - pos.y) <= 4.5) {
+            bestDist = Math.hypot(bestTargetPos.x - pos.x, bestTargetPos.z - pos.z);
+          } else {
+            bestTargetPos = null;
+            bestTargetNpc = null;
+          }
         }
       }
 
-      let moveTarget = bestTargetPos, stopRange = npc.isBoss ? 14.0 : 16.5, useFormationSlot = false;
-      if (!moveTarget && npc.isAllied && this.activeMode === 'BANK_HEIST') {
-        moveTarget = Math.abs(playerPos.y - pos.y) < 3 ? playerPos : npc.patrolAnchor;
-        stopRange = 3.5; useFormationSlot = sideCount > 1;
-      } else if (!moveTarget && npc.isAllied && zoneState && this.activeMode === 'COUNTER_ATTACK') {
-        moveTarget = npc.patrolAnchor || zoneState.spec.bossCourtyard;
-        stopRange = 3.0; useFormationSlot = sideCount > 1;
-      } else if (!moveTarget && npc.isAllied && zoneState) {
-        const nextOp = zoneState.outposts[zoneState.activeIndex];
-        moveTarget = nextOp ? { x: nextOp.x, z: nextOp.z } : (zoneState.bossPhaseTriggered ? zoneState.spec.bossCourtyard : null) || playerPos;
-        stopRange = 2.5; useFormationSlot = sideCount > 1;
-      } else if (!moveTarget && !npc.isAllied && npc.patrolAnchor) {
-        moveTarget = npc.patrolAnchor;
-        stopRange = sideCount > 1 ? 1.5 : 3.5; useFormationSlot = sideCount > 1;
-      } else if (moveTarget && sideCount > 1) {
-        useFormationSlot = true;
-      }
-      if (npc.role === 'special' && npc.faction === 'pcc' && bestTargetPos && !npc.isAllied) {
-        stopRange = 1.2; useFormationSlot = false;
-      }
-
-      if (moveTarget) {
-        const goal = useFormationSlot
-          ? computeDistinctArrivalSlot(moveTarget.x, moveTarget.z, slotIdx, sideCount, bestTargetPos ? Math.min(stopRange * 0.65, 6.5) : 2.6, bestTargetPos ? 3.2 : 2.2)
-          : moveTarget;
-        const effStop = useFormationSlot && !bestTargetPos ? 0.9 : (useFormationSlot ? Math.max(1.8, stopRange * 0.55) : stopRange);
-        const dx = goal.x - pos.x, dz = goal.z - pos.z, dist = Math.hypot(dx, dz);
-        root.rotation.y = Math.atan2(moveTarget.x - pos.x, moveTarget.z - pos.z);
+      if (npc._cachedHasMove) {
+        const goalX = !npc._cachedUseSlot && bestTargetPos ? bestTargetPos.x : npc._cachedGoalX;
+        const goalZ = !npc._cachedUseSlot && bestTargetPos ? bestTargetPos.z : npc._cachedGoalZ;
+        const lookX = bestTargetPos ? bestTargetPos.x : npc._cachedLookX;
+        const lookZ = bestTargetPos ? bestTargetPos.z : npc._cachedLookZ;
+        const effStop = npc._cachedStopRange;
+        const dx = goalX - pos.x, dz = goalZ - pos.z, dist = Math.hypot(dx, dz);
+        root.rotation.y = Math.atan2(lookX - pos.x, lookZ - pos.z);
 
         if (dist > effStop) {
           const step = Math.min(dist - effStop * 0.65, npc.speed * dt);
           const res = stepFactionSoldier(this, npc, pos, dx, dz, dist, Math.max(0.02, step));
           applySafeSoldierFloorPos(this, pos, res.x, res.z);
           npc.walkPhase += dt * (npc.isBoss ? 6.0 : 8.5);
-          npc.visual.leftLeg.rotation.x = Math.sin(npc.walkPhase) * 0.55;
-          npc.visual.rightLeg.rotation.x = -Math.sin(npc.walkPhase) * 0.55;
+          const sw = Math.sin(npc.walkPhase) * 0.55;
+          npc.visual.leftLeg.rotation.x = sw;
+          npc.visual.rightLeg.rotation.x = -sw;
         } else {
           npc.visual.leftLeg.rotation.x *= 0.85; npc.visual.rightLeg.rotation.x *= 0.85;
         }
@@ -275,7 +485,7 @@ export const invasionSquadCombatMethods = {
       }
 
       npc.fireCooldown -= dt;
-      if (bestTargetPos && bestDist < 54 && npc.fireCooldown <= 0) {
+      if (bestTargetPos && bestDist < 54 && npc.fireCooldown <= 0 && Math.abs((bestTargetPos.y ?? pos.y) - pos.y) <= 4.5) {
         npc.fireCooldown =
           npc.heavyClass === 'elite' ? 0.2 : npc.heavyClass === 'brute' ? 0.75 : npc.isBoss ? 0.55 :
           npc.role === 'tank' ? 0.95 : npc.role === 'special' ? (npc.faction === 'cv' ? 3.2 : npc.faction === 'ares' ? 0.42 : 1.1) :
@@ -287,7 +497,9 @@ export const invasionSquadCombatMethods = {
       obj.basePos.copy(pos);
     }
 
-    separateCombatSquads(this);
+    if (!(throttleAI && this.combatNpcs.length > 10 && (this._aiTick & 1) === 1)) {
+      separateCombatSquads(this, playerPos);
+    }
     if (!healState.playerBeingHealed && this.hud?.heartsContainer) this.hud.heartsContainer.classList.remove('healing-pulse');
   },
 
@@ -298,35 +510,42 @@ export const invasionSquadCombatMethods = {
     const isDrone = npc.role === 'special' && npc.faction === 'ares' && npc.visual.drone;
     const startY = origin.y + (npc.isBoss ? 3.1 : npc.hitH ? npc.hitH * 0.6 : isDrone ? 2.7 : isRpg ? 1.62 : 1.38);
     const targetY = (targetPos.y ?? origin.y) + (targetNpc?.isBoss ? 2.6 : 1.2);
-    const dir = new THREE.Vector3(targetPos.x - origin.x + (Math.random() - 0.5) * 1.4, targetY - startY, targetPos.z - origin.z + (Math.random() - 0.5) * 1.4).normalize();
+    _dirTmp.set(
+      targetPos.x - origin.x + (Math.random() - 0.5) * 1.4,
+      targetY - startY,
+      targetPos.z - origin.z + (Math.random() - 0.5) * 1.4
+    ).normalize();
 
-    const bulletMesh = new THREE.Mesh(
+    const slot = acquireProjectileSlot(
       isRpg ? geos.rocketGeo : geos.bulletGeo,
       isRpg ? ROCKET_MAT : npc.isAllied ? ALLY_BULLET_MAT : getFactionBulletMat(npc.faction, theme.hex)
     );
-    bulletMesh.position.set(origin.x + dir.x * 1.1, startY, origin.z + dir.z * 1.1);
-    bulletMesh.lookAt(bulletMesh.position.clone().add(dir));
+    const bulletMesh = slot.mesh;
+    bulletMesh.position.set(origin.x + _dirTmp.x * 1.1, startY, origin.z + _dirTmp.z * 1.1);
+    _lookTmp.copy(bulletMesh.position).add(_dirTmp);
+    bulletMesh.lookAt(_lookTmp);
     this.scene.add(bulletMesh);
 
     npc.visual.muzzleFlash.visible = true; npc.muzzleTimer = 0.08;
-    this.npcProjectiles.push({
-      mesh: bulletMesh, originPos: bulletMesh.position.clone(),
-      vel: dir.multiplyScalar(npc.isBoss ? 48 : isRpg ? 26 : 42), isAllied: npc.isAllied,
-      damage: npc.heavyClass === 'elite' ? 6 : npc.heavyClass === 'brute' ? 13 : npc.isBoss ? 16 : isRpg ? 22 : isDrone ? 4 : npc.faction === 'guard' ? 5 : npc.role === 'tank' ? 11 : 8,
-      splash: isRpg ? 5.5 : 0, life: isRpg ? 2.4 : 1.45
-    });
+    slot.originPos.copy(bulletMesh.position);
+    slot.vel.copy(_dirTmp).multiplyScalar(npc.isBoss ? 48 : isRpg ? 26 : 42);
+    slot.isAllied = npc.isAllied;
+    slot.damage = npc.heavyClass === 'elite' ? 6 : npc.heavyClass === 'brute' ? 13 : npc.isBoss ? 16 : isRpg ? 22 : isDrone ? 4 : npc.faction === 'guard' ? 5 : npc.role === 'tank' ? 11 : 8;
+    slot.splash = isRpg ? 5.5 : 0;
+    slot.life = isRpg ? 2.4 : 1.45;
+    this.npcProjectiles.push(slot);
   },
 
   _triggerBossGroundSlam(bossNpc, controller, playerPos) {
     const geos = ensureSharedWarGeometries(), theme = FACTION_THEME[bossNpc.faction] || FACTION_THEME.cv;
     const bPos = bossNpc.visual.root.position;
-    const ringMat = new THREE.MeshBasicMaterial({ color: theme.hex, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
-    const ringMesh = new THREE.Mesh(geos.shockwaveGeo, ringMat);
-    ringMesh.position.set(bPos.x, bPos.y + 0.25, bPos.z);
-    this.scene.add(ringMesh);
-    this.activeShockwaves.push({ mesh: ringMesh, mat: ringMat, scale: 1.0, life: 0.55 });
+    const swSlot = acquireShockwaveSlot(false, geos.shockwaveGeo, theme.hex, 1.0, 0.55);
+    swSlot.mesh.position.set(bPos.x, bPos.y + 0.25, bPos.z);
+    this.scene.add(swSlot.mesh);
+    this.activeShockwaves.push(swSlot);
 
-    for (const other of this.combatNpcs) {
+    for (let k = 0; k < this.combatNpcs.length; k++) {
+      const other = this.combatNpcs[k];
       if (other.isAllied === bossNpc.isAllied || !other.destructible || other.destructible.destroyed) continue;
       if (Math.hypot(other.visual.root.position.x - bPos.x, other.visual.root.position.z - bPos.z) < 11.5) {
         this.destructibles.damageObject(other.destructible, 65, bPos, false, { fromEnemyNpc: true, isExplosion: true, sourceIsPlayer: false });
@@ -345,10 +564,14 @@ export const invasionSquadCombatMethods = {
       sw.mat.opacity = Math.max(0, sw.life * (sw.isFlash ? 2.2 : 1.6));
       if (sw.life <= 0) {
         if (sw.mesh.parent) sw.mesh.parent.remove(sw.mesh);
-        sw.mat.dispose?.();
+        sw.active = false;
+        if (!sw._pooled) sw.mat.dispose?.();
         this.activeShockwaves.splice(i, 1);
       }
     }
+
+    if (this.npcProjectiles.length === 0) return;
+    const combatGrid = rebuildCombatSpatialGrid(this);
 
     for (let i = this.npcProjectiles.length - 1; i >= 0; i--) {
       const p = this.npcProjectiles[i];
@@ -359,25 +582,37 @@ export const invasionSquadCombatMethods = {
       if (p.life <= 0 || this.livingCity._isInsideBuilding(px, pz, 0.15)) {
         if (p.splash) this._npcExplosion(p.mesh.position, p.splash, p.damage, p.isAllied, controller, zoneState);
         if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        p.active = false;
         this.npcProjectiles.splice(i, 1);
         continue;
       }
       if (!p.isAllied && controller?.operatorAbilities?.isProjectileBlocked?.(p.mesh.position, p.originPos)) {
         if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        p.active = false;
         this.npcProjectiles.splice(i, 1);
         continue;
       }
 
       let hit = false;
-      for (const npc of this.combatNpcs) {
-        if (npc.isAllied === p.isAllied || !npc.destructible || npc.destructible.destroyed) continue;
-        const nPos = npc.visual.root.position;
-        const hitR = npc.hitR ?? (npc.isBoss ? 2.3 : 1.05), hitH = npc.hitH ?? (npc.isBoss ? 5.0 : 2.3);
-        if (Math.abs(px - nPos.x) < hitR && Math.abs(pz - nPos.z) < hitR && py >= nPos.y && py <= nPos.y + hitH) {
-          this.destructibles.damageObject(npc.destructible, p.damage * 2.2, p.mesh.position, false, {
-            fromEnemyNpc: true, isExplosion: Boolean(p.splash), sourceIsPlayer: false, shotOrigin: p.originPos || null, shotDir: p.vel
-          });
-          hit = true; break;
+      const pgx = Math.floor(px / COMBAT_CELL);
+      const pgz = Math.floor(pz / COMBAT_CELL);
+      for (let dx = -1; dx <= 1 && !hit; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const bucket = combatGrid.get(packCombatCell(pgx + dx, pgz + dz));
+          if (!bucket || bucket.length === 0) continue;
+          for (let bi = 0; bi < bucket.length; bi++) {
+            const npc = bucket[bi];
+            if (npc.isAllied === p.isAllied || !npc.destructible || npc.destructible.destroyed) continue;
+            const nPos = npc.visual.root.position;
+            const hitR = npc.hitR ?? (npc.isBoss ? 2.3 : 1.05), hitH = npc.hitH ?? (npc.isBoss ? 5.0 : 2.3);
+            if (Math.abs(px - nPos.x) < hitR && Math.abs(pz - nPos.z) < hitR && py >= nPos.y && py <= nPos.y + hitH) {
+              this.destructibles.damageObject(npc.destructible, p.damage * 2.2, p.mesh.position, false, {
+                fromEnemyNpc: true, isExplosion: Boolean(p.splash), sourceIsPlayer: false, shotOrigin: p.originPos || null, shotDir: p.vel
+              });
+              hit = true; break;
+            }
+          }
+          if (hit) break;
         }
       }
       if (!hit && !p.isAllied && this.isInvasionActive && playerPos) {
@@ -389,6 +624,7 @@ export const invasionSquadCombatMethods = {
       if (hit) {
         if (p.splash) this._npcExplosion(p.mesh.position, p.splash, p.damage, p.isAllied, controller, zoneState);
         if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        p.active = false;
         this.npcProjectiles.splice(i, 1);
       }
     }
@@ -397,16 +633,18 @@ export const invasionSquadCombatMethods = {
   _npcExplosion(center, radius, damage, fromAllied, controller, zoneState) {
     const geos = ensureSharedWarGeometries();
     soundFX.playExplosion(0.85);
-    const flashMat = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.9 });
-    const flash = new THREE.Mesh(geos.blastGeo, flashMat);
-    flash.position.copy(center); this.scene.add(flash);
-    this.activeShockwaves.push({ mesh: flash, mat: flashMat, scale: 0.6, life: 0.4, isFlash: true });
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(geos.shockwaveGeo, ringMat);
-    ring.position.set(center.x, center.y - 0.6, center.z); this.scene.add(ring);
-    this.activeShockwaves.push({ mesh: ring, mat: ringMat, scale: 1.0, life: 0.45 });
+    const flashSlot = acquireShockwaveSlot(true, geos.blastGeo, 0xf97316, 0.6, 0.4);
+    flashSlot.mesh.position.copy(center);
+    this.scene.add(flashSlot.mesh);
+    this.activeShockwaves.push(flashSlot);
 
-    for (const other of this.combatNpcs) {
+    const ringSlot = acquireShockwaveSlot(false, geos.shockwaveGeo, 0xf59e0b, 1.0, 0.45);
+    ringSlot.mesh.position.set(center.x, center.y - 0.6, center.z);
+    this.scene.add(ringSlot.mesh);
+    this.activeShockwaves.push(ringSlot);
+
+    for (let k = 0; k < this.combatNpcs.length; k++) {
+      const other = this.combatNpcs[k];
       if (other.isAllied === fromAllied || !other.destructible || other.destructible.destroyed) continue;
       const op = other.visual.root.position, d = Math.hypot(op.x - center.x, op.z - center.z);
       if (d < radius) this.destructibles.damageObject(other.destructible, damage * 3 * (1 - d / (radius * 1.4)), center, false, { fromEnemyNpc: true, isExplosion: true, sourceIsPlayer: false });
@@ -419,9 +657,9 @@ export const invasionSquadCombatMethods = {
   },
 
   _detonateC4Runner(npc, controller, playerPos, zoneState) {
-    const pos = npc.visual.root.position.clone(); pos.y += 1.0;
-    this._npcExplosion(pos, 6.5, 30, npc.isAllied, controller, zoneState);
-    if (npc.destructible && !npc.destructible.destroyed) this.destructibles.damageObject(npc.destructible, 99999, pos, false, { fromEnemyNpc: true, isExplosion: true, sourceIsPlayer: false });
+    _c4PosTmp.copy(npc.visual.root.position); _c4PosTmp.y += 1.0;
+    this._npcExplosion(_c4PosTmp, 6.5, 30, npc.isAllied, controller, zoneState);
+    if (npc.destructible && !npc.destructible.destroyed) this.destructibles.damageObject(npc.destructible, 99999, _c4PosTmp, false, { fromEnemyNpc: true, isExplosion: true, sourceIsPlayer: false });
   },
 
   _damagePlayerInInvasion(amount, controller, zoneState = null, attackerPos = null) {

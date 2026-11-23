@@ -4,6 +4,7 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../../../materials/LegoMaterials.js';
+import { optimizeStaticGroupMeshes } from '../../BuildingGenerator.js';
 import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import { UMBRELLA_KEYS, addNeonHotelSign } from './BeachBatcherAndConstants.js';
 
@@ -257,6 +258,7 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
     mount.rotation.y = -ang;
     carouselGroup.add(pole, mount);
   }
+  optimizeStaticGroupMeshes(carouselGroup);
   world.scene.add(carouselGroup);
   world.rotatingElements.push({ mesh: carouselGroup, axis: 'y', speed: 0.85 });
   world.addCollider(-16, carouselZ, 18, 18, deckTopY + 12, deckTopY);
@@ -350,18 +352,20 @@ export function buildMonumentalPierFerrisWheelAndMarina(world, batcher) {
     cabinBody.position.y = -1.0;
     const cabinGlass = new THREE.Mesh(
       new THREE.BoxGeometry(4.8, 1.3, 3.8),
-      new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.45 })
+      getLegoMaterial(0x0c4a6e, { roughness: 0.14, metalness: 0.55 })
     );
     cabinGlass.position.y = 0.45;
     const cabinRoof = createLegoBrick(5.2, 0.6, 4.2, cabinColor);
     cabinRoof.position.y = 1.35;
 
     cabinGroup.add(cabinBody, cabinGlass, cabinRoof);
+    optimizeStaticGroupMeshes(cabinGroup);
     cabinGroup.position.set(0, sinA * wheelRadius, cosA * wheelRadius);
     wheelGroup.add(cabinGroup);
     ferrisCabins.push(cabinGroup);
   }
 
+  optimizeStaticGroupMeshes(wheelGroup, ferrisCabins);
   world.scene.add(wheelGroup);
   world.pierOriginZ = pierOriginZ;
   world.pierOffsetZ = pzOff;

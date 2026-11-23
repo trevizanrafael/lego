@@ -187,7 +187,7 @@ export function buildHelicopterMesh(cfg, ctx) {
     group.add(skid, strutF, strutR);
   }
 
-  const fuselage = createLegoBrick(3.4, 2.7, 7.8, mainHue, { studStep: 0.85, ...bodyFinish });
+  const fuselage = createLegoBrick(3.4, 2.7, 7.8, mainHue, { studs: false, ...bodyFinish });
   fuselage.position.set(0, 2.15, 0);
   const stripe = createLegoBrick(3.52, 0.45, 7.85, trimHue, { studs: false, ...bodyFinish });
   stripe.position.set(0, 2.05, 0);
@@ -197,7 +197,7 @@ export function buildHelicopterMesh(cfg, ctx) {
   const noseChin = createLegoBrick(2.6, 0.85, 2.2, mainHue, { studs: false, ...bodyFinish });
   noseChin.position.set(0, 1.35, 5.1);
 
-  const tailBoom = createLegoBrick(1.2, 1.25, 7.6, mainHue, { studStep: 0.8, ...bodyFinish });
+  const tailBoom = createLegoBrick(1.2, 1.25, 7.6, mainHue, { studs: false, ...bodyFinish });
   tailBoom.position.set(0, 2.55, -6.8);
   const tailFin = createLegoBrick(0.45, 2.9, 1.8, trimHue, { studs: false, ...bodyFinish });
   tailFin.position.set(0, 3.6, -10.2);
@@ -206,7 +206,7 @@ export function buildHelicopterMesh(cfg, ctx) {
   group.userData.aircraftDims = { category: 'helicopter', w: isAttack ? 8.6 : 4.2, h: 4.5, d: 15.2 };
 
   if (isAttack) {
-    const stubWings = createLegoBrick(8.6, 0.48, 2.4, 0x1e293b, { studStep: 0.8 });
+    const stubWings = createLegoBrick(8.6, 0.48, 2.4, 0x1e293b, { studs: false });
     stubWings.position.set(0, 2.05, 0.2);
     for (const wx of [-3.4, 3.4]) {
       const rocketPod = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 2.6, 12), darkMat);
@@ -275,7 +275,7 @@ export function buildJetAircraftMesh(cfg, ctx) {
   const wingHue = cfg.wingColor ?? (isFighter ? accentHue : 0xf1f5f9);
   const tailHue = cfg.wingColor ?? (isFighter ? 0x0f172a : accentHue);
 
-  const fuselage = createLegoBrick(3.4, 2.1, 14.5, fuseHue, { studStep: 1.0, ...bodyFinish });
+  const fuselage = createLegoBrick(3.4, 2.1, 14.5, fuseHue, { studs: false, ...bodyFinish });
   fuselage.position.set(0, 2.1, -0.5);
   const stripe = createLegoBrick(3.52, 0.38, 14.6, accentHue, { studs: false, ...bodyFinish });
   stripe.position.set(0, 2.0, -0.5);
@@ -293,7 +293,7 @@ export function buildJetAircraftMesh(cfg, ctx) {
   canopy.position.set(0, 3.05, 3.8);
   canopy.userData.isVehicleGlass = true;
 
-  const wings = createLegoBrick(15.6, 0.45, 6.8, wingHue, { studStep: 1.2, ...bodyFinish });
+  const wings = createLegoBrick(15.6, 0.45, 6.8, wingHue, { studs: false, ...bodyFinish });
   wings.position.set(0, 1.95, -1.2);
   for (const wx of [-7.9, 7.9]) {
     const wingtip = createLegoBrick(0.55, 0.9, 4.2, accentHue, { studs: false, ...bodyFinish });
@@ -338,7 +338,7 @@ export function buildJetAircraftMesh(cfg, ctx) {
 export function buildCommercialAirlinerMesh(ctx) {
   const { group, darkMat, silverMat, glassMat } = ctx;
 
-  const fuselage = createLegoBrick(5.8, 5.2, 30.0, LEGO_COLORS.white, { studStep: 1.8 });
+  const fuselage = createLegoBrick(5.8, 5.2, 30.0, LEGO_COLORS.white, { studs: false });
   fuselage.position.set(0, 4.4, 0);
   const belly = createLegoBrick(5.95, 1.6, 30.2, 0x0284c7, { studs: false });
   belly.position.set(0, 2.4, 0);
@@ -347,7 +347,7 @@ export function buildCommercialAirlinerMesh(ctx) {
   const nose = createLegoBrick(4.4, 2.8, 3.6, LEGO_COLORS.white, { studs: false });
   nose.position.set(0, 3.4, 16.2);
 
-  const mainWings = createLegoBrick(34.0, 0.72, 7.2, LEGO_COLORS.white, { studStep: 2.0 });
+  const mainWings = createLegoBrick(34.0, 0.72, 7.2, LEGO_COLORS.white, { studs: false });
   mainWings.position.set(0, 3.8, 1.2);
   for (const ex of [-9.5, 9.5]) {
     const engineNacelle = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 5.2, 16), silverMat);

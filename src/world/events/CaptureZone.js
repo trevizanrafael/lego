@@ -27,6 +27,8 @@ const COLOR_EMPTY = new THREE.Color(0x4a3f0c);
 const COLOR_ATTACK = new THREE.Color(0xfacc15);
 const COLOR_CONTEST = new THREE.Color(0xef4444);
 
+const SHARED_TILE_MAT = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.05 });
+
 export class CaptureZone {
   constructor({ id, x, y = 0, z, radius = 14, captureTime = 10, scene = null, label = '', groundAt = null }) {
     this.groundAt = groundAt;
@@ -50,8 +52,7 @@ export class CaptureZone {
     this.group.position.set(this.x, this.y + 0.06, this.z);
     this.group.userData.skipStaticMerge = true;
 
-    const tileMat = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.05 });
-    this.tiles = new THREE.InstancedMesh(TILE_GEO, tileMat, TILE_COUNT);
+    this.tiles = new THREE.InstancedMesh(TILE_GEO, SHARED_TILE_MAT, TILE_COUNT);
     this.tiles.userData.skipStaticMerge = true;
     const m = new THREE.Matrix4();
     for (let i = 0; i < TILE_COUNT; i++) {
@@ -69,14 +70,13 @@ export class CaptureZone {
 
     this.ringMat = new THREE.MeshBasicMaterial({
       color: 0xfacc15,
-      transparent: true,
-      opacity: 0.0,
-      side: THREE.DoubleSide,
-      depthWrite: false
+      side: THREE.DoubleSide
     });
+    this.ringMat.userData = { isDynamicMaterial: true };
     this.ring = new THREE.Mesh(STUD_RING_GEO, this.ringMat);
     this.ring.scale.setScalar(this.radius);
     this.ring.position.y = 0.04;
+    this.ring.visible = false;
     this.group.add(this.ring);
 
     this.scene.add(this.group);
@@ -114,7 +114,7 @@ export class CaptureZone {
   update(dt, { attackers = 0, defenders = 0 } = {}) {
     this._pulse += dt;
     if (this.state === CAPTURE_STATE.LOCKED || this.state === CAPTURE_STATE.CAPTURED) {
-      if (this.ringMat) this.ringMat.opacity = 0;
+      if (this.ring) this.ring.visible = false;
       return false;
     }
 
@@ -153,10 +153,12 @@ export class CaptureZone {
     }
     if (this.tiles.instanceColor) this.tiles.instanceColor.needsUpdate = true;
 
-    if (this.ringMat) {
+    if (this.ringMat && this.ring) {
       const visible = this.state !== CAPTURE_STATE.LOCKED && this.state !== CAPTURE_STATE.CAPTURED;
-      this.ringMat.color.setHex(contested ? 0xef4444 : 0xfacc15);
-      this.ringMat.opacity = visible ? 0.35 + 0.25 * Math.abs(Math.sin(this._pulse * 3)) : 0;
+      this.ring.visible = visible;
+      if (visible) {
+        this.ringMat.color.setHex(contested ? 0xef4444 : 0xfacc15);
+      }
     }
   }
 

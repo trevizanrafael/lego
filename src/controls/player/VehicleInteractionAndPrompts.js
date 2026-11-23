@@ -3,6 +3,7 @@ import {
   applyAircraftCustomization,
   getActiveAircraftSaveData
 } from '../../world/AircraftCustomGarage.js';
+import { upgradeTrafficLiteCarIfNeeded } from '../../world/VehicleFleetBuilder.js';
 
 export const vehicleInteractionAndPromptsMethods = {
   /**
@@ -228,6 +229,9 @@ export const vehicleInteractionAndPromptsMethods = {
   enterVehicle(carObj) {
     this._lastDryCarPos = null;
     if (!carObj || carObj.destroyed) return;
+    if (carObj.mesh) {
+      upgradeTrafficLiteCarIfNeeded(carObj.mesh);
+    }
     const rawSpec = carObj.mesh?.userData?.vehicleSpec;
     if (
       carObj.mesh?.userData?.isHelicarrierParked ||

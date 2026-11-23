@@ -47,6 +47,19 @@ export function getGeometryChunkKey(geo, chunkSize = 512) {
   return `${cx},${cz}`;
 }
 
+let _sharedBasicVcMat = null;
+
+function getSharedBasicVertexColorMaterial() {
+  if (!_sharedBasicVcMat) {
+    _sharedBasicVcMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      vertexColors: true
+    });
+    markAsSharedAsset(_sharedBasicVcMat);
+  }
+  return _sharedBasicVcMat;
+}
+
 export function isOpaqueVertexColorableMaterial(mat, key = null, preserveKeys = null) {
   if (!mat || (preserveKeys && key !== null && preserveKeys.has(key))) return false;
   if (Array.isArray(mat)) return false;
@@ -54,16 +67,16 @@ export function isOpaqueVertexColorableMaterial(mat, key = null, preserveKeys = 
   if (mat.isMeshBasicMaterial) return false;
   if (mat.userData?.isVehicleGlass || mat.userData?.isVehicleHeadlight) return false;
   if (mat.emissive && mat.emissive.getHex() !== 0 && (mat.emissiveIntensity ?? 0) > 0.001) return false;
-  if ((mat.metalness ?? 0) > 0.45) return false;
+  if ((mat.metalness ?? 0) > 0.88) return false;
   return true;
 }
 
 /**
- * Divide todos os buckets estáticos de uma região em Chunks Espaciais (padrão 512m x 512m)
+ * Divide todos os buckets estáticos de uma região em Chunks Espaciais (padrão 640m x 640m)
  * para Frustum Culling + Shadow Culling eficientes na GPU e consolida materiais opacos via Vertex Colors!
  */
 export function flushSpatialChunkedBuckets(scene, buckets, materials, opts = {}) {
-  const chunkSize = opts.chunkSize ?? 512;
+  const chunkSize = opts.chunkSize ?? 640;
   const preserveKeys = opts.preserveKeys || null;
   const consolidateVertexColors = opts.consolidateVertexColors !== false;
   const castShadowFn =
@@ -77,6 +90,7 @@ export function flushSpatialChunkedBuckets(scene, buckets, materials, opts = {})
     materials instanceof Map ? materials.get(key) : materials[key];
 
   const vcGroups = new Map();
+  const vcBasicGroups = new Map();
 
   for (const [key, geos] of buckets.entries()) {
     if (!geos || geos.length === 0) continue;
@@ -85,30 +99,49 @@ export function flushSpatialChunkedBuckets(scene, buckets, materials, opts = {})
 
     const castShadow = Boolean(castShadowFn(key, mat));
     const receiveShadow = Boolean(receiveShadowFn(key, mat));
-    const canConsolidate =
+    const isPreservedKey = Boolean(preserveKeys && key !== null && preserveKeys.has(key));
+    const canConsolidatePbr =
       consolidateVertexColors && isOpaqueVertexColorableMaterial(mat, key, preserveKeys);
+    const canConsolidateBasic =
+      consolidateVertexColors &&
+      !isPreservedKey &&
+      !Array.isArray(mat) &&
+      Boolean(mat.isMeshBasicMaterial) &&
+      !mat.userData?.isDynamicMaterial &&
+      !mat.transparent &&
+      !mat.polygonOffset &&
+      !mat.map &&
+      !mat.alphaMap;
 
-    if (canConsolidate) {
-      const roughBand = (mat.roughness ?? 0.35) >= 0.42 ? 1 : 0;
+    if (canConsolidatePbr) {
       const col = mat.color || DEFAULT_WHITE_COLOR;
       for (let i = 0; i < geos.length; i++) {
         const g = geos[i];
         const cKey = getGeometryChunkKey(g, chunkSize);
-        const bucketId = `${cKey}|${castShadow ? 1 : 0}|${receiveShadow ? 1 : 0}|${roughBand}`;
+        const bucketId = `${cKey}|${castShadow ? 1 : 0}|${receiveShadow ? 1 : 0}`;
         let group = vcGroups.get(bucketId);
         if (!group) {
           group = {
             castShadow,
             receiveShadow,
-            roughness: roughBand ? 0.54 : 0.25,
-            metalness: 0.04,
-            entries: [],
-            singleMats: new Set()
+            entries: []
           };
           vcGroups.set(bucketId, group);
         }
         group.entries.push({ geo: g, color: col });
-        group.singleMats.add(mat);
+      }
+      geos.length = 0;
+    } else if (canConsolidateBasic) {
+      const col = mat.color || DEFAULT_WHITE_COLOR;
+      for (let i = 0; i < geos.length; i++) {
+        const g = geos[i];
+        const cKey = getGeometryChunkKey(g, chunkSize);
+        let entries = vcBasicGroups.get(cKey);
+        if (!entries) {
+          entries = [];
+          vcBasicGroups.set(cKey, entries);
+        }
+        entries.push({ geo: g, color: col });
       }
       geos.length = 0;
     } else {
@@ -137,35 +170,40 @@ export function flushSpatialChunkedBuckets(scene, buckets, materials, opts = {})
     }
   }
 
+  const sharedPbrVcMat = getSharedVertexColorMaterial({
+    roughness: 0.48,
+    metalness: 0.1
+  });
   for (const grp of vcGroups.values()) {
     if (grp.entries.length === 0) continue;
-    let mesh;
-    if (grp.singleMats.size === 1) {
-      const onlyMat = grp.singleMats.values().next().value;
-      const rawGeos = grp.entries.map((e) => e.geo);
-      mesh = new THREE.Mesh(mergeBufferGeometries(rawGeos), onlyMat);
-    } else {
-      const mergedGeo = mergeColoredGeometries(grp.entries);
-      const vcMat = getSharedVertexColorMaterial({
-        roughness: grp.roughness,
-        metalness: grp.metalness,
-        clearcoat: 0.06,
-        clearcoatRoughness: 0.46
-      });
-      mesh = new THREE.Mesh(mergedGeo, vcMat);
-    }
+    const mergedGeo = mergeColoredGeometries(grp.entries);
+    const mesh = new THREE.Mesh(mergedGeo, sharedPbrVcMat);
     mesh.castShadow = grp.castShadow;
     mesh.receiveShadow = grp.receiveShadow;
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     scene.add(mesh);
   }
+
+  if (vcBasicGroups.size > 0) {
+    const sharedBasicVcMat = getSharedBasicVertexColorMaterial();
+    for (const entries of vcBasicGroups.values()) {
+      if (entries.length === 0) continue;
+      const mergedGeo = mergeColoredGeometries(entries);
+      const mesh = new THREE.Mesh(mergedGeo, sharedBasicVcMat);
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      scene.add(mesh);
+    }
+  }
 }
 
 /**
  * Funde todas as malhas estáticas filhas de um Group (ex.: carro, barco, avião, helicóptero)
- * agrupando por Material, preservando intactos os subgrupos animados (rodas, hélices, chamas de turbo).
- * Reduz cada veículo de ~28 Draw Calls para ~4 Draw Calls!
+ * colapsando o chassi opaco em 1 único mesh PBR Vertex Color + (opcional 1 mesh Basic VC emissivo)
+ * + (opcional 1 mesh de vidro), preservando intactos os subgrupos animados.
  */
 export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
   if (!rootGroup || rootGroup.userData?.isOptimizedGroup) return rootGroup;
@@ -195,7 +233,7 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
   rootGroup.traverse((child) => {
     if (child === rootGroup || preservedSet.has(child)) return;
 
-    if (child.isInstancedMesh && child.geometry && child.material) {
+    if (child.isInstancedMesh && child.geometry && child.material && !Array.isArray(child.material)) {
       if (child.count <= 96) {
         relMatrix.multiplyMatrices(rootInverse, child.matrixWorld);
         if (!geosByMat.has(child.material)) {
@@ -216,7 +254,7 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
       return;
     }
 
-    if (!child.isMesh || !child.geometry || !child.material) return;
+    if (!child.isMesh || !child.geometry || !child.material || Array.isArray(child.material)) return;
 
     relMatrix.multiplyMatrices(rootInverse, child.matrixWorld);
     const clonedGeo = child.geometry.clone();
@@ -250,38 +288,40 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
   };
   pruneEmptySubgroups(rootGroup);
 
-  const vcBuckets = new Map();
+  const vcPbrEntries = [];
+  const vcBasicEntries = [];
 
   for (const [mat, geos] of geosByMat.entries()) {
     if (geos.length === 0) continue;
     const flags = matFlags.get(mat);
-    const canConsolidate =
+    const isGlass = Boolean(flags?.isVehicleGlass || mat.userData?.isVehicleGlass);
+    const isCleanOpaque =
+      !isGlass &&
       !mat.transparent &&
-      !mat.isMeshBasicMaterial &&
       !mat.polygonOffset &&
       !mat.map &&
       !mat.emissiveMap &&
-      !mat.alphaMap &&
-      !flags?.isVehicleGlass &&
-      !flags?.isVehicleHeadlight &&
-      !mat.userData?.isVehicleGlass &&
-      !mat.userData?.isVehicleHeadlight &&
-      (!mat.emissive || mat.emissive.getHex() === 0 || (mat.emissiveIntensity ?? 0) <= 0.001);
+      !mat.alphaMap;
 
-    if (canConsolidate) {
-      const mBucket = Math.round((mat.metalness ?? 0) * 2);
-      const rBucket = (mat.roughness ?? 0.25) >= 0.42 ? 1 : 0;
-      const cBucket = (mat.clearcoat ?? 0.4) > 0.15 ? 1 : 0;
-      const bKey = `${mBucket}|${rBucket}|${cBucket}`;
-      let grp = vcBuckets.get(bKey);
-      if (!grp) {
-        grp = { mat, mats: new Set(), entries: [] };
-        vcBuckets.set(bKey, grp);
-      }
-      grp.mats.add(mat);
-      const col = mat.color || DEFAULT_WHITE_COLOR;
-      for (let i = 0; i < geos.length; i++) {
-        grp.entries.push({ geo: geos[i], color: col });
+    if (isCleanOpaque) {
+      const hasStrongEmissive = Boolean(
+        !mat.isMeshBasicMaterial &&
+        mat.emissive &&
+        mat.emissive.getHex() !== 0 &&
+        (mat.emissiveIntensity ?? 0) > 0.25
+      );
+      if (mat.isMeshBasicMaterial || hasStrongEmissive) {
+        const glowCol = hasStrongEmissive
+          ? mat.emissive
+          : (mat.color || DEFAULT_WHITE_COLOR);
+        for (let i = 0; i < geos.length; i++) {
+          vcBasicEntries.push({ geo: geos[i], color: glowCol });
+        }
+      } else {
+        const col = mat.color || DEFAULT_WHITE_COLOR;
+        for (let i = 0; i < geos.length; i++) {
+          vcPbrEntries.push({ geo: geos[i], color: col });
+        }
       }
       continue;
     }
@@ -293,34 +333,37 @@ export function optimizeStaticGroupMeshes(rootGroup, animatedObjects = []) {
     if (flags) {
       Object.assign(mergedMesh.userData, flags);
     }
+    if (isGlass) {
+      mergedMesh.userData.isVehicleGlass = true;
+    }
     mergedMesh.matrixAutoUpdate = false;
     mergedMesh.updateMatrix();
     rootGroup.add(mergedMesh);
   }
 
-  for (const grp of vcBuckets.values()) {
-    if (grp.entries.length === 0) continue;
-    let mergedMesh;
-    if (grp.mats.size === 1) {
-      const onlyMat = grp.mats.values().next().value;
-      const rawGeos = grp.entries.map((e) => e.geo);
-      mergedMesh = new THREE.Mesh(mergeBufferGeometries(rawGeos), onlyMat);
-    } else {
-      const mergedGeo = mergeColoredGeometries(grp.entries);
-      const ref = grp.mat;
-      const vcMat = getSharedVertexColorMaterial({
-        roughness: ref.roughness ?? 0.25,
-        metalness: ref.metalness ?? 0.08,
-        clearcoat: ref.clearcoat ?? 0.4,
-        clearcoatRoughness: ref.clearcoatRoughness ?? 0.22
-      });
-      mergedMesh = new THREE.Mesh(mergedGeo, vcMat);
-    }
-    mergedMesh.castShadow = true;
-    mergedMesh.receiveShadow = true;
-    mergedMesh.matrixAutoUpdate = false;
-    mergedMesh.updateMatrix();
-    rootGroup.add(mergedMesh);
+  if (vcPbrEntries.length > 0) {
+    const vcMat = getSharedVertexColorMaterial({
+      roughness: 0.34,
+      metalness: 0.16
+    });
+    const pbrMesh = new THREE.Mesh(mergeColoredGeometries(vcPbrEntries), vcMat);
+    pbrMesh.castShadow = true;
+    pbrMesh.receiveShadow = true;
+    pbrMesh.matrixAutoUpdate = false;
+    pbrMesh.updateMatrix();
+    rootGroup.add(pbrMesh);
+  }
+
+  if (vcBasicEntries.length > 0) {
+    const basicMesh = new THREE.Mesh(
+      mergeColoredGeometries(vcBasicEntries),
+      getSharedBasicVertexColorMaterial()
+    );
+    basicMesh.castShadow = false;
+    basicMesh.receiveShadow = false;
+    basicMesh.matrixAutoUpdate = false;
+    basicMesh.updateMatrix();
+    rootGroup.add(basicMesh);
   }
 
   return rootGroup;

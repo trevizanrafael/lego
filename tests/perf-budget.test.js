@@ -12,8 +12,8 @@ const { consolidateSceneMaterials } = await import('../src/graphics/MaterialRegi
 const { GraphicsPipeline } = await import('../src/graphics/GraphicsPipeline.js');
 const { auditSceneGraph } = await import('../src/debug/PerfOverlay.js');
 
-describe('ORÇAMENTO DE PERFORMANCE DE CENA (M2 — Materiais, Sombras & Alcance)', () => {
-  it('Mantém materiais únicos <= 200 (meta < 150), shadowCasters < 400 e camera.far <= 4500', () => {
+describe('ORÇAMENTO DE PERFORMANCE DE CENA (M2 + M3 — Meshes, Materiais, Geometrias, Transparências & Sombras)', () => {
+  it('Mantém meshes < 3000, materiais <= 200, geometrias < 2500, transparentes < 80 e shadowCasters < 400', () => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.65, 3100);
     camera.position.set(0, 4, -276);
@@ -31,8 +31,20 @@ describe('ORÇAMENTO DE PERFORMANCE DE CENA (M2 — Materiais, Sombras & Alcance
     const audit = auditSceneGraph(scene, camera);
 
     assert.ok(
+      audit.meshes < 3000,
+      `Meshes totais da cena devem ser < 3000 (atual: ${audit.meshes})`
+    );
+    assert.ok(
       audit.uniqueMaterials <= 200,
       `Materiais únicos da cena devem ser <= 200 (atual: ${audit.uniqueMaterials})`
+    );
+    assert.ok(
+      audit.uniqueGeometries < 2500,
+      `Geometrias únicas da cena devem ser < 2500 (atual: ${audit.uniqueGeometries})`
+    );
+    assert.ok(
+      audit.transparentMeshes < 80,
+      `Meshes transparentes da cena devem ser < 80 (atual: ${audit.transparentMeshes})`
     );
     assert.ok(
       audit.shadowCasters < 400,

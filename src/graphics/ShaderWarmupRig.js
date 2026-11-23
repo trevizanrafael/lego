@@ -4,15 +4,35 @@ import {
   ensurePermanentPlayerHeadlightSpot,
   ensureSharedVehicleLightAssets
 } from '../world/atmosphere/VehicleNightLightsRig.js';
+import { getAllFacadeFamilyMaterials } from '../world/buildings/BuildingFamiliesAndAtlas.js';
+import { getSharedVertexColorMaterial } from '../world/BuildingGenerator.js';
+import { createFactionSoldierVisual } from '../entities/FactionSoldierBuilder.js';
 
 // Geometrias minúsculas (0.05m) compartilhadas para pré-aquecimento de todos os arquétipos de shader!
 const WARMUP_BOX_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.05, 0.05, 0.05));
+const WARMUP_VC_BOX_GEO = (() => {
+  const g = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+  const count = g.attributes.position.count;
+  const cols = new Float32Array(count * 3);
+  cols.fill(1.0);
+  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  return markAsSharedAsset(g);
+})();
 const WARMUP_SPHERE_GEO = markAsSharedAsset(new THREE.SphereGeometry(0.03, 8, 8));
 const WARMUP_CONE_GEO = markAsSharedAsset(new THREE.ConeGeometry(0.03, 0.06, 8, 1, true));
 
 const WARMUP_OPAQUE_BASIC_MAT = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xffffff }));
 const WARMUP_FIRE_TRANSPARENT_MAT = markAsSharedAsset(
   new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.88 })
+);
+const WARMUP_RING_TRANSPARENT_MAT = markAsSharedAsset(
+  new THREE.MeshBasicMaterial({
+    color: 0xf59e0b,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
 );
 const WARMUP_BLOOD_POOL_BASIC_MAT = markAsSharedAsset(
   new THREE.MeshBasicMaterial({
@@ -33,8 +53,37 @@ const WARMUP_SPOTLIGHT_CONE_MAT = markAsSharedAsset(
   })
 );
 
+let _soldierBlueprintsWarmed = false;
+const _soldierWarmupMaterials = [];
+
+function ensureSoldierBlueprintsAndMaterialsWarmed() {
+  if (_soldierBlueprintsWarmed) return _soldierWarmupMaterials;
+  _soldierBlueprintsWarmed = true;
+
+  const matSet = new Set();
+  for (const f of ['cv', 'pcc', 'ares']) {
+    for (const r of ['rifleman', 'tank', 'medic', 'special', 'boss']) {
+      const vis = createFactionSoldierVisual(f, r);
+      vis?.bodyRig?.traverse?.((node) => {
+        if (!node?.isMesh || !node.material) return;
+        if (Array.isArray(node.material)) {
+          for (let mi = 0; mi < node.material.length; mi++) {
+            if (node.material[mi]) matSet.add(node.material[mi]);
+          }
+        } else {
+          matSet.add(node.material);
+        }
+      });
+    }
+  }
+  for (const m of matSet) {
+    _soldierWarmupMaterials.push(m);
+  }
+  return _soldierWarmupMaterials;
+}
+
 function getRuntimeWarmupSamples() {
-  return [
+  const baseSamples = [
     // PBR Matte & Glossy
     { geo: WARMUP_BOX_GEO, mat: getLegoMaterial(LEGO_COLORS.concrete, { roughness: 0.72, metalness: 0.05 }) },
     { geo: WARMUP_BOX_GEO, mat: getLegoMaterial(LEGO_COLORS.silver, { roughness: 0.18, metalness: 0.85 }) },
@@ -52,12 +101,41 @@ function getRuntimeWarmupSamples() {
     // Sangue arterial PBR & poça básica
     { geo: WARMUP_SPHERE_GEO, mat: getLegoMaterial(0x7f1d1d, { roughness: 0.16, clearcoat: 0.85 }) },
     { geo: WARMUP_BOX_GEO, mat: WARMUP_BLOOD_POOL_BASIC_MAT },
-    // Esferas de explosão / fogo / fumaça (MeshBasicMaterial opaco e transparente)
+    // Esferas de explosão / fogo / fumaça & anel de onda de choque DoubleSide
     { geo: WARMUP_SPHERE_GEO, mat: WARMUP_OPAQUE_BASIC_MAT },
     { geo: WARMUP_SPHERE_GEO, mat: WARMUP_FIRE_TRANSPARENT_MAT },
+    { geo: WARMUP_BOX_GEO, mat: WARMUP_RING_TRANSPARENT_MAT },
     // Cone volumétrico de holofote policial / farol aditivo
     { geo: WARMUP_CONE_GEO, mat: WARMUP_SPOTLIGHT_CONE_MAT }
   ];
+
+  const seenMats = new Set();
+  const samples = [];
+  const pushUniqueMat = (mat, fallbackGeo = WARMUP_BOX_GEO) => {
+    if (!mat || seenMats.has(mat)) return;
+    seenMats.add(mat);
+    const geo = mat.vertexColors ? WARMUP_VC_BOX_GEO : fallbackGeo;
+    samples.push({ geo, mat });
+  };
+
+  for (let i = 0; i < baseSamples.length; i++) {
+    pushUniqueMat(baseSamples[i].mat, baseSamples[i].geo);
+  }
+
+  const soldierMats = ensureSoldierBlueprintsAndMaterialsWarmed();
+  for (let i = 0; i < soldierMats.length; i++) {
+    pushUniqueMat(soldierMats[i], WARMUP_BOX_GEO);
+  }
+
+  const facadeFamilyMats = getAllFacadeFamilyMaterials();
+  for (let i = 0; i < facadeFamilyMats.length; i++) {
+    pushUniqueMat(facadeFamilyMats[i], WARMUP_VC_BOX_GEO);
+  }
+
+  pushUniqueMat(getSharedVertexColorMaterial({ roughness: 0.48, metalness: 0.1 }), WARMUP_VC_BOX_GEO);
+  pushUniqueMat(getSharedVertexColorMaterial(), WARMUP_VC_BOX_GEO);
+
+  return samples;
 }
 
 /**
@@ -99,7 +177,7 @@ export function prewarmAllRuntimeShaders(renderer, scene, camera, world = null, 
   const samples = getRuntimeWarmupSamples();
   for (let i = 0; i < samples.length; i++) {
     const m = new THREE.Mesh(samples[i].geo, samples[i].mat);
-    m.position.set((i % 5) * 0.08 - 0.16, Math.floor(i / 5) * 0.08 - 0.08, 0);
+    m.position.set((i % 8) * 0.08 - 0.28, Math.floor(i / 8) * 0.08 - 0.2, 0);
     m.frustumCulled = false;
     warmupGroup.add(m);
   }

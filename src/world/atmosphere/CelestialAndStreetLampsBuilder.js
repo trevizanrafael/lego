@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getLegoMaterial } from '../../materials/LegoMaterials.js';
-import { getCachedFacadeMaterials } from '../BuildingGenerator.js';
+import { getCachedFacadeMaterials, mergeBufferGeometries } from '../BuildingGenerator.js';
 import { RIVER_BRIDGE_SPECS } from '../RoadGridBuilder.js';
 import { WORLD_SCALE, IS_SCALED_WORLD, ROAD, ws, fromWs } from '../core/WorldLayoutScale.js';
 import { createSkyDomeUniforms, createSkyDomeMaterial } from './AtmosphereScheduleAndShader.js';
@@ -112,19 +112,14 @@ export function initCelestialSkyDomeStarsSunAndMoon(mgr) {
   });
   const moonDisc = new THREE.Mesh(new THREE.SphereGeometry(52 * WORLD_SCALE, 20, 16), mgr.moonCoreMat);
   const moonHalo = new THREE.Mesh(new THREE.SphereGeometry(128 * WORLD_SCALE, 20, 16), mgr.moonHaloMat);
-  const crater1 = new THREE.Mesh(
-    new THREE.CylinderGeometry(11 * WORLD_SCALE, 11 * WORLD_SCALE, 6 * WORLD_SCALE, 12),
-    mgr.moonCraterMat
-  );
-  crater1.position.set(-14 * WORLD_SCALE, 12 * WORLD_SCALE, 47 * WORLD_SCALE);
-  crater1.rotation.x = Math.PI / 2;
-  const crater2 = new THREE.Mesh(
-    new THREE.CylinderGeometry(7.5 * WORLD_SCALE, 7.5 * WORLD_SCALE, 6 * WORLD_SCALE, 12),
-    mgr.moonCraterMat
-  );
-  crater2.position.set(15 * WORLD_SCALE, -10 * WORLD_SCALE, 48 * WORLD_SCALE);
-  crater2.rotation.x = Math.PI / 2;
-  mgr.moonGroup.add(moonDisc, moonHalo, crater1, crater2);
+  const c1Geo = new THREE.CylinderGeometry(11 * WORLD_SCALE, 11 * WORLD_SCALE, 6 * WORLD_SCALE, 12);
+  c1Geo.rotateX(Math.PI / 2);
+  c1Geo.translate(-14 * WORLD_SCALE, 12 * WORLD_SCALE, 47 * WORLD_SCALE);
+  const c2Geo = new THREE.CylinderGeometry(7.5 * WORLD_SCALE, 7.5 * WORLD_SCALE, 6 * WORLD_SCALE, 12);
+  c2Geo.rotateX(Math.PI / 2);
+  c2Geo.translate(15 * WORLD_SCALE, -10 * WORLD_SCALE, 48 * WORLD_SCALE);
+  const cratersMerged = new THREE.Mesh(mergeBufferGeometries([c1Geo, c2Geo]), mgr.moonCraterMat);
+  mgr.moonGroup.add(moonDisc, moonHalo, cratersMerged);
   mgr.moonGroup.visible = false;
   mgr.moonGroup.frustumCulled = false;
   mgr.celestialRoot.add(mgr.moonGroup);

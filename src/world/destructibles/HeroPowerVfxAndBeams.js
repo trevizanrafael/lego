@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { disposeTransientObject3D } from '../../materials/LegoMaterials.js';
+import { disposeTransientObject3D, markAsSharedAsset } from '../../materials/LegoMaterials.js';
+import { mergeColoredGeometries } from '../BuildingGenerator.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { TRAIL_CUBE_GEO } from './DestructibleRegistryAndCulling.js';
 
@@ -40,7 +41,7 @@ export const HERO_POWER_VFX_AND_BEAMS_METHODS = {
     );
     const muzzleOuter = new THREE.Mesh(
       new THREE.SphereGeometry(0.48, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.72 })
+      new THREE.MeshBasicMaterial({ color: 0xfacc15 })
     );
     this.muzzleRingA = new THREE.Mesh(
       new THREE.TorusGeometry(0.62, 0.055, 8, 24),
@@ -56,13 +57,10 @@ export const HERO_POWER_VFX_AND_BEAMS_METHODS = {
 
     this.solarBeamRings = [];
     const beamRingGeo = new THREE.TorusGeometry(0.62, 0.06, 8, 20);
+    const ringMatA = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+    const ringMatB = new THREE.MeshBasicMaterial({ color: 0xf97316 });
     for (let i = 0; i < 8; i++) {
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: i % 2 === 0 ? 0xfef08a : 0xf97316,
-        transparent: true,
-        opacity: 0.88
-      });
-      const ringMesh = new THREE.Mesh(beamRingGeo, ringMat);
+      const ringMesh = new THREE.Mesh(beamRingGeo, i % 2 === 0 ? ringMatA : ringMatB);
       ringMesh.visible = false;
       this.scene.add(ringMesh);
       this.solarBeamRings.push(ringMesh);
@@ -77,26 +75,30 @@ export const HERO_POWER_VFX_AND_BEAMS_METHODS = {
     );
     const hitDome = new THREE.Mesh(
       new THREE.SphereGeometry(1.12, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.78 })
+      new THREE.MeshBasicMaterial({ color: 0xf97316 })
     );
     const vortexRingGeo = new THREE.TorusGeometry(1.6, 0.14, 10, 28);
     vortexRingGeo.rotateX(Math.PI / 2);
     this.beamVortexRing = new THREE.Mesh(
       vortexRingGeo,
-      new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.92 })
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
     );
     this.beamVortexSpikes = new THREE.Group();
+    const spikeEntries = [];
     for (let s = 0; s < 6; s++) {
       const ang = (s / 6) * Math.PI * 2;
-      const spike = new THREE.Mesh(
-        new THREE.ConeGeometry(0.22, 1.35, 5),
-        new THREE.MeshBasicMaterial({ color: s % 2 === 0 ? 0xfef08a : 0xef4444 })
-      );
-      spike.position.set(Math.cos(ang) * 1.15, 0.45, Math.sin(ang) * 1.15);
-      spike.rotation.z = -Math.cos(ang) * 0.42;
-      spike.rotation.x = Math.sin(ang) * 0.42;
-      this.beamVortexSpikes.add(spike);
+      const sg = new THREE.ConeGeometry(0.22, 1.35, 5);
+      sg.rotateZ(-Math.cos(ang) * 0.42);
+      sg.rotateX(Math.sin(ang) * 0.42);
+      sg.translate(Math.cos(ang) * 1.15, 0.45, Math.sin(ang) * 1.15);
+      spikeEntries.push({ geo: sg, color: new THREE.Color(s % 2 === 0 ? 0xfef08a : 0xef4444) });
     }
+    this.beamVortexSpikes.add(
+      new THREE.Mesh(
+        mergeColoredGeometries(spikeEntries),
+        markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }))
+      )
+    );
     this.beamHitSphere.add(hitCore, hitDome, this.beamVortexRing, this.beamVortexSpikes);
     this.scene.add(this.beamHitSphere);
 
@@ -108,13 +110,13 @@ export const HERO_POWER_VFX_AND_BEAMS_METHODS = {
     this.supernovaChargeGroup.visible = false;
 
     this.chargeArcSegments = [];
-    const segCount = 24;
+    const segCount = 10;
     const segRadius = 1.95;
-    const segGeo = new THREE.BoxGeometry(0.36, 0.16, 0.24);
+    const segGeo = new THREE.BoxGeometry(0.68, 0.16, 0.24);
+    const segSharedMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
     for (let i = 0; i < segCount; i++) {
       const angle = (i / segCount) * Math.PI * 2;
-      const segMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.95 });
-      const segMesh = new THREE.Mesh(segGeo, segMat);
+      const segMesh = new THREE.Mesh(segGeo, segSharedMat);
       segMesh.position.set(Math.sin(angle) * segRadius, 0.12, Math.cos(angle) * segRadius);
       segMesh.rotation.y = angle;
       this.supernovaChargeGroup.add(segMesh);
@@ -126,34 +128,38 @@ export const HERO_POWER_VFX_AND_BEAMS_METHODS = {
     innerRingGeo.rotateX(Math.PI / 2);
     this.chargeInnerRing = new THREE.Mesh(
       innerRingGeo,
-      new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.9 })
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
     );
     this.chargeInnerRing.position.y = 0.08;
     this.chargeInnerSunGroup.add(this.chargeInnerRing);
 
+    const rayEntries = [];
     for (let r = 0; r < 8; r++) {
       const ang = (r / 8) * Math.PI * 2;
-      const ray = new THREE.Mesh(
-        new THREE.ConeGeometry(0.18, 0.85, 4),
-        new THREE.MeshBasicMaterial({ color: r % 2 === 0 ? 0xfacc15 : 0xf97316 })
-      );
-      ray.rotation.x = Math.PI / 2;
-      ray.rotation.z = -ang;
-      ray.position.set(Math.sin(ang) * 0.95, 0.09, Math.cos(ang) * 0.95);
-      this.chargeInnerSunGroup.add(ray);
+      const g = new THREE.ConeGeometry(0.18, 0.85, 4);
+      g.rotateX(Math.PI / 2);
+      g.rotateZ(-ang);
+      g.translate(Math.sin(ang) * 0.95, 0.09, Math.cos(ang) * 0.95);
+      rayEntries.push({ geo: g, color: new THREE.Color(r % 2 === 0 ? 0xfacc15 : 0xf97316) });
     }
+    this.chargeInnerSunGroup.add(
+      new THREE.Mesh(
+        mergeColoredGeometries(rayEntries),
+        markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }))
+      )
+    );
     this.supernovaChargeGroup.add(this.chargeInnerSunGroup);
 
     const rangeRingGeo = new THREE.TorusGeometry(1.0, 0.018, 10, 64);
     rangeRingGeo.rotateX(Math.PI / 2);
-    this.chargeRangeRingMat = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.88 });
+    this.chargeRangeRingMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
     this.chargeRangeRing = new THREE.Mesh(rangeRingGeo, this.chargeRangeRingMat);
     this.chargeRangeRing.position.y = 0.14;
     this.supernovaChargeGroup.add(this.chargeRangeRing);
 
     const rangeSubRingGeo = new THREE.TorusGeometry(1.0, 0.01, 8, 48);
     rangeSubRingGeo.rotateX(Math.PI / 2);
-    this.chargeSubRingMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.65 });
+    this.chargeSubRingMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
     this.chargeSubRing = new THREE.Mesh(rangeSubRingGeo, this.chargeSubRingMat);
     this.chargeSubRing.position.y = 0.12;
     this.supernovaChargeGroup.add(this.chargeSubRing);

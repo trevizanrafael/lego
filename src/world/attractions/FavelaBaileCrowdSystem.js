@@ -6,7 +6,9 @@ import {
 } from '../../materials/LegoMaterials.js';
 import {
   mergeBufferGeometries,
-  makeTranslatedBox
+  mergeColoredGeometries,
+  makeTranslatedBox,
+  markAsSharedAsset
 } from '../BuildingGenerator.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { IS_SCALED_WORLD, wsP } from '../core/WorldLayoutScale.js';
@@ -40,13 +42,23 @@ export function initBaileFunkStageAndCrowd(mgr) {
 
   const paredaoFaceX = baileData?.paredaoFaceX ?? (cx - 19.0 + 2.85); // face frontal do Paredão voltada para +X!
 
-  // A) 24 Cones de Alto-Falantes Subwoofer 3D Coloridos que pulsam em escala no grave!
-  const coneMatDark = getLegoMaterial(0x111827, { roughness: 0.35 });
+  // A) 24 Cones de Alto-Falantes Subwoofer 3D Coloridos que pulsam em escala no grave (1 Mesh VC por woofer!)
   const capColors = [0xfacc15, 0x00f0ff, 0xff1e42, 0xa855f7];
-  const capMats = capColors.map((hex) => new THREE.MeshBasicMaterial({ color: hex }));
-  const coneGeo = new THREE.CylinderGeometry(0.72, 0.32, 0.36, 14);
-  coneGeo.rotateZ(-Math.PI / 2);
-  const capGeo = new THREE.SphereGeometry(0.28, 10, 8);
+  const wooferVcMat = markAsSharedAsset(
+    new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.35 })
+  );
+  const wooferGeos = capColors.map((hex) => {
+    const coneG = new THREE.CylinderGeometry(0.72, 0.32, 0.36, 12);
+    coneG.rotateZ(-Math.PI / 2);
+    const capG = new THREE.SphereGeometry(0.28, 10, 8);
+    capG.translate(0.16, 0, 0);
+    return markAsSharedAsset(
+      mergeColoredGeometries([
+        { geo: coneG, color: new THREE.Color(0x111827) },
+        { geo: capG, color: new THREE.Color(hex) }
+      ])
+    );
+  });
 
   for (let row = 0; row < 4; row++) {
     const sy = yBase + 1.6 + row * 2.5;
@@ -54,12 +66,7 @@ export function initBaileFunkStageAndCrowd(mgr) {
       const sz = cz - 8.75 + (col + 2) * 3.5;
       const wooferPivot = new THREE.Group();
       wooferPivot.position.set(paredaoFaceX, sy, sz);
-
-      const cone = new THREE.Mesh(coneGeo, coneMatDark);
-      const cap = new THREE.Mesh(capGeo, capMats[(row + col + 4) % capMats.length]);
-      cap.position.x = 0.16;
-      wooferPivot.add(cone, cap);
-
+      wooferPivot.add(new THREE.Mesh(wooferGeos[(row + col + 4) % wooferGeos.length], wooferVcMat));
       mgr.scene.add(wooferPivot);
       mgr.baileWoofers.push({ pivot: wooferPivot, row });
     }

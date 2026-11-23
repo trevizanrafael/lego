@@ -185,14 +185,21 @@ export function applyWindowAndHeadlightTint(root, windowTintId = 'stock') {
   let tintedGlassMat = null;
   let tintedHeadlightMat = null;
   if (tintEntry.id !== 'stock' && tintEntry.hex !== null) {
-    tintedGlassMat = new THREE.MeshPhysicalMaterial({
-      color: tintEntry.hex,
-      transparent: true,
-      opacity: tintEntry.opacity ?? 0.88,
-      roughness: tintEntry.roughness ?? 0.06,
-      metalness: tintEntry.metalness ?? 0.75,
-      clearcoat: 0.95
-    });
+    const useOpaqueSmoked = (tintEntry.opacity ?? 0.88) >= 0.84;
+    tintedGlassMat = useOpaqueSmoked
+      ? new THREE.MeshStandardMaterial({
+          color: tintEntry.hex,
+          roughness: tintEntry.roughness ?? 0.08,
+          metalness: tintEntry.metalness ?? 0.72
+        })
+      : new THREE.MeshPhysicalMaterial({
+          color: tintEntry.hex,
+          transparent: true,
+          opacity: tintEntry.opacity ?? 0.88,
+          roughness: tintEntry.roughness ?? 0.06,
+          metalness: tintEntry.metalness ?? 0.75,
+          clearcoat: 0.95
+        });
     tintedGlassMat.userData = { isVehicleGlass: true, tintId: tintEntry.id };
 
     if (tintEntry.headlightHex) {

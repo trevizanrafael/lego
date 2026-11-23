@@ -241,11 +241,11 @@ export function buildNavalBoatMesh(cfg, existingCtx = null) {
   // 1. PEDALINHO CISNE (LAGO DO PARQUE CENTRAL)
   if (type === 'pedalinho_cisne') {
     for (const px of [-1.15, 1.15]) {
-      const pontoon = createLegoBrick(0.75, 0.45, 4.2, LEGO_COLORS.white, { studStep: 0.7 });
+      const pontoon = createLegoBrick(0.75, 0.45, 4.2, LEGO_COLORS.white, { studs: false });
       pontoon.position.set(px, 0.22, 0);
       group.add(pontoon);
     }
-    const deck = createLegoBrick(2.8, 0.36, 3.8, bodyColor, { studStep: 0.65 });
+    const deck = createLegoBrick(2.8, 0.36, 3.8, bodyColor, { studs: false });
     deck.position.set(0, 0.48, -0.1);
     group.add(deck);
 
@@ -261,15 +261,15 @@ export function buildNavalBoatMesh(cfg, existingCtx = null) {
     const neck2 = createLegoBrick(0.62, 1.15, 0.62, LEGO_COLORS.white, { studs: false });
     neck2.position.set(0, 2.25, 1.68);
     neck2.rotation.x = -0.15;
-    const head = createLegoBrick(0.76, 0.68, 0.95, LEGO_COLORS.white, { studStep: 0.4 });
+    const head = createLegoBrick(0.76, 0.68, 0.95, LEGO_COLORS.white, { studs: false });
     head.position.set(0, 2.85, 1.75);
     const beak = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.28, 0.75), orangeMat);
     beak.position.set(0, 2.78, 2.45);
-    const crown = createLegoBrick(0.48, 0.28, 0.48, LEGO_COLORS.gold, { studStep: 0.24 });
+    const crown = createLegoBrick(0.48, 0.28, 0.48, LEGO_COLORS.gold, { studs: false });
     crown.position.set(0, 3.32, 1.72);
 
     for (const wx of [-1.35, 1.35]) {
-      const wing = createLegoBrick(0.32, 0.85, 2.4, LEGO_COLORS.white, { studStep: 0.6 });
+      const wing = createLegoBrick(0.32, 0.85, 2.4, LEGO_COLORS.white, { studs: false });
       wing.position.set(wx, 0.95, -0.2);
       group.add(wing);
     }
@@ -288,9 +288,9 @@ export function buildNavalBoatMesh(cfg, existingCtx = null) {
 
   // 2. BARCO DE PASSEIO A MOTOR (LAGO DO PARQUE CENTRAL)
   if (type === 'barquinho_lago') {
-    const hull = createLegoBrick(2.4, 0.55, 4.6, bodyColor, { studStep: 0.7 });
+    const hull = createLegoBrick(2.4, 0.55, 4.6, bodyColor, { studs: false });
     hull.position.set(0, 0.35, 0);
-    const bow = createLegoBrick(1.7, 0.52, 1.2, LEGO_COLORS.white, { studStep: 0.5 });
+    const bow = createLegoBrick(1.7, 0.52, 1.2, LEGO_COLORS.white, { studs: false });
     bow.position.set(0, 0.38, 2.45);
     const bench1 = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.22, 0.65), getLegoMaterial(0x78350f));
     bench1.position.set(0, 0.68, -0.4);
@@ -318,7 +318,7 @@ export function buildNavalBoatMesh(cfg, existingCtx = null) {
   if (type === 'jet_ski') {
     const lowerHull = createLegoBrick(1.45, 0.42, 3.6, LEGO_COLORS.white, { studs: false });
     lowerHull.position.set(0, 0.24, 0);
-    const upperDeck = createLegoBrick(1.2, 0.45, 2.6, bodyColor, { studStep: 0.55 });
+    const upperDeck = createLegoBrick(1.2, 0.45, 2.6, bodyColor, { studs: false });
     upperDeck.position.set(0, 0.62, 0.15);
     const nose = createLegoBrick(0.9, 0.35, 1.1, bodyColor, { studs: false });
     nose.position.set(0, 0.48, 1.65);
@@ -345,13 +345,13 @@ export function buildNavalBoatMesh(cfg, existingCtx = null) {
   const hullBaseColor = isBope ? 0x111827 : LEGO_COLORS.white;
   const stripeColor = isBope ? LEGO_COLORS.gold : bodyColor;
 
-  const mainHull = createLegoBrick(3.4, 0.88, 7.6, hullBaseColor, { studStep: 0.85 });
+  const mainHull = createLegoBrick(3.4, 0.88, 7.6, hullBaseColor, { studs: false });
   mainHull.position.set(0, 0.48, -0.3);
   const stripe = createLegoBrick(3.52, 0.32, 7.7, stripeColor, { studs: false });
   stripe.position.set(0, 0.72, -0.25);
-  const bow1 = createLegoBrick(2.5, 0.82, 2.2, hullBaseColor, { studStep: 0.75 });
+  const bow1 = createLegoBrick(2.5, 0.82, 2.2, hullBaseColor, { studs: false });
   bow1.position.set(0, 0.54, 4.1);
-  const bow2 = createLegoBrick(1.5, 0.75, 1.6, stripeColor, { studStep: 0.6 });
+  const bow2 = createLegoBrick(1.5, 0.75, 1.6, stripeColor, { studs: false });
   bow2.position.set(0, 0.58, 5.4);
 
   const windshield = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.72, 1.3), glassMat);

@@ -3,6 +3,7 @@ import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import {
   mergeBufferGeometries,
   mergeColoredGeometries,
+  optimizeStaticGroupMeshes,
   getSharedVertexColorMaterial,
   markAsSharedAsset
 } from '../../BuildingGenerator.js';
@@ -288,6 +289,12 @@ export function addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, r
 
   const cabColorKey = rotated90 ? 'tactical_white' : 'lego_orange';
   const bodyCacheKey = `${cabColorKey}|${containerColorKey}`;
+  const axleZList = [
+    { wz: 8.6, isFront: true },
+    { wz: 4.4, isFront: false },
+    { wz: -5.5, isFront: false },
+    { wz: -8.8, isFront: false }
+  ];
   let cachedParts = _PORT_SEMI_TRUCK_PARTS_CACHE.get(bodyCacheKey);
 
   if (!cachedParts) {
@@ -307,9 +314,10 @@ export function addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, r
 
     addSingleDetailedContainerGeometry(truckBatcher, containerColorKey, 0, 4.65, -2.4, 6.0, 6.0, 18.0, false);
 
-    const tempProto = new THREE.Group();
-    truckBatcher.finalize(tempProto);
-    cachedParts = tempProto.children.map((ch) => {
+    const tempBodyGroup = new THREE.Group();
+    truckBatcher.finalize(tempBodyGroup);
+    optimizeStaticGroupMeshes(tempBodyGroup);
+    const bodyParts = tempBodyGroup.children.map((ch) => {
       markAsSharedAsset(ch.geometry);
       markAsSharedAsset(ch.material);
       return {
@@ -319,44 +327,79 @@ export function addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, r
         receiveShadow: ch.receiveShadow
       };
     });
+
+    const tempLiteGroup = new THREE.Group();
+    for (let i = 0; i < bodyParts.length; i++) {
+      const bp = bodyParts[i];
+      const bm = new THREE.Mesh(bp.geometry.clone(), bp.material);
+      bm.castShadow = bp.castShadow;
+      bm.receiveShadow = bp.receiveShadow;
+      tempLiteGroup.add(bm);
+    }
+    for (const { wz } of axleZList) {
+      for (const wx of [-2.35, 2.35]) {
+        const wm = new THREE.Mesh(SHARED_TRUCK_WHEEL_GEO.clone(), SHARED_TRUCK_WHEEL_MAT);
+        wm.position.set(wx, 0.68, wz);
+        tempLiteGroup.add(wm);
+      }
+    }
+    optimizeStaticGroupMeshes(tempLiteGroup);
+    const liteParts = tempLiteGroup.children.map((ch) => {
+      markAsSharedAsset(ch.geometry);
+      markAsSharedAsset(ch.material);
+      return {
+        geometry: ch.geometry,
+        material: ch.material,
+        castShadow: ch.castShadow,
+        receiveShadow: ch.receiveShadow
+      };
+    });
+
+    cachedParts = { bodyParts, liteParts };
     _PORT_SEMI_TRUCK_PARTS_CACHE.set(bodyCacheKey, cachedParts);
   }
 
-  for (let i = 0; i < cachedParts.length; i++) {
-    const p = cachedParts[i];
+  const liteMeshes = [];
+  for (let i = 0; i < cachedParts.liteParts.length; i++) {
+    const p = cachedParts.liteParts[i];
     const m = new THREE.Mesh(p.geometry, p.material);
     m.castShadow = p.castShadow;
     m.receiveShadow = p.receiveShadow;
     m.matrixAutoUpdate = false;
     m.updateMatrix();
     truckGroup.add(m);
+    liteMeshes.push(m);
   }
 
-  const wheels = [];
-  const axleZList = [
-    { wz: 8.6, isFront: true },
-    { wz: 4.4, isFront: false },
-    { wz: -5.5, isFront: false },
-    { wz: -8.8, isFront: false }
-  ];
-  for (const { wz, isFront } of axleZList) {
-    for (const wx of [-2.35, 2.35]) {
-      const steerGroup = new THREE.Group();
-      steerGroup.position.set(wx, 0.68, wz);
-      const spinGroup = new THREE.Group();
-      const wheelMesh = new THREE.Mesh(SHARED_TRUCK_WHEEL_GEO, SHARED_TRUCK_WHEEL_MAT);
-      spinGroup.add(wheelMesh);
-      steerGroup.add(spinGroup);
-      truckGroup.add(steerGroup);
-      wheels.push({ steerGroup, spinGroup, isFront });
+  truckGroup.userData._trafficLite = true;
+  truckGroup.userData._customTrafficLiteUpgrade = (grp) => {
+    for (let i = 0; i < liteMeshes.length; i++) grp.remove(liteMeshes[i]);
+    for (let i = 0; i < cachedParts.bodyParts.length; i++) {
+      const p = cachedParts.bodyParts[i];
+      const m = new THREE.Mesh(p.geometry, p.material);
+      m.castShadow = p.castShadow;
+      m.receiveShadow = p.receiveShadow;
+      grp.add(m);
     }
-  }
-
-  const flameGroup = new THREE.Group();
-  flameGroup.visible = false;
-  const fm = new THREE.Mesh(SHARED_TRUCK_FLAME_GEO, SHARED_TRUCK_FLAME_MAT);
-  flameGroup.add(fm);
-  truckGroup.add(flameGroup);
+    const dynWheels = [];
+    for (const { wz, isFront } of axleZList) {
+      for (const wx of [-2.35, 2.35]) {
+        const steerGroup = new THREE.Group();
+        steerGroup.position.set(wx, 0.68, wz);
+        const spinGroup = new THREE.Group();
+        spinGroup.add(new THREE.Mesh(SHARED_TRUCK_WHEEL_GEO, SHARED_TRUCK_WHEEL_MAT));
+        steerGroup.add(spinGroup);
+        grp.add(steerGroup);
+        dynWheels.push({ steerGroup, spinGroup, isFront });
+      }
+    }
+    const flameGroup = new THREE.Group();
+    flameGroup.visible = false;
+    flameGroup.add(new THREE.Mesh(SHARED_TRUCK_FLAME_GEO, SHARED_TRUCK_FLAME_MAT));
+    grp.add(flameGroup);
+    grp.userData.wheels = dynWheels;
+    grp.userData.turboFlames = [flameGroup];
+  };
 
   const rotY = rotated90 ? Math.PI / 2 : 0;
   const truckTY = world.getTerrainHeightAt && x > ws(622) && x < ws(1430) && z > ws(-720) && z < ws(-40)
@@ -368,8 +411,8 @@ export function addPortCargoSemiTruck(world, batcher, x, z, containerColorKey, r
   truckGroup.userData.carType = 'caminhao_carreta';
   truckGroup.userData.carName = NAVAL_AIR_SPECS.caminhao_carreta.name;
   truckGroup.userData.vehicleSpec = NAVAL_AIR_SPECS.caminhao_carreta;
-  truckGroup.userData.wheels = wheels;
-  truckGroup.userData.turboFlames = [flameGroup];
+  truckGroup.userData.wheels = [];
+  truckGroup.userData.turboFlames = [];
   world.scene.add(truckGroup);
 
   const colW = rotated90 ? 23.0 : 5.2;

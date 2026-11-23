@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { getLegoMaterial, LEGO_COLORS } from '../../../materials/LegoMaterials.js';
+import { optimizeStaticGroupMeshes } from '../../BuildingGenerator.js';
 import { NAVAL_AIR_SPECS, createNavalOrAircraftMesh } from '../../NavalAndAirFleetBuilder.js';
 import {
   CUSTOMS_PAINT_PALETTE,
@@ -366,7 +367,8 @@ function _buildAircraftModsAndLiveries(rootGroup, aircraftType, cfg) {
     const patTex = _getPatternStripeTexture(cfg.pattern, accentCss, secondaryCss);
     const patMat = new THREE.MeshStandardMaterial({
       map: patTex,
-      transparent: true,
+      transparent: false,
+      alphaTest: 0.35,
       roughness: 0.32,
       metalness: 0.12,
       polygonOffset: true,
@@ -395,7 +397,8 @@ function _buildAircraftModsAndLiveries(rootGroup, aircraftType, cfg) {
     const insTex = _getInsigniaTexture(cfg.insignia, cfg.tailNumber || '64');
     const insMat = new THREE.MeshStandardMaterial({
       map: insTex,
-      transparent: true,
+      transparent: false,
+      alphaTest: 0.35,
       roughness: 0.3,
       polygonOffset: true,
       polygonOffsetFactor: -3,
@@ -582,6 +585,12 @@ export function applyAircraftCustomization(vehicleObjOrMesh, cfg) {
 
   applyWindowAndHeadlightTint(mesh, safeCfg.windowTint || 'stock');
   _buildAircraftModsAndLiveries(mesh, aircraftType, safeCfg);
+  optimizeStaticGroupMeshes(mesh, [
+    mesh.userData?.mainRotorGroup,
+    mesh.userData?.tailRotorGroup,
+    mesh.userData?.propellerGroup,
+    ...(mesh.userData?.turboFlames || [])
+  ]);
 
   const newSpec = computeCustomAircraftStats(aircraftType, safeCfg);
   mesh.userData.vehicleSpec = newSpec;

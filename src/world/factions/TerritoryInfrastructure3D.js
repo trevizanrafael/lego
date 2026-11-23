@@ -119,7 +119,6 @@ export function buildTerritoryInfrastructureForZone(world, zoneKey) {
       gantryBeam,
       signMesh
     );
-    gateGroup.userData.skipStaticMerge = true;
     world.scene.add(gateGroup);
 
     // Colisor apenas na guarita lateral esquerda para nunca travar a pista!
@@ -190,7 +189,6 @@ export function buildTerritoryInfrastructureForZone(world, zoneKey) {
     });
 
     garGroup.add(padFloor, padBorder, backWall, canopyRoof, neonTrim, garSign);
-    garGroup.userData.skipStaticMerge = true;
     world.scene.add(garGroup);
 
     // Estaciona os 3 veículos exclusivos da facção prontos para dirigir com [E]!
@@ -204,14 +202,23 @@ export function buildTerritoryInfrastructureForZone(world, zoneKey) {
       const vz = gar.z - vCfg.dx * sinG + vCfg.dz * cosG;
       const vy = terrainAt(vx, vz) + 0.18;
 
+      const useLite = !spec.isMotorcycle;
       const carMesh = createLegoCarMesh({
         x: vx,
         z: vz,
         rotY: gar.rotY || 0,
         color: vCfg.color,
         roofColor: vCfg.roofColor,
-        type: vCfg.type
+        type: vCfg.type,
+        trafficLite: useLite
       });
+      if (useLite) {
+        carMesh.userData._fullRebuildCfg = {
+          color: vCfg.color,
+          roofColor: vCfg.roofColor,
+          type: vCfg.type
+        };
+      }
       carMesh.position.set(vx, vy, vz);
       carMesh.rotation.y = gar.rotY || 0;
       carMesh.userData.carType = vCfg.type;
@@ -365,7 +372,6 @@ export function buildTerritoryInfrastructureForZone(world, zoneKey) {
       spotlightCone,
       opSign
     );
-    opGroup.userData.skipStaticMerge = true;
     world.scene.add(opGroup);
 
     world.addCollider(op.x + towerX, op.z + towerZ, 1.9, 1.9, oy + 4.5, oy - 1.0);
@@ -379,6 +385,8 @@ export function buildTerritoryInfrastructureForZone(world, zoneKey) {
       z: op.z,
       ownerFaction: zone.defaultOwner,
       group: opGroup,
+      ringMesh,
+      beaconMesh,
       ringMat,
       bollardMats,
       beaconMat,

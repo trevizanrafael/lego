@@ -1,6 +1,12 @@
 import * as THREE from 'three';
-import { LEGO_COLORS } from '../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox, makeFastBox, flushSpatialChunkedBuckets } from './BuildingGenerator.js';
+import { LEGO_COLORS, markAsSharedAsset } from '../materials/LegoMaterials.js';
+import {
+  mergeBufferGeometries,
+  mergeColoredGeometries,
+  makeTranslatedBox,
+  makeFastBox,
+  flushSpatialChunkedBuckets
+} from './BuildingGenerator.js';
 import { localToWorldXZ } from './buildings/LotGeometry2D.js';
 import { IS_SCALED_WORLD, ROAD, ws } from './core/WorldLayoutScale.js';
 
@@ -535,65 +541,143 @@ export function buildDetailedHouse(world, batcher, cfg) {
   }
 }
 
-const SHARED_FENCE_MAT = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.62 });
-const SHARED_MAILBOX_MATS = [
-  new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.52, metalness: 0.3 }),
-  new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.52, metalness: 0.25 }),
-  new THREE.MeshStandardMaterial({ color: 0x3f4756, roughness: 0.52, metalness: 0.3 }),
-  new THREE.MeshStandardMaterial({ color: 0x1f3a2c, roughness: 0.52, metalness: 0.25 })
-];
+const SHARED_FENCE_MAT = markAsSharedAsset(
+  new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.62 })
+);
+const SHARED_MAILBOX_VC_MAT = markAsSharedAsset(
+  new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.52, metalness: 0.28 })
+);
+const _MAILBOX_HEAD_HEXES = [0x1e293b, 0x5c1919, 0x3f4756, 0x1f3a2c];
+const _SUBURB_FENCE_GEO_CACHE = new Map();
+const _SUBURB_MAILBOX_GEO_CACHE = new Map();
+const _TMP_SUBURB_M4 = new THREE.Matrix4();
+const _TMP_SUBURB_Q = new THREE.Quaternion();
+const _TMP_SUBURB_S1 = new THREE.Vector3(1, 1, 1);
+const _TMP_SUBURB_S0 = new THREE.Vector3(0, 0, 0);
+
+function _getSuburbFenceGeo(width = 5.2) {
+  const key = width.toFixed(2);
+  let geo = _SUBURB_FENCE_GEO_CACHE.get(key);
+  if (!geo) {
+    const geos = [
+      makeTranslatedBox(width, 0.18, 0.22, 0, 0.85, 0),
+      makeTranslatedBox(width, 0.18, 0.22, 0, 0.42, 0)
+    ];
+    const posts = Math.max(3, Math.floor(width / 1.1));
+    for (let i = 0; i < posts; i++) {
+      geos.push(makeTranslatedBox(0.24, 1.1, 0.26, -width * 0.5 + (i / (posts - 1)) * width, 0.55, 0));
+    }
+    geo = markAsSharedAsset(mergeBufferGeometries(geos));
+    _SUBURB_FENCE_GEO_CACHE.set(key, geo);
+  }
+  return geo;
+}
+
+function _getSuburbMailboxGeo(variant = 0) {
+  const idx = Math.abs(variant) % _MAILBOX_HEAD_HEXES.length;
+  let geo = _SUBURB_MAILBOX_GEO_CACHE.get(idx);
+  if (!geo) {
+    geo = markAsSharedAsset(
+      mergeColoredGeometries([
+        { geo: makeTranslatedBox(0.22, 1.15, 0.22, 0, 0.58, 0), color: new THREE.Color(0xcbd5e1) },
+        { geo: makeTranslatedBox(0.58, 0.48, 0.78, 0, 1.25, 0), color: new THREE.Color(_MAILBOX_HEAD_HEXES[idx]) }
+      ])
+    );
+    _SUBURB_MAILBOX_GEO_CACHE.set(idx, geo);
+  }
+  return geo;
+}
+
+function _registerSuburbInstancedProp(world, key, geo, mat, proxy, itemSpec) {
+  if (!world._suburbPropInstPools) world._suburbPropInstPools = new Map();
+  let pool = world._suburbPropInstPools.get(key);
+  if (!pool) {
+    pool = { geo, mat, items: [], inst: null };
+    world._suburbPropInstPools.set(key, pool);
+  }
+  const slot = pool.items.length;
+  const item = world.destructibles.registerDestructible({ ...itemSpec, mesh: proxy, isStreetProp: true });
+  item._syncInstancedVisual = (obj) => {
+    if (!pool.inst) return;
+    const vis = Boolean(obj.mesh && obj.mesh.visible && !obj.destroyed);
+    _TMP_SUBURB_Q.setFromEuler(obj.mesh.rotation);
+    _TMP_SUBURB_M4.compose(obj.mesh.position, _TMP_SUBURB_Q, vis ? _TMP_SUBURB_S1 : _TMP_SUBURB_S0);
+    pool.inst.setMatrixAt(slot, _TMP_SUBURB_M4);
+    pool.inst.instanceMatrix.needsUpdate = true;
+  };
+  pool.items.push(item);
+}
+
+export function finalizeSuburbBreakableInstancedProps(world) {
+  if (!world?._suburbPropInstPools) return;
+  for (const pool of world._suburbPropInstPools.values()) {
+    if (!pool.items.length || pool.inst) continue;
+    const inst = new THREE.InstancedMesh(pool.geo, pool.mat, pool.items.length);
+    inst.castShadow = false;
+    inst.receiveShadow = true;
+    inst.matrixAutoUpdate = false;
+    pool.inst = inst;
+    for (let i = 0; i < pool.items.length; i++) {
+      pool.items[i]._syncInstancedVisual(pool.items[i]);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    inst.computeBoundingSphere();
+    world.scene.add(inst);
+  }
+}
 
 export function spawnBreakableWhiteFence(world, x, z, width = 5.2, rotY = 0) {
   const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
   const yBase = baseY + (IS_SCALED_WORLD ? 0.06 : 0.28);
-  const geos = [
-    makeTranslatedBox(width, 0.18, 0.22, 0, 0.85, 0),
-    makeTranslatedBox(width, 0.18, 0.22, 0, 0.42, 0)
-  ];
-  const posts = Math.max(3, Math.floor(width / 1.1));
-  for (let i = 0; i < posts; i++) {
-    geos.push(makeTranslatedBox(0.24, 1.1, 0.26, -width * 0.5 + (i / (posts - 1)) * width, 0.55, 0));
-  }
-  const mesh = new THREE.Mesh(mergeBufferGeometries(geos), SHARED_FENCE_MAT);
-  mesh.position.set(x, yBase, z);
-  mesh.rotation.y = rotY;
-  mesh.receiveShadow = true;
-  world.scene.add(mesh);
+  const geo = _getSuburbFenceGeo(width);
 
   const col =
     Math.abs(rotY) > 1e-3 && typeof world.addObbCollider === 'function'
       ? world.addObbCollider(x, z, width, 0.65, rotY, yBase + 1.1, yBase)
       : world.addCollider(x, z, width, 0.45, yBase + 1.1, yBase);
+
   if (world.destructibles) {
-    world.destructibles.registerDestructible({
-      mesh, type: 'fence', hp: 10, radius: width * 0.45, height: 1.1, colliders: [col],
+    const proxy = new THREE.Object3D();
+    proxy.position.set(x, yBase, z);
+    proxy.rotation.y = rotY;
+    _registerSuburbInstancedProp(world, `fence_${width.toFixed(2)}`, geo, SHARED_FENCE_MAT, proxy, {
+      type: 'fence', hp: 10, radius: width * 0.45, height: 1.1, colliders: [col],
       debrisColors: [LEGO_COLORS.white, LEGO_COLORS.lightGrey],
       studDrops: { silver: 3, gold: 2, blue: 0, purple: 0 }, groundY: yBase
     });
+  } else {
+    const mesh = new THREE.Mesh(geo, SHARED_FENCE_MAT);
+    mesh.position.set(x, yBase, z);
+    mesh.rotation.y = rotY;
+    mesh.receiveShadow = true;
+    world.scene.add(mesh);
   }
 }
 
 export function spawnBreakableMailbox(world, x, z, seed = 0, rotY = 0) {
   const baseY = world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0;
   const yBase = baseY + (IS_SCALED_WORLD ? 0.06 : 0.28);
-  const geos = [
-    makeTranslatedBox(0.22, 1.15, 0.22, 0, 0.58, 0),
-    makeTranslatedBox(0.58, 0.48, 0.78, 0, 1.25, 0)
-  ];
-  const mesh = new THREE.Mesh(mergeBufferGeometries(geos), SHARED_MAILBOX_MATS[seed % SHARED_MAILBOX_MATS.length]);
-  mesh.position.set(x, yBase, z);
-  mesh.rotation.y = rotY;
-  world.scene.add(mesh);
+  const vIdx = Math.abs(seed) % _MAILBOX_HEAD_HEXES.length;
+  const geo = _getSuburbMailboxGeo(vIdx);
 
   const col =
     Math.abs(rotY) > 1e-3 && typeof world.addObbCollider === 'function'
       ? world.addObbCollider(x, z, 0.65, 0.75, rotY, yBase + 1.5, yBase)
       : world.addCollider(x, z, 0.65, 0.75, yBase + 1.5, yBase);
+
   if (world.destructibles) {
-    world.destructibles.registerDestructible({
-      mesh, type: 'mailbox', hp: 8, radius: 0.75, height: 1.5, colliders: [col],
+    const proxy = new THREE.Object3D();
+    proxy.position.set(x, yBase, z);
+    proxy.rotation.y = rotY;
+    _registerSuburbInstancedProp(world, `mailbox_${vIdx}`, geo, SHARED_MAILBOX_VC_MAT, proxy, {
+      type: 'mailbox', hp: 8, radius: 0.75, height: 1.5, colliders: [col],
       debrisColors: [LEGO_COLORS.blue, LEGO_COLORS.red, LEGO_COLORS.white, LEGO_COLORS.yellow],
       studDrops: { silver: 3, gold: 2, blue: 0, purple: 0 }, groundY: yBase
     });
+  } else {
+    const mesh = new THREE.Mesh(geo, SHARED_MAILBOX_VC_MAT);
+    mesh.position.set(x, yBase, z);
+    mesh.rotation.y = rotY;
+    world.scene.add(mesh);
   }
 }

@@ -8,10 +8,13 @@
 import * as THREE from 'three';
 import {
   LEGO_COLORS,
-  getLegoMaterial,
-  createLegoBrick
+  getLegoMaterial
 } from '../../materials/LegoMaterials.js';
-import { markAsSharedAsset } from '../BuildingGenerator.js';
+import {
+  markAsSharedAsset,
+  mergeColoredGeometries,
+  getSharedVertexColorMaterial
+} from '../BuildingGenerator.js';
 import { TACTICAL_AND_FACTION_TYPES } from './VehicleSpecsCatalog.js';
 import {
   makeTaperedHullGeo,
@@ -24,7 +27,8 @@ import {
   buildVaultBoxCabin,
   attachStandardWheelsAndFinalize,
   addPoliceLightbar,
-  attachTurboFlames
+  attachTurboFlames,
+  setFullVehicleRebuildFactory
 } from './VehicleChassisPrimitives.js';
 import {
   buildCivilianOrSportsCarMesh,
@@ -32,6 +36,14 @@ import {
 } from './CivilianAndSportsCarsBuilder.js';
 
 const _VEHICLE_PROTO_CACHE = new Map();
+const _MOTO_WHEEL_VC_GEO_CACHE = new Map();
+const _SHARED_MOTO_WHEEL_VC_MAT = markAsSharedAsset(
+  getSharedVertexColorMaterial({
+    roughness: 0.3,
+    metalness: 0.34,
+    clearcoat: 0.3
+  })
+);
 
 /**
  * Constrói Motos de Alta Cilindrada (Moto CV 600cc, Superbike PCC 1000cc e Moto Tática ROCAM / BOPE).
@@ -227,7 +239,7 @@ export function buildMotorcycleMesh(group, cfg, ctx) {
   group.add(tripleClampTop, tripleClampBot, frontFender);
 
   // 8. Carenagem Frontal, Faróis de LED, Painel Digital TFT, Guidão Largo, Manoplas e Retrovisores
-  const noseFairing = createLegoBrick(0.88, 0.48, 0.64, primaryColor, { studs: false });
+  const noseFairing = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.48, 0.64), primaryMat);
   noseFairing.rotation.x = 0.22;
   noseFairing.position.set(0, 1.28, 1.18);
   group.add(noseFairing);
@@ -321,7 +333,7 @@ export function buildMotorcycleMesh(group, cfg, ctx) {
       const crashBar = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.46, 0.54), silverMat);
       crashBar.position.set(sx * 0.48, 0.76, 0.48);
 
-      const sideBox = createLegoBrick(0.32, 0.46, 0.74, primaryColor, { studs: false });
+      const sideBox = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.46, 0.74), primaryMat);
       sideBox.position.set(sx * 0.56, 1.04, -0.98);
       const goldStripe = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 0.76), goldMat);
       goldStripe.position.set(sx * 0.56, 1.08, -0.98);
@@ -355,7 +367,7 @@ export function buildMotorcycleMesh(group, cfg, ctx) {
     group.add(skidPlate);
   }
 
-  // 10. Pneus Largos Esportivos + Aros + Discos de Freio Ventilados + Pinças
+  // 10. Pneus Largos Esportivos + Aros + Discos de Freio Ventilados + Pinças (1 Mesh VC por roda!)
   const wheels = [];
   const wheelConfigs = [
     { wz: 1.38, radius: 0.55, width: 0.38, isFront: true },
@@ -363,48 +375,51 @@ export function buildMotorcycleMesh(group, cfg, ctx) {
   ];
   const rimMat = customWheelMat || (isPcc ? pccNeonBlueMat : isPolice ? silverMat : goldMat);
   const caliperMat = isPcc ? pccNeonBlueMat : isPolice ? goldMat : primaryMat;
+  const isLite = Boolean(ctx.trafficLite || group.userData?._trafficLite);
 
   for (const wc of wheelConfigs) {
-    const steerGroup = new THREE.Group();
-    steerGroup.position.set(0, wc.radius, wc.wz);
-    const spinGroup = new THREE.Group();
-
-    const tire = new THREE.Mesh(
-      new THREE.CylinderGeometry(wc.radius, wc.radius, wc.width, 20),
-      tireMat
-    );
-    tire.rotation.z = Math.PI / 2;
-
-    const rim = new THREE.Mesh(
-      new THREE.CylinderGeometry(wc.radius * 0.64, wc.radius * 0.64, wc.width + 0.02, 16),
-      rimMat
-    );
-    rim.rotation.z = Math.PI / 2;
-
-    const hub = new THREE.Mesh(
-      new THREE.CylinderGeometry(wc.radius * 0.28, wc.radius * 0.28, wc.width + 0.06, 12),
-      gunmetalMat
-    );
-    hub.rotation.z = Math.PI / 2;
-
-    for (const dx of [-1, 1]) {
-      const brakeDisc = new THREE.Mesh(
-        new THREE.CylinderGeometry(wc.radius * 0.48, wc.radius * 0.48, 0.04, 16),
-        silverMat
-      );
-      brakeDisc.rotation.z = Math.PI / 2;
-      brakeDisc.position.set(dx * (wc.width * 0.5 + 0.02), 0, 0);
-      spinGroup.add(brakeDisc);
-
-      const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.14), caliperMat);
-      caliper.position.set(dx * (wc.width * 0.5 + 0.04), wc.radius * 0.32, -wc.radius * 0.24);
-      steerGroup.add(caliper);
+    const wKey = `${wc.radius}|${wc.width}|${tireMat.color.getHex()}|${rimMat.color.getHex()}`;
+    let wheelVcGeo = _MOTO_WHEEL_VC_GEO_CACHE.get(wKey);
+    if (!wheelVcGeo) {
+      const tireG = new THREE.CylinderGeometry(wc.radius, wc.radius, wc.width, 16);
+      tireG.rotateZ(Math.PI / 2);
+      const rimG = new THREE.CylinderGeometry(wc.radius * 0.64, wc.radius * 0.64, wc.width + 0.02, 14);
+      rimG.rotateZ(Math.PI / 2);
+      const hubG = new THREE.CylinderGeometry(wc.radius * 0.28, wc.radius * 0.28, wc.width + 0.06, 10);
+      hubG.rotateZ(Math.PI / 2);
+      const discParts = [
+        { geo: tireG, color: tireMat.color },
+        { geo: rimG, color: rimMat.color },
+        { geo: hubG, color: gunmetalMat.color }
+      ];
+      for (const dx of [-1, 1]) {
+        const bd = new THREE.CylinderGeometry(wc.radius * 0.48, wc.radius * 0.48, 0.04, 12);
+        bd.rotateZ(Math.PI / 2);
+        bd.translate(dx * (wc.width * 0.5 + 0.02), 0, 0);
+        discParts.push({ geo: bd, color: silverMat.color });
+      }
+      wheelVcGeo = markAsSharedAsset(mergeColoredGeometries(discParts));
+      _MOTO_WHEEL_VC_GEO_CACHE.set(wKey, wheelVcGeo);
     }
 
-    spinGroup.add(tire, rim, hub);
-    steerGroup.add(spinGroup);
-    group.add(steerGroup);
-    wheels.push({ steerGroup, spinGroup, isFront: wc.isFront });
+    if (isLite) {
+      const wheelMesh = new THREE.Mesh(wheelVcGeo, _SHARED_MOTO_WHEEL_VC_MAT);
+      wheelMesh.position.set(0, wc.radius, wc.wz);
+      group.add(wheelMesh);
+      for (const dx of [-1, 1]) {
+        const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.14), caliperMat);
+        caliper.position.set(dx * (wc.width * 0.5 + 0.04), wc.radius * 1.32, wc.wz - wc.radius * 0.24);
+        group.add(caliper);
+      }
+    } else {
+      const steerGroup = new THREE.Group();
+      steerGroup.position.set(0, wc.radius, wc.wz);
+      const spinGroup = new THREE.Group();
+      spinGroup.add(new THREE.Mesh(wheelVcGeo, _SHARED_MOTO_WHEEL_VC_MAT));
+      steerGroup.add(spinGroup);
+      group.add(steerGroup);
+      wheels.push({ steerGroup, spinGroup, isFront: wc.isFront });
+    }
   }
 
   group.userData.wheels = wheels;
@@ -502,17 +517,24 @@ export function buildTitanTankMesh(group, cfg, ctx) {
   group.userData.turretGroup = turretGroup;
 
   const wheels = [];
+  const tankWheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.42, 12);
+  tankWheelGeo.rotateZ(Math.PI / 2);
   for (const wz of [-2.1, -0.7, 0.7, 2.1]) {
     for (const wx of [-1.78, 1.78]) {
-      const steerGroup = new THREE.Group();
-      steerGroup.position.set(wx, 0.44, wz);
-      const spinGroup = new THREE.Group();
-      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.42, 12), gunmetalTrimMat);
-      wheel.rotation.z = Math.PI / 2;
-      spinGroup.add(wheel);
-      steerGroup.add(spinGroup);
-      group.add(steerGroup);
-      wheels.push({ steerGroup, spinGroup, isFront: false });
+      if (ctx.trafficLite || group.userData?._trafficLite) {
+        const wheel = new THREE.Mesh(tankWheelGeo, gunmetalTrimMat);
+        wheel.position.set(wx, 0.44, wz);
+        group.add(wheel);
+      } else {
+        const steerGroup = new THREE.Group();
+        steerGroup.position.set(wx, 0.44, wz);
+        const spinGroup = new THREE.Group();
+        const wheel = new THREE.Mesh(tankWheelGeo, gunmetalTrimMat);
+        spinGroup.add(wheel);
+        steerGroup.add(spinGroup);
+        group.add(steerGroup);
+        wheels.push({ steerGroup, spinGroup, isFront: false });
+      }
     }
   }
   group.userData.wheels = wheels;
@@ -773,7 +795,8 @@ function _buildLegoCarMeshUncached(cfg) {
  */
 export function createLegoCarMesh(cfg = {}) {
   const type = cfg.type || 'apex_gtx';
-  const cacheKey = `${type}|${cfg.color ?? ''}|${cfg.roofColor ?? ''}|${cfg.finishStyle ?? ''}|${cfg.wheelColor ?? ''}|${cfg.suppressDefaultSpoiler ? 1 : 0}`;
+  const isLite = Boolean(cfg.trafficLite || cfg.finishStyle === 'traffic_lite');
+  const cacheKey = `${type}|${cfg.color ?? ''}|${cfg.roofColor ?? ''}|${cfg.finishStyle ?? ''}|${cfg.wheelColor ?? ''}|${cfg.suppressDefaultSpoiler ? 1 : 0}|${isLite ? 1 : 0}`;
   const cachedProto = _VEHICLE_PROTO_CACHE.get(cacheKey);
   if (cachedProto) {
     return cloneVehicleProto(cachedProto);
@@ -794,3 +817,4 @@ export function createLegoCarMesh(cfg = {}) {
 
 // Registra o factory padrão sem dependência circular
 setDefaultCarMeshFactory(createLegoCarMesh);
+setFullVehicleRebuildFactory(createLegoCarMesh);

@@ -151,16 +151,23 @@ export function buildUrbanBusMesh(group, ctx) {
     clearcoatRoughness: 0.28
   });
   const wheels = [];
+  const isLite = Boolean(ctx.trafficLite || group.userData?._trafficLite);
   for (const wz of [2.65, -1.85, -3.05]) {
     for (const wx of [-busW * 0.49, busW * 0.49]) {
-      const steerGroup = new THREE.Group();
-      steerGroup.position.set(wx, 0.52, wz);
-      const spinGroup = new THREE.Group();
-      const wheelMesh = new THREE.Mesh(busWheelGeo, busWheelMat);
-      spinGroup.add(wheelMesh);
-      steerGroup.add(spinGroup);
-      group.add(steerGroup);
-      wheels.push({ steerGroup, spinGroup, isFront: wz > 1.0 });
+      if (isLite) {
+        const wheelMesh = new THREE.Mesh(busWheelGeo, busWheelMat);
+        wheelMesh.position.set(wx, 0.52, wz);
+        group.add(wheelMesh);
+      } else {
+        const steerGroup = new THREE.Group();
+        steerGroup.position.set(wx, 0.52, wz);
+        const spinGroup = new THREE.Group();
+        const wheelMesh = new THREE.Mesh(busWheelGeo, busWheelMat);
+        spinGroup.add(wheelMesh);
+        steerGroup.add(spinGroup);
+        group.add(steerGroup);
+        wheels.push({ steerGroup, spinGroup, isFront: wz > 1.0 });
+      }
     }
   }
   group.userData.wheels = wheels;
@@ -555,7 +562,11 @@ export function buildParkedLegoCars(
 
   layout.forEach((cfg) => {
     const spec = VEHICLE_SPECS[cfg.type] || VEHICLE_SPECS.apex_gtx;
-    const carGroup = createCarMeshFn(cfg);
+    const useParkedLite = createCarMeshFn === _defaultCarMeshFactory && !spec.isMotorcycle;
+    const carGroup = createCarMeshFn(useParkedLite ? { ...cfg, trafficLite: true } : cfg);
+    if (useParkedLite) {
+      carGroup.userData._fullRebuildCfg = { ...cfg };
+    }
     const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(cfg.x, cfg.z) : 0;
     const yBase = cfg._absoluteY
       ? cfg.y ?? 0

@@ -35,4 +35,18 @@
   - `camera.far`: **`23.400 m` → `3.100 m`** com `FogExp2` Noir (`0.00082`), Bloom em meia-resolução e DRS piso `0.70`.
   - Draw calls já caíram de `3.245 → 1.167` (`praia_sul`), `2.863 → 1.225` (`X_port_close`) e `1.885 → 636` (`ilha_prisao`).
 
-*(Os próximos marcos M3–M9 serão registrados abaixo conforme concluídos.)*
+## M3 — Batching Estático Global, Veículos `trafficLite`, IA de Guerra 10 Hz & Warmup Completo
+- Consolidados lotes estáticos em chunks (`1.200 m` / `3.600 m` na Pangeia externa) e decomposição automática das placas 6-materiais em malhas de atlas único em [WorldBatchingAndFreeze.js](../../src/world/core/WorldBatchingAndFreeze.js).
+- Agrupamento `THREE.LOD` da orla em chunks (`840 m`) em [BeachfrontSkyscrapersBuilder.js](../../src/world/regions/south-beach/BeachfrontSkyscrapersBuilder.js) e do centro em [ChunkedBuildingLodBatcher.js](../../src/world/buildings/ChunkedBuildingLodBatcher.js) (teste `anti-flicker-and-lod.test.js` atualizado para validar `>= 30` torres em `southBeachHotels` + `>= 6` chunks `THREE.LOD` em `southBeachHotelLODs`).
+- Frota estacionada, carretas portuárias e trânsito IA unificados em modo `trafficLite` com promoção automática sob demanda ao embarcar (`upgradeTrafficLiteCarIfNeeded`), bustos de ocupantes mesclados por Vertex Color ([VehicleOccupants.js](../../src/world/vehicles/VehicleOccupants.js)), faróis/lanternas do trânsito em 2 `InstancedMesh`es globais ([VehicleNightLightsRig.js](../../src/world/atmosphere/VehicleNightLightsRig.js)), cercas/caixas de correio instanciadas ([SuburbHouseGenerator.js](../../src/world/SuburbHouseGenerator.js)) e embarcações/aeronaves *studless*.
+- Grade espacial 2D (`24 m`) + IA 10 Hz escalonada + pools zero-GC em [InvasionWarAndSquadCombatAI.js](../../src/world/factions/InvasionWarAndSquadCombatAI.js), culling com histerese no trânsito ([TrafficNetworkAndVehicleAI.js](../../src/world/living-city/TrafficNetworkAndVehicleAI.js)) e warmup dos 15 blueprints de soldados + famílias de fachada em [ShaderWarmupRig.js](../../src/graphics/ShaderWarmupRig.js).
+- Resultados medidos (`docs/noite/bench-M3.json` vs `M0`, `185/185` testes verdes):
+  - `meshes`: **`14.166` → `2.966`** (`-79,1%`, dentro da meta `< 3.000`).
+  - `uniqueGeometries`: **`10.237` → `2.151`** (`-79,0%`, dentro da meta `< 2.500`).
+  - `shadowCasters`: **`4.956` → `181`** (`-96,3%`, dentro da meta `< 400`).
+  - `transparentMeshes`: **`506` → `90`** (`74` na cena base auditada em `perf-budget.test.js`, `< 80`).
+  - `factionWar.update` (`industrial_leste`): **`51,40 ms` (`p90 = 148,50 ms`) → `0,42 ms` (`p90 = 0,60 ms`)** (`-99,2%`).
+  - Draw calls por vista: `praia_sul` `3.245 → 541` (`-83,3%`), `X_port_close` `2.863 → 566` (`-80,2%`), `torre_herois` `402`, `suburbio_norte` `342`, `industrial_leste` `329`, `porto_leste` `449`, `aeroporto_oeste` `369`, `ilha_prisao` `364`, `X_fav_aerial` `393`, `X_sky_downtown` `427`.
+  - Tempo de quadro em `centro_financeiro`: **`avg = 9,05 ms` (~110 FPS), `p90 = 12,1 ms` (~82 FPS)**.
+
+*(Os próximos marcos M4–M9 serão registrados abaixo conforme concluídos.)*

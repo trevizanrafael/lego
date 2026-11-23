@@ -145,9 +145,15 @@ export const trafficNetworkAndVehicleAIMethods = {
   },
 
   _updateUrbanTraffic(dt, playerPos, controller) {
+    this._trafficFrameTick = ((this._trafficFrameTick || 0) + 1) | 0;
     const drivenObj = controller?.currentVehicle || null;
 
     const TRAFFIC_CELL = 28.0;
+    const TRAFFIC_HIDE_DIST_SQ = 245 * 245;
+    const TRAFFIC_SHOW_DIST_SQ = 225 * 225;
+    const TRAFFIC_THROTTLE_DIST_SQ = 165 * 165;
+    const TRAFFIC_COLLIDER_DIST_SQ = 190 * 190;
+
     if (!this._trafficGrid) {
       this._trafficGrid = new Map();
       this._trafficUsedBuckets = [];
@@ -175,6 +181,17 @@ export const trafficNetworkAndVehicleAIMethods = {
       bucket.push(v);
     }
 
+    const crossingPeds = this._crossingPedList || (this._crossingPedList = []);
+    crossingPeds.length = 0;
+    if (IS_SCALED_WORLD && this.pedestrians?.length) {
+      for (let pi = 0; pi < this.pedestrians.length; pi++) {
+        const p = this.pedestrians[pi];
+        if (p.crossState === 'CROSSING' && p.activeCrosswalk) {
+          crossingPeds.push(p.activeCrosswalk);
+        }
+      }
+    }
+
     const isLaneSegmentClear = (tv, candLaneOffset, checkSpan = 12.0) => {
       const tgx = Math.floor(tv.mesh.position.x / TRAFFIC_CELL);
       const tgz = Math.floor(tv.mesh.position.z / TRAFFIC_CELL);
@@ -199,32 +216,37 @@ export const trafficNetworkAndVehicleAIMethods = {
       return true;
     };
 
-    for (const tv of this.trafficVehicles) {
+    for (let tvIdx = 0; tvIdx < this.trafficVehicles.length; tvIdx++) {
+      const tv = this.trafficVehicles[tvIdx];
       const obj = tv.destructible;
       if (!obj || obj.destroyed) continue;
       obj._aiCurrentSpeed = Math.abs(tv.currentSpeed || 0);
 
-      tv.hornCooldown = Math.max(0, tv.hornCooldown - dt);
-      tv.panicTimer = Math.max(0, tv.panicTimer - dt);
-      if (tv.respawnFadeTimer > 0) {
-        tv.respawnFadeTimer = Math.max(0, tv.respawnFadeTimer - dt);
-      }
-
-      if (obj.isDriven || obj.isGrabbed) {
-        if (obj.occupants?.length) disembarkOccupants(obj, Infinity);
-        if (!tv.hijackedByPlayer) {
-          tv.hijackedByPlayer = true;
-          this._ejectDriverOnCarjack(tv);
+      if (obj === drivenObj || obj.isDriven || obj.isGrabbed) {
+        if (!tv.mesh.visible) tv.mesh.visible = true;
+        tv.hornCooldown = Math.max(0, tv.hornCooldown - dt);
+        tv.panicTimer = Math.max(0, tv.panicTimer - dt);
+        if (tv.respawnFadeTimer > 0) tv.respawnFadeTimer = Math.max(0, tv.respawnFadeTimer - dt);
+        if (obj.isDriven || obj.isGrabbed) {
+          if (obj.occupants?.length) disembarkOccupants(obj, Infinity);
+          if (!tv.hijackedByPlayer) {
+            tv.hijackedByPlayer = true;
+            this._ejectDriverOnCarjack(tv);
+          }
+          tv.abandonedTimer = 0;
+          if (tv.isBraking) {
+            tv.isBraking = false;
+            for (const bl of tv.brakeLights) bl.material = SHARED_BRAKE_LIGHT_OFF_MAT;
+          }
+          continue;
         }
-        tv.abandonedTimer = 0;
-        if (tv.isBraking) {
-          tv.isBraking = false;
-          for (const bl of tv.brakeLights) bl.material = SHARED_BRAKE_LIGHT_OFF_MAT;
-        }
-        continue;
       }
 
       if (tv.hijackedByPlayer) {
+        if (!tv.mesh.visible) tv.mesh.visible = true;
+        tv.hornCooldown = Math.max(0, tv.hornCooldown - dt);
+        tv.panicTimer = Math.max(0, tv.panicTimer - dt);
+        if (tv.respawnFadeTimer > 0) tv.respawnFadeTimer = Math.max(0, tv.respawnFadeTimer - dt);
         syncTrafficVehicleColliders(this.world, tv);
         const distPlayer = playerPos
           ? Math.hypot(playerPos.x - tv.mesh.position.x, playerPos.z - tv.mesh.position.z)
@@ -243,15 +265,48 @@ export const trafficNetworkAndVehicleAIMethods = {
         continue;
       }
 
+      let distSq = 0;
+      if (playerPos && obj !== drivenObj) {
+        const dx = tv.mesh.position.x - playerPos.x;
+        const dz = tv.mesh.position.z - playerPos.z;
+        distSq = dx * dx + dz * dz;
+        if (tv.mesh.visible) {
+          if (distSq > TRAFFIC_HIDE_DIST_SQ) tv.mesh.visible = false;
+        } else if (distSq < TRAFFIC_SHOW_DIST_SQ) {
+          tv.mesh.visible = true;
+        }
+      }
+
+      let effDt = dt;
+      if (
+        playerPos &&
+        obj !== drivenObj &&
+        distSq > TRAFFIC_THROTTLE_DIST_SQ &&
+        dt < 0.08 &&
+        !obj.driverKilled &&
+        tv.panicTimer <= 0
+      ) {
+        if ((tvIdx + this._trafficFrameTick) % 6 !== 0) {
+          continue;
+        }
+        effDt = dt * 6;
+      }
+
+      tv.hornCooldown = Math.max(0, tv.hornCooldown - effDt);
+      tv.panicTimer = Math.max(0, tv.panicTimer - effDt);
+      if (tv.respawnFadeTimer > 0) {
+        tv.respawnFadeTimer = Math.max(0, tv.respawnFadeTimer - effDt);
+      }
+
       if (obj.driverKilled) {
-        tv.currentSpeed = THREE.MathUtils.lerp(tv.currentSpeed, 0, Math.min(1, dt * 6.5));
+        tv.currentSpeed = THREE.MathUtils.lerp(tv.currentSpeed, 0, Math.min(1, effDt * 6.5));
         if (tv.currentSpeed < 0.08) tv.currentSpeed = 0;
         if (!tv.isBraking) {
           tv.isBraking = true;
           for (const bl of tv.brakeLights) bl.material = SHARED_BRAKE_LIGHT_ON_MAT;
         }
         if (tv.currentSpeed > 0.04) {
-          tv.posAlong += tv.dir * tv.currentSpeed * dt;
+          tv.posAlong += tv.dir * tv.currentSpeed * effDt;
           let nx;
           let nz;
           if (tv.isPolylineRoute && tv.polyTable) {
@@ -288,7 +343,13 @@ export const trafficNetworkAndVehicleAIMethods = {
       let nearbyCarsCount = 0;
 
       // Em 3x, respeita linha de retenção antes das faixas de pedestre (world.crosswalkZones) no sinal vermelho
-      if (IS_SCALED_WORLD && !tv.isViaduct && tv.panicTimer <= 0 && this._intersectionsByRoadKey) {
+      if (
+        IS_SCALED_WORLD &&
+        (!playerPos || distSq <= TRAFFIC_COLLIDER_DIST_SQ) &&
+        !tv.isViaduct &&
+        tv.panicTimer <= 0 &&
+        this._intersectionsByRoadKey
+      ) {
         const localTerrY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(pos.x, pos.z) : 0;
         if (pos.y <= localTerrY + 3.0) {
           const rKey = (tv.axis === 'z_const' ? 'z:' : 'x:') + Math.round(tv.roadCoord);
@@ -302,10 +363,10 @@ export const trafficNetworkAndVehicleAIMethods = {
               if (distToStop < -0.5 || distToStop > 26.0) continue;
               const redNow = this._isTrafficLightRedForAxis?.(tv.axis, j.ix, j.iz);
               let pedInCrosswalk = false;
-              if (!redNow && this.pedestrians?.length) {
-                for (let pi = 0; pi < this.pedestrians.length; pi++) {
-                  const p = this.pedestrians[pi];
-                  if (p.crossState === 'CROSSING' && p.activeCrosswalk && p.activeCrosswalk.ix === j.ix && p.activeCrosswalk.iz === j.iz) {
+              if (!redNow && crossingPeds.length > 0) {
+                for (let pi = 0; pi < crossingPeds.length; pi++) {
+                  const cw = crossingPeds[pi];
+                  if (cw.ix === j.ix && cw.iz === j.iz) {
                     pedInCrosswalk = true;
                     break;
                   }
@@ -321,7 +382,7 @@ export const trafficNetworkAndVehicleAIMethods = {
         }
       }
 
-      if (playerPos) {
+      if (playerPos && distSq <= TRAFFIC_THROTTLE_DIST_SQ) {
         const dxP = playerPos.x - pos.x;
         const dzP = playerPos.z - pos.z;
         const distAheadP = dxP * fwdX + dzP * fwdZ;
@@ -331,7 +392,7 @@ export const trafficNetworkAndVehicleAIMethods = {
           obstacleAhead = true;
           shouldHonk = true;
         }
-        if (drivenObj && Math.hypot(dxP, dzP) < 8.5 && Math.abs(playerPos.y - pos.y) < 3.0) {
+        if (drivenObj && distSq < 8.5 * 8.5 && Math.abs(playerPos.y - pos.y) < 3.0) {
           nearbyCarsCount++;
         }
       }
@@ -350,8 +411,8 @@ export const trafficNetworkAndVehicleAIMethods = {
 
             const dxO = oPos.x - pos.x;
             const dzO = oPos.z - pos.z;
-            const distO = Math.hypot(dxO, dzO);
-            if (distO < 8.5) nearbyCarsCount++;
+            const distOSq = dxO * dxO + dzO * dzO;
+            if (distOSq < 8.5 * 8.5) nearbyCarsCount++;
 
             const distAheadO = dxO * fwdX + dzO * fwdZ;
             if (distAheadO <= 1.0 || distAheadO > 22.0) continue;
@@ -399,7 +460,7 @@ export const trafficNetworkAndVehicleAIMethods = {
         }
       }
 
-      if (this.wantedSystem?.pursuitVehicles?.length > 0) {
+      if (this.wantedSystem?.pursuitVehicles?.length > 0 && (!playerPos || distSq <= TRAFFIC_COLLIDER_DIST_SQ)) {
         for (const pv of this.wantedSystem.pursuitVehicles) {
           if (!pv.carObj || pv.carObj.destroyed) continue;
           const pPos = pv.carObj.mesh.position;
@@ -429,11 +490,11 @@ export const trafficNetworkAndVehicleAIMethods = {
         tv.stuckTimer = 0;
         tv.surroundedTimer = 0;
       } else {
-        if (tv.currentSpeed < 2.0) tv.stuckTimer = (tv.stuckTimer || 0) + dt;
-        else tv.stuckTimer = Math.max(0, (tv.stuckTimer || 0) - dt * 2.0);
+        if (tv.currentSpeed < 2.0) tv.stuckTimer = (tv.stuckTimer || 0) + effDt;
+        else tv.stuckTimer = Math.max(0, (tv.stuckTimer || 0) - effDt * 2.0);
 
-        if (nearbyCarsCount >= 2 && tv.currentSpeed < 3.0) tv.surroundedTimer = (tv.surroundedTimer || 0) + dt;
-        else tv.surroundedTimer = Math.max(0, (tv.surroundedTimer || 0) - dt * 1.5);
+        if (nearbyCarsCount >= 2 && tv.currentSpeed < 3.0) tv.surroundedTimer = (tv.surroundedTimer || 0) + effDt;
+        else tv.surroundedTimer = Math.max(0, (tv.surroundedTimer || 0) - effDt * 1.5);
       }
 
       if (tv.stuckTimer >= 4.2 || tv.surroundedTimer >= 2.4) {
@@ -442,12 +503,10 @@ export const trafficNetworkAndVehicleAIMethods = {
         continue;
       }
 
-      if (shouldHonk && tv.hornCooldown <= 0 && playerPos) {
-        const distToPlayer = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
-        if (distToPlayer < 46.0) {
-          tv.hornCooldown = 2.6 + Math.random() * 2.2;
-          soundFX.playCarHorn(Math.max(0.25, 1.0 - distToPlayer / 48.0), false);
-        }
+      if (shouldHonk && tv.hornCooldown <= 0 && playerPos && distSq < 46.0 * 46.0) {
+        const distToPlayer = Math.sqrt(distSq);
+        tv.hornCooldown = 2.6 + Math.random() * 2.2;
+        soundFX.playCarHorn(Math.max(0.25, 1.0 - distToPlayer / 48.0), false);
       }
 
       const engineMult = this.destructibles?.getVehicleEngineSpeedMultiplier
@@ -459,7 +518,7 @@ export const trafficNetworkAndVehicleAIMethods = {
       tv.currentSpeed = THREE.MathUtils.lerp(
         tv.currentSpeed,
         targetSpeed,
-        Math.min(1, dt * (accelRate / 10))
+        Math.min(1, effDt * (accelRate / 10))
       );
 
       const brakingNow = obstacleAhead || tv.currentSpeed < tv.cruiseSpeed * 0.55;
@@ -469,19 +528,19 @@ export const trafficNetworkAndVehicleAIMethods = {
         for (const bl of tv.brakeLights) bl.material = mat;
       }
 
+      let wrapped = false;
       if (tv.currentSpeed > 0.04) {
-        tv.posAlong += tv.dir * tv.currentSpeed * dt;
+        tv.posAlong += tv.dir * tv.currentSpeed * effDt;
         if (!tv.isPolylineRoute) {
           tv.laneOffset = THREE.MathUtils.lerp(
             tv.laneOffset,
             tv.targetLaneOffset ?? tv.baseLaneOffset,
-            Math.min(1, dt * 4.0)
+            Math.min(1, effDt * 4.0)
           );
           if (IS_SCALED_WORLD) {
             tv.laneOffset = THREE.MathUtils.clamp(tv.laneOffset, -maxAbsLane, maxAbsLane);
           }
         }
-        let wrapped = false;
         if (tv.posAlong > tv.maxC) {
           tv.posAlong = tv.minC;
           wrapped = true;
@@ -503,35 +562,58 @@ export const trafficNetworkAndVehicleAIMethods = {
           nz = pose.z;
           tv.mesh.rotation.y = wrapped
             ? pose.rotY
-            : lerpAngleRad(tv.mesh.rotation.y || pose.rotY, pose.rotY, Math.min(1, dt * 9.0));
+            : lerpAngleRad(tv.mesh.rotation.y || pose.rotY, pose.rotY, Math.min(1, effDt * 9.0));
         } else {
           nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
           nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
         }
-        const curFwdX = Math.sin(tv.mesh.rotation.y);
-        const curFwdZ = Math.cos(tv.mesh.rotation.y);
-        const refY = wrapped
-          ? (tv.cfg.wrapY ?? (this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0))
-          : tv.mesh.position.y;
-        const ny = this.world.getSurfaceHeightAt
-          ? this.world.getSurfaceHeightAt(nx, nz, refY)
-          : (this.world.getRoadElevation ? this.world.getRoadElevation(nx, nz) : 0);
-        const aheadY = this.world.getSurfaceHeightAt
-          ? this.world.getSurfaceHeightAt(nx + curFwdX * 2.0, nz + curFwdZ * 2.0, ny)
-          : ny;
-        const slopePitch = -Math.atan2(aheadY - ny, 2.0);
+
+        const isVeryFarHidden = Boolean(playerPos) && !wrapped && distSq > TRAFFIC_HIDE_DIST_SQ && !tv.isViaduct;
+        let ny;
+        let slopePitch = 0;
+        if (isVeryFarHidden) {
+          ny = tv.mesh.position.y;
+        } else {
+          const curFwdX = Math.sin(tv.mesh.rotation.y);
+          const curFwdZ = Math.cos(tv.mesh.rotation.y);
+          const refY = wrapped
+            ? (tv.cfg.wrapY ?? (this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0))
+            : tv.mesh.position.y;
+          ny = this.world.getSurfaceHeightAt
+            ? this.world.getSurfaceHeightAt(nx, nz, refY)
+            : (this.world.getRoadElevation ? this.world.getRoadElevation(nx, nz) : 0);
+          const aheadY = this.world.getSurfaceHeightAt
+            ? this.world.getSurfaceHeightAt(nx + curFwdX * 2.0, nz + curFwdZ * 2.0, ny)
+            : ny;
+          slopePitch = -Math.atan2(aheadY - ny, 2.0);
+        }
 
         tv.mesh.rotation.order = 'YXZ';
         tv.mesh.position.set(nx, ny, nz);
-        tv.mesh.rotation.x = wrapped
-          ? slopePitch
-          : THREE.MathUtils.lerp(tv.mesh.rotation.x || 0, slopePitch, Math.min(1, dt * 10));
+        if (!isVeryFarHidden) {
+          tv.mesh.rotation.x = wrapped
+            ? slopePitch
+            : THREE.MathUtils.lerp(tv.mesh.rotation.x || 0, slopePitch, Math.min(1, effDt * 10));
+        }
         obj.basePos.copy(tv.mesh.position);
         obj.baseRot.copy(tv.mesh.rotation);
         obj.groundY = ny;
+
+        if (playerPos) {
+          const ndx = nx - playerPos.x;
+          const ndz = nz - playerPos.z;
+          distSq = ndx * ndx + ndz * ndz;
+          if (tv.mesh.visible) {
+            if (distSq > TRAFFIC_HIDE_DIST_SQ) tv.mesh.visible = false;
+          } else if (distSq < TRAFFIC_SHOW_DIST_SQ) {
+            tv.mesh.visible = true;
+          }
+        }
       }
 
-      syncTrafficVehicleColliders(this.world, tv);
+      if (!playerPos || distSq <= TRAFFIC_COLLIDER_DIST_SQ || wrapped) {
+        syncTrafficVehicleColliders(this.world, tv);
+      }
     }
   }
 };
