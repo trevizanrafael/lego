@@ -10,6 +10,7 @@ const { DestructibleManager } = await import('../src/world/DestructibleManager.j
 const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
 const { ThirdPersonController } = await import('../src/controls/ThirdPersonController.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
+const { IS_SCALED_WORLD, ws } = await import('../src/world/core/WorldLayoutScale.js');
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.65, 2200);
@@ -165,120 +166,129 @@ describe('~450 OBJETOS QUEBRÁVEIS DE RUA (60 FPS) + SISTEMA DE PROCURADO GTA (0
   });
 
   it('3. Mecânicas Reais de Fuga (Túnel do Metrô, Embaixo de Viaduto, Pintura na LEGO Customs) + Regeneração 6s e "DETIDO"', () => {
-    const ws = world.livingCity.wantedSystem;
+    const wantedSys = world.livingCity.wantedSystem;
 
     // A) TRUQUE 1 + COOLDOWN DE 55s EM 3★ (GTA V): Entrar nos Túneis Subterrâneos do Metrô corta visão do Águia na hora!
-    ws.clearWanted('reset');
-    ws.setWantedStars(3);
-    ws._spawnEagleHelicopter(new THREE.Vector3(0, 0.5, -100));
-    const undergroundPos = new THREE.Vector3(0, -6.5, -100);
-    ws.update(0.5, undergroundPos, controller);
-    assert.equal(ws._hasLineOfSight, false, 'Túnel Subterrâneo do Metrô corta linha de visão imediatamente');
-    assert.equal(ws.isEscaping, true, 'Modo de fuga ativado (Estrelas piscando Azul/Cinza)');
+    wantedSys.clearWanted('reset');
+    wantedSys.setWantedStars(3);
+    wantedSys._spawnEagleHelicopter(new THREE.Vector3(0, 0.5, ws(-104)));
+    const undergroundPos = new THREE.Vector3(0, -6.5, ws(-104));
+    wantedSys.update(0.5, undergroundPos, controller);
+    assert.equal(wantedSys._hasLineOfSight, false, 'Túnel Subterrâneo do Metrô corta linha de visão imediatamente');
+    assert.equal(wantedSys.isEscaping, true, 'Modo de fuga ativado (Estrelas piscando Azul/Cinza)');
     assert.equal(hud.wantedPanelEl.classList.contains('escaping-mode'), true);
 
     const studsBeforeEscape = hud.totalStuds;
     // Mantém-se fora de visão pelos 55 segundos completos de 3★!
-    ws.update(55.0, undergroundPos, controller);
-    assert.equal(ws.stars, 0, 'Após 55s sem visão em 3★, despista a polícia para 0 Estrelas!');
+    wantedSys.update(55.0, undergroundPos, controller);
+    assert.equal(wantedSys.stars, 0, 'Após 55s sem visão em 3★, despista a polícia para 0 Estrelas!');
     assert.ok(hud.totalStuds > studsBeforeEscape, 'Recebe Bônus de Studs de Fuga Perfeita!');
     assert.equal(hud.wantedPanelEl.classList.contains('hidden'), true);
 
     // B) Esconder-se EMBAIXO DO VIADUTO corta a visão aérea do Helicóptero Águia!
-    ws.setWantedStars(3);
-    ws._clearAllFootUnits();
-    ws.pursuitVehicles.forEach((v) => destructibles.unregisterDestructible(v.carObj));
-    ws.pursuitVehicles.length = 0;
-    ws._spawnEagleHelicopter(new THREE.Vector3(120, 0.5, -382));
-    // Viaduto Norte passa em Z = -382 com tabuleiro elevado (~11.5m); pista térrea em Y ~ 0.4m fica embaixo dele!
-    const underViaductPos = new THREE.Vector3(120, 0.4, -382);
-    assert.equal(ws._isPlayerUnderViaduct(underViaductPos), true, 'Detecta jogador escondido embaixo do Viaduto');
-    assert.equal(ws._computeLineOfSight(underViaductPos, controller), false, 'Águia perde visão embaixo do Viaduto');
+    wantedSys.setWantedStars(3);
+    wantedSys._clearAllFootUnits();
+    wantedSys.pursuitVehicles.forEach((v) => destructibles.unregisterDestructible(v.carObj));
+    wantedSys.pursuitVehicles.length = 0;
+    wantedSys._spawnEagleHelicopter(new THREE.Vector3(ws(120), 0.5, ws(-382)));
+    // Viaduto Norte passa em Z = ws(-382) com tabuleiro elevado (~11.5m); pista térrea em Y ~ 0.4m fica embaixo dele!
+    const underViaductPos = new THREE.Vector3(ws(120), 0.4, ws(-382));
+    assert.equal(wantedSys._isPlayerUnderViaduct(underViaductPos), true, 'Detecta jogador escondido embaixo do Viaduto');
+    assert.equal(wantedSys._computeLineOfSight(underViaductPos, controller), false, 'Águia perde visão embaixo do Viaduto');
 
     // C) TRUQUE 2 (PAY 'N' SPRAY): Entrar na Oficina "LEGO Customs" sem testemunha próxima e PINTAR O CARRO zera na hora!
-    ws.setWantedStars(4);
-    ws._clearAllFootUnits();
-    ws.pursuitVehicles.forEach((v) => {
-      v.carObj.mesh.position.set(-250, 0.4, 200); // Longe do box da oficina (X=68, Z=-454)
+    wantedSys.setWantedStars(4);
+    wantedSys._clearAllFootUnits();
+    const sc = world.streetCustomsData || { buildingX: 68, buildingZ: -454 };
+    wantedSys.pursuitVehicles.forEach((v) => {
+      v.carObj.mesh.position.set(-800, 0.4, 600); // Longe do box da oficina LEGO Customs
     });
     const testCar = destructibles.objects.find((o) => o.type === 'car' && !o.isPoliceUnit && !o.destroyed);
-    testCar.mesh.position.set(68, 0.46, -454);
+    testCar.mesh.position.set(sc.buildingX, 0.46, sc.buildingZ);
     controller.enterVehicle(testCar);
     const opened = hud.customsStudio.open(controller, world, testCar, 'paint');
     assert.equal(opened, true);
     const nextPaint = hud.customsStudio.draft.primaryColorId === 'crimson' ? 'cobalt' : 'crimson';
     const clearedByPaint = hud.customsStudio.applyPaintColor(nextPaint);
     assert.equal(clearedByPaint, true, 'Pintar o carro sem testemunha policial zera o Procurado na hora!');
-    assert.equal(ws.stars, 0, 'Estrelas zeradas instantaneamente na LEGO Customs!');
+    assert.equal(wantedSys.stars, 0, 'Estrelas zeradas instantaneamente na LEGO Customs!');
     hud.customsStudio.close(true);
     controller.exitVehicle();
 
     // D) Dano Policial, Regeneração Automática em 6s e Respawn "DETIDO" ao zerar os 4 Corações!
-    ws.setWantedStars(2);
-    ws.playerHitIFrameTimer = 0;
-    ws.applyPursuitDamageToPlayer(80, controller);
+    wantedSys.setWantedStars(2);
+    wantedSys.playerHitIFrameTimer = 0;
+    wantedSys.applyPursuitDamageToPlayer(80, controller);
     assert.ok(world.livingCity.playerHp < world.livingCity.playerMaxHp, 'Tiros policiais tiram vida durante perseguição');
     const damagedHp = world.livingCity.playerHp;
 
     // 6.5s sem tomar tiro regenera vida automaticamente!
-    ws.update(6.5, new THREE.Vector3(500, 0.5, 500), controller);
-    ws.update(1.0, new THREE.Vector3(500, 0.5, 500), controller);
+    wantedSys.update(6.5, new THREE.Vector3(ws(252), 0.5, ws(134)), controller);
+    wantedSys.update(1.0, new THREE.Vector3(ws(252), 0.5, ws(134)), controller);
     assert.ok(world.livingCity.playerHp > damagedHp, 'Vida regenera após 6s sem tomar tiro');
 
     // Zerar os 4 Corações aciona "DETIDO": limpa estrelas, desconta pequena fiança e renasce no Centro sem perder save!
     hud.totalStuds = 5000;
-    ws.playerHitIFrameTimer = 0;
+    wantedSys.playerHitIFrameTimer = 0;
     world.livingCity.playerHp = 10;
-    ws.applyPursuitDamageToPlayer(200, controller);
-    assert.equal(ws.stars, 0, 'DETIDO limpa nível de procurado para 0★');
+    wantedSys.applyPursuitDamageToPlayer(200, controller);
+    assert.equal(wantedSys.stars, 0, 'DETIDO limpa nível de procurado para 0★');
     assert.equal(world.livingCity.playerHp, world.livingCity.playerMaxHp, 'DETIDO restaura os 4 Corações LEGO cheios');
     assert.ok(hud.totalStuds > 0 && hud.totalStuds < 5000, 'DETIDO desconta apenas alguns Studs de fiança');
-    assert.ok(Math.hypot(controller.position.x - 0, controller.position.z - -88) < 2.0, 'Renasce limpo na Praça/Delegacia Central');
+    const expectedBustedZ = IS_SCALED_WORLD ? ws(-92) : -88;
+    assert.ok(
+      Math.hypot(controller.position.x - 0, controller.position.z - expectedBustedZ) < 2.0,
+      'Renasce limpo na Praça/Delegacia Central'
+    );
   });
 
   it('4. Spawn Policial Imediato no Frame 0 (Sem Deadlock de Fuga), Escalada por Objetos 0★->5★ e Trânsito Urbano Inteligente (Ultrapassagem + Anti-Gridlock)', () => {
-    const ws = world.livingCity.wantedSystem;
-    ws.clearWanted('reset');
-    controller.position.set(0, 0.5, -200);
+    const wantedSys = world.livingCity.wantedSystem;
+    wantedSys.clearWanted('reset');
+    const surfaceAvePos = new THREE.Vector3(0, 0.5, ws(-117));
+    controller.position.copy(surfaceAvePos);
+    wantedSys.update(0.05, surfaceAvePos, controller);
 
     // 1) Destruir 5+ objetos de rua seguidos escala de 0★ até 5★ e spawna polícia NO MESMO FRAME!
     const streetTargets = destructibles.objects.filter((o) => o.isStreetProp && !o.destroyed);
     for (let i = 0; i < 5; i++) {
       destructibles.damageObject(streetTargets[i], 999, streetTargets[i].basePos);
     }
-    assert.equal(ws.stars, 1, 'A partir do 5º objeto quebrado em sequência, aciona 1★');
+    assert.equal(wantedSys.stars, 1, 'A partir do 5º objeto quebrado em sequência, aciona 1★');
     assert.ok(
-      ws.pursuitVehicles.length >= 1,
+      wantedSys.pursuitVehicles.length >= 1,
       'Polícia spawna IMEDIATAMENTE no mesmo frame em que 1★ acende (sem esperar _spawnTickTimer)'
     );
     assert.equal(
-      ws.isEscaping,
+      wantedSys.isEscaping,
       false,
       'Janela de Engajamento Policial (_pursuitEngageGraceTimer) impede que entre em modo de fuga sozinho no Frame 1'
     );
 
     // Continua quebrando objetos de rua em sequência até atingir 5★!
     let idx = 5;
-    while (ws.stars < 5 && idx < streetTargets.length) {
+    while (wantedSys.stars < 5 && idx < streetTargets.length) {
       destructibles.damageObject(streetTargets[idx], 999, streetTargets[idx].basePos);
       idx++;
     }
-    assert.equal(ws.stars, 5, 'Combo de destruição de objetos de rua escala até 5★ (Força Máxima)');
-    assert.ok(ws.eagleHeli, 'Helicóptero Águia presente na escalada imediata');
-    assert.ok(ws.policeHelicopters.length >= 2, 'Até 2 Helicópteros Águia ativos em 5★');
+    assert.equal(wantedSys.stars, 5, 'Combo de destruição de objetos de rua escala até 5★ (Força Máxima)');
+    assert.ok(wantedSys.eagleHeli, 'Helicóptero Águia presente na escalada imediata');
+    assert.ok(wantedSys.policeHelicopters.length >= 2, 'Até 2 Helicópteros Águia ativos em 5★');
 
     // Manobra local de destravamento sem teletransporte injusto quando stuckTimer > 2.8s
-    const pv = ws.pursuitVehicles.find((v) => !v.carObj.destroyed && !v.retreating) || ws._spawnPursuitVehicle(controller.position);
+    const pv =
+      wantedSys.pursuitVehicles.find((v) => !v.carObj.destroyed && !v.retreating) ||
+      wantedSys._spawnPursuitVehicle(controller.position);
     pv.carObj.mesh.position.set(controller.position.x + 190, 0.4, controller.position.z);
     pv.stuckTimer = 3.0;
-    ws.update(0.1, controller.position, controller);
+    wantedSys.update(0.1, controller.position, controller);
     assert.equal(pv.stuckTimer, 0, 'Viatura policial presa destrava localmente e reseta stuckTimer');
     assert.ok(
       Math.hypot(pv.carObj.mesh.position.x - controller.position.x, pv.carObj.mesh.position.z - controller.position.z) > 150,
       'Viatura que ficou longe NUNCA teletransporta para perto do jogador'
     );
 
-    ws.clearWanted('reset');
+    wantedSys.clearWanted('reset');
 
     // 2) Trânsito Urbano Inteligente: Ultrapassagem Suave de Faixa e Auto-Relocação Anti-Engarrafamento
     const lc = world.livingCity;

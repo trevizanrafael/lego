@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { makeFastBox, flushSpatialChunkedBuckets } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 
 export const TROPICAL_WALL_KEYS = [
   { key: 'coastal_white', hex: 0xf8fafc, mapColor: '#f8fafc' },
@@ -22,8 +23,9 @@ export const UMBRELLA_KEYS = [
   'umb_yellow'
 ];
 
-// Os 3 Canais estilo Santos que descem da Avenida Beira-Mar e cortam a areia até o mar!
-export const SANTOS_CANALS_X = [-384, -120, 252];
+// Os 3 Canais estilo Santos que descem da Avenida Beira-Mar e cortam a areia até o mar (largura 1x!)
+export const DESIGN_SANTOS_CANALS_X = [-384, -120, 252];
+export const SANTOS_CANALS_X = DESIGN_SANTOS_CANALS_X.map(ws);
 export const CANAL_WIDTH = 22;
 
 export function isInsideSantosCanal(x, margin = 14) {
@@ -125,7 +127,7 @@ export class SouthBeachBatcher {
 
   flush(scene) {
     flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
-      chunkSize: 768,
+      chunkSize: IS_SCALED_WORLD ? ws(512) : 768,
       castShadowFn: (key, mat) =>
         !mat.isMeshBasicMaterial &&
         (key.startsWith('coastal_') ||

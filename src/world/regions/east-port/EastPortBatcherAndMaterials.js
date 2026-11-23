@@ -3,6 +3,7 @@ import {
   makeFastBox,
   flushSpatialChunkedBuckets
 } from '../../BuildingGenerator.js';
+import { ws } from '../../core/WorldLayoutScale.js';
 
 export const CLASSIC_LEGO_CONTAINER_KEYS = [
   'lego_red',
@@ -30,7 +31,7 @@ export class PCCIndustrialBatcher {
 
   _terrainLift(x, z) {
     if (!this.world?.getTerrainHeightAt) return 0;
-    if (x < 622 || x > 1430 || z < -720 || z > -40) return 0;
+    if (x < ws(622) || x > ws(1430) || z < ws(-720) || z > ws(-40)) return 0;
     return Math.max(0, this.world.getTerrainHeightAt(x, z));
   }
 
@@ -159,7 +160,7 @@ export class PCCIndustrialBatcher {
       'pcc_navy'
     ]);
     flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
-      chunkSize: scene?.isScene ? 512 : 4096,
+      chunkSize: scene?.isScene ? ws(512) : ws(4096),
       castShadowFn: (key) => shadowCasterKeys.has(key),
       receiveShadowFn: (key) =>
         key !== 'pcc_neon_blue' && key !== 'c4_hazard_red' && key !== 'smoke_plume'

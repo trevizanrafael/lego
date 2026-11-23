@@ -13,6 +13,7 @@
 //   MetroRuntime.js             — movimento dos trens
 //   MetroBoarding.js            — interação do jogador com os vagões
 import * as THREE from 'three';
+import { IS_SCALED_WORLD } from './core/WorldLayoutScale.js';
 import { METRO_STATIONS } from './metro/MetroRouteData.js';
 import { buildClosedMetroLoopSpline } from './metro/MetroSpline.js';
 import { createMetroBatcher } from './metro/MetroBatcher.js';
@@ -63,8 +64,9 @@ export function buildMetroSystem(world) {
 
   // Linha e estações para o minimapa e o mapa tático (traçado real, com as alturas finais da linha)
   const tmp = new THREE.Vector3();
+  const wpStep = IS_SCALED_WORLD ? 16 : 8;
   world.metroLoopWaypoints = [];
-  for (let s = 0; s < spline.totalLength; s += 8) {
+  for (let s = 0; s < spline.totalLength; s += wpStep) {
     spline.sampleAtS(s, tmp);
     world.metroLoopWaypoints.push({ x: tmp.x, y: tmp.y, z: tmp.z });
   }
@@ -77,6 +79,25 @@ export function buildMetroSystem(world) {
     z: st.trackPos.z,
     entrance: st.streetEntrance ? { x: st.streetEntrance.x, z: st.streetEntrance.z } : null
   }));
+  if (IS_SCALED_WORLD && Array.isArray(world.landmarks)) {
+    const byCode = new Map(spline.stationStops.map((st) => [st.code, st]));
+    world.landmarks = world.landmarks.map((lm) => {
+      if (!String(lm.id || '').startsWith('lm_metro_')) return lm;
+      const st = byCode.get(lm.code);
+      if (!st) return lm;
+      return {
+        ...lm,
+        x: st.x,
+        y: st.y,
+        z: st.z,
+        spawn: {
+          x: st.platformSpawn.x,
+          y: st.platformSpawn.y + 0.1,
+          z: st.platformSpawn.z
+        }
+      };
+    });
+  }
   world.metroData = {
     stationsCount: METRO_STATIONS.length,
     undergroundStationsCount: 2,

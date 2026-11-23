@@ -33,6 +33,7 @@
  */
 
 import {
+  DESIGN_SANTOS_CANALS_X,
   SANTOS_CANALS_X,
   SouthBeachBatcher
 } from './south-beach/BeachBatcherAndConstants.js';
@@ -52,7 +53,7 @@ import {
   buildWestMarina
 } from './south-beach/MegaPierAndMarinaBuilder.js';
 
-export { SANTOS_CANALS_X };
+export { DESIGN_SANTOS_CANALS_X, SANTOS_CANALS_X };
 
 /**
  * Constrói toda a Região Sul (Orla de Arranha-Céus em 3 níveis de LOD, 3 Canais

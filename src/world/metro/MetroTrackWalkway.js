@@ -6,6 +6,7 @@
 //   - curva -> 1 deck com a caixa da curva (altura do ponto mais próximo da linha).
 // As muretas laterais ganham colisão fora das estações (nas estações o lado da plataforma fica livre).
 import * as THREE from 'three';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 
 export const WALKWAY_CONFIG = {
   step: 2,            // Amostragem ao longo da linha (m)
@@ -13,7 +14,7 @@ export const WALKWAY_CONFIG = {
   halfWidth: 3.4,     // Meia largura do piso andável (dentro das muretas)
   surfaceOffset: 0.18, // Topo dos dormentes acima do topo de referência do trilho
   wallOffset: 3.6,    // Eixo das muretas laterais (= guarda-corpo visual do viaduto)
-  wallChunk: 24,      // Comprimento máximo de cada collider de mureta (m)
+  wallChunk: IS_SCALED_WORLD ? 48 : 24, // Comprimento máximo de cada collider de mureta (m)
   stationClear: 34    // Sem mureta com colisão a esta distância (ao longo da linha) de uma estação
 };
 

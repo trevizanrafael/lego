@@ -24,43 +24,45 @@ export const BANK_HEIST_RULES = {
   escapeTimeout: 300
 };
 
+const bz = (z) => z + BANK_SPEC.zShift;
+
 export const BANK_FLOOR_PLAN = [
   {
     name: '1º ANDAR // SEGURANÇAS',
     faction: 'guard',
     units: [
-      ['rifleman', -40, -165], ['rifleman', 40, -165], ['rifleman', -10, -188],
-      ['rifleman', 10, -188], ['tank', 0, -172], ['rifleman', -30, -210],
-      ['rifleman', 30, -210], ['tank', -50, -190]
+      ['rifleman', -40, bz(-165)], ['rifleman', 40, bz(-165)], ['rifleman', -10, bz(-188)],
+      ['rifleman', 10, bz(-188)], ['tank', 0, bz(-172)], ['rifleman', -30, bz(-210)],
+      ['rifleman', 30, bz(-210)], ['tank', -50, bz(-190)]
     ]
   },
   {
     name: '2º ANDAR // POLÍCIA FEDERAL',
     faction: 'pf',
     units: [
-      ['rifleman', -32, -162], ['rifleman', 32, -162], ['tank', 0, -175],
-      ['rifleman', -24, -190], ['rifleman', 24, -190], ['medic', 0, -200],
-      ['tank', 40, -212], ['rifleman', -40, -214], ['rifleman', 52, -170]
+      ['rifleman', -32, bz(-162)], ['rifleman', 32, bz(-162)], ['tank', 0, bz(-175)],
+      ['rifleman', -24, bz(-190)], ['rifleman', 24, bz(-190)], ['medic', 0, bz(-200)],
+      ['tank', 40, bz(-212)], ['rifleman', -40, bz(-214)], ['rifleman', 52, bz(-170)]
     ]
   },
   {
     name: '3º ANDAR // OS MONSTRÕES',
     faction: 'bope',
-    units: [['brute', -30, -172], ['brute', 30, -172], ['brute', -16, -208], ['brute', 16, -208]]
+    units: [['brute', -30, bz(-172)], ['brute', 30, bz(-172)], ['brute', -16, bz(-208)], ['brute', 16, bz(-208)]]
   },
   {
     name: '4º ANDAR // ELITE DO COFRE',
     faction: 'bope',
-    units: [['elite', -22, -196], ['elite', 0, -199], ['elite', 22, -196]]
+    units: [['elite', -22, bz(-196)], ['elite', 0, bz(-199)], ['elite', 22, bz(-196)]]
   }
 ];
 
 // Onde o reforço do seu time aparece em cada andar (chegada da rampa / elevador)
 const ALLY_ARRIVAL = [
-  { x: 0, z: -144 }, // 1º: porta da frente
-  { x: -60, z: -200 }, // 2º: topo da R1
-  { x: 58, z: -140.5 }, // 3º: topo da R2
-  { x: -60, z: -200 } // 4º: topo da R3
+  { x: 0, z: bz(-144) }, // 1º: porta da frente
+  { x: -60, z: bz(-200) }, // 2º: topo da R1
+  { x: 58, z: bz(-140.5) }, // 3º: topo da R2
+  { x: -60, z: bz(-200) } // 4º: topo da R3
 ];
 
 export class BankHeistEvent {

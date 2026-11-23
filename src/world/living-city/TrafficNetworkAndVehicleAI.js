@@ -5,6 +5,7 @@ import {
   SHARED_BRAKE_LIGHT_ON_MAT
 } from './TrafficRouteSpecsAndSpawner.js';
 import { disembarkOccupants } from '../vehicles/VehicleOccupants.js';
+import { IS_SCALED_WORLD, ROAD } from '../core/WorldLayoutScale.js';
 
 function syncTrafficObbCollider(world, col, cx, cz, halfX, halfZ, yaw, minY, maxY) {
   if (!col) return;
@@ -88,7 +89,10 @@ export const trafficNetworkAndVehicleAIMethods = {
     const rotY = tv.mesh.rotation.y;
     const leftX = pos.x - Math.cos(rotY) * 2.35;
     const leftZ = pos.z + Math.sin(rotY) * 2.35;
-    const safe = this._findSafeStreetSpawn(leftX, leftZ, 1.4);
+    const swSpawn = IS_SCALED_WORLD && typeof this._findSafeSidewalkSpawn === 'function'
+      ? this._findSafeSidewalkSpawn(leftX, leftZ, 70.0, 7)
+      : null;
+    const safe = swSpawn?.valid ? swSpawn : this._findSafeStreetSpawn(leftX, leftZ, 1.4);
 
     let chosenPed = null;
     let maxDistSq = -1;
@@ -105,11 +109,23 @@ export const trafficNetworkAndVehicleAIMethods = {
       const groundY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(safe.x, safe.z) : 0;
       chosenPed.isChatGroup = false;
       chosenPed.visual.root.visible = true;
-      chosenPed.visual.root.position.set(safe.x, Math.max(0.28, groundY + 0.28), safe.z);
-      chosenPed.x1 = safe.x;
-      chosenPed.z1 = safe.z;
-      chosenPed.x2 = safe.x + Math.sin(fleeAngle) * 42;
-      chosenPed.z2 = safe.z + Math.cos(fleeAngle) * 42;
+      chosenPed.visual.root.position.set(safe.x, Math.max(0.28, groundY + (IS_SCALED_WORLD ? 0 : 0.28)), safe.z);
+      if (swSpawn?.corridor) {
+        const c = swSpawn.corridor;
+        chosenPed.corridor = c;
+        chosenPed.laneJitter = swSpawn.laneJitter || 0;
+        chosenPed.crossState = 'SIDEWALK';
+        chosenPed.activeCrosswalk = null;
+        chosenPed.x1 = c.axis === 'x' ? c.startAlong : c.centerCoord + chosenPed.laneJitter;
+        chosenPed.z1 = c.axis === 'x' ? c.centerCoord + chosenPed.laneJitter : c.startAlong;
+        chosenPed.x2 = c.axis === 'x' ? c.endAlong : c.centerCoord + chosenPed.laneJitter;
+        chosenPed.z2 = c.axis === 'x' ? c.centerCoord + chosenPed.laneJitter : c.endAlong;
+      } else {
+        chosenPed.x1 = safe.x;
+        chosenPed.z1 = safe.z;
+        chosenPed.x2 = safe.x + Math.sin(fleeAngle) * 42;
+        chosenPed.z2 = safe.z + Math.cos(fleeAngle) * 42;
+      }
       chosenPed.panicTimer = 5.0;
       chosenPed.panicDirX = Math.sin(fleeAngle);
       chosenPed.panicDirZ = Math.cos(fleeAngle);
@@ -248,11 +264,48 @@ export const trafficNetworkAndVehicleAIMethods = {
       const fwdX = Math.sin(tv.mesh.rotation.y);
       const fwdZ = Math.cos(tv.mesh.rotation.y);
       const myHalfLen = tv.baseD * 0.5;
+      const roadWidth = tv.roadWidth || ROAD.mainWidth;
+      const maxAbsLane = Math.max(3.5, roadWidth * 0.5 - 2.2);
 
       let obstacleAhead = false;
+      let waitingAtRedLight = false;
       let shouldHonk = false;
       let slowCarInBaseLane = false;
       let nearbyCarsCount = 0;
+
+      // Em 3x, respeita linha de retenção antes das faixas de pedestre (world.crosswalkZones) no sinal vermelho
+      if (IS_SCALED_WORLD && !tv.isViaduct && tv.panicTimer <= 0 && this._intersectionsByRoadKey) {
+        const localTerrY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(pos.x, pos.z) : 0;
+        if (pos.y <= localTerrY + 3.0) {
+          const rKey = (tv.axis === 'z_const' ? 'z:' : 'x:') + Math.round(tv.roadCoord);
+          const jList = this._intersectionsByRoadKey.get(rKey);
+          if (jList) {
+            const frontBumper = tv.posAlong + tv.dir * myHalfLen;
+            for (let ji = 0; ji < jList.length; ji++) {
+              const j = jList[ji];
+              const stopBumperAlong = j.along - tv.dir * (j.halfCrossW + 5.2);
+              const distToStop = (stopBumperAlong - frontBumper) * tv.dir;
+              if (distToStop < -0.5 || distToStop > 26.0) continue;
+              const redNow = this._isTrafficLightRedForAxis?.(tv.axis, j.ix, j.iz);
+              let pedInCrosswalk = false;
+              if (!redNow && this.pedestrians?.length) {
+                for (let pi = 0; pi < this.pedestrians.length; pi++) {
+                  const p = this.pedestrians[pi];
+                  if (p.crossState === 'CROSSING' && p.activeCrosswalk && p.activeCrosswalk.ix === j.ix && p.activeCrosswalk.iz === j.iz) {
+                    pedInCrosswalk = true;
+                    break;
+                  }
+                }
+              }
+              if (redNow || pedInCrosswalk) {
+                waitingAtRedLight = true;
+                if (distToStop <= 9.5) obstacleAhead = true;
+                break;
+              }
+            }
+          }
+        }
+      }
 
       if (playerPos) {
         const dxP = playerPos.x - pos.x;
@@ -304,9 +357,19 @@ export const trafficNetworkAndVehicleAIMethods = {
               const bumperGap = distAheadO - (myHalfLen + other.baseD * 0.5);
               const isSlowOrStopped = other.hijackedByPlayer || other.currentSpeed < 3.5;
 
-              if (isSlowOrStopped && distAheadO < 16.0) {
-                const altLane = tv.baseLaneOffset > 0 ? tv.baseLaneOffset - 3.6 : tv.baseLaneOffset + 3.6;
-                if (isLaneSegmentClear(tv, altLane, 12.0)) {
+              if (isSlowOrStopped && distAheadO < 16.0 && !waitingAtRedLight) {
+                let altLane;
+                if (IS_SCALED_WORLD) {
+                  const sign = tv.baseLaneOffset >= 0 ? 1 : -1;
+                  const baseAbs = Math.abs(tv.baseLaneOffset);
+                  const outerAbs = Math.min(maxAbsLane - 0.4, baseAbs + 3.6);
+                  const innerAbs = Math.max(3.0, baseAbs - 3.6);
+                  altLane = sign * (baseAbs < 8.0 && outerAbs - baseAbs >= 2.6 ? outerAbs : innerAbs);
+                  altLane = THREE.MathUtils.clamp(altLane, -maxAbsLane, maxAbsLane);
+                } else {
+                  altLane = tv.baseLaneOffset > 0 ? tv.baseLaneOffset - 3.6 : tv.baseLaneOffset + 3.6;
+                }
+                if (Math.abs(altLane - tv.baseLaneOffset) > 1.8 && isLaneSegmentClear(tv, altLane, 12.0)) {
                   tv.targetLaneOffset = altLane;
                   if (bumperGap < 1.6) obstacleAhead = true;
                   continue;
@@ -340,11 +403,24 @@ export const trafficNetworkAndVehicleAIMethods = {
         tv.targetLaneOffset = tv.baseLaneOffset;
       }
 
-      if (tv.currentSpeed < 2.0) tv.stuckTimer = (tv.stuckTimer || 0) + dt;
-      else tv.stuckTimer = Math.max(0, (tv.stuckTimer || 0) - dt * 2.0);
+      if (IS_SCALED_WORLD) {
+        tv.targetLaneOffset = THREE.MathUtils.clamp(
+          tv.targetLaneOffset ?? tv.baseLaneOffset,
+          -maxAbsLane,
+          maxAbsLane
+        );
+      }
 
-      if (nearbyCarsCount >= 2 && tv.currentSpeed < 3.0) tv.surroundedTimer = (tv.surroundedTimer || 0) + dt;
-      else tv.surroundedTimer = Math.max(0, (tv.surroundedTimer || 0) - dt * 1.5);
+      if (waitingAtRedLight) {
+        tv.stuckTimer = 0;
+        tv.surroundedTimer = 0;
+      } else {
+        if (tv.currentSpeed < 2.0) tv.stuckTimer = (tv.stuckTimer || 0) + dt;
+        else tv.stuckTimer = Math.max(0, (tv.stuckTimer || 0) - dt * 2.0);
+
+        if (nearbyCarsCount >= 2 && tv.currentSpeed < 3.0) tv.surroundedTimer = (tv.surroundedTimer || 0) + dt;
+        else tv.surroundedTimer = Math.max(0, (tv.surroundedTimer || 0) - dt * 1.5);
+      }
 
       if (tv.stuckTimer >= 4.2 || tv.surroundedTimer >= 2.4) {
         this._relocateStuckTrafficVehicle(tv, playerPos);
@@ -386,6 +462,9 @@ export const trafficNetworkAndVehicleAIMethods = {
           tv.targetLaneOffset ?? tv.baseLaneOffset,
           Math.min(1, dt * 4.0)
         );
+        if (IS_SCALED_WORLD) {
+          tv.laneOffset = THREE.MathUtils.clamp(tv.laneOffset, -maxAbsLane, maxAbsLane);
+        }
         let wrapped = false;
         if (tv.posAlong > tv.maxC) {
           tv.posAlong = tv.minC;

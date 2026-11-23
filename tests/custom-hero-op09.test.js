@@ -26,6 +26,7 @@ const { DestructibleManager } = await import('../src/world/DestructibleManager.j
 const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
 const { ThirdPersonController } = await import('../src/controls/ThirdPersonController.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
+const { ws } = await import('../src/world/core/WorldLayoutScale.js');
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.65, 2200);
@@ -39,32 +40,36 @@ const controller = new ThirdPersonController(camera, domElement, minifig, world,
 hud.isTitleScreenActive = false;
 hud._lastController = controller;
 
+const hx = (x) => x + world.heroTowerData.shiftX;
+const hz = (z) => z + world.heroTowerData.shiftZ;
+
 describe('LABORATÓRIO SUBTERRÂNEO DA TORRE DOS HERÓIS + OPERADOR CUSTOMIZÁVEL OP-09', () => {
   it('1. Porão dos Heróis (Y = -8.2m): descida física sem tela de loading, recorte de piso e Console [E]', () => {
-    // 1.1 Verifica a escadaria na Ala Sudeste/Leste da Torre dos Heróis (X = -282 -> -306, Z = -146)
-    controller.position.set(-281.0, 0.5, -146.0);
+    // 1.1 Verifica a escadaria na Ala Sudeste/Leste da Torre dos Heróis (X = hx(-282) -> hx(-306), Z = hz(-146))
+    controller.position.set(hx(-281.0), 0.5, hz(-146.0));
     controller.velocity.set(0, -1, 0);
     controller._moveAndCollide(0.016);
     const yLobby = controller.position.y;
-    const yTopStair = world.getTerrainHeightAt(-282.5, -146.0);
-    const yMidStair = world.getTerrainHeightAt(-294.0, -146.0);
-    const yLabFloor = world.getSurfaceHeightAt(-308.0, -146.0, -7.8);
+    const yTopStair = world.getTerrainHeightAt(hx(-282.5), hz(-146.0));
+    const yMidStair = world.getTerrainHeightAt(hx(-294.0), hz(-146.0));
+    const yLabFloor = world.getSurfaceHeightAt(hx(-308.0), hz(-146.0), -7.8);
 
     assert.ok(Math.abs(yLobby - 0.36) < 0.15, `Piso do saguão da Torre em ~0.36m (obtido ${yLobby})`);
     assert.ok(yTopStair <= 0.36 && yTopStair > -0.2, `Boca da escadaria em ~0.18m (obtido ${yTopStair})`);
     assert.ok(yMidStair < -3.0 && yMidStair > -5.5, `Meio da escada descendo suavemente (obtido ${yMidStair})`);
     assert.ok(Math.abs(yLabFloor - -8.2) < 0.15, `Piso do Porão Bio-Genético em Y = -8.2m (obtido ${yLabFloor})`);
 
-    // 1.2 Nenhum colisor bloqueia a cabeça do jogador dentro do salão subterrâneo (X = -332, Z = -167, Y = -8.2..-1.2)
-    const supportInLab = world.getSurfaceHeightAt(-332, -167, -8.0);
+    // 1.2 Nenhum colisor bloqueia a cabeça do jogador dentro do salão subterrâneo (X = hx(-332), Z = hz(-167), Y = -8.2..-1.2)
+    const supportInLab = world.getSurfaceHeightAt(hx(-332), hz(-167), -8.0);
     assert.ok(Math.abs(supportInLab - -8.2) < 0.1, `Suporte físico limpo em Y = -8.2m (obtido ${supportInLab})`);
 
-    const reg = world.getRegionAt(-332, -8.2, -167);
+    const reg = world.getRegionAt(hx(-332), -8.2, hz(-167));
     assert.equal(reg.id, 'porao_torre_herois', 'Região detectada no subsolo deve ser porao_torre_herois');
 
-    // 1.3 Aproximar-se do Console (-327.8, -8.2, -167) exibe "[E] ACESSAR CRIADOR DE PERSONAGEM (OP-09)" e abre o Estúdio 3D!
+    // 1.3 Aproximar-se do Console (hx(-327.8), -8.2, hz(-167)) exibe "[E] ACESSAR CRIADOR DE PERSONAGEM (OP-09)" e abre o Estúdio 3D!
     assert.ok(world.customizerLabPedestal, 'Pedestal Holográfico exposto em world.customizerLabPedestal');
-    controller.position.set(-327.5, -8.2, -167.0);
+    const { pedestalPos, consolePos } = world.customizerLabPedestal;
+    controller.position.set(consolePos.x + 0.3, -8.2, consolePos.z);
     controller.update(0.016);
 
     const promptText = globalThis.document.getElementById('vehicle-prompt-text').textContent;
@@ -77,7 +82,7 @@ describe('LABORATÓRIO SUBTERRÂNEO DA TORRE DOS HERÓIS + OPERADOR CUSTOMIZÁVE
     // Enquanto o Estúdio 3D está aberto, update(dt) mantém câmera de estúdio focada no Pedestal
     controller.update(0.016);
     assert.ok(
-      Math.hypot(minifig.root.position.x - -332, minifig.root.position.z - -167) < 0.1,
+      Math.hypot(minifig.root.position.x - pedestalPos.x, minifig.root.position.z - pedestalPos.z) < 0.1,
       'Minifigura posicionada em cima do Pedestal Holográfico iluminado'
     );
 
@@ -101,7 +106,7 @@ describe('LABORATÓRIO SUBTERRÂNEO DA TORRE DOS HERÓIS + OPERADOR CUSTOMIZÁVE
     assert.equal(getActiveCustomHero().isCreated, false);
 
     // Sem superpoderes: ataque primário dá apenas soco civil, [F] e [Q] não ativam voo nem super-habilidade
-    controller.position.set(-330, -8.2, -160);
+    controller.position.set(hx(-330), -8.2, hz(-160));
     controller.isGrounded = true;
     controller._firePrimaryAction();
     assert.equal(controller.customHeroPowers.projectiles.length, 0, 'Cidadão Comum não dispara projéteis de poder');
@@ -187,7 +192,7 @@ describe('LABORATÓRIO SUBTERRÂNEO DA TORRE DOS HERÓIS + OPERADOR CUSTOMIZÁVE
   });
 
   it('4. Execução real dos 12 Poderes Exclusivos (4 Ataques + 4 Mobilidades + 4 Super-Habilidades [Q])', () => {
-    controller.position.set(0, 0.5, -117);
+    controller.position.set(0, 0.5, ws(-117));
     controller.isGrounded = true;
 
     // 4.1 Testa os 4 Ataques Primários
@@ -249,10 +254,10 @@ describe('LABORATÓRIO SUBTERRÂNEO DA TORRE DOS HERÓIS + OPERADOR CUSTOMIZÁVE
     controller.switchToHero('op09');
     controller.customHeroPowers.triggerMobilityKey();
     assert.equal(controller.customHeroPowers.hoverboardActive, true);
-    // Posiciona sobre o mar aberto ao Sul da Praia (X = 220, Z = 1080)
-    assert.equal(world.isDeepWaterAt(220, 1080, { forCar: true }), true, 'Coordenada (220, 1080) é água profunda');
+    // Posiciona sobre o mar aberto ao Sul da Praia (X = ws(220), Z = ws(1080))
+    assert.equal(world.isDeepWaterAt(ws(220), ws(1080), { forCar: true }), true, 'Coordenada (ws(220), ws(1080)) é água profunda');
     controller.velocity.set(0, 0, 0);
-    controller.position.set(220, -0.3, 1080);
+    controller.position.set(ws(220), -0.3, ws(1080));
     controller.update(0.05);
     assert.equal(minifig.op09Hoverboard.visible, true, 'Prancha Hoverboard 3D visível sob os pés');
     assert.equal(controller.isSwimming, false, 'Não entra em modo natação ao surfar na Hoverboard');
@@ -266,7 +271,7 @@ describe('LABORATÓRIO SUBTERRÂNEO DA TORRE DOS HERÓIS + OPERADOR CUSTOMIZÁVE
       mobilityPowerId: 'tactical_grapple'
     });
     controller.switchToHero('op09');
-    controller.position.set(0, 0.5, -117);
+    controller.position.set(0, 0.5, ws(-117));
     controller.customHeroPowers.triggerMobilityKey();
     assert.ok(controller.grappleState, 'Gancho Tático iniciado');
     controller.update(0.02);

@@ -24,6 +24,7 @@ import { InteractiveAttractionsManager } from './InteractiveAttractionsAndEmotes
 import { worldSpatialColliderMethods } from './core/WorldSpatialColliderGrid.js';
 import { worldBatchingAndFreezeMethods } from './core/WorldBatchingAndFreeze.js';
 import { worldElevationAndWaterMethods } from './core/WorldElevationAndWaterQueries.js';
+import { ws } from './core/WorldLayoutScale.js';
 
 export { MAP_REGIONS, MAP_LANDMARKS, BUILDING_STYLES, BUILDING_STYLE_KEYS };
 
@@ -59,6 +60,8 @@ export class TestBlockWorld {
     this.mapBlocks = [];    // { x, z, w, d, color }
     this.mapBuildings = []; // { x, z, w, d, color, label, styleKey, height }
     this.mapWater = [];     // { x, z, w, d }
+    this.sidewalkCorridors = [];
+    this.crosswalkZones = [];
     this.waypoint = null;   // { x, z, label }
     this._initWaypointBeacon();
 
@@ -139,9 +142,10 @@ export class TestBlockWorld {
       this.livingCity.update(dt, playerPos, controller);
     }
 
+    const cloudWrap = ws(1600);
     for (const c of this.clouds) {
       c.position.x += dt * 1.8;
-      if (c.position.x > 1600) c.position.x = -1600;
+      if (c.position.x > cloudWrap) c.position.x = -cloudWrap;
     }
 
     for (const rot of this.rotatingElements) {

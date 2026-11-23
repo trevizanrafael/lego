@@ -118,7 +118,7 @@ export class FactionWarSystem {
       id: 'bank',
       spec: {
         title: 'SUPER BANCO CENTRAL',
-        bossCourtyard: { x: 0, z: -165 },
+        bossCourtyard: { x: 0, z: -165 + BANK_SPEC.zShift },
         safeExitGate: { x: 0, z: BANK_SPEC.frontZ + 14 }
       },
       outposts: [],

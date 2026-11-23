@@ -9,6 +9,7 @@ import {
 } from '../CoastlineProfile.js';
 import { getFavelaElevation } from './FavelaCDDBuilder.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ws, wsP } from '../core/WorldLayoutScale.js';
 
 /**
  * Construtor Modular das Regiões Periféricas e Penínsulas da Pangeia (`PangaeaPeripheryBuilder.js`):
@@ -185,7 +186,7 @@ function isSafePeripheryBuildSpot(x, z, marginCoast = 46, marginHwy = 26) {
     [-2520, 2020]
   ];
   for (let i = 0; i < protectedPts.length; i++) {
-    if (Math.hypot(x - protectedPts[i][0], z - protectedPts[i][1]) < 56) return false;
+    if (Math.hypot(x - ws(protectedPts[i][0]), z - ws(protectedPts[i][1])) < 56) return false;
   }
   return true;
 }
@@ -196,24 +197,32 @@ export function buildPangaeaPeripheryExtensions(world) {
 
   // ==========================================================================
   // 1. PONTA OESTE & CABO NOROESTE — CONTINUAÇÃO DO AEROPORTO & BASE AÉREA
-  //    Conecta a Pista 09/27 (X=-1660) até o Cabo Radar (-3180) e Baía Oeste!
+  //    Conecta a Pista 09/27 até o Cabo Radar e Baía Oeste (estruturas em tamanho 1x!)
   // ==========================================================================
   {
-    // 1.1 Taxiways de Concreto ligando X=-1825 até a Pista Auxiliar Oeste (X=-2180)
-    for (const tz of [-860, -420]) {
-      for (let tx = -1845; tx >= -2160; tx -= 36) {
+    const rwyAnchor = wsP(-2190, -660);
+    const rwyX = rwyAnchor.x;
+    const rwyCenterZ = rwyAnchor.z;
+
+    // 1.1 Taxiways de Concreto (largura 26m 1x!) ligando o Aeroporto Oeste até a Pista Auxiliar 18/36
+    const taxiZs = IS_SCALED_WORLD ? [rwyCenterZ - 200, rwyCenterZ + 240] : [-860, -420];
+    const taxiStartX = ws(-1845);
+    const taxiEndX = ws(-2160);
+    const taxiSpanW = Math.abs(taxiStartX - taxiEndX) + 41;
+    const taxiMidX = (taxiStartX + taxiEndX) * 0.5;
+    for (const tz of taxiZs) {
+      for (let tx = taxiStartX; tx >= taxiEndX; tx -= 36) {
         if (!isPointOnOrganicLand(tx, tz)) continue;
         const ty = getPangaeaElevationAt(tx, tz);
         b.addFoundation(38, 28, tx, ty, tz, 5.5);
         b.addBox('asphalt_tarmac', 38, 0.28, 26, tx, ty + 0.14, tz);
         b.addBox('mark_amber', 22, 0.05, 0.45, tx, ty + 0.31, tz);
       }
-      world.mapRoads.push({ x: -2002, z: tz, w: 356, d: 24, isMain: false });
+      world.mapRoads.push({ x: taxiMidX, z: tz, w: taxiSpanW, d: 24, isMain: false });
     }
 
-    // 1.2 Pista Tática Avançada Oeste (Runway 18/36 em X = -2190, Z = -1080..-240 -> 840m!)
-    const rwyX = -2190;
-    for (let rz = -1060; rz <= -260; rz += 40) {
+    // 1.2 Pista Tática Avançada Oeste (Runway 18/36 em tamanho 1x: 60m x 840m!)
+    for (let rz = rwyCenterZ - 400; rz <= rwyCenterZ + 400; rz += 40) {
       if (!isPointOnOrganicLand(rwyX, rz)) continue;
       const ry = getPangaeaElevationAt(rwyX, rz);
       b.addFoundation(64, 42, rwyX, ry, rz, 7.5);
@@ -222,18 +231,29 @@ export function buildPangaeaPeripheryExtensions(world) {
       b.addBox('beacon_green', 0.8, 0.45, 0.8, rwyX - 28, ry + 0.45, rz);
       b.addBox('beacon_red', 0.8, 0.45, 0.8, rwyX + 28, ry + 0.45, rz);
     }
-    world.mapRoads.push({ x: rwyX, z: -660, w: 60, d: 840, isMain: true });
-    world.mapBuildings.push({
-      x: rwyX,
-      z: -660,
-      w: 60,
-      d: 840,
-      height: 2,
-      color: '#334155',
-      label: 'PISTA AUXILIAR 18/36'
-    });
+    world.mapRoads.push({ x: rwyX, z: rwyCenterZ, w: 60, d: 840, isMain: true });
+    if (!IS_SCALED_WORLD) {
+      world.mapBuildings.push({
+        x: rwyX,
+        z: rwyCenterZ,
+        w: 60,
+        d: 840,
+        height: 2,
+        color: '#334155',
+        label: 'PISTA AUXILIAR 18/36'
+      });
+    } else {
+      world.mapBlocks.push({
+        x: rwyX,
+        z: rwyCenterZ,
+        w: 68,
+        d: 848,
+        color: '#334155',
+        label: 'PISTA AUXILIAR 18/36'
+      });
+    }
 
-    // 1.3 Hangares Militares Avançados & Galpões Aeronáuticos ao longo do Oeste (-1960..-2820)
+    // 1.3 Hangares Militares Avançados & Galpões Aeronáuticos ao longo do Oeste (dimensões 1x!)
     const westHangars = [
       { x: -1975, z: -1120, w: 54, d: 42, h: 16, mil: true, label: 'HANGAR ESQUADRÃO OESTE' },
       { x: -1975, z: -985, w: 54, d: 42, h: 16, mil: true, label: null },
@@ -246,19 +266,20 @@ export function buildPangaeaPeripheryExtensions(world) {
     ];
 
     for (const hg of westHangars) {
-      if (!isSafePeripheryBuildSpot(hg.x, hg.z, 45, 26)) continue;
-      const hy = getPangaeaElevationAt(hg.x, hg.z);
-      b.addFoundation(hg.w + 8, hg.d + 8, hg.x, hy, hg.z, 8.0);
+      const hp = wsP(hg.x, hg.z);
+      if (!isSafePeripheryBuildSpot(hp.x, hp.z, 45, 26)) continue;
+      const hy = getPangaeaElevationAt(hp.x, hp.z);
+      b.addFoundation(hg.w + 8, hg.d + 8, hp.x, hy, hp.z, 8.0);
       const wallKey = hg.mil ? 'military_olive' : 'aviation_slate';
-      b.addBox(wallKey, hg.w, hg.h, hg.d, hg.x, hy + hg.h * 0.5, hg.z);
-      b.addPitchedRoof('steel_dark', hg.w, 4.4, hg.d, hg.x, hy + hg.h, hg.z, true);
-      b.addBox('glass_smoked', hg.w * 0.68, hg.h * 0.58, 0.8, hg.x, hy + hg.h * 0.34, hg.z + hg.d * 0.5 + 0.2);
-      b.addBox('aviation_red', hg.w + 0.6, 0.9, hg.d + 0.6, hg.x, hy + hg.h - 0.6, hg.z);
-      b.addBox('win_amber', hg.w * 0.5, 1.1, hg.d + 0.5, hg.x, hy + hg.h * 0.78, hg.z);
-      world.addCollider(hg.x, hg.z, hg.w, hg.d, hy + hg.h + 4.0, hy - 3.0);
+      b.addBox(wallKey, hg.w, hg.h, hg.d, hp.x, hy + hg.h * 0.5, hp.z);
+      b.addPitchedRoof('steel_dark', hg.w, 4.4, hg.d, hp.x, hy + hg.h, hp.z, true);
+      b.addBox('glass_smoked', hg.w * 0.68, hg.h * 0.58, 0.8, hp.x, hy + hg.h * 0.34, hp.z + hg.d * 0.5 + 0.2);
+      b.addBox('aviation_red', hg.w + 0.6, 0.9, hg.d + 0.6, hp.x, hy + hg.h - 0.6, hp.z);
+      b.addBox('win_amber', hg.w * 0.5, 1.1, hg.d + 0.5, hp.x, hy + hg.h * 0.78, hp.z);
+      world.addCollider(hp.x, hp.z, hg.w, hg.d, hy + hg.h + 4.0, hy - 3.0);
       world.mapBuildings.push({
-        x: hg.x,
-        z: hg.z,
+        x: hp.x,
+        z: hp.z,
         w: hg.w,
         d: hg.d,
         height: hg.h,
@@ -268,9 +289,10 @@ export function buildPangaeaPeripheryExtensions(world) {
       peripheryCount++;
     }
 
-    // 1.4 Torre de Controle Avançada Oeste (74m) + Bunkers SAM Costeiros até a Ponta do Cabo (-3160)
-    const atcX = -2095;
-    const atcZ = -660;
+    // 1.4 Torre de Controle Avançada Oeste (74m 1x!) + Bunkers SAM Costeiros até a Ponta do Cabo
+    const atcPos = wsP(-2095, -660);
+    const atcX = atcPos.x;
+    const atcZ = atcPos.z;
     if (isSafePeripheryBuildSpot(atcX, atcZ, 45, 24)) {
       const ay = getPangaeaElevationAt(atcX, atcZ);
       b.addFoundation(22, 22, atcX, ay, atcZ, 8.0);
@@ -302,7 +324,8 @@ export function buildPangaeaPeripheryExtensions(world) {
       [-2360, 180],
       [-2580, 460]
     ];
-    for (const [bx, bz] of samBunkers) {
+    for (const [rawBX, rawBZ] of samBunkers) {
+      const { x: bx, z: bz } = wsP(rawBX, rawBZ);
       if (!isSafePeripheryBuildSpot(bx, bz, 48, 28)) continue;
       const by = getPangaeaElevationAt(bx, bz);
       b.addFoundation(28, 26, bx, by, bz, 7.5);
@@ -318,7 +341,7 @@ export function buildPangaeaPeripheryExtensions(world) {
         d: 24,
         height: 15,
         color: '#3f6212',
-        label: bz === -340 ? 'GUARNIÇÃO BAÍA OESTE' : null
+        label: rawBZ === -340 ? 'GUARNIÇÃO BAÍA OESTE' : null
       });
       peripheryCount++;
     }
@@ -332,7 +355,7 @@ export function buildPangaeaPeripheryExtensions(world) {
     const chaletRoofs = ['roof_dark', 'roof_rust'];
     let cSeed = 1;
 
-    // 2.1 Bairros de Chalés & Sobrados ao longo da Rodovia Boreal Norte (Z = -1420..-2540) e Transversal (Z = -2150)
+    // 2.1 Bairros de Chalés & Sobrados ao longo da Rodovia Boreal Norte e Transversal (dimensões 1x!)
     const borealRows = [];
     for (let z = -1440; z >= -2520; z -= 145) {
       borealRows.push([-1310, z], [-1120, z], [-940, z], [-520, z], [-220, z], [120, z], [380, z]);
@@ -341,8 +364,9 @@ export function buildPangaeaPeripheryExtensions(world) {
       borealRows.push([x, -2045], [x, -2255]);
     }
 
-    for (const [hx, hz] of borealRows) {
+    for (const [rawHX, rawHZ] of borealRows) {
       cSeed++;
+      const { x: hx, z: hz } = wsP(rawHX, rawHZ);
       if (!isSafePeripheryBuildSpot(hx, hz, 54, 32)) continue;
       const hy = getPangaeaElevationAt(hx, hz);
       const hw = 18 + (cSeed % 3) * 4;
@@ -367,15 +391,16 @@ export function buildPangaeaPeripheryExtensions(world) {
         d: hd,
         height: hh,
         color: '#57534e',
-        label: hx === 380 && hz === -2020 ? 'VILA DO FIORDE BOREAL' : null
+        label: rawHX === 380 && rawHZ === -2020 ? 'VILA DO FIORDE BOREAL' : null
       });
       peripheryCount++;
     }
 
-    // 2.2 Parada Rodoviária & Posto Boreal (-1135, -1760)
-    if (isSafePeripheryBuildSpot(-1135, -1760, 50, 30)) {
-      const px = -1135;
-      const pz = -1760;
+    // 2.2 Parada Rodoviária & Posto Boreal (dimensões 1x!)
+    const restPos = wsP(-1135, -1760);
+    if (isSafePeripheryBuildSpot(restPos.x, restPos.z, 50, 30)) {
+      const px = restPos.x;
+      const pz = restPos.z;
       const py = getPangaeaElevationAt(px, pz);
       b.addFoundation(46, 36, px, py, pz, 7.5);
       b.addBox('asphalt_tarmac', 44, 0.25, 34, px, py + 0.12, pz);
@@ -401,7 +426,7 @@ export function buildPangaeaPeripheryExtensions(world) {
   // 3. PONTA SUDOESTE — CONTINUAÇÃO DA ORLA SUL, RESORTS & VILA DAS DUNAS
   // ==========================================================================
   {
-    // 3.1 Resorts Costeiros & Hotéis Sombrios ao longo do prolongamento Beira-Mar (Z=710) e Costa Sudoeste (X=-2460)
+    // 3.1 Resorts Costeiros & Hotéis Sombrios ao longo do prolongamento Beira-Mar e Costa Sudoeste (dimensões 1x!)
     const swResorts = [
       { x: -1980, z: 635, w: 38, d: 30, h: 48, label: 'HOTEL MIRANTE DO SOL' },
       { x: -2220, z: 635, w: 34, d: 28, h: 42, label: null },
@@ -413,18 +438,19 @@ export function buildPangaeaPeripheryExtensions(world) {
     ];
 
     for (const rs of swResorts) {
-      if (!isSafePeripheryBuildSpot(rs.x, rs.z, 52, 30)) continue;
-      const ry = getPangaeaElevationAt(rs.x, rs.z);
-      b.addFoundation(rs.w + 6, rs.d + 6, rs.x, ry, rs.z, 7.5);
-      b.addBox('coastal_stone', rs.w, rs.h * 0.76, rs.d, rs.x, ry + rs.h * 0.38, rs.z);
-      b.addBox('coastal_teal', rs.w * 0.78, rs.h * 0.24, rs.d * 0.78, rs.x, ry + rs.h * 0.88, rs.z);
-      b.addBox('win_amber', rs.w + 0.4, 1.4, rs.d * 0.72, rs.x, ry + rs.h * 0.28, rs.z);
-      b.addBox('win_cyan', rs.w + 0.4, 1.4, rs.d * 0.72, rs.x, ry + rs.h * 0.56, rs.z);
-      b.addBox('win_amber', rs.w * 0.78 + 0.4, 1.3, rs.d * 0.58, rs.x, ry + rs.h * 0.88, rs.z);
-      world.addCollider(rs.x, rs.z, rs.w, rs.d, ry + rs.h + 2.0, ry - 3.0);
+      const rp = wsP(rs.x, rs.z);
+      if (!isSafePeripheryBuildSpot(rp.x, rp.z, 52, 30)) continue;
+      const ry = getPangaeaElevationAt(rp.x, rp.z);
+      b.addFoundation(rs.w + 6, rs.d + 6, rp.x, ry, rp.z, 7.5);
+      b.addBox('coastal_stone', rs.w, rs.h * 0.76, rs.d, rp.x, ry + rs.h * 0.38, rp.z);
+      b.addBox('coastal_teal', rs.w * 0.78, rs.h * 0.24, rs.d * 0.78, rp.x, ry + rs.h * 0.88, rp.z);
+      b.addBox('win_amber', rs.w + 0.4, 1.4, rs.d * 0.72, rp.x, ry + rs.h * 0.28, rp.z);
+      b.addBox('win_cyan', rs.w + 0.4, 1.4, rs.d * 0.72, rp.x, ry + rs.h * 0.56, rp.z);
+      b.addBox('win_amber', rs.w * 0.78 + 0.4, 1.3, rs.d * 0.58, rp.x, ry + rs.h * 0.88, rp.z);
+      world.addCollider(rp.x, rp.z, rs.w, rs.d, ry + rs.h + 2.0, ry - 3.0);
       world.mapBuildings.push({
-        x: rs.x,
-        z: rs.z,
+        x: rp.x,
+        z: rp.z,
         w: rs.w,
         d: rs.d,
         height: rs.h,
@@ -434,7 +460,7 @@ export function buildPangaeaPeripheryExtensions(world) {
       peripheryCount++;
     }
 
-    // 3.2 Casas de Praia, Quiosques & Bangalôs espalhados pela Península Sudoeste (Z = 820..2260)
+    // 3.2 Casas de Praia, Quiosques & Bangalôs espalhados pela Península Sudoeste (dimensões 1x!)
     const duneVillageSpots = [
       [-1960, 820], [-2160, 840], [-2340, 1180], [-2590, 1060],
       [-2340, 1390], [-2610, 1520], [-2340, 1780], [-2640, 2040],
@@ -442,8 +468,9 @@ export function buildPangaeaPeripheryExtensions(world) {
       [-2980, 1680], [-2820, 1360]
     ];
     let dIdx = 0;
-    for (const [vx, vz] of duneVillageSpots) {
+    for (const [rawVX, rawVZ] of duneVillageSpots) {
       dIdx++;
+      const { x: vx, z: vz } = wsP(rawVX, rawVZ);
       if (!isSafePeripheryBuildSpot(vx, vz, 46, 28)) continue;
       const vy = getPangaeaElevationAt(vx, vz);
       const vw = 16 + (dIdx % 3) * 3;
@@ -464,7 +491,7 @@ export function buildPangaeaPeripheryExtensions(world) {
   // ==========================================================================
   {
     const indWarehouses = [
-      // Eixo Norte PCC (X = 720..1460, Z = -1460..-2280)
+      // Eixo Norte PCC
       { x: 760, z: -1520, w: 56, d: 38, h: 16, fac: 'pcc', label: 'GALPÃO LOGÍSTICO NORTE (PCC)' },
       { x: 1140, z: -1520, w: 58, d: 40, h: 17, fac: 'pcc', label: null },
       { x: 760, z: -1820, w: 52, d: 38, h: 15, fac: 'pcc', label: null },
@@ -473,7 +500,7 @@ export function buildPangaeaPeripheryExtensions(world) {
       { x: 1420, z: -2020, w: 54, d: 38, h: 16, fac: 'ind', label: null },
       { x: 1780, z: -2020, w: 58, d: 40, h: 17, fac: 'ares', label: 'USINA CIBERNÉTICA A.R.E.S.' },
       { x: 2040, z: -2280, w: 52, d: 38, h: 16, fac: 'ares', label: null },
-      // Eixo Leste Rumo ao Parque Eólico & Refinaria de Tétis (X = 1740..3040, Z = -1260..-320)
+      // Eixo Leste Rumo ao Parque Eólico & Refinaria de Tétis
       { x: 1820, z: -1060, w: 60, d: 42, h: 18, fac: 'pcc', label: 'TERMINAL DE CARGAS TÉTIS' },
       { x: 1820, z: -740, w: 56, d: 40, h: 16, fac: 'ind', label: null },
       { x: 2120, z: -1060, w: 58, d: 40, h: 17, fac: 'ind', label: null },
@@ -488,40 +515,41 @@ export function buildPangaeaPeripheryExtensions(world) {
     let wIdx = 0;
     for (const wh of indWarehouses) {
       wIdx++;
-      if (!isSafePeripheryBuildSpot(wh.x, wh.z, 52, 30)) continue;
-      const wy = getPangaeaElevationAt(wh.x, wh.z);
-      b.addFoundation(wh.w + 10, wh.d + 10, wh.x, wy, wh.z, 8.0);
+      const wp = wsP(wh.x, wh.z);
+      if (!isSafePeripheryBuildSpot(wp.x, wp.z, 52, 30)) continue;
+      const wy = getPangaeaElevationAt(wp.x, wp.z);
+      b.addFoundation(wh.w + 10, wh.d + 10, wp.x, wy, wp.z, 8.0);
       const bodyKey = wh.fac === 'pcc' ? 'pcc_navy' : wh.fac === 'ares' ? 'ares_violet' : 'steel_mid';
-      b.addBox(bodyKey, wh.w, wh.h, wh.d, wh.x, wy + wh.h * 0.5, wh.z);
-      b.addPitchedRoof('steel_dark', wh.w, 3.6, wh.d, wh.x, wy + wh.h, wh.z, true);
+      b.addBox(bodyKey, wh.w, wh.h, wh.d, wp.x, wy + wh.h * 0.5, wp.z);
+      b.addPitchedRoof('steel_dark', wh.w, 3.6, wh.d, wp.x, wy + wh.h, wp.z, true);
       b.addBox(
         wh.fac === 'ares' ? 'win_cyan' : 'win_amber',
         wh.w * 0.72,
         1.3,
         wh.d + 0.4,
-        wh.x,
+        wp.x,
         wy + wh.h * 0.74,
-        wh.z
+        wp.z
       );
 
-      // Chaminé industrial + Pilha de contêineres anexa ao pátio do galpão
-      b.addBox('steel_dark', 2.8, wh.h + 11.0, 2.8, wh.x - wh.w * 0.36, wy + (wh.h + 11.0) * 0.5, wh.z - wh.d * 0.32);
-      b.addBox('beacon_red', 1.1, 1.1, 1.1, wh.x - wh.w * 0.36, wy + wh.h + 11.5, wh.z - wh.d * 0.32);
+      // Chaminé industrial + Pilha de contêineres anexa ao pátio do galpão (offset 1x rígido!)
+      b.addBox('steel_dark', 2.8, wh.h + 11.0, 2.8, wp.x - wh.w * 0.36, wy + (wh.h + 11.0) * 0.5, wp.z - wh.d * 0.32);
+      b.addBox('beacon_red', 1.1, 1.1, 1.1, wp.x - wh.w * 0.36, wy + wh.h + 11.5, wp.z - wh.d * 0.32);
 
-      const cx = wh.x + (wIdx % 2 === 0 ? 1 : -1) * (wh.w * 0.5 + 11.0);
-      if (isSafePeripheryBuildSpot(cx, wh.z, 46, 26)) {
-        const cy = getPangaeaElevationAt(cx, wh.z);
-        b.addFoundation(14, 24, cx, cy, wh.z, 6.0);
-        b.addBox(contKeys[wIdx % 4], 6.2, 3.2, 12.5, cx - 3.4, cy + 1.6, wh.z - 4);
-        b.addBox(contKeys[(wIdx + 1) % 4], 6.2, 3.2, 12.5, cx + 3.4, cy + 1.6, wh.z - 4);
-        b.addBox(contKeys[(wIdx + 2) % 4], 6.2, 3.2, 12.5, cx - 3.4, cy + 4.8, wh.z - 4);
-        world.addCollider(cx, wh.z - 4, 13.5, 13.0, cy + 6.5, cy - 2.0);
+      const cx = wp.x + (wIdx % 2 === 0 ? 1 : -1) * (wh.w * 0.5 + 11.0);
+      if (isSafePeripheryBuildSpot(cx, wp.z, 46, 26)) {
+        const cy = getPangaeaElevationAt(cx, wp.z);
+        b.addFoundation(14, 24, cx, cy, wp.z, 6.0);
+        b.addBox(contKeys[wIdx % 4], 6.2, 3.2, 12.5, cx - 3.4, cy + 1.6, wp.z - 4);
+        b.addBox(contKeys[(wIdx + 1) % 4], 6.2, 3.2, 12.5, cx + 3.4, cy + 1.6, wp.z - 4);
+        b.addBox(contKeys[(wIdx + 2) % 4], 6.2, 3.2, 12.5, cx - 3.4, cy + 4.8, wp.z - 4);
+        world.addCollider(cx, wp.z - 4, 13.5, 13.0, cy + 6.5, cy - 2.0);
       }
 
-      world.addCollider(wh.x, wh.z, wh.w, wh.d, wy + wh.h + 3.6, wy - 3.0);
+      world.addCollider(wp.x, wp.z, wh.w, wh.d, wy + wh.h + 3.6, wy - 3.0);
       world.mapBuildings.push({
-        x: wh.x,
-        z: wh.z,
+        x: wp.x,
+        z: wp.z,
         w: wh.w,
         d: wh.d,
         height: wh.h,
@@ -531,13 +559,14 @@ export function buildPangaeaPeripheryExtensions(world) {
       peripheryCount++;
     }
 
-    // Placa Tática na entrada da Pista Auxiliar 18/36 Oeste
-    const rwySignY = getPangaeaElevationAt(-2140, -1245);
+    // Placa Tática na entrada da Pista Auxiliar 18/36 Oeste (dimensões 1x!)
+    const signPos = wsP(-2140, -1245);
+    const rwySignY = getPangaeaElevationAt(signPos.x, signPos.z);
     world.scene.add(
       createSignBoardMesh({
-        x: -2140,
+        x: signPos.x,
         y: rwySignY + 6.2,
-        z: -1245,
+        z: signPos.z,
         width: 22,
         height: 3.2,
         title: 'BASE AÉREA AVANÇADA // RWY 18-36',

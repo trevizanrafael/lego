@@ -4,19 +4,20 @@ import {
   getLegoMaterial,
   applyAnimatedLegoWaterShader
 } from '../../../materials/LegoMaterials.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 import { RIVER_BRIDGE_SPECS, RIVER_PIER_SPECS } from '../../RoadGridBuilder.js';
 
 /**
- * 1. RIO / CANAL URBANO NAVEGÁVEL DE PONTA A PONTA (MAR NORTE Z = -1320 AO MAR SUL Z = +1068, COTA Y = -3.5),
+ * 1. RIO / CANAL URBANO NAVEGÁVEL DE PONTA A PONTA (MAR NORTE Z = ws(-1320) AO MAR SUL Z = ws(+1068), COTA Y = -3.5),
  *    MUROS DE CAIS DE PEDRA/CONCRETO, 3 PÍERES FLUVIAIS DE MADEIRA E 9 PONTES ELEVADAS EM ARCO (Y = +5.0m)
  */
 export function buildEastCanalBridgesAndPCCBarricades(world, batcher) {
-  const riverX = 560;
-  const riverWidth = 40;
-  const riverZStart = -1320;
-  const riverZEnd = 1068;
-  const riverLength = riverZEnd - riverZStart; // 2388m de ponta a ponta!
-  const riverCenterZ = (riverZStart + riverZEnd) * 0.5; // -126
+  const riverX = ws(560);
+  const riverWidth = ws(40);
+  const riverZStart = ws(-1320);
+  const riverZEnd = ws(1068);
+  const riverLength = riverZEnd - riverZStart; // 2388m (1x) / 7164m (3x) de ponta a ponta!
+  const riverCenterZ = (riverZStart + riverZEnd) * 0.5;
   const waterY = -3.5;
 
   // Registra metadados completos do Rio Navegável e das Pontes em Arco para testes e inspeção
@@ -28,7 +29,7 @@ export function buildEastCanalBridgesAndPCCBarricades(world, batcher) {
     waterY,
     archPeakY: 5.0,
     verticalClearance: 8.5,
-    horizontalClearance: 36.0,
+    horizontalClearance: IS_SCALED_WORLD ? ws(36.0) : 36.0,
     archedBridgesCount: RIVER_BRIDGE_SPECS.length,
     hasBeachMouthBridge: true,
     riverPiersCount: RIVER_PIER_SPECS.length,
@@ -61,36 +62,77 @@ export function buildEastCanalBridgesAndPCCBarricades(world, batcher) {
   world.mapWater.push({ x: riverX, z: riverCenterZ, w: riverWidth, d: riverLength });
 
   // Faixas sutis de espuma/correnteza azul-clara ao longo do eixo central do Rio (em Y = -3.48)
-  for (let wz = -1260; wz <= 1020; wz += 60) {
-    batcher.addBox('coastal_turquoise', 1.4, 0.04, 24.0, riverX - 8.5, waterY + 0.02, wz);
-    batcher.addBox('coastal_turquoise', 1.4, 0.04, 24.0, riverX + 8.5, waterY + 0.02, wz + 28);
+  const foamStep = ws(60);
+  for (let wz = ws(-1260); wz <= ws(1020); wz += foamStep) {
+    batcher.addBox('coastal_turquoise', 1.4, 0.04, 24.0, riverX - ws(8.5), waterY + 0.02, wz);
+    batcher.addBox('coastal_turquoise', 1.4, 0.04, 24.0, riverX + ws(8.5), waterY + 0.02, wz + 28);
   }
 
-  // 1.2 Muros de Cais de Pedra Cinza/Concreto nas Duas Margens (Oeste X = 539.0 e Leste X = 581.0)
+  // 1.2 Muros de Cais de Pedra Cinza/Concreto nas Duas Margens (borda Oeste ws(540)-1 e borda Leste ws(580)+1)
   // Descendo desde a borda das ruas (Y = +0.35) até o fundo da água (Y = -4.0)!
-  const westQuayLen = 1045 - (-1320); // 2365m (de Z = -1320 até a ponta da Areia da Praia em Z = +1045)
-  const westQuayCZ = (-1320 + 1045) * 0.5;
-  batcher.addBox('gunmetal_concrete', 2.4, 4.35, westQuayLen, 539.0, -1.825, westQuayCZ);
-  batcher.addBox('brushed_silver', 2.8, 0.24, westQuayLen, 539.0, 0.42, westQuayCZ);
+  const westBankX = ws(540);
+  const eastBankX = ws(580);
+  const westQuayX = westBankX - 1.0;
+  const eastQuayX = eastBankX + 1.0;
 
-  const eastQuayLen = 735 - (-1320); // 2055m (de Z = -1320 até a borda Sul do Porto em Z = +735)
-  const eastQuayCZ = (-1320 + 735) * 0.5;
-  batcher.addBox('gunmetal_concrete', 2.4, 4.35, eastQuayLen, 581.0, -1.825, eastQuayCZ);
-  batcher.addBox('brushed_silver', 2.8, 0.24, eastQuayLen, 581.0, 0.42, eastQuayCZ);
+  const westQuayZ0 = ws(-1320);
+  const westQuayZ1 = ws(1045);
+  const eastQuayZ0 = ws(-1320);
+  const eastQuayZ1 = ws(735);
 
-  // Calçadão Costeiro na Margem Oeste da Foz da Praia (X = 532..540, Z = 725..1040) + Praça de Cabeceira na Ponte Z = 402
-  batcher.addBox('tactical_white', 8.5, 0.34, 315, 534.5, 0.17, 882.5);
-  batcher.addBox('coastal_turquoise', 1.2, 0.36, 315, 531.2, 0.18, 882.5);
-  batcher.addBox('matte_black', 28.0, 0.3, 32.0, 594.0, 0.15, 402.0);
+  if (!IS_SCALED_WORLD) {
+    const westQuayLen = westQuayZ1 - westQuayZ0;
+    const westQuayCZ = (westQuayZ0 + westQuayZ1) * 0.5;
+    batcher.addBox('gunmetal_concrete', 2.4, 4.35, westQuayLen, westQuayX, -1.825, westQuayCZ);
+    batcher.addBox('brushed_silver', 2.8, 0.24, westQuayLen, westQuayX, 0.42, westQuayCZ);
 
-  // Molhes de Pedra / Quebra-Mar e Faroletes Náuticos nas Fozes Sul (Z = 1045..1068) e Norte (Z = -1320)
-  batcher.addBox('armor_slate', 5.2, 4.6, 28, 538.0, -1.7, 1055);
-  batcher.addBox('armor_slate', 5.2, 4.6, 56, 582.0, -1.7, 760);
+    const eastQuayLen = eastQuayZ1 - eastQuayZ0;
+    const eastQuayCZ = (eastQuayZ0 + eastQuayZ1) * 0.5;
+    batcher.addBox('gunmetal_concrete', 2.4, 4.35, eastQuayLen, eastQuayX, -1.825, eastQuayCZ);
+    batcher.addBox('brushed_silver', 2.8, 0.24, eastQuayLen, eastQuayX, 0.42, eastQuayCZ);
+  } else {
+    const segMax = 480;
+    for (let z0 = westQuayZ0; z0 < westQuayZ1 - 0.01; z0 += segMax) {
+      const z1 = Math.min(westQuayZ1, z0 + segMax);
+      const len = z1 - z0;
+      const cz = (z0 + z1) * 0.5;
+      batcher.addBox('gunmetal_concrete', 2.4, 4.35, len, westQuayX, -1.825, cz);
+      batcher.addBox('brushed_silver', 2.8, 0.24, len, westQuayX, 0.42, cz);
+    }
+    for (let z0 = eastQuayZ0; z0 < eastQuayZ1 - 0.01; z0 += segMax) {
+      const z1 = Math.min(eastQuayZ1, z0 + segMax);
+      const len = z1 - z0;
+      const cz = (z0 + z1) * 0.5;
+      batcher.addBox('gunmetal_concrete', 2.4, 4.35, len, eastQuayX, -1.825, cz);
+      batcher.addBox('brushed_silver', 2.8, 0.24, len, eastQuayX, 0.42, cz);
+    }
+  }
+
+  // Calçadão Costeiro na Margem Oeste da Foz da Praia (Z = ws(725)..ws(1040)) + Praça de Cabeceira na Ponte Z = ws(402)
+  const promLen = ws(315);
+  const promCZ = ws(882.5);
+  batcher.addBox('tactical_white', 8.5, 0.34, promLen, westBankX - 5.5, 0.17, promCZ);
+  batcher.addBox('coastal_turquoise', 1.2, 0.36, promLen, westBankX - 8.8, 0.18, promCZ);
+  batcher.addBox(
+    'matte_black',
+    28.0,
+    0.3,
+    IS_SCALED_WORLD ? ROAD.mainWidth + 2.0 : 32.0,
+    ws(594.0),
+    0.15,
+    ws(402.0)
+  );
+
+  // Molhes de Pedra / Quebra-Mar e Faroletes Náuticos nas Fozes Sul e Norte
+  const westBreakX = westBankX - 2.0;
+  const eastBreakX = eastBankX + 2.0;
+  batcher.addBox('armor_slate', 5.2, 4.6, ws(28), westBreakX, -1.7, ws(1055));
+  batcher.addBox('armor_slate', 5.2, 4.6, ws(56), eastBreakX, -1.7, ws(760));
   for (const [bx, bz, beaconKey] of [
-    [538.0, 1066, 'coastal_turquoise'],
-    [582.0, 785, 'c4_hazard_red'],
-    [538.0, -1318, 'coastal_turquoise'],
-    [582.0, -1318, 'pcc_neon_blue']
+    [westBreakX, ws(1068) - 2, 'coastal_turquoise'],
+    [eastBreakX, ws(785), 'c4_hazard_red'],
+    [westBreakX, ws(-1320) + 2, 'coastal_turquoise'],
+    [eastBreakX, ws(-1320) + 2, 'pcc_neon_blue']
   ]) {
     batcher.addCylinder('tactical_white', 0.85, 1.25, 7.5, bx, 4.1, bz, 8);
     batcher.addBox(beaconKey, 1.8, 1.4, 1.8, bx, 8.2, bz);
@@ -109,25 +151,29 @@ export function buildEastCanalBridgesAndPCCBarricades(world, batcher) {
   };
 
   // Guarda-corpos de Pedra/Ferro com Studs LEGO e Postes de Iluminação Ribeirinhos ao longo das duas margens
-  for (let rz = -1296; rz <= 1024; rz += 16) {
+  const westRailX = westBankX - 1.2;
+  const westLampX = westBankX - 2.8;
+  const eastRailX = eastBankX + 1.2;
+  const eastLampX = eastBankX + 2.8;
+  for (let rz = ws(-1296); rz <= ws(1024); rz += 16) {
     if (isBankOpenAt(rz, 'west')) {
-      batcher.addBox('armor_slate', 0.65, 0.85, 14.5, 538.8, 0.88, rz);
-      batcher.addBox('brushed_silver', 0.85, 0.18, 15.2, 538.8, 1.36, rz);
-      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, 538.8, 1.54, rz - 4.5, 6);
-      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, 538.8, 1.54, rz + 4.5, 6);
+      batcher.addBox('armor_slate', 0.65, 0.85, 14.5, westRailX, 0.88, rz);
+      batcher.addBox('brushed_silver', 0.85, 0.18, 15.2, westRailX, 1.36, rz);
+      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, westRailX, 1.54, rz - 4.5, 6);
+      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, westRailX, 1.54, rz + 4.5, 6);
 
       if (Math.abs(rz) % 64 === 0) {
-        _addRiversideDoubleLamp(batcher, 537.2, 0.45, rz, rz > 650 ? 'beach' : 'urban');
+        _addRiversideDoubleLamp(batcher, westLampX, 0.45, rz, rz > ws(650) ? 'beach' : 'urban');
       }
     }
-    if (rz <= 720 && isBankOpenAt(rz, 'east')) {
-      batcher.addBox('armor_slate', 0.65, 0.85, 14.5, 581.2, 0.88, rz);
-      batcher.addBox('brushed_silver', 0.85, 0.18, 15.2, 581.2, 1.36, rz);
-      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, 581.2, 1.54, rz - 4.5, 6);
-      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, 581.2, 1.54, rz + 4.5, 6);
+    if (rz <= ws(720) && isBankOpenAt(rz, 'east')) {
+      batcher.addBox('armor_slate', 0.65, 0.85, 14.5, eastRailX, 0.88, rz);
+      batcher.addBox('brushed_silver', 0.85, 0.18, 15.2, eastRailX, 1.36, rz);
+      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, eastRailX, 1.54, rz - 4.5, 6);
+      batcher.addCylinder('brushed_silver', 0.32, 0.32, 0.22, eastRailX, 1.54, rz + 4.5, 6);
 
       if (Math.abs(rz) % 64 === 0) {
-        _addRiversideDoubleLamp(batcher, 582.8, 0.45, rz, 'pcc');
+        _addRiversideDoubleLamp(batcher, eastLampX, 0.45, rz, 'pcc');
       }
     }
   }
@@ -137,44 +183,56 @@ export function buildEastCanalBridgesAndPCCBarricades(world, batcher) {
     _buildWoodenRiverPier(world, batcher, pier);
   }
 
-  // 1.4 As 9 Pontes Monumentais Elevadas em Arco (Equação bridgeY = 5.0 * sin(t * PI) com 16 Segmentos Suaves e ZERO Colisores de Pista!)
+  // 1.4 As 9 Pontes Monumentais Elevadas em Arco (Equação bridgeY = 5.0 * sin(t * PI) e ZERO Colisores de Pista!)
   for (const bridgeSpec of RIVER_BRIDGE_SPECS) {
     _buildMonumentalArchedBridge(world, batcher, bridgeSpec);
   }
 
-  // 1.5 As 5 Barricadas Táticas nas Entradas do Distrito Industrial do PCC (recuadas para X = 614 com pista central aberta!)
-  const entryAvenuesZ = [-512, -382, -250, -117, 0];
-  for (const ez of entryAvenuesZ) {
+  // 1.5 As 5 Barricadas Táticas nas Entradas do Distrito Industrial do PCC (com pista central 100% livre!)
+  const designEntryAvenuesZ = [-512, -382, -250, -117, 0];
+  for (const dz of designEntryAvenuesZ) {
     world.industrialPCCData.entryBarricadesCount++;
 
-    const gx = 614;
-    const gz = ez - 15.8;
-    batcher.addBox('gunmetal_concrete', 6.4, 4.2, 5.4, gx, 2.1, gz);
-    batcher.addBox('matte_black', 6.8, 0.65, 5.8, gx, 4.4, gz);
-    batcher.addBox('dark_steel', 5.2, 1.5, 5.5, gx, 2.5, gz);
-    batcher.addBox('pcc_neon_blue', 6.9, 0.22, 5.9, gx, 4.1, gz);
-    world.addCollider(gx, gz, 6.4, 5.4, 4.6, 0);
+    const ez = ws(dz);
+    const gx = ws(614);
+    const halfRoad = IS_SCALED_WORLD
+      ? (dz === -512 ? ROAD.secondaryWidth : ROAD.mainWidth) * 0.5
+      : 13.0;
+    const guardLift = IS_SCALED_WORLD ? ROAD.curbHeight : 0;
+    const gz = IS_SCALED_WORLD ? ez - (halfRoad + 3.2) : ez - 15.8;
+
+    batcher.addBox('gunmetal_concrete', 6.4, 4.2, 5.4, gx, guardLift + 2.1, gz);
+    batcher.addBox('matte_black', 6.8, 0.65, 5.8, gx, guardLift + 4.4, gz);
+    batcher.addBox('dark_steel', 5.2, 1.5, 5.5, gx, guardLift + 2.5, gz);
+    batcher.addBox('pcc_neon_blue', 6.9, 0.22, 5.9, gx, guardLift + 4.1, gz);
+    world.addCollider(gx, gz, 6.4, 5.4, guardLift + 4.6, 0);
 
     // Pórtico elevado do Checkpoint PCC (8.8m de altura livre na pista central!)
-    batcher.addBox('matte_black', 1.2, 9.2, 1.2, gx, 4.6, ez - 13.0);
-    batcher.addBox('matte_black', 1.2, 9.2, 1.2, gx, 4.6, ez + 13.0);
-    batcher.addBox('pcc_navy', 2.0, 1.9, 27.6, gx, 9.2, ez);
+    const pillarOffZ = IS_SCALED_WORLD ? halfRoad + 0.8 : 13.0;
+    const gantrySpanD = IS_SCALED_WORLD ? halfRoad * 2 + 2.8 : 27.6;
+    batcher.addBox('matte_black', 1.2, 9.2, 1.2, gx, 4.6, ez - pillarOffZ);
+    batcher.addBox('matte_black', 1.2, 9.2, 1.2, gx, 4.6, ez + pillarOffZ);
+    batcher.addBox('pcc_navy', 2.0, 1.9, gantrySpanD, gx, 9.2, ez);
     batcher.addBox('tactical_white', 2.15, 0.65, 16.0, gx, 9.2, ez);
     batcher.addBox('pcc_neon_blue', 0.9, 0.6, 1.4, gx - 0.8, 8.2, ez - 8.5);
     batcher.addBox('pcc_neon_blue', 0.9, 0.6, 1.4, gx - 0.8, 8.2, ez + 8.5);
 
-    // Chicane tática nas bordas externas (ez ± 10.6m), mantendo 14.4m livres no centro da avenida para carros a 290 km/h!
+    // Chicane tática nas bordas externas mantendo o centro da avenida livre para carros a 290 km/h!
+    const chicaneX = ws(612);
+    const chicaneOffZ = IS_SCALED_WORLD ? halfRoad - 3.4 : 10.6;
     for (const side of [-1, 1]) {
-      const bz = ez + side * 10.6;
-      batcher.addBox('matte_black', 2.2, 1.55, 5.4, 612, 0.78, bz);
-      batcher.addBox('tactical_white', 2.28, 0.42, 1.8, 612, 0.95, bz - 1.3);
-      batcher.addBox('tactical_white', 2.28, 0.42, 1.8, 612, 0.95, bz + 1.3);
-      batcher.addBox('pcc_neon_blue', 0.45, 0.35, 0.45, 612, 1.68, bz);
-      world.addCollider(612, bz, 2.2, 5.4, 1.6, 0);
+      const bz = ez + side * chicaneOffZ;
+      batcher.addBox('matte_black', 2.2, 1.55, 5.4, chicaneX, 0.78, bz);
+      batcher.addBox('tactical_white', 2.28, 0.42, 1.8, chicaneX, 0.95, bz - 1.3);
+      batcher.addBox('tactical_white', 2.28, 0.42, 1.8, chicaneX, 0.95, bz + 1.3);
+      batcher.addBox('pcc_neon_blue', 0.45, 0.35, 0.45, chicaneX, 1.68, bz);
+      world.addCollider(chicaneX, bz, 2.2, 5.4, 1.6, 0);
     }
 
-    _spawnPCCExplosiveBarrel(world, 610.5, ez - 8.2, 0x1d4ed8);
-    _spawnPCCExplosiveBarrel(world, 610.5, ez + 8.2, 0xdc2626);
+    const barrelX = ws(610.5);
+    const barrelOffZ = IS_SCALED_WORLD ? halfRoad - 5.8 : 8.2;
+    _spawnPCCExplosiveBarrel(world, barrelX, ez - barrelOffZ, 0x1d4ed8);
+    _spawnPCCExplosiveBarrel(world, barrelX, ez + barrelOffZ, 0xdc2626);
   }
 }
 
@@ -263,11 +321,11 @@ function _buildWoodenRiverPier(world, batcher, pier) {
  */
 function _buildMonumentalArchedBridge(world, batcher, spec) {
   const { z: bz, width, xStart, xEnd, archHeight, style } = spec;
-  const spanL = xEnd - xStart; // 68m
+  const spanL = xEnd - xStart; // 68m (1x) / 204m (3x)
   const halfW = width * 0.5;
   const roadW = width - 5.2;
   const sidewalkW = 2.2;
-  const segCount = 16;
+  const segCount = IS_SCALED_WORLD ? 32 : 16;
 
   const isBeach = style === 'beach';
   const isPort = style === 'port_gate';
@@ -329,11 +387,11 @@ function _buildMonumentalArchedBridge(world, batcher, spec) {
     }
   }
 
-  // 3. Grandes Arcos Superiores de Treliça de Aço nas Duas Laterais (X = 530..590, subindo até Y = 15.2m no centro!)
+  // 3. Grandes Arcos Superiores de Treliça de Aço nas Duas Laterais (subindo até Y = 15.2m no centro!)
   const archXStart = xStart + 3.5;
   const archXEnd = xEnd - 3.5;
-  const archSpan = archXEnd - archXStart; // 61m
-  const archSegs = 12;
+  const archSpan = archXEnd - archXStart;
+  const archSegs = IS_SCALED_WORLD ? 24 : 12;
 
   for (const side of [-1, 1]) {
     const tz = bz + side * (halfW + 0.55);
@@ -412,7 +470,7 @@ function _spawnPCCExplosiveBarrel(world, x, z, colorHex = 0x1d4ed8) {
   cap.position.y = 1.9;
   const c4GroundY =
     0.28 +
-    (world.getTerrainHeightAt && x > 622 && x < 1430 && z > -720 && z < -40
+    (world.getTerrainHeightAt && x > ws(622) && x < ws(1430) && z > ws(-720) && z < ws(-40)
       ? Math.max(0, world.getTerrainHeightAt(x, z))
       : 0);
   group.add(body, stripe, cap);

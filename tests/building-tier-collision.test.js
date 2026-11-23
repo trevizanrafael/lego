@@ -10,6 +10,8 @@ const { worldSpatialColliderMethods } = await import('../src/world/core/WorldSpa
 const { DestructibleManager } = await import('../src/world/DestructibleManager.js');
 const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
+const { PRISON_OFFSET_X, PRISON_OFFSET_Z } = await import('../src/world/regions/PrisonIslandBuilder.js');
+const { BANK_SPEC } = await import('../src/world/regions/SuperBankBuilder.js');
 const { auditWorldCollisions } = await import('./collision-audit.test.js');
 
 function createIsolatedBuildingWorld() {
@@ -192,7 +194,9 @@ describe('Onda 2 (C2-E) — Colisão Escalonada Art-Deco, Quinas 45° OBB, Corni
     );
 
     // Verifica explicitamente as 4 passarelas blindadas (skybridges) da Ilha da Prisão em Y = 40m (minY = 36.9, maxY = 43.4)
-    for (const [sx, sz] of [[1230, 1540], [1520, 1540], [1375, 1687.5], [1375, 1370]]) {
+    for (const [dx, dz] of [[1230, 1540], [1520, 1540], [1375, 1687.5], [1375, 1370]]) {
+      const sx = dx + PRISON_OFFSET_X;
+      const sz = dz + PRISON_OFFSET_Z;
       const skyRay = fullWorld.raycast3D(
         { x: sx, y: 46.0, z: sz },
         { x: sx, y: 34.0, z: sz }
@@ -206,7 +210,7 @@ describe('Onda 2 (C2-E) — Colisão Escalonada Art-Deco, Quinas 45° OBB, Corni
 
     // Verifica explicitamente a verga acima da porta circular do cofre no 4º andar do Super Banco Central
     const vaultLintelCols = fullWorld.colliders.filter(
-      (c) => !c.disabled && Math.abs((c.minZ + c.maxZ) * 0.5 - -206) < 0.5 && c.minY > 35 && c.maxX - c.minX <= 13
+      (c) => !c.disabled && Math.abs((c.minZ + c.maxZ) * 0.5 - BANK_SPEC.vaultWallZ) < 0.5 && c.minY > 35 && c.maxX - c.minX <= 13
     );
     assert.equal(vaultLintelCols.length, 1, 'Verga blindada acima da porta do cofre registrada');
     assert.ok(

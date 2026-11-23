@@ -1,6 +1,21 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { makeFastBox } from '../buildings/GeometryMergeUtils.js';
+import {
+  IS_SCALED_WORLD,
+  ROAD,
+  DESIGN_MAIN_AVENUES_X,
+  DESIGN_MAIN_AVENUES_Z,
+  DESIGN_SECONDARY_STREETS_X,
+  DESIGN_INDUSTRIAL_STREETS_X,
+  DESIGN_SECONDARY_STREETS_Z,
+  MAIN_AVENUES_X,
+  MAIN_AVENUES_Z,
+  SECONDARY_STREETS_X,
+  INDUSTRIAL_STREETS_X,
+  SECONDARY_STREETS_Z,
+  ws
+} from '../core/WorldLayoutScale.js';
 import { getUrbanCityReliefY } from './UrbanReliefFunctions.js';
 import {
   RIVER_BRIDGE_SPECS,
@@ -8,18 +23,28 @@ import {
   RIVER_PIER_SPECS,
   addChunkedArrayToScene
 } from './BridgeAndPierSpecs.js';
+import { buildScaledUrbanSidewalksAndBlockPads } from './UrbanSidewalkAndBlockBuilder.js';
 
-export { RIVER_BRIDGE_SPECS, PANGAEA_BRIDGE_SPECS, RIVER_PIER_SPECS };
+export {
+  RIVER_BRIDGE_SPECS,
+  PANGAEA_BRIDGE_SPECS,
+  RIVER_PIER_SPECS,
+  MAIN_AVENUES_X,
+  MAIN_AVENUES_Z,
+  SECONDARY_STREETS_X,
+  INDUSTRIAL_STREETS_X,
+  SECONDARY_STREETS_Z,
+  ROAD
+};
 
 /**
- * MALHA VIÁRIA URBANA OTIMIZADA COM ADAPTAÇÃO TOTAL AO RELEVO:
- * - Todas as faixas amarelas/brancas, faixas de pedestres, canteiros e semáforos acompanham `getUrbanCityReliefY(x, z)`!
+ * MALHA VIÁRIA URBANA UNIFICADA COM ADAPTAÇÃO TOTAL AO RELEVO + CALÇADAS REAIS DE 10m (3x):
+ * - Todas as faixas, faixas de pedestres, canteiros e semáforos acompanham `getUrbanCityReliefY(x, z)`!
  */
 export function buildUrbanRoadGridAndMedians(world) {
-  const mainAvenuesX = [-384, -252, -120, 0, 120, 252, 384];
-  const mainAvenuesZ = [-382, -250, -117, 0, 134, 402, 710];
-  const secondaryStreetsX = [-648, -516, 516, 648];
-  const secondaryStreetsZ = [-1172, -1040, -908, -776, -644, -512, 556];
+  const mainW = ROAD.mainWidth;
+  const secW = ROAD.secondaryWidth;
+  const lineStep = IS_SCALED_WORLD ? 24 : 12;
 
   const yellowGeos = [];
   const whiteGeos = [];
@@ -29,7 +54,7 @@ export function buildUrbanRoadGridAndMedians(world) {
 
   const sampleRoadY = (x, z) => getUrbanCityReliefY(x, z);
 
-  const pushTerrainLineZ = (geos, xLine, widthX, zFrom, zTo, stepSize = 12, thickness = 0.045, yOff = 0.055) => {
+  const pushTerrainLineZ = (geos, xLine, widthX, zFrom, zTo, stepSize = lineStep, thickness = 0.045, yOff = 0.055) => {
     const total = zTo - zFrom;
     const steps = Math.max(1, Math.round(Math.abs(total) / stepSize));
     const dz = total / steps;
@@ -53,7 +78,7 @@ export function buildUrbanRoadGridAndMedians(world) {
     }
   };
 
-  const pushTerrainLineX = (geos, zLine, depthZ, xFrom, xTo, stepSize = 12, thickness = 0.045, yOff = 0.055) => {
+  const pushTerrainLineX = (geos, zLine, depthZ, xFrom, xTo, stepSize = lineStep, thickness = 0.045, yOff = 0.055) => {
     const total = xTo - xFrom;
     const steps = Math.max(1, Math.round(Math.abs(total) / stepSize));
     const dx = total / steps;
@@ -77,24 +102,49 @@ export function buildUrbanRoadGridAndMedians(world) {
     }
   };
 
-  // Avenidas Norte-Sul (28m de largura, de Z = -1312 até a Avenida Beira-Mar Z = 710 — 100% contínuas!)
-  for (const ax of mainAvenuesX) {
-    world.mapRoads.push({ x: ax, z: -301, w: 28, d: 2022, isMain: true });
+  // Avenidas Norte-Sul (Z = ws(-1312) até a Avenida Beira-Mar Z = ws(710))
+  const zAveMin = ws(-1312);
+  const zAveMax = ws(710);
+  const zAveCenter = (zAveMin + zAveMax) * 0.5;
+  const zAveSpan = zAveMax - zAveMin;
+  const zRampGapTop = ws(-382) - 6;
+  const zRampGapBot = ws(-382) + 102;
 
-    if (ax !== 0) {
-      pushTerrainLineZ(yellowGeos, ax - 0.5, 0.45, -1312, 710, 12);
-      pushTerrainLineZ(yellowGeos, ax + 0.5, 0.45, -1312, 710, 12);
+  const pushMainAveZSegment = (ax, z0, z1) => {
+    const d = z1 - z0;
+    if (d <= 1) return;
+    world.mapRoads.push({ x: ax, z: (z0 + z1) * 0.5, w: mainW, d, isMain: true });
+    pushTerrainLineZ(yellowGeos, ax - 0.5, 0.45, z0, z1, lineStep);
+    pushTerrainLineZ(yellowGeos, ax + 0.5, 0.45, z0, z1, lineStep);
+  };
+
+  for (const dax of DESIGN_MAIN_AVENUES_X) {
+    const ax = ws(dax);
+    if (!IS_SCALED_WORLD) {
+      world.mapRoads.push({ x: ax, z: zAveCenter, w: mainW, d: zAveSpan, isMain: true });
+      if (dax !== 0) {
+        pushTerrainLineZ(yellowGeos, ax - 0.5, 0.45, zAveMin, zAveMax, lineStep);
+        pushTerrainLineZ(yellowGeos, ax + 0.5, 0.45, zAveMin, zAveMax, lineStep);
+      } else {
+        pushTerrainLineZ(yellowGeos, -0.5, 0.45, zAveMin, zRampGapTop, lineStep);
+        pushTerrainLineZ(yellowGeos, 0.5, 0.45, zAveMin, zRampGapTop, lineStep);
+        pushTerrainLineZ(yellowGeos, -0.5, 0.45, zRampGapBot, zAveMax, lineStep);
+        pushTerrainLineZ(yellowGeos, 0.5, 0.45, zRampGapBot, zAveMax, lineStep);
+      }
+    } else if (dax === 0) {
+      // Av. Central X=0 para antes do Super Banco [ws(-250)..ws(-117)] e do Parque Central [ws(134)..ws(402)]
+      pushMainAveZSegment(ax, zAveMin, ws(-250));
+      pushMainAveZSegment(ax, ws(-117), ws(134));
+      pushMainAveZSegment(ax, ws(402), zAveMax);
     } else {
-      // Na Av. Central X = 0, desenha as faixas fora da rampa central do Viaduto 1 (Z = -374..-286)
-      pushTerrainLineZ(yellowGeos, -0.5, 0.45, -1312, -388, 12);
-      pushTerrainLineZ(yellowGeos, 0.5, 0.45, -1312, -388, 12);
-      pushTerrainLineZ(yellowGeos, -0.5, 0.45, -280, 710, 12);
-      pushTerrainLineZ(yellowGeos, 0.5, 0.45, -280, 710, 12);
+      // Avenidas N-S térreas param nas fachadas Norte (ws(134)) e Sul (ws(402)) do Parque Central
+      pushMainAveZSegment(ax, zAveMin, ws(134));
+      pushMainAveZSegment(ax, ws(402), zAveMax);
     }
 
-    // Canteiros centrais arborizados acompanhando a inclinação da rua!
-    for (const segZ of [-316, -58, 68, 556]) {
-      if ((ax === 0 && (segZ === -316 || segZ === -58)) || (ax === 252 && (segZ === -58 || segZ === 556))) continue;
+    for (const dSegZ of [-316, -58, 68, 556]) {
+      if ((dax === 0 && (dSegZ === -316 || dSegZ === -58)) || (dax === 252 && (dSegZ === -58 || dSegZ === 556))) continue;
+      const segZ = ws(dSegZ);
       pushTerrainLineZ(medianGeos, ax, 2.6, segZ - 34, segZ + 34, 12, 0.55, 0.06);
       pushTerrainLineZ(turfGeos, ax, 1.8, segZ - 32, segZ + 32, 12, 0.14, 0.36);
 
@@ -105,84 +155,107 @@ export function buildUrbanRoadGridAndMedians(world) {
     }
   }
 
-  // Avenidas Leste-Oeste (100% inteiras em Z = +134 e todas as demais!)
-  for (const az of mainAvenuesZ) {
-    const minX = az === 710 ? -1815 : -516;
-    const maxX = az <= 134 ? 1616 : az === 710 ? 640 : 1200;
+  // Avenidas Leste-Oeste
+  for (const daz of DESIGN_MAIN_AVENUES_Z) {
+    const az = ws(daz);
+    const minX = ws(daz === 710 ? -1815 : -516);
+    const maxX = ws(daz <= 134 ? 1616 : daz === 710 ? 640 : 1200);
     const roadW = maxX - minX;
     const roadCX = (minX + maxX) * 0.5;
-    world.mapRoads.push({ x: roadCX, z: az, w: roadW, d: 28, isMain: true });
+    world.mapRoads.push({ x: roadCX, z: az, w: roadW, d: mainW, isMain: true });
 
-    pushTerrainLineX(yellowGeos, az - 0.5, 0.45, minX + 5, 526 - 5, 12);
-    pushTerrainLineX(yellowGeos, az + 0.5, 0.45, minX + 5, 526 - 5, 12);
+    pushTerrainLineX(yellowGeos, az - 0.5, 0.45, minX + 5, ws(526) - 5, lineStep);
+    pushTerrainLineX(yellowGeos, az + 0.5, 0.45, minX + 5, ws(526) - 5, lineStep);
 
-    if (maxX > 600) {
-      pushTerrainLineX(yellowGeos, az - 0.5, 0.45, 599, maxX - 5, 12);
-      pushTerrainLineX(yellowGeos, az + 0.5, 0.45, 599, maxX - 5, 12);
+    if (maxX > ws(600)) {
+      pushTerrainLineX(yellowGeos, az - 0.5, 0.45, ws(599), maxX - 5, lineStep);
+      pushTerrainLineX(yellowGeos, az + 0.5, 0.45, ws(599), maxX - 5, lineStep);
     }
   }
 
   // Ruas Secundárias Norte-Sul
-  for (const sx of secondaryStreetsX) {
-    if (sx === -648) {
-      world.mapRoads.push({ x: sx, z: -912, w: 24, d: 800, isMain: false });
-      pushTerrainLineZ(whiteGeos, sx, 0.35, -1312, -512, 12);
-      world.mapRoads.push({ x: sx, z: 562, w: 24, d: 296, isMain: false });
-      pushTerrainLineZ(whiteGeos, sx, 0.35, 414, 710, 12);
-    } else if (sx === 648) {
-      world.mapRoads.push({ x: sx, z: -912, w: 24, d: 800, isMain: false });
-      pushTerrainLineZ(whiteGeos, sx, 0.35, -1312, -512, 12);
+  for (const dsx of DESIGN_SECONDARY_STREETS_X) {
+    const sx = ws(dsx);
+    if (dsx === -648) {
+      world.mapRoads.push({ x: sx, z: ws(-912), w: secW, d: ws(800), isMain: false });
+      pushTerrainLineZ(whiteGeos, sx, 0.35, ws(-1312), ws(-512), lineStep);
+      world.mapRoads.push({ x: sx, z: ws(562), w: secW, d: ws(296), isMain: false });
+      pushTerrainLineZ(whiteGeos, sx, 0.35, ws(414), ws(710), lineStep);
+    } else if (dsx === 648) {
+      world.mapRoads.push({ x: sx, z: ws(-912), w: secW, d: ws(800), isMain: false });
+      pushTerrainLineZ(whiteGeos, sx, 0.35, ws(-1312), ws(-512), lineStep);
     } else {
-      world.mapRoads.push({ x: sx, z: -301, w: 24, d: 2022, isMain: false });
-      pushTerrainLineZ(whiteGeos, sx, 0.35, -1312, 710, 12);
+      world.mapRoads.push({ x: sx, z: zAveCenter, w: secW, d: zAveSpan, isMain: false });
+      pushTerrainLineZ(whiteGeos, sx, 0.35, zAveMin, zAveMax, lineStep);
     }
   }
 
   // Avenidas Táticas Norte-Sul do Domínio Industrial Leste
-  for (const ix of [600, 768, 964, 1160, 1344, 1524]) {
-    const minZ = -1312;
-    const maxZ = 134;
+  for (const dix of DESIGN_INDUSTRIAL_STREETS_X) {
+    const ix = ws(dix);
+    const minZ = ws(-1312);
+    const maxZ = ws(134);
     const d = maxZ - minZ;
     const cz = (minZ + maxZ) * 0.5;
-    world.mapRoads.push({ x: ix, z: cz, w: 24, d, isMain: false });
-    pushTerrainLineZ(whiteGeos, ix, 0.35, minZ, maxZ, 16);
+    world.mapRoads.push({ x: ix, z: cz, w: secW, d, isMain: false });
+    pushTerrainLineZ(whiteGeos, ix, 0.35, minZ, maxZ, IS_SCALED_WORLD ? 28 : 16);
   }
 
   // Ruas Secundárias Leste-Oeste
-  for (const sz of secondaryStreetsZ) {
-    const minX = -648;
-    const maxX = sz >= -1172 && sz <= -512 ? 1616 : 526;
+  for (const dsz of DESIGN_SECONDARY_STREETS_Z) {
+    const sz = ws(dsz);
+    const minX = ws(-648);
+    const maxX = ws(dsz >= -1172 && dsz <= -512 ? 1616 : 526);
     const roadW = maxX - minX;
     const roadCX = (minX + maxX) * 0.5;
-    world.mapRoads.push({ x: roadCX, z: sz, w: roadW, d: 24, isMain: false });
+    world.mapRoads.push({ x: roadCX, z: sz, w: roadW, d: secW, isMain: false });
 
-    pushTerrainLineX(whiteGeos, sz, 0.35, minX + 6, 520, 12);
-    if (maxX > 600) {
-      pushTerrainLineX(whiteGeos, sz, 0.35, 600, maxX - 6, 16);
+    pushTerrainLineX(whiteGeos, sz, 0.35, minX + 6, ws(520), lineStep);
+    if (maxX > ws(600)) {
+      pushTerrainLineX(whiteGeos, sz, 0.35, ws(600), maxX - 6, IS_SCALED_WORLD ? 28 : 16);
     }
   }
 
-  // Faixas de Pedestres e Semáforos 3D nos cruzamentos principais do Centro (adaptados à cota de cada cruzamento!)
-  for (const ix of [-384, -252, -120, 120, 252, 384]) {
-    for (const iz of [-382, -250, -117, 0, 134]) {
-      for (let s = -10; s <= 10; s += 2.5) {
-        const yn = sampleRoadY(ix + s, iz - 16.0) + 0.055;
-        const ys = sampleRoadY(ix + s, iz + 16.0) + 0.055;
+  // Faixas de Pedestres e Semáforos 3D nos cruzamentos principais do Centro
+  const cwHalf = IS_SCALED_WORLD ? 12.5 : 10;
+  const cwOff = mainW * 0.5 + 2.0; // 16.0 em 1x, 19.0 em 3x
+  const poleOff = IS_SCALED_WORLD ? mainW * 0.5 + 1.8 : 15.2;
+
+  for (const dix of [-384, -252, -120, 120, 252, 384]) {
+    const ix = ws(dix);
+    for (const diz of [-382, -250, -117, 0, 134]) {
+      const iz = ws(diz);
+      for (let s = -cwHalf; s <= cwHalf; s += 2.5) {
+        const yn = sampleRoadY(ix + s, iz - cwOff) + 0.055;
+        const ys = sampleRoadY(ix + s, iz + cwOff) + 0.055;
         whiteGeos.push(
-          makeFastBox(1.2, 0.045, 4.2, ix + s, yn, iz - 16.0),
-          makeFastBox(1.2, 0.045, 4.2, ix + s, ys, iz + 16.0)
+          makeFastBox(1.2, 0.045, 4.2, ix + s, yn, iz - cwOff),
+          makeFastBox(1.2, 0.045, 4.2, ix + s, ys, iz + cwOff)
         );
+        if (IS_SCALED_WORLD) {
+          const yw = sampleRoadY(ix - cwOff, iz + s) + 0.055;
+          const ye = sampleRoadY(ix + cwOff, iz + s) + 0.055;
+          whiteGeos.push(
+            makeFastBox(4.2, 0.045, 1.2, ix - cwOff, yw, iz + s),
+            makeFastBox(4.2, 0.045, 1.2, ix + cwOff, ye, iz + s)
+          );
+        }
       }
 
-      const tx = ix + 15.2;
-      const tz = iz + 15.2;
-      const baseTY = sampleRoadY(tx, tz) + 0.28;
+      const tx = ix + poleOff;
+      const tz = iz + poleOff;
+      const baseTY = sampleRoadY(tx, tz) + ROAD.curbHeight;
       poleGeos.push(
         makeFastBox(0.38, 6.2, 0.38, tx, baseTY + 3.1, tz),
         makeFastBox(3.8, 0.24, 0.24, tx - 1.8, baseTY + 5.9, tz),
         makeFastBox(0.55, 1.3, 0.55, tx - 3.2, baseTY + 5.6, tz)
       );
     }
+  }
+
+  // Calçadas reais de 10m + guias de 0.18m + rampas de esquina + miolos lisos (apenas em escala > 1x)
+  if (IS_SCALED_WORLD) {
+    buildScaledUrbanSidewalksAndBlockPads(world);
   }
 
   addChunkedArrayToScene(

@@ -6,12 +6,14 @@
 //
 // A base da ilha é asfalto: tudo que não é calçada/bloco registrado conta como rua.
 
+import { IS_SCALED_WORLD } from './core/WorldLayoutScale.js';
+
 export const PORTAL_SCAN_CONFIG = {
   scanStep: 0.5,       // Passo da varredura lateral do asfalto (m)
-  maxScan: 60,         // Distância lateral máxima procurando a calçada (m)
+  maxScan: IS_SCALED_WORLD ? 90 : 60, // Distância lateral máxima procurando a calçada (m)
   colHalf: 0.7,        // Meia largura do pilar quadrado
   sidewalkInset: 0.35, // Folga entre o meio-fio e a face do pilar
-  sidewalkSlide: 4.0,  // Quanto o pilar pode entrar na calçada procurando lugar livre (m)
+  sidewalkSlide: IS_SCALED_WORLD ? 7.5 : 4.0, // Quanto o pilar pode entrar na calçada procurando lugar livre (m)
   roadMargin: 0.25     // Folga extra entre o pilar e a pista registrada
 };
 
@@ -79,6 +81,7 @@ export function onCrossRoad(roads, x, z, alongZ, margin) {
 export function makeFootingLookup(world, { ignoreBlock = null } = {}) {
   const cell = 32;
   const grid = new Map();
+  const keyOf = (gx, gz) => ((gx + 32768) << 16) | ((gz + 32768) & 0xffff);
   const rects = [
     ...(world.mapSidewalks || []),
     ...(world.mapBlocks || [])
@@ -91,18 +94,67 @@ export function makeFootingLookup(world, { ignoreBlock = null } = {}) {
       }))
   ];
   for (const r of rects) {
-    for (let gx = Math.floor(r.minX / cell); gx <= Math.floor(r.maxX / cell); gx++) {
-      for (let gz = Math.floor(r.minZ / cell); gz <= Math.floor(r.maxZ / cell); gz++) {
-        const k = `${gx},${gz}`;
-        if (!grid.has(k)) grid.set(k, []);
-        grid.get(k).push(r);
+    const gx0 = Math.floor(r.minX / cell);
+    const gx1 = Math.floor(r.maxX / cell);
+    const gz0 = Math.floor(r.minZ / cell);
+    const gz1 = Math.floor(r.maxZ / cell);
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const k = keyOf(gx, gz);
+        let list = grid.get(k);
+        if (!list) {
+          list = [];
+          grid.set(k, list);
+        }
+        list.push(r);
       }
     }
   }
   return (x, z) => {
-    const list = grid.get(`${Math.floor(x / cell)},${Math.floor(z / cell)}`);
+    const list = grid.get(keyOf(Math.floor(x / cell), Math.floor(z / cell)));
     if (!list) return false;
-    for (const r of list) if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i];
+      if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
+    }
+    return false;
+  };
+}
+
+/** Índice espacial rápido (células de 32m, zero alocação por consulta) de prédios que nascem no chão. */
+export function makeBuildingLookup(world) {
+  const cell = 32;
+  const grid = new Map();
+  const keyOf = (gx, gz) => ((gx + 32768) << 16) | ((gz + 32768) & 0xffff);
+  const allCols = world.colliders || [];
+  for (let i = 0; i < allCols.length; i++) {
+    const col = allCols[i];
+    if (col.disabled) continue;
+    if ((col.minY ?? 0) > 2.0 || col.maxY < 3.0) continue;
+    if ((col.maxX - col.minX) * (col.maxZ - col.minZ) < 9) continue;
+    const gx0 = Math.floor(col.minX / cell);
+    const gx1 = Math.floor(col.maxX / cell);
+    const gz0 = Math.floor(col.minZ / cell);
+    const gz1 = Math.floor(col.maxZ / cell);
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const k = keyOf(gx, gz);
+        let list = grid.get(k);
+        if (!list) {
+          list = [];
+          grid.set(k, list);
+        }
+        list.push(col);
+      }
+    }
+  }
+  return (x, z) => {
+    const list = grid.get(keyOf(Math.floor(x / cell), Math.floor(z / cell)));
+    if (!list) return false;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ) return true;
+    }
     return false;
   };
 }

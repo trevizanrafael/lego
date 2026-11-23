@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, createLegoBrick } from '../../../materials/LegoMaterials.js';
 import { mergeBufferGeometries, makeTranslatedBox } from '../../BuildingGenerator.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 import {
   UMBRELLA_KEYS,
   SANTOS_CANALS_X,
@@ -12,13 +13,13 @@ import {
 
 /**
  * 2. OS 3 CANAIS ESTILO SANTOS (Canal 1, Canal 2 e Canal 3):
- * Descem da Avenida Beira-Mar (Z = 720), cortam o Calçadão e dividem a Areia da Praia até desaguar no Oceano (Z = 1068)!
+ * Descem da Avenida Beira-Mar, cortam o Calçadão e dividem a Areia da Praia até desaguar no Oceano (largura 1x)!
  */
 export function buildSantosStyleBeachCanals(world, batcher) {
   SANTOS_CANALS_X.forEach((cx, idx) => {
     const canalNum = idx + 1;
-    const canalZStart = 724;
-    const canalZEnd = 1066;
+    const canalZStart = ws(724);
+    const canalZEnd = ws(1066);
     const canalLen = canalZEnd - canalZStart;
     const canalCenterZ = (canalZStart + canalZEnd) * 0.5;
 
@@ -29,33 +30,53 @@ export function buildSantosStyleBeachCanals(world, batcher) {
     // 2. Paredões Laterais de Concreto & Muretas Brancas/Azuis Clássicas de Santos
     const leftWallX = cx - CANAL_WIDTH * 0.5;
     const rightWallX = cx + CANAL_WIDTH * 0.5;
+    const footbridgeZ = ws(910);
+    const bridgeZStart = IS_SCALED_WORLD ? ws(724) : 726;
+    const bridgeZEnd = ws(778);
+    const bridgeDepth = bridgeZEnd - bridgeZStart;
+    const bridgeCenterZ = (bridgeZStart + bridgeZEnd) * 0.5;
+    const bikeZ = IS_SCALED_WORLD ? ws(726) + 5 : 731;
+
+    const p1Start = IS_SCALED_WORLD ? bridgeZEnd + 1.5 : 727.5;
+    const p1End = IS_SCALED_WORLD ? footbridgeZ - 8.5 : 892.5;
+    const p1Len = p1End - p1Start;
+    const p1CenterZ = (p1Start + p1End) * 0.5;
+
+    const p2Start = IS_SCALED_WORLD ? footbridgeZ + 8.5 : 925;
+    const p2End = ws(1045);
+    const p2Len = p2End - p2Start;
+    const p2CenterZ = (p2Start + p2End) * 0.5;
+
     for (const wx of [leftWallX, rightWallX]) {
       batcher.addBox('stone_grey', 1.8, 1.4, canalLen, wx, 0.1, canalCenterZ);
-      // Mureta de proteção superior (interrompida apenas na passarela da areia Z=910)
-      batcher.addBox('trim_white', 0.85, 0.85, 165, wx, 0.95, 810);
-      batcher.addBox('umb_blue', 0.9, 0.22, 165, wx, 1.38, 810);
-      batcher.addBox('trim_white', 0.85, 0.85, 120, wx, 0.95, 985);
-      batcher.addBox('umb_blue', 0.9, 0.22, 120, wx, 1.38, 985);
+      // Mureta de proteção superior (interrompida apenas na ponte do calçadão e na passarela da areia)
+      batcher.addBox('trim_white', 0.85, 0.85, p1Len, wx, 0.95, p1CenterZ);
+      batcher.addBox('umb_blue', 0.9, 0.22, p1Len, wx, 1.38, p1CenterZ);
+      batcher.addBox('trim_white', 0.85, 0.85, p2Len, wx, 0.95, p2CenterZ);
+      batcher.addBox('umb_blue', 0.9, 0.22, p2Len, wx, 1.38, p2CenterZ);
     }
 
-    // 3. Ponte do Calçadão & Ciclovia sobre o Canal (Z = 752, largura 52m) com Balaustrada Branca
-    batcher.addBox('stone_white', CANAL_WIDTH + 4, 0.48, 52, cx, 0.24, 752);
-    batcher.addBox('bike_red', CANAL_WIDTH + 4, 0.06, 4.6, cx, 0.54, 731);
-    batcher.addBox('trim_white', CANAL_WIDTH + 4, 1.1, 0.6, cx, 0.8, 726.5);
-    batcher.addBox('trim_white', CANAL_WIDTH + 4, 1.1, 0.6, cx, 0.8, 777.5);
+    // 3. Ponte do Calçadão & Ciclovia sobre o Canal com Balaustrada Branca
+    batcher.addBox('stone_white', CANAL_WIDTH + 4, 0.48, bridgeDepth, cx, 0.24, bridgeCenterZ);
+    batcher.addBox('bike_red', CANAL_WIDTH + 4, 0.06, 4.6, cx, 0.54, bikeZ);
+    batcher.addBox('trim_white', CANAL_WIDTH + 4, 1.1, 0.6, cx, 0.8, bridgeZStart + 0.5);
+    batcher.addBox('trim_white', CANAL_WIDTH + 4, 1.1, 0.6, cx, 0.8, bridgeZEnd - 0.5);
 
-    // 4. Passarela Arqueada de Pedestres & Buggies no Meio da Areia (Z = 910, largura 14m)
-    batcher.addBox('wood_deck', CANAL_WIDTH + 6, 0.55, 14, cx, 0.45, 910);
-    batcher.addBox('trim_white', CANAL_WIDTH + 6, 1.0, 0.45, cx, 1.1, 903.2);
-    batcher.addBox('trim_white', CANAL_WIDTH + 6, 1.0, 0.45, cx, 1.1, 916.8);
+    // 4. Passarela Arqueada de Pedestres & Buggies no Meio da Areia (Z = ws(910), largura 14m 1x!)
+    batcher.addBox('wood_deck', CANAL_WIDTH + 6, 0.55, 14, cx, 0.45, footbridgeZ);
+    batcher.addBox('trim_white', CANAL_WIDTH + 6, 1.0, 0.45, cx, 1.1, footbridgeZ - 6.8);
+    batcher.addBox('trim_white', CANAL_WIDTH + 6, 1.0, 0.45, cx, 1.1, footbridgeZ + 6.8);
 
-    // 5. Molhes de Pedra na Boca do Canal entrando nas ondas do mar (Z = 1045..1074)
-    batcher.addBox('stone_black', 3.4, 1.5, 32, leftWallX, 0.25, 1058);
-    batcher.addBox('stone_black', 3.4, 1.5, 32, rightWallX, 0.25, 1058);
-    batcher.addBox('surf_foam', CANAL_WIDTH + 8, 0.16, 8, cx, -0.14, 1068);
+    // 5. Molhes de Pedra na Boca do Canal entrando nas ondas do mar
+    const jettyZ = IS_SCALED_WORLD ? ws(1055) : 1058;
+    const jettyLen = IS_SCALED_WORLD ? 54 : 32;
+    const foamZ = IS_SCALED_WORLD ? ws(1066) : 1068;
+    batcher.addBox('stone_black', 3.4, 1.5, jettyLen, leftWallX, 0.25, jettyZ);
+    batcher.addBox('stone_black', 3.4, 1.5, jettyLen, rightWallX, 0.25, jettyZ);
+    batcher.addBox('surf_foam', CANAL_WIDTH + 8, 0.16, 8, cx, -0.14, foamZ);
 
     // Placa Identificadora "CANAL 1 / 2 / 3" junto ao Calçadão
-    addNeonHotelSign(world, cx, 3.6, 727, 14, `CANAL ${canalNum}`, '#38bdf8', '#ffffff');
+    addNeonHotelSign(world, cx, 3.6, ws(726) + 1, 14, `CANAL ${canalNum}`, '#38bdf8', '#ffffff');
 
     world.santosCanals.push({ canalNum, x: cx, width: CANAL_WIDTH, zStart: canalZStart, zEnd: canalZEnd });
   });
@@ -65,15 +86,30 @@ export function buildSantosStyleBeachCanals(world, batcher) {
  * 3. AVENIDA BEIRA-MAR & CALÇADÃO DE COQUEIROS (Cortado pelas Pontes dos 3 Canais)
  */
 export function buildOceanfrontBoardwalk(world, batcher) {
-  const bwDepth = 52;
-  const bwZ = 752;
+  const bwZStart = ws(726);
+  const bwZEnd = ws(778);
+  const bwDepth = bwZEnd - bwZStart;
+  const bwZ = (bwZStart + bwZEnd) * 0.5;
+  const bikeZ = IS_SCALED_WORLD ? bwZStart + 5 : 731;
 
-  // Calçadão dividido em 4 trechos entre os 3 Canais (terminando em X = 538 na Foz do Rio Urbano!)
+  // Em 3x: Calçada Sul de 10m + esplanada conectando o meio-fio sul da Av. Beira-Mar (Z = ws(710) + 17) ao Calçadão (ws(726))
+  if (IS_SCALED_WORLD) {
+    const aveSouthCurbZ = ws(710) + ROAD.mainWidth * 0.5;
+    const apronDepth = bwZStart - aveSouthCurbZ;
+    if (apronDepth > 0.5) {
+      const apronW = ws(538) - ws(-1825);
+      const apronCX = (ws(-1825) + ws(538)) * 0.5;
+      const apronCZ = (aveSouthCurbZ + bwZStart) * 0.5;
+      batcher.addBox('stone_grey', apronW, ROAD.curbHeight, apronDepth, apronCX, ROAD.curbHeight * 0.5, apronCZ);
+    }
+  }
+
+  // Calçadão dividido em 4 trechos entre os 3 Canais (terminando em X = ws(538) na Foz do Rio Urbano!)
   const segmentsX = [
-    [-1825, SANTOS_CANALS_X[0] - CANAL_WIDTH * 0.5],
+    [ws(-1825), SANTOS_CANALS_X[0] - CANAL_WIDTH * 0.5],
     [SANTOS_CANALS_X[0] + CANAL_WIDTH * 0.5, SANTOS_CANALS_X[1] - CANAL_WIDTH * 0.5],
     [SANTOS_CANALS_X[1] + CANAL_WIDTH * 0.5, SANTOS_CANALS_X[2] - CANAL_WIDTH * 0.5],
-    [SANTOS_CANALS_X[2] + CANAL_WIDTH * 0.5, 538]
+    [SANTOS_CANALS_X[2] + CANAL_WIDTH * 0.5, ws(538)]
   ];
 
   for (const [xStart, xEnd] of segmentsX) {
@@ -87,73 +123,99 @@ export function buildOceanfrontBoardwalk(world, batcher) {
     world.scene.add(boardwalkSeg);
     world.mapBlocks.push({ x: segCenterX, z: bwZ, w: segW, d: bwDepth, color: '#e2e8f0' });
 
-    batcher.addBox('bike_red', segW, 0.05, 4.6, segCenterX, 0.365, 731);
-    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.38, 728.6);
-    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.38, 733.4);
+    batcher.addBox('bike_red', segW, 0.05, 4.6, segCenterX, 0.365, bikeZ);
+    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.38, bikeZ - 2.4);
+    batcher.addBox('trim_white', segW, 0.06, 0.25, segCenterX, 0.38, bikeZ + 2.4);
   }
 
   // Padrão de Pedras Portuguesas em Ondas Pretas e Brancas sem interseção coplanar com o piso
-  for (let wx = -1800; wx <= 528; wx += 16) {
-    if (isInsideSantosCanal(wx, 4)) continue;
-    const waveOffset = Math.sin(wx * 0.06) * 4.5;
-    batcher.addBox('stone_black', 14.0, 0.04, 3.6, wx, 0.36, bwZ - 6 + waveOffset);
-    batcher.addBox('stone_black', 14.0, 0.04, 3.6, wx, 0.36, bwZ + 8 - waveOffset);
+  const waveStep = IS_SCALED_WORLD ? 42 : 16;
+  const waveBoxW = IS_SCALED_WORLD ? 34.0 : 14.0;
+  for (let wx = ws(-1800); wx <= ws(528); wx += waveStep) {
+    if (isInsideSantosCanal(wx, IS_SCALED_WORLD ? 14 : 4)) continue;
+    const waveOffset = Math.sin(wx * (IS_SCALED_WORLD ? 0.025 : 0.06)) * (IS_SCALED_WORLD ? 8.5 : 4.5);
+    batcher.addBox('stone_black', waveBoxW, 0.04, 3.6, wx, 0.36, bwZ - (IS_SCALED_WORLD ? 28 : 6) + waveOffset);
+    batcher.addBox('stone_black', waveBoxW, 0.04, 3.6, wx, 0.36, bwZ + (IS_SCALED_WORLD ? 28 : 8) - waveOffset);
   }
 
-  for (let px = -1780; px <= 516; px += 36) {
+  // Coqueiros curvos e bancos ao longo do Calçadão (escala 1x e contagem enxuta 60 FPS!)
+  const palmStep = IS_SCALED_WORLD ? 96 : 36;
+  const palmNorthZ = IS_SCALED_WORLD ? bwZStart + 16 : 738;
+  const palmSouthZ = IS_SCALED_WORLD ? bwZEnd - 8 : 772;
+  const benchZ = IS_SCALED_WORLD ? bwZEnd - 3.5 : 774.5;
+  for (let px = ws(-1780); px <= ws(516); px += palmStep) {
     if (Math.abs(px) < 52 || isInsideSantosCanal(px, 12)) continue;
-    const leanX = ((px % 3) - 1) * 0.22;
-    addCurvedLegoPalmTree(batcher, px, 0.32, 738, leanX, 0.82, 1.12);
-    if (Math.abs(px) % 72 === 0) {
-      addCurvedLegoPalmTree(batcher, px + 12, 0.32, 772, -leanX, 0.9, 1.18);
+    const leanX = ((Math.round(px) % 3) - 1) * 0.22;
+    addCurvedLegoPalmTree(batcher, px, 0.32, palmNorthZ, leanX, 0.82, 1.12);
+    if (Math.abs(Math.round(px)) % (palmStep * 2) === 0) {
+      addCurvedLegoPalmTree(batcher, px + 12, 0.32, palmSouthZ, -leanX, 0.9, 1.18);
     }
-    batcher.addBox('trim_white', 3.4, 0.55, 0.9, px + 8, 0.58, 774.5);
-    batcher.addBox('wood_deck', 3.4, 0.55, 0.22, px + 8, 0.95, 774.1);
+    batcher.addBox('trim_white', 3.4, 0.55, 0.9, px + 8, 0.58, benchZ);
+    batcher.addBox('wood_deck', 3.4, 0.55, 0.22, px + 8, 0.95, benchZ - 0.4);
   }
 }
 
 /**
- * 4. FAIXA EXTENSA DE AREIA DOURADA (SEPARADA EM 4 PRAIAS PELOS 3 CANAIS DE SANTOS E ESTENDIDA ATÉ X = -1825!)
+ * 4. FAIXA EXTENSA DE AREIA DOURADA (SEPARADA EM 4 PRAIAS PELOS 3 CANAIS DE SANTOS E ESTENDIDA ATÉ X = ws(-1825)!)
  */
 export function buildGoldenBeachAndShorelineLife(world, batcher) {
   const beachSegmentsX = [
-    [-1825, SANTOS_CANALS_X[0] - CANAL_WIDTH * 0.5],
+    [ws(-1825), SANTOS_CANALS_X[0] - CANAL_WIDTH * 0.5],
     [SANTOS_CANALS_X[0] + CANAL_WIDTH * 0.5, SANTOS_CANALS_X[1] - CANAL_WIDTH * 0.5],
     [SANTOS_CANALS_X[1] + CANAL_WIDTH * 0.5, SANTOS_CANALS_X[2] - CANAL_WIDTH * 0.5],
-    [SANTOS_CANALS_X[2] + CANAL_WIDTH * 0.5, 538]
+    [SANTOS_CANALS_X[2] + CANAL_WIDTH * 0.5, ws(538)]
   ];
 
-  // Constrói os 4 trechos de Areia Dourada separados pelos 3 Canais e terminando na Foz do Rio Urbano (X = 538)!
+  const sandDepth = ws(258);
+  const sandCenterZ = ws(907);
+  const wetSandZ = ws(1044);
+  const wetSandD = IS_SCALED_WORLD ? 48 : 18;
+  const surfFoamZ = ws(1054);
+  const surfFoamD = IS_SCALED_WORLD ? 6.0 : 3.2;
+
+  // Constrói os 4 trechos de Areia Dourada separados pelos 3 Canais e terminando na Foz do Rio Urbano (X = ws(538))!
   for (const [xStart, xEnd] of beachSegmentsX) {
     const segW = xEnd - xStart;
     const segCenterX = (xStart + xEnd) * 0.5;
-    const sandSeg = createLegoBrick(segW, 0.28, 258, 0xb89f72, {
+    const sandSeg = createLegoBrick(segW, 0.28, sandDepth, 0xb89f72, {
       studs: false,
       roughness: 0.74
     });
-    sandSeg.position.set(segCenterX, -0.02, 907);
+    sandSeg.position.set(segCenterX, -0.02, sandCenterZ);
     world.scene.add(sandSeg);
-    world.mapBlocks.push({ x: segCenterX, z: 907, w: segW, d: 258, color: '#b89f72' });
+    world.mapBlocks.push({ x: segCenterX, z: sandCenterZ, w: segW, d: sandDepth, color: '#b89f72' });
 
-    batcher.addBox('sand_wet', segW, 0.22, 18, segCenterX, -0.12, 1044);
-    batcher.addBox('surf_foam', segW, 0.14, 3.2, segCenterX, -0.16, 1054);
+    batcher.addBox('sand_wet', segW, 0.22, wetSandD, segCenterX, -0.12, wetSandZ);
+    batcher.addBox('surf_foam', segW, 0.14, surfFoamD, segCenterX, -0.16, surfFoamZ);
   }
 
   const sandY = 0.12;
+  const volleyXList = [-460, -210, 165, 340].map(ws);
+  const volleyZ = ws(865);
+  const lifeguardXList = [-250, 185].map(ws);
+  const lifeguardZ = ws(905);
 
-  // Guarda-Sóis Listrados, Espreguiçadeiras e Toalhas respeitando os 3 Canais, Dunas, Píer e a Foz do Rio Urbano
-  const rowsZ = [815, 865, 925, 980];
+  // Guarda-Sóis Listrados, Espreguiçadeiras e Toalhas em escala 1x e contagem controlada (~1.2x em 3x para 60 FPS!)
+  const rowsZ = IS_SCALED_WORLD ? [ws(815), ws(865), ws(940), ws(995)] : [815, 865, 925, 980];
   for (let r = 0; r < rowsZ.length; r++) {
     const rz = rowsZ[r];
-    for (let ux = -1620; ux <= 515; ux += 48) {
-      if (Math.abs(ux) < 54 || isInsideSantosCanal(ux, 18)) continue;
-      if (ux >= -1560 && ux <= -1060 && rz >= 830 && rz <= 975) continue;
-      if (rz === 865 && (Math.abs(ux - 165) < 26 || Math.abs(ux + 210) < 26 || Math.abs(ux - 340) < 26 || Math.abs(ux + 460) < 26)) {
+    let ux = ws(-1620);
+    while (ux <= ws(515)) {
+      const stepX = IS_SCALED_WORLD ? (Math.abs(ux) <= 450 ? 64 : 132) : 48;
+      const curX = ux;
+      ux += stepX;
+
+      if (Math.abs(curX) < 54 || isInsideSantosCanal(curX, 18)) continue;
+      if (curX >= ws(-1560) && curX <= ws(-1060) && rz >= ws(830) && rz <= ws(975)) continue;
+      if (Math.abs(rz - volleyZ) < 16 && volleyXList.some((vx) => Math.abs(curX - vx) < 26)) {
+        continue;
+      }
+      if (Math.abs(rz - lifeguardZ) < 16 && lifeguardXList.some((lx) => Math.abs(curX - lx) < 18)) {
         continue;
       }
 
-      const jitterX = ux + ((r * 17 + ux) % 11) - 5;
-      const jitterZ = rz + ((ux * 7) % 9) - 4;
+      const jitterX = curX + ((r * 17 + Math.round(curX)) % 11) - 5;
+      const jitterZ = rz + ((Math.round(curX) * 7) % 9) - 4;
       const localSandY = Math.max(sandY, world.getTerrainHeightAt ? world.getTerrainHeightAt(jitterX, jitterZ) : sandY);
       const uColor = UMBRELLA_KEYS[Math.floor(Math.random() * UMBRELLA_KEYS.length)];
       const towelColor = UMBRELLA_KEYS[Math.floor(Math.random() * UMBRELLA_KEYS.length)];
@@ -169,14 +231,16 @@ export function buildGoldenBeachAndShorelineLife(world, batcher) {
     }
   }
 
-  // 2 Postos / Torres de Salva-Vidas (X = -250 e X = +185, longe dos canais!)
-  for (const lx of [-250, 185]) {
-    buildLifeguardTower(world, batcher, lx, sandY, 905);
+  // 2 Postos / Torres de Salva-Vidas (tamanho 1x, longe dos canais!)
+  for (const lx of lifeguardXList) {
+    const ly = Math.max(sandY, world.getTerrainHeightAt ? world.getTerrainHeightAt(lx, lifeguardZ) : sandY);
+    buildLifeguardTower(world, batcher, lx, ly, lifeguardZ);
   }
 
-  // 4 Redes de Vôlei de Praia entre os canais
-  for (const vx of [-460, -210, 165, 340]) {
-    buildBeachVolleyballCourt(batcher, vx, sandY, 865);
+  // 4 Redes de Vôlei de Praia entre os canais (tamanho 1x!)
+  for (const vx of volleyXList) {
+    const vy = Math.max(sandY, world.getTerrainHeightAt ? world.getTerrainHeightAt(vx, volleyZ) : sandY);
+    buildBeachVolleyballCourt(batcher, vx, vy, volleyZ);
   }
 
   // 16 Castelos de Areia de LEGO Quebráveis espalhados pelas 4 faixas de praia!
@@ -186,8 +250,11 @@ export function buildGoldenBeachAndShorelineLife(world, batcher) {
     [62, 975], [75, 845], [95, 990], [145, 935],
     [195, 1005], [305, 945], [355, 995], [420, 955]
   ];
-  for (const [cx, cz] of castlePositions) {
-    spawnBreakableSandcastle(world, cx, sandY, cz);
+  for (const [dcx, dcz] of castlePositions) {
+    const cx = ws(dcx);
+    const cz = ws(dcz);
+    const cy = Math.max(sandY, world.getTerrainHeightAt ? world.getTerrainHeightAt(cx, cz) : sandY);
+    spawnBreakableSandcastle(world, cx, cy, cz);
   }
 }
 
@@ -287,14 +354,14 @@ function spawnBreakableSandcastle(world, x, yBase, z) {
 }
 
 /**
- * 6A. PONTA DA PRAIA / COSTÃO SUDOESTE — FAROL MARÍTIMO (X = -1735, Z = 945, 67m) & DUNAS DE AREIA COM COQUEIROS
+ * 6A. PONTA DA PRAIA / COSTÃO SUDOESTE — FAROL MARÍTIMO (X = ws(-1735), Z = ws(945), 67m 1x!) & DUNAS DE AREIA COM COQUEIROS
  */
 export function buildSouthwestPointLighthouseAndDunes(world, batcher) {
-  // 1. COSTÃO ROCHOSO SUDOESTE & FAROL MARÍTIMO VERMELHO E BRANCO DE LEGO (X = -1735, Z = 945)
-  const lhX = -1735;
-  const lhZ = 945;
+  // 1. COSTÃO ROCHOSO SUDOESTE & FAROL MARÍTIMO VERMELHO E BRANCO DE LEGO (tamanho e altura 67m em 1x!)
+  const lhX = ws(-1735);
+  const lhZ = ws(945);
 
-  // Promontório de rochas costeiras escuras escalonadas na Ponta Sudoeste (X = -1815..-1655, Z = 865..1040)
+  // Promontório de rochas costeiras escuras escalonadas na Ponta Sudoeste
   batcher.addBox('stone_black', 150, 4.2, 160, lhX, 2.1, lhZ);
   batcher.addBox('stone_grey', 112, 7.6, 120, lhX, 5.8, lhZ);
   batcher.addBox('stone_black', 76, 10.8, 82, lhX, 9.6, lhZ);
@@ -345,19 +412,20 @@ export function buildSouthwestPointLighthouseAndDunes(world, batcher) {
     label: 'FAROL COSTÃO OESTE'
   });
 
-  // 2. DUNAS DE AREIA DOURADA COM COQUEIROS & PISTA DE BUGGY (X = -1540..-1080, Z = 835..965)
+  // 2. DUNAS DE AREIA DOURADA COM COQUEIROS & PISTA DE BUGGY (tamanho e altura em 1x!)
   const duneClusters = [
-    { x: -1510, z: 875, w: 96, d: 58, h: 4.8 },
-    { x: -1395, z: 915, w: 112, d: 64, h: 6.2 },
-    { x: -1275, z: 868, w: 104, d: 56, h: 5.4 },
-    { x: -1155, z: 908, w: 98, d: 62, h: 4.6 }
+    { x: ws(-1510), z: ws(875), w: 96, d: 58, h: 4.8 },
+    { x: ws(-1395), z: ws(915), w: 112, d: 64, h: 6.2 },
+    { x: ws(-1275), z: ws(868), w: 104, d: 56, h: 5.4 },
+    { x: ws(-1155), z: ws(908), w: 98, d: 62, h: 4.6 }
   ];
   for (const d of duneClusters) {
-    batcher.addBox('coastal_sun', d.w, d.h * 0.45, d.d, d.x, d.h * 0.22, d.z);
-    batcher.addBox('sand_wet', d.w * 0.68, d.h * 0.4, d.d * 0.68, d.x, d.h * 0.62, d.z);
-    batcher.addBox('coastal_sun', d.w * 0.38, d.h * 0.32, d.d * 0.38, d.x, d.h * 0.92, d.z);
-    addCurvedLegoPalmTree(batcher, d.x - d.w * 0.22, d.h * 0.65, d.z - 6, -0.22, 0.85, 1.15);
-    addCurvedLegoPalmTree(batcher, d.x + d.w * 0.22, d.h * 0.65, d.z + 6, 0.24, 0.82, 1.1);
+    const groundY = Math.max(0, world.getTerrainHeightAt ? world.getTerrainHeightAt(d.x, d.z) : 0);
+    batcher.addBox('coastal_sun', d.w, d.h * 0.45, d.d, d.x, groundY + d.h * 0.22, d.z);
+    batcher.addBox('sand_wet', d.w * 0.68, d.h * 0.4, d.d * 0.68, d.x, groundY + d.h * 0.62, d.z);
+    batcher.addBox('coastal_sun', d.w * 0.38, d.h * 0.32, d.d * 0.38, d.x, groundY + d.h * 0.92, d.z);
+    addCurvedLegoPalmTree(batcher, d.x - d.w * 0.22, groundY + d.h * 0.65, d.z - 6, -0.22, 0.85, 1.15);
+    addCurvedLegoPalmTree(batcher, d.x + d.w * 0.22, groundY + d.h * 0.65, d.z + 6, 0.24, 0.82, 1.1);
   }
 
   world.southwestBeachData = {

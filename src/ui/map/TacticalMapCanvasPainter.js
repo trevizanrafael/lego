@@ -27,6 +27,7 @@ import {
   STATIC_MAP_MIN_WZ,
   STATIC_MAP_SPAN
 } from '../minimap/MinimapTerrainAndRoadsPainter.js';
+import { WORLD_SCALE, ws } from '../../world/core/WorldLayoutScale.js';
 
 function drawChamferedPlaque(ctx, x, y, w, h, cut, fillStyle, strokeStyle, lineWidth = 1.2) {
   const c = Math.min(cut, w * 0.25, h * 0.45);
@@ -137,7 +138,7 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
 
   const w = hud.fullmapCanvas.width;
   const h = hud.fullmapCanvas.height;
-  const baseScale = 0.088; // 680px cobre toda a super-escala Pangeia (~7700m na visao 1.0x)
+  const baseScale = 0.088 / WORLD_SCALE;
   const scale = baseScale * hud.mapZoom;
   const cx = w * 0.48 + hud.mapPanX;
   const cy = h * 0.48 + hud.mapPanY;
@@ -153,7 +154,9 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
 
   ctx.strokeStyle = 'rgba(71, 85, 105, 0.12)';
   ctx.lineWidth = 1;
-  for (let g = -3600; g <= 3600; g += 400) {
+  const gridLimit = ws(3600);
+  const gridStep = ws(400);
+  for (let g = -gridLimit; g <= gridLimit; g += gridStep) {
     ctx.beginPath();
     ctx.moveTo(toX(g), 0);
     ctx.lineTo(toX(g), h);

@@ -9,6 +9,7 @@ import {
   flushSpatialChunkedBuckets
 } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 
 /**
  * Batcher dedicado de materiais para manter 60 FPS cravados no Parque Central.
@@ -64,7 +65,7 @@ export function createParkBatcher() {
     },
     flush(scene) {
       flushSpatialChunkedBuckets(scene, buckets, palette, {
-        chunkSize: 768,
+        chunkSize: ws(512),
         castShadowFn: (key) => key !== 'lamp_globe' && key !== 'water_foam' && key !== 'stone_path',
         receiveShadowFn: () => true
       });
@@ -73,25 +74,75 @@ export function createParkBatcher() {
 }
 
 /**
+ * Calçada Perimetral Externa do Parque Central em 3x (+0.18m), preenchendo da guia das
+ * avenidas circundantes até a mureta do parque e registrando corredores de pedestres.
+ */
+export function buildScaledParkPerimeterSidewalk(world, batcher, px, pz, pw, pd, curbH) {
+  const bMinX = ws(-516) + ROAD.secondaryWidth * 0.5;
+  const bMaxX = ws(516) - ROAD.secondaryWidth * 0.5;
+  const bMinZ = ws(134) + ROAD.mainWidth * 0.5;
+  const bMaxZ = ws(402) - ROAD.mainWidth * 0.5;
+
+  const pMinX = px - pw * 0.5;
+  const pMaxX = px + pw * 0.5;
+  const pMinZ = pz - pd * 0.5;
+  const pMaxZ = pz + pd * 0.5;
+
+  const strips = [
+    { minX: bMinX, maxX: bMaxX, minZ: bMinZ, maxZ: pMinZ, axis: 'x', blockId: 'park_north' },
+    { minX: bMinX, maxX: bMaxX, minZ: pMaxZ, maxZ: bMaxZ, axis: 'x', blockId: 'park_south' },
+    { minX: bMinX, maxX: pMinX, minZ: pMinZ, maxZ: pMaxZ, axis: 'z', blockId: 'park_west' },
+    { minX: pMaxX, maxX: bMaxX, minZ: pMinZ, maxZ: pMaxZ, axis: 'z', blockId: 'park_east' }
+  ];
+
+  if (!world.mapSidewalks) world.mapSidewalks = [];
+  if (!world.sidewalkCorridors) world.sidewalkCorridors = [];
+
+  for (const s of strips) {
+    const w = s.maxX - s.minX;
+    const d = s.maxZ - s.minZ;
+    if (w <= 0.5 || d <= 0.5) continue;
+    batcher.addBox('stone_dark', w, curbH + 0.14, d, (s.minX + s.maxX) * 0.5, (curbH - 0.14) * 0.5, (s.minZ + s.maxZ) * 0.5);
+    world.mapSidewalks.push({ minX: s.minX, maxX: s.maxX, minZ: s.minZ, maxZ: s.maxZ });
+    world.sidewalkCorridors.push({
+      minX: s.minX,
+      maxX: s.maxX,
+      minZ: s.minZ,
+      maxZ: s.maxZ,
+      axis: s.axis,
+      centerCoord: s.axis === 'x' ? (s.minZ + s.maxZ) * 0.5 : (s.minX + s.maxX) * 0.5,
+      blockId: s.blockId
+    });
+  }
+}
+
+/**
  * 1. PERÍMETRO DE PEDRA CINZA/TIJOLO COM PINOS DE LEGO, POSTES DE FERRO PRETO & 4 PORTÕES CLÁSSICOS
  */
 export function buildStonePerimeterWallsAndGates(world, batcher, px, pz, pw, pd, groundY) {
-  const halfW = pw * 0.5; // 490
-  const halfD = pd * 0.5; // 116
-  const northZ = pz - halfD; // 152
-  const southZ = pz + halfD; // 384
-  const westX = px - halfW;  // -490
-  const eastX = px + halfW;  // +490
+  const halfW = pw * 0.5;
+  const halfD = pd * 0.5;
+  const northZ = pz - halfD;
+  const southZ = pz + halfD;
+  const westX = px - halfW;
+  const eastX = px + halfW;
 
   const studPositions = [];
 
+  const gX1 = ws(-355);
+  const gX2 = ws(-195);
+  const gX3 = ws(205);
+  const gX4 = ws(395);
+  const gZ1 = ws(196);
+  const gZ2 = ws(340);
+
   const isGateOpeningX = (x) =>
     Math.abs(x) < 15 ||
-    Math.abs(x + 355) < 10 ||
-    Math.abs(x + 195) < 10 ||
-    Math.abs(x - 205) < 13 ||
-    Math.abs(x - 395) < 10;
-  const isGateOpeningZ = (z) => Math.abs(z - pz) < 14 || Math.abs(z - 196) < 8 || Math.abs(z - 340) < 8;
+    Math.abs(x - gX1) < 10 ||
+    Math.abs(x - gX2) < 10 ||
+    Math.abs(x - gX3) < 13 ||
+    Math.abs(x - gX4) < 10;
+  const isGateOpeningZ = (z) => Math.abs(z - pz) < 14 || Math.abs(z - gZ1) < 8 || Math.abs(z - gZ2) < 8;
 
   // Mureta Baixa Norte e Sul (Z = 152 e Z = 384) com Pinos de LEGO no topo!
   for (const wallZ of [northZ, southZ]) {
@@ -163,8 +214,8 @@ export function buildStonePerimeterWallsAndGates(world, batcher, px, pz, pw, pd,
   buildMonumentalParkGate(world, batcher, westX, groundY, pz, true, 'PORTÃO OESTE ');
   buildMonumentalParkGate(world, batcher, eastX, groundY, pz, true, 'PORTÃO LESTE ');
 
-  // Pilares Clássicos nos Portões Secundários das Trilhas (X = -355, -195, +205, +395)
-  for (const gx of [-355, -195, 205, 395]) {
+  // Pilares Clássicos nos Portões Secundários das Trilhas (X = ws(-355), ws(-195), ws(205), ws(395))
+  for (const gx of [gX1, gX2, gX3, gX4]) {
     for (const gz of [northZ, southZ]) {
       for (const side of [-1, 1]) {
         const pxGate = gx + side * 10.5;
@@ -242,57 +293,75 @@ function buildMonumentalParkGate(world, batcher, gx, groundY, gz, isEastWest, ga
  *    CHAFARIZ DE 3 CAMADAS COM STUDS, BANCOS, LIXEIRAS, BEBEDOUROS & 3 CORETOS!
  */
 export function buildPavedPathsCentralPlazaAndFountain(world, batcher, px, pz, pw, pd, groundY) {
+  const westEdgeX = px - pw * 0.5 + 2;
+  const eastEdgeX = px + pw * 0.5 - 2;
+  const lakeWestShoreX = ws(70) + 2;
+  const lakeEastShoreX = ws(340) - 2;
+  const northZ = pz - pd * 0.5;
+  const southZ = pz + pd * 0.5;
+  const lakeNorthZ = ws(187);
+  const lakeSouthZ = ws(349);
+  const bridgeX = ws(205);
+
   // ============================================================================
   // 2A. REDE COMPLETA DE ALAMEDAS E TRILHAS DE PEDRA CORTANDO A FLORESTA DO PARQUE!
   // ============================================================================
-  // 1. Alameda Central Leste-Oeste (Z = 268):
-  //    - Trecho Oeste até o Grande Lago (X = -488..+72, comprimento 560m, largura 15m)
-  batcher.addBox('stone_dark', 560, 0.06, 15.4, -208, groundY + 0.02, pz);
-  batcher.addBox('stone_path', 558, 0.08, 13.8, -208, groundY + 0.04, pz);
-  //    - Trecho Leste do Grande Lago até o Portão Leste (X = +338..+488, comprimento 150m)
-  batcher.addBox('stone_dark', 150, 0.06, 15.4, 413, groundY + 0.02, pz);
-  batcher.addBox('stone_path', 148, 0.08, 13.8, 413, groundY + 0.04, pz);
+  // 1. Alameda Central Leste-Oeste (z = pz, larguras 1x preservadas!)
+  const westSegLen = lakeWestShoreX - westEdgeX;
+  const westSegMid = (westEdgeX + lakeWestShoreX) * 0.5;
+  batcher.addBox('stone_dark', westSegLen, 0.06, 15.4, westSegMid, groundY + 0.02, pz);
+  batcher.addBox('stone_path', westSegLen - 2, 0.08, 13.8, westSegMid, groundY + 0.04, pz);
 
-  // 2. DUAS NOVAS ALAMEDAS FLORESTAIS LONGITUDINAIS (Norte Z = 178 e Sul Z = 358, de X = -488 a +488!)
-  //    Essas duas trilhas atravessam os bosques Norte e Sul inteiros e contornam as margens do Grande Lago!
-  for (const trailZ of [178, 358]) {
-    batcher.addBox('stone_dark', 976, 0.05, 9.6, 0, groundY + 0.02, trailZ);
-    batcher.addBox('stone_path', 974, 0.07, 8.2, 0, groundY + 0.035, trailZ);
+  const eastSegLen = eastEdgeX - lakeEastShoreX;
+  const eastSegMid = (lakeEastShoreX + eastEdgeX) * 0.5;
+  batcher.addBox('stone_dark', eastSegLen, 0.06, 15.4, eastSegMid, groundY + 0.02, pz);
+  batcher.addBox('stone_path', eastSegLen - 2, 0.08, 13.8, eastSegMid, groundY + 0.04, pz);
+
+  // 2. DUAS ALAMEDAS FLORESTAIS LONGITUDINAIS (Norte ws(178) e Sul ws(358))
+  const longSpanW = pw - 4;
+  for (const trailZ of [ws(178), ws(358)]) {
+    batcher.addBox('stone_dark', longSpanW, 0.05, 9.6, px, groundY + 0.02, trailZ);
+    batcher.addBox('stone_path', longSpanW - 2, 0.07, 8.2, px, groundY + 0.035, trailZ);
   }
 
-  // 3. DUAS TRILHAS INTERMEDIÁRIAS NA MATA OESTE (Z = 212 e Z = 324, de X = -465 até X = -40, ligando os 3 Coretos!)
-  for (const midZ of [212, 324]) {
-    batcher.addBox('stone_dark', 425, 0.05, 8.4, -252.5, groundY + 0.02, midZ);
-    batcher.addBox('stone_path', 423, 0.07, 7.2, -252.5, groundY + 0.035, midZ);
+  // 3. DUAS TRILHAS INTERMEDIÁRIAS NA MATA OESTE (ws(212) e ws(324), ligando os 3 Coretos!)
+  const midX0 = ws(-465);
+  const midX1 = ws(-40);
+  const midSpanW = midX1 - midX0;
+  const midCenterX = (midX0 + midX1) * 0.5;
+  for (const midZ of [ws(212), ws(324)]) {
+    batcher.addBox('stone_dark', midSpanW, 0.05, 8.4, midCenterX, groundY + 0.02, midZ);
+    batcher.addBox('stone_path', midSpanW - 2, 0.07, 7.2, midCenterX, groundY + 0.035, midZ);
   }
 
-  // 4. SETE CAMINHOS TRANSVERSAIS NORTE-SUL CORTANDO A SELVA DE PONTA A PONTA (Z = 152..384):
-  //    X = -435, X = -355, X = -275, X = -195, X = -105, X = 0 (Alameda Principal), X = +395, X = +450
-  const northSouthTrailsX = [-435, -355, -275, -195, -105, 395, 450];
+  // 4. CAMINHOS TRANSVERSAIS NORTE-SUL CORTANDO A SELVA DE PONTA A PONTA
+  const northSouthTrailsX = [-435, -355, -275, -195, -105, 395, 450].map(ws);
   for (const tx of northSouthTrailsX) {
     batcher.addBox('stone_dark', 9.2, 0.05, pd - 4, tx, groundY + 0.02, pz);
     batcher.addBox('stone_path', 7.8, 0.07, pd - 6, tx, groundY + 0.035, pz);
   }
 
-  // Alameda Central Norte-Sul (X = 0, Z = 152..384, largura 18m)
+  // Alameda Central Norte-Sul (X = 0, largura 18m 1x!)
   batcher.addBox('stone_dark', 19.6, 0.06, pd - 2, px, groundY + 0.02, pz);
   batcher.addBox('stone_path', 18.0, 0.08, pd - 4, px, groundY + 0.04, pz);
 
-  // Acesso Norte e Sul à Ponte Arqueada do Lago (X = +205)
-  batcher.addBox('stone_path', 14.0, 0.07, 36, 205, groundY + 0.035, 170);
-  batcher.addBox('stone_path', 14.0, 0.07, 36, 205, groundY + 0.035, 366);
+  // Acesso Norte e Sul à Ponte Arqueada do Lago (X = ws(205))
+  const northBridgeApproachD = Math.max(36, lakeNorthZ - northZ + 2);
+  const southBridgeApproachD = Math.max(36, southZ - lakeSouthZ + 2);
+  batcher.addBox('stone_path', 14.0, 0.07, northBridgeApproachD, bridgeX, groundY + 0.035, (northZ + lakeNorthZ) * 0.5);
+  batcher.addBox('stone_path', 14.0, 0.07, southBridgeApproachD, bridgeX, groundY + 0.035, (lakeSouthZ + southZ) * 0.5);
 
   // 5. QUATRO TRILHAS DIAGONAIS DE PLACAS DE PEDRA (STEPPING STONES) SERPENTEANDO PELA MATA!
   const diagTrails = [
-    { x1: -355, z1: 212, x2: -275, z2: 268 },
-    { x1: -355, z1: 324, x2: -275, z2: 268 },
-    { x1: -195, z1: 268, x2: -135, z2: 212 },
-    { x1: -105, z1: 324, x2: -32, z2: 268 }
+    { x1: ws(-355), z1: ws(212), x2: ws(-275), z2: ws(268) },
+    { x1: ws(-355), z1: ws(324), x2: ws(-275), z2: ws(268) },
+    { x1: ws(-195), z1: ws(268), x2: ws(-135), z2: ws(212) },
+    { x1: ws(-105), z1: ws(324), x2: ws(-32), z2: ws(268) }
   ];
+  const diagSteps = IS_SCALED_WORLD ? 44 : 16;
   for (const dt of diagTrails) {
-    const steps = 16;
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
+    for (let s = 0; s <= diagSteps; s++) {
+      const t = s / diagSteps;
       const sx = dt.x1 + (dt.x2 - dt.x1) * t;
       const sz = dt.z1 + (dt.z2 - dt.z1) * t;
       batcher.addBox('stone_path', 5.4, 0.08, 5.4, sx, groundY + 0.04, sz);
@@ -407,12 +476,17 @@ export function buildPavedPathsCentralPlazaAndFountain(world, batcher, px, pz, p
     const ang = (a / 8) * Math.PI * 2 + Math.PI / 8;
     addClassicalIronLamp(batcher, px + Math.cos(ang) * 35.5, groundY, pz + Math.sin(ang) * 35.5);
   }
-  for (let lx = -450; lx <= 450; lx += 52) {
-    if (Math.abs(lx) < 42 || (lx > 55 && lx < 345)) continue;
+  const lampStepX = IS_SCALED_WORLD ? 78 : 52;
+  const nTrailZ = ws(178);
+  const sTrailZ = ws(358);
+  const lakeSkipMinX = ws(70) - 15;
+  const lakeSkipMaxX = ws(340) + 5;
+  for (let lx = ws(-450); lx <= ws(450); lx += lampStepX) {
+    if (Math.abs(lx) < 42 || (lx > lakeSkipMinX && lx < lakeSkipMaxX)) continue;
     addClassicalIronLamp(batcher, lx, groundY, pz - 8.2);
     addClassicalIronLamp(batcher, lx, groundY, pz + 8.2);
-    addClassicalIronLamp(batcher, lx, groundY, 178 - 5.2);
-    addClassicalIronLamp(batcher, lx, groundY, 358 + 5.2);
+    addClassicalIronLamp(batcher, lx, groundY, nTrailZ - 5.2);
+    addClassicalIronLamp(batcher, lx, groundY, sTrailZ + 5.2);
   }
 
   // BANCOS DE MADEIRA, LIXEIRAS E BEBEDOUROS AO LONGO DOS CAMINHOS E TRILHAS
@@ -422,19 +496,20 @@ export function buildPavedPathsCentralPlazaAndFountain(world, batcher, px, pz, p
     const bzBench = pz + Math.sin(ang) * 31.0;
     addParkBenchTrashAndFountain(batcher, bxBench, groundY, bzBench, b % 2 === 0);
   }
-  for (let bxPath = -440; bxPath <= 440; bxPath += 54) {
-    if (Math.abs(bxPath) < 48 || (bxPath > 50 && bxPath < 350)) continue;
+  const benchStepX = IS_SCALED_WORLD ? 84 : 54;
+  for (let bxPath = ws(-440); bxPath <= ws(440); bxPath += benchStepX) {
+    if (Math.abs(bxPath) < 48 || (bxPath > ws(70) - 20 && bxPath < ws(340) + 10)) continue;
     addParkBenchTrashAndFountain(batcher, bxPath, groundY, pz - 8.6, true);
     addParkBenchTrashAndFountain(batcher, bxPath, groundY, pz + 8.6, false);
-    addParkBenchTrashAndFountain(batcher, bxPath, groundY, 183.5, false);
-    addParkBenchTrashAndFountain(batcher, bxPath, groundY, 352.5, false);
+    addParkBenchTrashAndFountain(batcher, bxPath, groundY, nTrailZ + 5.5, false);
+    addParkBenchTrashAndFountain(batcher, bxPath, groundY, sTrailZ - 5.5, false);
   }
 
-  // 3 QUIOSQUES DE MADEIRA (CORETO / GAZEBO CLÁSSICO OCTOGONAL)
+  // 3 QUIOSQUES DE MADEIRA (CORETO / GAZEBO CLÁSSICO OCTOGONAL — tamanhos 1x!)
   const gazeboCoords = [
-    [-355, 212],
-    [-355, 324],
-    [-135, 212]
+    [ws(-355), ws(212)],
+    [ws(-355), ws(324)],
+    [ws(-135), ws(212)]
   ];
   for (const [gx, gz] of gazeboCoords) {
     buildWoodenGazeboCoreto(world, batcher, gx, groundY, gz);

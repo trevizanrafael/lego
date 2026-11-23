@@ -6,6 +6,7 @@ import {
   FACTION_THEME,
   getTerritoryZoneAt
 } from './TerritoryZonesAndConfigs.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
 import {
   unlockDefeatedBossExtra,
   EXTRAS_CATALOG
@@ -233,8 +234,15 @@ export const invasionWarDirectorMethods = {
     }
 
     // O seu time envia o BOSS COLOSSAL ALIADO para lutar ao seu lado!
-    const allyBossX = THREE.MathUtils.lerp(playerPos.x, court.x, 0.35);
-    const allyBossZ = THREE.MathUtils.lerp(playerPos.z, court.z, 0.35);
+    let allyBossX = THREE.MathUtils.lerp(playerPos.x, court.x, 0.35);
+    let allyBossZ = THREE.MathUtils.lerp(playerPos.z, court.z, 0.35);
+    if (IS_SCALED_WORLD && Math.hypot(allyBossX - court.x, allyBossZ - court.z) > 65) {
+      const fallbackSpawn = zoneState.spec.alliedBossSpawn;
+      if (fallbackSpawn) {
+        allyBossX = fallbackSpawn.x;
+        allyBossZ = fallbackSpawn.z;
+      }
+    }
     zoneState.alliedBoss = this._spawnCombatUnit({
       faction: this.playerFaction,
       role: 'boss',
@@ -306,7 +314,7 @@ export const invasionWarDirectorMethods = {
     subtitle = 'A FACÇÃO SEGUROU O TERRITÓRIO'
   ) {
     const controller = this._lastController;
-    const exitGate = zoneState?.spec?.safeExitGate || { x: 0, z: -92 };
+    const exitGate = zoneState?.spec?.safeExitGate || { x: 0, z: ws(-92) };
     const ey = this._groundAt(exitGate.x, exitGate.z, 1) + 0.5;
     if (controller) {
       if (controller.currentVehicle) controller.exitVehicle?.();

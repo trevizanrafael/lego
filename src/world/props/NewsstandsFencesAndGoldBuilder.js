@@ -4,30 +4,39 @@ import {
   getLegoMaterial,
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
+import { IS_SCALED_WORLD, ROAD, ws, wsStreetAnchored } from '../core/WorldLayoutScale.js';
+import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
+
+function getSidewalkSurfaceY(world, px, pz) {
+  const baseTerrain = world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : 0;
+  if (!IS_SCALED_WORLD) return baseTerrain + 0.28;
+  return getScaledUrbanCurbLiftAt(world, px, pz) > 0.05
+    ? baseTerrain + 0.02
+    : baseTerrain + ROAD.curbHeight;
+}
 
 export function buildNewsstandsAndFences(world) {
-  const getSidewalkY = (px, pz) =>
-    (world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : 0) + 0.28;
-
-  // Cercas brancas LEGO quebráveis nas praças e no Subúrbio Norte!
-  const fencePositions = [
-    { x: -28.0, z: -104.0, rotY: 0 },
-    { x: 28.0, z: -104.0, rotY: 0 },
-    { x: -22.5, z: -16.4, rotY: 0 },
-    { x: 22.5, z: -16.4, rotY: 0 },
-    { x: -72.0, z: -658.0, rotY: 0 },
-    { x: -69.5, z: -658.0, rotY: 0 },
-    { x: 69.5, z: -658.0, rotY: 0 },
-    { x: 72.0, z: -658.0, rotY: 0 },
-    { x: -172.0, z: -790.0, rotY: 0 },
-    { x: 172.0, z: -790.0, rotY: 0 }
+  const rawFenceSpecs = [
+    { x: -28.0, z: -104.0, dx: 0, rotY: 0 },
+    { x: 28.0, z: -104.0, dx: 0, rotY: 0 },
+    { x: -22.5, z: -16.4, dx: 0, rotY: 0 },
+    { x: 22.5, z: -16.4, dx: 0, rotY: 0 },
+    { x: -70.75, z: -658.0, dx: -1.25, rotY: 0 },
+    { x: -70.75, z: -658.0, dx: 1.25, rotY: 0 },
+    { x: 70.75, z: -658.0, dx: -1.25, rotY: 0 },
+    { x: 70.75, z: -658.0, dx: 1.25, rotY: 0 },
+    { x: -172.0, z: -790.0, dx: 0, rotY: 0 },
+    { x: 172.0, z: -790.0, dx: 0, rotY: 0 }
   ];
 
-  fencePositions.forEach((f) => {
-    const sidewalkY = getSidewalkY(f.x, f.z);
+  rawFenceSpecs.forEach((spec) => {
+    const anchored = wsStreetAnchored(spec.x, spec.z, { halfW: 1.2, halfD: 0.4 });
+    const fx = anchored.x + spec.dx;
+    const fz = anchored.z;
+    const sidewalkY = getSidewalkSurfaceY(world, fx, fz);
     const fenceGroup = new THREE.Group();
-    fenceGroup.position.set(f.x, sidewalkY, f.z);
-    fenceGroup.rotation.y = f.rotY;
+    fenceGroup.position.set(fx, sidewalkY, fz);
+    fenceGroup.rotation.y = spec.rotY;
 
     const railTop = createLegoBrick(2.2, 0.9, 0.25, LEGO_COLORS.white, {
       studStep: 0.45,
@@ -40,7 +49,7 @@ export function buildNewsstandsAndFences(world) {
     fenceGroup.add(railTop);
     world.scene.add(fenceGroup);
 
-    const col = world.addCollider(f.x, f.z, 2.2, 0.45, sidewalkY + 0.95, sidewalkY);
+    const col = world.addCollider(fx, fz, 2.2, 0.45, sidewalkY + 0.95, sidewalkY);
 
     if (world.destructibles) {
       world.destructibles.registerDestructible({
@@ -61,14 +70,11 @@ export function buildNewsstandsAndFences(world) {
 }
 
 export function buildGoldenLegoObjects(world) {
-  const sidewalkY = 0.28;
+  const bankPlazaVault = wsStreetAnchored(-16.0, -112.0, { halfW: 1.2, halfD: 1.2 });
   const goldVaultLocations = [
-    // Praça em frente ao Super Banco Central
-    { x: -16.0, z: -112.0, y: sidewalkY, scale: 1.0 },
-    // Topo da Torre dos Heróis (Y = 310.8m)
-    { x: -318.0, z: -180.0, y: 310.8, scale: 1.35 },
-    // Convés do Aeroporta-Aviões no Céu (Y = 410.4m)
-    { x: 0.0, z: -80.0, y: 410.4, scale: 1.35 }
+    { x: bankPlazaVault.x, z: bankPlazaVault.z, y: IS_SCALED_WORLD ? getSidewalkSurfaceY(world, bankPlazaVault.x, bankPlazaVault.z) : 0.28, scale: 1.0 },
+    { x: ws(-318.0), z: ws(-180.0), y: 310.8, scale: 1.35 },
+    { x: ws(0.0), z: ws(-80.0), y: 410.4, scale: 1.35 }
   ];
 
   const goldShinyMat = getLegoMaterial(LEGO_COLORS.gold, {
@@ -119,16 +125,13 @@ export function buildGoldenLegoObjects(world) {
     }
   });
 
-  // ============================================================================
-  // PASSO 5A: PAREDES RACHADAS LEGO (Destruídas pelo Soco Foguete / Terremoto do Titã Blindado!)
-  // ============================================================================
   const crackedWallLocations = [
-    { x: 24.0, z: -116.0, y: sidewalkY, rotY: 0 },
-    { x: -26.0, z: -132.0, y: sidewalkY, rotY: Math.PI / 2 },
-    { x: -286.0, z: -142.0, y: sidewalkY, rotY: 0 },
-    { x: -652.0, z: -88.0, y: sidewalkY, rotY: 0.35 },
-    { x: 646.0, z: -292.0, y: sidewalkY, rotY: 0 },
-    { x: 848.0, z: 368.0, y: sidewalkY, rotY: Math.PI / 2 }
+    { x: 24.0, z: -116.0, rotY: 0 },
+    { x: -26.0, z: -132.0, rotY: Math.PI / 2 },
+    { x: -286.0, z: -142.0, rotY: 0 },
+    { x: -652.0, z: -88.0, rotY: 0.35 },
+    { x: 646.0, z: -292.0, rotY: 0 },
+    { x: 848.0, z: 368.0, rotY: Math.PI / 2 }
   ];
 
   const wallConcreteMat = getLegoMaterial(0x334155, { roughness: 0.38 });
@@ -139,12 +142,12 @@ export function buildGoldenLegoObjects(world) {
   });
   const hazardGoldMat = getLegoMaterial(LEGO_COLORS.gold, { metalness: 0.4, roughness: 0.2 });
 
-  crackedWallLocations.forEach((loc) => {
-    const locGroundY =
-      (world.getTerrainHeightAt ? world.getTerrainHeightAt(loc.x, loc.z) : 0) + loc.y;
+  crackedWallLocations.forEach((rawLoc) => {
+    const p = wsStreetAnchored(rawLoc.x, rawLoc.z, { halfW: 1.8, halfD: 1.8 });
+    const locGroundY = getSidewalkSurfaceY(world, p.x, p.z);
     const wallGroup = new THREE.Group();
-    wallGroup.position.set(loc.x, locGroundY, loc.z);
-    wallGroup.rotation.y = loc.rotY || 0;
+    wallGroup.position.set(p.x, locGroundY, p.z);
+    wallGroup.rotation.y = rawLoc.rotY || 0;
 
     const w = 3.6;
     const h = 3.2;
@@ -180,9 +183,9 @@ export function buildGoldenLegoObjects(world) {
     }
 
     world.scene.add(wallGroup);
-    const colW = Math.abs(Math.sin(loc.rotY || 0)) > 0.7 ? d : w;
-    const colD = Math.abs(Math.sin(loc.rotY || 0)) > 0.7 ? w : d;
-    const col = world.addCollider(loc.x, loc.z, colW + 0.2, colD + 0.2, locGroundY + h + 0.3, locGroundY);
+    const colW = Math.abs(Math.sin(rawLoc.rotY || 0)) > 0.7 ? d : w;
+    const colD = Math.abs(Math.sin(rawLoc.rotY || 0)) > 0.7 ? w : d;
+    const col = world.addCollider(p.x, p.z, colW + 0.2, colD + 0.2, locGroundY + h + 0.3, locGroundY);
 
     if (world.destructibles) {
       world.destructibles.registerDestructible({
@@ -200,16 +203,13 @@ export function buildGoldenLegoObjects(world) {
     }
   });
 
-  // ============================================================================
-  // PASSO 5B: OBJETOS PRATEADOS BRILHANTES LEGO (Destruídos pela Bazuca RPG do Vingador de Chumbo!)
-  // ============================================================================
-  const silverVaultLocations = [
-    { x: 16.0, z: -112.0, y: sidewalkY, scale: 1.0 },
-    { x: -15.5, z: -185.0, y: 0.36, scale: 1.05 },
-    { x: -312.0, z: -192.0, y: 310.8, scale: 1.2 },
-    { x: 668.0, z: -318.0, y: sidewalkY, scale: 1.1 },
-    { x: 838.0, z: 392.0, y: sidewalkY, scale: 1.15 },
-    { x: -1085.0, z: -25.0, y: sidewalkY, scale: 1.15 }
+  const silverRawSpecs = [
+    { x: 16.0, z: -112.0, elevatedY: null, interiorY: null, scale: 1.0 },
+    { x: -15.5, z: -185.0, elevatedY: null, interiorY: 0.36, scale: 1.05 },
+    { x: -312.0, z: -192.0, elevatedY: 310.8, interiorY: null, scale: 1.2 },
+    { x: 668.0, z: -318.0, elevatedY: null, interiorY: null, scale: 1.1 },
+    { x: 838.0, z: 392.0, elevatedY: null, interiorY: null, scale: 1.15 },
+    { x: -1085.0, z: -25.0, elevatedY: null, interiorY: null, scale: 1.15 }
   ];
 
   const silverMirrorMat = getLegoMaterial(0xe2e8f0, {
@@ -224,13 +224,32 @@ export function buildGoldenLegoObjects(world) {
     emissiveIntensity: 1.6
   });
 
-  silverVaultLocations.forEach((loc) => {
-    const silverGroup = new THREE.Group();
-    silverGroup.position.set(loc.x, loc.y, loc.z);
+  silverRawSpecs.forEach((raw) => {
+    let lx;
+    let lz;
+    let ly;
+    if (raw.elevatedY !== null) {
+      lx = ws(raw.x);
+      lz = ws(raw.z);
+      ly = raw.elevatedY;
+    } else if (raw.interiorY !== null) {
+      const p = wsStreetAnchored(raw.x, raw.z, { halfW: 1.2, halfD: 1.2 });
+      lx = raw.x;
+      lz = p.z;
+      ly = raw.interiorY;
+    } else {
+      const p = wsStreetAnchored(raw.x, raw.z, { halfW: 1.2, halfD: 1.2 });
+      lx = p.x;
+      lz = p.z;
+      ly = IS_SCALED_WORLD ? getSidewalkSurfaceY(world, lx, lz) : 0.28;
+    }
 
-    const w = 2.0 * loc.scale;
-    const h = 2.2 * loc.scale;
-    const d = 2.0 * loc.scale;
+    const silverGroup = new THREE.Group();
+    silverGroup.position.set(lx, ly, lz);
+
+    const w = 2.0 * raw.scale;
+    const h = 2.2 * raw.scale;
+    const d = 2.0 * raw.scale;
 
     const core = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), silverMirrorMat);
     core.position.y = h * 0.5;
@@ -250,7 +269,7 @@ export function buildGoldenLegoObjects(world) {
     silverGroup.add(beacon);
 
     world.scene.add(silverGroup);
-    const col = world.addCollider(loc.x, loc.z, w + 0.2, d + 0.2, loc.y + h + 0.4, loc.y);
+    const col = world.addCollider(lx, lz, w + 0.2, d + 0.2, ly + h + 0.4, ly);
 
     if (world.destructibles) {
       world.destructibles.registerDestructible({
@@ -262,7 +281,7 @@ export function buildGoldenLegoObjects(world) {
         colliders: [col],
         debrisColors: [0xe2e8f0, LEGO_COLORS.silver, LEGO_COLORS.lightGrey, 0xef4444],
         studDrops: { silver: 6, gold: 8, blue: 5, purple: 2 },
-        groundY: loc.y,
+        groundY: ly,
         silverOnly: true
       });
     }

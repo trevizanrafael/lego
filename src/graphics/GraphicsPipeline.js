@@ -11,6 +11,7 @@ import {
   applyLegoSceneShaderEnhancements,
   setLegoShaderQualityFX
 } from '../materials/LegoMaterials.js';
+import { WORLD_SCALE, IS_SCALED_WORLD } from '../world/core/WorldLayoutScale.js';
 
 export const GRAPHICS_PRESETS = ['auto', 'low', 'medium', 'ultra'];
 
@@ -189,6 +190,13 @@ export class GraphicsPipeline {
 
     if (this.scene) {
       applyLegoSceneShaderEnhancements(this.scene);
+      if (IS_SCALED_WORLD && this.scene.fog?.isFogExp2) {
+        this.scene.fog.density = 0.00042 / WORLD_SCALE;
+      }
+    }
+    if (IS_SCALED_WORLD && this.camera?.isPerspectiveCamera && this.camera.far < 7800 * WORLD_SCALE) {
+      this.camera.far = 7800 * WORLD_SCALE;
+      this.camera.updateProjectionMatrix?.();
     }
 
     if (!this.isHeadless) {

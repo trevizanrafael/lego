@@ -11,6 +11,7 @@ import {
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
 import { KMH_TO_UNITS } from './VehicleSpecsCatalog.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
 import {
   attachExhaustFlames,
   createNavalAirMaterialContext
@@ -415,9 +416,10 @@ export function buildNavalBoatMesh(cfg, existingCtx = null) {
 }
 
 /**
- * Posicionamentos navais do Grande Lago, Marina Sul, Canais de Santos, Rio Urbano Leste e Marina Oeste.
+ * Posicionamentos navais de projeto (`1x`) do Grande Lago, Marina Sul, Canais de Santos,
+ * Rio Urbano Leste e Marina Oeste.
  */
-export const LAKE_AND_MARINA_BOAT_PLACEMENTS = [
+const DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS = [
   // 1. GRANDE LAGO DO PARQUE CENTRAL (8 EMBARCAÇÕES VIVAS: PEDALINHOS CISNE & BARCOS!)
   { x: 109.0, y: 0.42, z: 258.0, rotY: Math.PI / 2, color: 0xec4899, type: 'pedalinho_cisne' },
   { x: 111.0, y: 0.42, z: 268.0, rotY: Math.PI / 2, color: 0x06b6d4, type: 'barquinho_lago' },
@@ -475,9 +477,112 @@ export const LAKE_AND_MARINA_BOAT_PLACEMENTS = [
 ];
 
 /**
- * Doca Naval da Guarda Costeira (fora da muralha oeste da Ilha da Prisão).
+ * Doca Naval da Guarda Costeira de projeto (`1x`, fora da muralha oeste da Ilha da Prisão).
  */
-export const COAST_GUARD_BOAT_PLACEMENTS = [
+const DESIGN_COAST_GUARD_BOAT_PLACEMENTS = [
   { x: 850.0, y: -0.35, z: 1528.0, rotY: 0, color: 0x111827, roofColor: 0x3b82f6, customName: 'LANCHA BLINDADA DA POLÍCIA MARÍTIMA 01', type: 'lancha_bope' },
   { x: 850.0, y: -0.35, z: 1572.0, rotY: 0, color: 0x090a0d, roofColor: 0xfacc15, customName: 'LANCHA BLINDADA DA GUARDA COSTEIRA 02', type: 'lancha_bope' }
 ];
+
+/**
+ * Resolve as coordenadas da frota naval alinhando-a aos corpos d'água e píeres `3x` quando `IS_SCALED_WORLD` está ativo,
+ * mantendo paridade bit-a-bit em `1x` e preservando 100% da contagem e tamanhos das embarcações.
+ */
+export function resolveNavalBoatPlacements(world = null) {
+  if (!IS_SCALED_WORLD) {
+    return {
+      lakeAndMarina: DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS,
+      coastGuard: DESIGN_COAST_GUARD_BOAT_PLACEMENTS
+    };
+  }
+
+  const pierOffZ = Number.isFinite(world?.pierOffsetZ) ? world.pierOffsetZ : ws(1036) - 1030;
+  const westMarina = world?.southwestBeachData?.westMarinaPos || null;
+  const westMarinaBoatX = (westMarina?.x ?? ws(-1380)) + 28.0;
+  const westDockZList =
+    Array.isArray(westMarina?.dockZList) && westMarina.dockZList.length >= 4
+      ? westMarina.dockZList
+      : [1095, 1135, 1175, 1215].map((dz) => dz + pierOffZ);
+
+  const prisonDockOffX = ws(928) - 928;
+  const prisonDockOffZ = ws(1550) - 1550;
+
+  const lakePierTipX = ws(106); // 318 em 3x -> posiciona barcos a leste de x = 324!
+  const lakeCenterZ = ws(268);
+
+  const lakeAndMarina = [
+    // 1. Grande Lago do Parque Central (X ∈ [210..1020], Z ∈ [561..1047], leste da ponta do píer x = 318)
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[0], x: lakePierTipX + 7.0, z: lakeCenterZ - 10.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[1], x: lakePierTipX + 9.0, z: lakeCenterZ },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[2], x: lakePierTipX + 7.0, z: lakeCenterZ + 10.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[3], x: ws(148.0), z: ws(224.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[4], x: ws(158.0), z: ws(312.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[5], x: ws(236.0), z: ws(226.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[6], x: ws(276.0), z: ws(308.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[7], x: ws(298.0), z: lakeCenterZ },
+
+    // 2. Marina Leste do Mega Píer Sul (x relativo 1x preservado, z deslocado por pierOffsetZ)
+    ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS.slice(8, 24).map((b) => ({
+      ...b,
+      z: b.z + pierOffZ
+    })),
+
+    // 3. Os 3 Canais de Santos & Offshore da Praia Sul
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[24], x: ws(-384.0), z: ws(895.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[25], x: ws(-120.0), z: ws(895.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[26], x: ws(252.0),  z: ws(895.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[27], x: ws(-220.0), z: ws(1066.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[28], x: ws(-65.0),  z: ws(1066.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[29], x: ws(190.0),  z: ws(1066.0) },
+
+    // 4. Rio / Canal Urbano Leste (Y = -3.5, alinhados aos 3 píeres de RIVER_PIER_SPECS)
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[30], x: ws(540) + 10.2, z: ws(268) - 9.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[31], x: ws(540) + 10.2, z: ws(268) + 8.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[32], x: ws(580) - 10.2, z: ws(-185) - 8.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[33], x: ws(580) - 10.2, z: ws(-185) + 8.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[34], x: ws(540) + 10.2, z: ws(845) - 11.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[35], x: ws(540) + 10.2, z: ws(845) + 1.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[36], x: ws(540) + 10.2, z: ws(845) + 11.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[37], x: ws(560) - 10.5, z: ws(-45.0) },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[38], x: ws(560) - 10.5, z: ws(45.0) },
+
+    // 5. Marina Oeste (Costão Sudoeste — alinhada a southwestBeachData.westMarinaPos)
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[39], x: westMarinaBoatX, z: westDockZList[0] + 11.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[40], x: westMarinaBoatX, z: westDockZList[1] + 11.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[41], x: westMarinaBoatX, z: westDockZList[2] + 11.0 },
+    { ...DESIGN_LAKE_AND_MARINA_BOAT_PLACEMENTS[42], x: westMarinaBoatX, z: westDockZList[3] + 11.0 }
+  ];
+
+  const coastGuard = DESIGN_COAST_GUARD_BOAT_PLACEMENTS.map((b) => ({
+    ...b,
+    x: b.x + prisonDockOffX,
+    z: b.z + prisonDockOffZ
+  }));
+
+  if (world?.isDeepWaterAt) {
+    const ensureOceanWater = (cfg, stepX, stepZ) => {
+      if ((cfg.y ?? 0) > 0.1) return cfg; // Lago Central
+      if (world.isDeepWaterAt(cfg.x, cfg.z, { forBoat: true })) return cfg;
+      for (let i = 1; i <= 12; i++) {
+        const nx = cfg.x + stepX * i;
+        const nz = cfg.z + stepZ * i;
+        if (world.isDeepWaterAt(nx, nz, { forBoat: true })) {
+          return { ...cfg, x: nx, z: nz };
+        }
+      }
+      return cfg;
+    };
+    for (let i = 0; i < lakeAndMarina.length; i++) {
+      lakeAndMarina[i] = ensureOceanWater(lakeAndMarina[i], 0, 8);
+    }
+    for (let i = 0; i < coastGuard.length; i++) {
+      coastGuard[i] = ensureOceanWater(coastGuard[i], -8, 0);
+    }
+  }
+
+  return { lakeAndMarina, coastGuard };
+}
+
+const _INITIAL_NAVAL_PLACEMENTS = resolveNavalBoatPlacements(null);
+export const LAKE_AND_MARINA_BOAT_PLACEMENTS = _INITIAL_NAVAL_PLACEMENTS.lakeAndMarina;
+export const COAST_GUARD_BOAT_PLACEMENTS = _INITIAL_NAVAL_PLACEMENTS.coastGuard;

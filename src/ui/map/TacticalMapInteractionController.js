@@ -1,4 +1,5 @@
 import { getSvgIcon } from '../TacticalIcons.js';
+import { WORLD_SCALE, wsBounds, wsPos3, fromWs } from '../../world/core/WorldLayoutScale.js';
 
 /**
  * Monta a lista unificada de regiões e interiores interativos para o Mapa Tático [M] e Viagem Rápida
@@ -12,8 +13,8 @@ export function getInteractiveRegionsList(world) {
     name: 'COMPLEXO DA CIDADE DE DEUS — DOMINIO DO CV',
     shortName: 'CIDADE DE DEUS (CV)',
     sub: 'Largo do Mirante, Baile do CV & Fortaleza no Morro',
-    bounds: { minX: -1012, maxX: -530, minZ: -1320, maxZ: 580, minY: 0, maxY: 140 },
-    spawn: { x: -702, y: 26.2, z: -135 },
+    bounds: wsBounds({ minX: -1012, maxX: -530, minZ: -1320, maxZ: 580, minY: 0, maxY: 140 }),
+    spawn: wsPos3({ x: -702, y: 26.2, z: -135 }),
     color: '#dc2626',
     icon: 'cdd'
   };
@@ -24,8 +25,8 @@ export function getInteractiveRegionsList(world) {
     name: 'SUPER BANCO CENTRAL (INTERIOR)',
     shortName: 'SUPER BANCO (INTERIOR)',
     sub: '4 Andares: Saguao, Escritorios, Seguranca e Cofre',
-    bounds: { minX: -76, maxX: 76, minZ: -235, maxZ: -120, minY: 0, maxY: 45 },
-    spawn: { x: 0, y: 0.4, z: -150 },
+    bounds: wsBounds({ minX: -76, maxX: 76, minZ: -235, maxZ: -120, minY: 0, maxY: 45 }),
+    spawn: wsPos3({ x: 0, y: 0.4, z: -150 }),
     color: '#facc15',
     icon: 'bank'
   };
@@ -36,8 +37,8 @@ export function getInteractiveRegionsList(world) {
     name: 'TORRE DOS HEROIS (QG TERREO ENTRAVEL)',
     shortName: 'TORRE DOS HEROIS (QG TERREO)',
     sub: 'Hall of Armor, Mesa Holografica, Bacta Pods & Elevador [F]',
-    bounds: { minX: -375, maxX: -260, minZ: -235, maxZ: -125, minY: 0, maxY: 36 },
-    spawn: { x: -318, y: 0.5, z: -138 },
+    bounds: wsBounds({ minX: -375, maxX: -260, minZ: -235, maxZ: -125, minY: 0, maxY: 36 }),
+    spawn: wsPos3({ x: -318, y: 0.5, z: -138 }),
     color: '#38bdf8',
     icon: 'tower'
   };
@@ -48,8 +49,8 @@ export function getInteractiveRegionsList(world) {
     name: 'LINHA 01 DO METRO LEGO (ESTACAO CENTRAL SUBSOLO)',
     shortName: 'METRO CENTRAL (SUBSOLO)',
     sub: 'Subsolo Entravel (-6.8m), Tunel Iluminado, Linha Elevada & 2 Trens LEGO',
-    bounds: { minX: -95, maxX: 95, minZ: -125, maxZ: -95, minY: -8, maxY: 0 },
-    spawn: { x: 0, y: -6.7, z: -105.5 },
+    bounds: wsBounds({ minX: -95, maxX: 95, minZ: -125, maxZ: -95, minY: -8, maxY: 0 }),
+    spawn: wsPos3({ x: 0, y: -6.7, z: -105.5 }),
     color: '#06b6d4',
     icon: 'metro'
   };
@@ -124,16 +125,17 @@ export function populateFullMapSidebar(hud, world, controller) {
 
 export function findHoveredRegionOnMap(world, wx, wz) {
   if (!world?.regions) return null;
-  // Prioriza regioes especificas menores (Torre dos Herois, Aeroporta-Avioes, CDD) antes de regioes amplas
-  if (wx >= -375 && wx <= -260 && wz >= -235 && wz <= -125) {
+  const ux = fromWs(wx);
+  const uz = fromWs(wz);
+  if (ux >= -375 && ux <= -260 && uz >= -235 && uz <= -125) {
     return 'torre_herois';
   }
   if (
-    wx >= -1012 &&
-    wx <= -528 &&
-    wz >= -1320 &&
-    wz <= 580 &&
-    (wx <= -658 || (wz >= -508 && wz <= 415))
+    ux >= -1012 &&
+    ux <= -528 &&
+    uz >= -1320 &&
+    uz <= 580 &&
+    (ux <= -658 || (uz >= -508 && uz <= 415))
   ) {
     return 'favela_cdd_cv';
   }
@@ -157,10 +159,11 @@ export function getLandmarkPinWorldCoords(lm) {
 export function bindFullMapInteractions(hud, world, controller) {
   if (!hud.fullmapCanvas || hud._fullmapEventsBound) return;
   hud._fullmapEventsBound = true;
+  const maxMapZoom = 5.5 * WORLD_SCALE;
 
   if (hud.fullmapZoomInBtn) {
     hud.fullmapZoomInBtn.addEventListener('click', () => {
-      hud.mapZoom = Math.min(5.5, hud.mapZoom * 1.3);
+      hud.mapZoom = Math.min(maxMapZoom, hud.mapZoom * 1.3);
       hud.renderFullMap(world, controller.position, controller.facingAngle, controller);
     });
   }
@@ -201,7 +204,7 @@ export function bindFullMapInteractions(hud, world, controller) {
       e.preventDefault();
       e.stopPropagation();
       const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
-      hud.mapZoom = Math.max(0.85, Math.min(5.5, hud.mapZoom * factor));
+      hud.mapZoom = Math.max(0.85, Math.min(maxMapZoom, hud.mapZoom * factor));
       hud.renderFullMap(world, controller.position, controller.facingAngle, controller);
     },
     { passive: false }
@@ -221,7 +224,7 @@ export function bindFullMapInteractions(hud, world, controller) {
     const coords = screenToWorldMapCoords(hud, e);
     if (!coords) return;
 
-    const hitRadiusWorld = 82 / hud.mapZoom;
+    const hitRadiusWorld = (82 * WORLD_SCALE) / hud.mapZoom;
     let foundLandmark = null;
     for (const lm of world.landmarks || []) {
       const { pinX, pinZ } = getLandmarkPinWorldCoords(lm);
@@ -286,7 +289,7 @@ export function bindFullMapInteractions(hud, world, controller) {
     const coords = screenToWorldMapCoords(hud, e);
     if (!coords) return;
 
-    const hitRadiusWorld = 82 / hud.mapZoom;
+    const hitRadiusWorld = (82 * WORLD_SCALE) / hud.mapZoom;
     for (const lm of world.landmarks || []) {
       const { pinX, pinZ } = getLandmarkPinWorldCoords(lm);
       if (
@@ -311,7 +314,7 @@ export function screenToWorldMapCoords(hud, e) {
   const clickX = ((e.clientX - rect.left) / rect.width) * w;
   const clickY = ((e.clientY - rect.top) / rect.height) * h;
 
-  const baseScale = 0.088;
+  const baseScale = 0.088 / WORLD_SCALE;
   const scale = baseScale * hud.mapZoom;
   const cx = w * 0.48 + hud.mapPanX;
   const cy = h * 0.48 + hud.mapPanY;

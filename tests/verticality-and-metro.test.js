@@ -11,7 +11,10 @@ const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
 const { LivingCityManager } = await import('../src/world/LivingCityManager.js');
 const { ThirdPersonController } = await import('../src/controls/ThirdPersonController.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
-const { METRO_STATIONS, getMetroCutoutFloorY } = await import('../src/world/MetroSystemBuilder.js');
+const { METRO_STATIONS, METRO_ISLAND_CUTOUTS, getMetroCutoutFloorY } = await import('../src/world/MetroSystemBuilder.js');
+const { METRO_OFFSETS } = await import('../src/world/metro/MetroRouteData.js');
+const { IS_SCALED_WORLD, ROAD, ws } = await import('../src/world/core/WorldLayoutScale.js');
+const { getUrbanCityReliefY } = await import('../src/world/ViaductAndReliefBuilder.js');
 const { createSignBoardMesh } = await import('../src/utils/SignBoardHelper.js');
 
 const scene = new THREE.Scene();
@@ -97,7 +100,8 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
               const maxX = Math.max(ax, bx, cx);
               const minZ = Math.min(az, bz, cz);
               const maxZ = Math.max(az, bz, cz);
-              if (0 >= minX && 0 <= maxX && -105 >= minZ && -105 <= maxZ && bb.min.y + obj.position.y < 0) {
+              const m01CheckZ = -105 + METRO_OFFSETS.st01Dz;
+              if (0 >= minX && 0 <= maxX && m01CheckZ >= minZ && m01CheckZ <= maxZ && bb.min.y + obj.position.y < 0) {
                 oceanUnderDowntown = true;
               }
             }
@@ -144,22 +148,22 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
   });
 
   it('3. Viadutos realmente suspensos (vão livre >= 9.5m acima da rua local), sombra projetada e rampas vazadas', async () => {
-    assert.equal(getMetroCutoutFloorY(-140, 134), null);
-    assert.equal(getMetroCutoutFloorY(384, -150), null);
+    assert.equal(getMetroCutoutFloorY(ws(-140), ws(134)), null);
+    assert.equal(getMetroCutoutFloorY(ws(384), ws(-150)), null);
 
     // Verifica folga livre >= 9.5m (deck a +12.4m acima da rua local) nos 3 Viadutos!
-    const v1Ground = world.getTerrainHeightAt(120, -382);
-    const v1Deck = world.getSurfaceHeightAt(120, -382, v1Ground + 60);
+    const v1Ground = world.getTerrainHeightAt(ws(120), ws(-382));
+    const v1Deck = world.getSurfaceHeightAt(ws(120), ws(-382), v1Ground + 60);
     assert.ok(v1Deck - v1Ground >= 11.5, `Viaduto 01 deve ter >= 11.5m sobre a rua (atual: ${(v1Deck - v1Ground).toFixed(2)}m)`);
     assert.ok(v1Deck - 1.15 - v1Ground >= 9.5, 'Vão livre sob as vigas do Viaduto 01 deve ser >= 9.5m');
 
-    const v2Ground = world.getTerrainHeightAt(252, 134);
-    const v2Deck = world.getSurfaceHeightAt(252, 134, v2Ground + 60);
+    const v2Ground = world.getTerrainHeightAt(ws(252), ws(134));
+    const v2Deck = world.getSurfaceHeightAt(ws(252), ws(134), v2Ground + 60);
     assert.ok(v2Deck - v2Ground >= 11.5, `Viaduto 02 deve ter >= 11.5m sobre a rua (atual: ${(v2Deck - v2Ground).toFixed(2)}m)`);
     assert.ok(v2Deck - 1.15 - v2Ground >= 9.5, 'Vão livre sob as vigas do Viaduto 02 deve ser >= 9.5m');
 
-    const v3Ground = world.getTerrainHeightAt(-516, 0);
-    const v3Deck = world.getSurfaceHeightAt(-516, 0, v3Ground + 60);
+    const v3Ground = world.getTerrainHeightAt(ws(-516), 0);
+    const v3Deck = world.getSurfaceHeightAt(ws(-516), 0, v3Ground + 60);
     assert.ok(v3Deck - v3Ground >= 11.5, `Viaduto 03 deve ter >= 11.5m sobre a rua (atual: ${(v3Deck - v3Ground).toFixed(2)}m)`);
     assert.ok(v3Deck - 1.15 - v3Ground >= 9.5, 'Vão livre sob as vigas do Viaduto 03 deve ser >= 9.5m');
 
@@ -172,11 +176,17 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     });
     assert.equal(viaductShadowMeshFound, true, 'Estrutura de concreto claro dos viadutos deve projetar sombra real na rua abaixo');
 
-    // Fim dos paredões cegos nas rampas: o jogador atravessa por baixo da rampa suspensa (X = -215 em Z = -382, onde clearance > 6m)!
-    const rampGroundY = world.getTerrainHeightAt(-215, -395);
+    // Fim dos paredões cegos nas rampas: o jogador atravessa por baixo da rampa suspensa (X = startC + 48 em Z = ws(-382), onde clearance > 6m)!
+    let underRampX = ws(-465) + 48;
+    const nearSupport = world.viaductSupports?.some((v) =>
+      v.cols?.some((c) => Math.abs(c.x - underRampX) < 3.0 && Math.abs(c.z - ws(-382)) < 24.0)
+    );
+    if (nearSupport) underRampX += 8;
+    const halfCrossZ = ROAD.mainWidth * 0.5 - 2.0;
+    const rampGroundY = world.getTerrainHeightAt(underRampX, ws(-382) - halfCrossZ);
     simulateControllerWalk([
-      { x: -215, y: rampGroundY + 0.3, z: -395 },
-      { x: -215, y: rampGroundY + 0.3, z: -369 }
+      { x: underRampX, y: rampGroundY + 0.3, z: ws(-382) - halfCrossZ },
+      { x: underRampX, y: rampGroundY + 0.3, z: ws(-382) + halfCrossZ }
     ]);
     assert.ok(
       world.elevatedDecks.filter((d) => String(d.id || '').includes('viaduct')).length >= 3,
@@ -215,63 +225,77 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
   });
 
   it('4. Relevo Urbano Visível nas Avenidas (NW/NE +12.5..15m, Leste +9.5m, Norte +12m->+22m, Sul +10.5m) + Pisos Sensíveis Planos', () => {
-    assert.equal(world.getTerrainHeightAt(0, -180), 0, 'Super Banco Central permanece plano em Y=0');
-    assert.equal(world.getTerrainHeightAt(-318, -180), 0, 'Torre dos Heróis permanece plana em Y=0');
-    assert.equal(world.getTerrainHeightAt(205, 268), 0, 'Espelho d’água do Grande Lago permanece plano em Y=0');
-    assert.equal(world.getTerrainHeightAt(-1350, 0), 0, 'Pista do Aeroporto permanece plana em Y=0');
+    const bankZ = ws(-175);
+    const heroX = IS_SCALED_WORLD ? ws(-324) + 6 : -318;
+    const heroZ = IS_SCALED_WORLD ? ws(-168) - 12 : -180;
+    const flatCurbTol = IS_SCALED_WORLD ? ROAD.curbHeight : 0;
 
-    // Alto do Centro NW & NE (+12.5m..+15.0m nas avenidas X = -384, -252, +252, +384!)
-    const nwHillY = world.getTerrainHeightAt(-318, -365);
-    const nwAveY = world.getTerrainHeightAt(-384, -365);
-    const neHillY = world.getTerrainHeightAt(318, -365);
-    assert.ok(nwHillY >= 12.5 && nwHillY <= 15.5, `Alto do Centro NW deve subir a 12.5..15m (atual: ${nwHillY.toFixed(2)}m)`);
-    assert.ok(nwAveY >= 10.5, `Avenida X=-384 no Alto NW deve ter ladeira marcante >= 10.5m (atual: ${nwAveY.toFixed(2)}m)`);
-    assert.ok(neHillY >= 12.5 && neHillY <= 15.5, `Alto do Centro NE deve subir a 12.5..15m (atual: ${neHillY.toFixed(2)}m)`);
+    assert.equal(getUrbanCityReliefY(0, bankZ), 0, 'Super Banco Central permanece com relevo zero');
+    assert.ok(world.getTerrainHeightAt(0, bankZ) <= flatCurbTol, 'Super Banco Central permanece plano');
+    assert.equal(getUrbanCityReliefY(heroX, heroZ), 0, 'Torre dos Heróis permanece com relevo zero');
+    assert.ok(world.getTerrainHeightAt(heroX, heroZ) <= flatCurbTol, 'Torre dos Heróis permanece plana');
+    assert.equal(getUrbanCityReliefY(ws(205), ws(268)), 0, 'Espelho d’água do Grande Lago com relevo zero');
+    assert.equal(world.getTerrainHeightAt(ws(205), ws(268)), 0, 'Espelho d’água do Grande Lago permanece plano em Y=0');
+    assert.equal(world.getTerrainHeightAt(ws(-1350), 0), 0, 'Pista do Aeroporto permanece plana em Y=0');
+
+    // Alto do Centro NW & NE (+12.5m..+15.0m nas avenidas X = ws(-384), ws(-252), ws(252), ws(384)!)
+    const nwHillY = world.getTerrainHeightAt(ws(-318), ws(-365));
+    const nwAveY = world.getTerrainHeightAt(ws(-384), ws(-365));
+    const neHillY = world.getTerrainHeightAt(ws(318), ws(-365));
+    assert.ok(nwHillY >= 12.5 && nwHillY <= 15.5 + flatCurbTol, `Alto do Centro NW deve subir a 12.5..15m (atual: ${nwHillY.toFixed(2)}m)`);
+    assert.ok(nwAveY >= 10.5, `Avenida X=ws(-384) no Alto NW deve ter ladeira marcante >= 10.5m (atual: ${nwAveY.toFixed(2)}m)`);
+    assert.ok(neHillY >= 12.5 && neHillY <= 15.5 + flatCurbTol, `Alto do Centro NE deve subir a 12.5..15m (atual: ${neHillY.toFixed(2)}m)`);
 
     // Colina da Bela Vista / Centro Leste (~+9.5m)
-    const belaVistaY = world.getTerrainHeightAt(310, -58);
-    const aveEastZ0 = world.getTerrainHeightAt(310, 0);
-    assert.ok(belaVistaY >= 8.5 && belaVistaY <= 10.8, `Colina da Bela Vista Leste deve atingir ~9.5m (atual: ${belaVistaY.toFixed(2)}m)`);
+    const belaVistaY = world.getTerrainHeightAt(ws(310), ws(-58));
+    const aveEastZ0 = world.getTerrainHeightAt(ws(310), 0);
+    assert.ok(belaVistaY >= 8.5 && belaVistaY <= 10.8 + flatCurbTol, `Colina da Bela Vista Leste deve atingir ~9.5m (atual: ${belaVistaY.toFixed(2)}m)`);
     assert.ok(aveEastZ0 >= 6.5, `Avenida Z=0 Leste deve subir a colina visivelmente (atual: ${aveEastZ0.toFixed(2)}m)`);
 
-    // Subúrbio Norte: ~+12m já em Z = -780 e ~+22m no Mirante Costeiro Norte (Z = -1260)!
-    const suburbZ780 = world.getTerrainHeightAt(0, -780);
-    const suburbMirante = world.getTerrainHeightAt(0, -1260);
-    assert.ok(suburbZ780 >= 10.5 && suburbZ780 <= 14.0, `Subúrbio Norte em Z=-780 deve atingir ~12m (atual: ${suburbZ780.toFixed(2)}m)`);
-    assert.ok(suburbMirante >= 20.5 && suburbMirante <= 23.0, `Mirante Costeiro Norte em Z=-1260 deve atingir ~22m (atual: ${suburbMirante.toFixed(2)}m)`);
+    // Subúrbio Norte: ~+12m já em Z = ws(-780) e ~+22m no Mirante Costeiro Norte (Z = ws(-1260))!
+    const suburbZ780 = world.getTerrainHeightAt(0, ws(-780));
+    const suburbMirante = world.getTerrainHeightAt(0, ws(-1260));
+    assert.ok(suburbZ780 >= 10.5 && suburbZ780 <= 14.0 + flatCurbTol, `Subúrbio Norte em Z=ws(-780) deve atingir ~12m (atual: ${suburbZ780.toFixed(2)}m)`);
+    assert.ok(suburbMirante >= 20.5 && suburbMirante <= 23.0 + flatCurbTol, `Mirante Costeiro Norte em Z=ws(-1260) deve atingir ~22m (atual: ${suburbMirante.toFixed(2)}m)`);
 
-    // Crista Panorâmica Sul (~+10.5m) antes de descer para Avenida Beira-Mar (Z = +710)!
-    const southRidgeY = world.getTerrainHeightAt(-186, 545);
-    const beachfrontAveY = world.getTerrainHeightAt(-186, 710);
-    assert.ok(southRidgeY >= 9.5 && southRidgeY <= 11.5, `Crista Panorâmica Sul deve atingir ~10.5m (atual: ${southRidgeY.toFixed(2)}m)`);
-    assert.ok(beachfrontAveY <= 1.2, `Avenida Beira-Mar Z=710 desce suavemente até a praia (atual: ${beachfrontAveY.toFixed(2)}m)`);
+    // Crista Panorâmica Sul (~+10.5m) antes de descer para Avenida Beira-Mar (Z = ws(710))!
+    const southRidgeY = world.getTerrainHeightAt(ws(-186), ws(545));
+    const beachfrontAveY = world.getTerrainHeightAt(ws(-186), ws(710));
+    assert.ok(southRidgeY >= 9.5 && southRidgeY <= 11.5 + flatCurbTol, `Crista Panorâmica Sul deve atingir ~10.5m (atual: ${southRidgeY.toFixed(2)}m)`);
+    assert.ok(beachfrontAveY <= 1.2, `Avenida Beira-Mar Z=ws(710) desce suavemente até a praia (atual: ${beachfrontAveY.toFixed(2)}m)`);
   });
 
   it('5. Metrô 100% Funcional: Caminhada real pelas 5 Estações, Embarque sem buraco (2.38m), Viagem e Desembarque', () => {
     assert.equal(METRO_STATIONS.length, 5);
 
+    const dz1 = METRO_OFFSETS.st01Dz;
+    const dx2 = METRO_OFFSETS.st02Dx;
+    const st01StairZ = -100.4 + dz1;
+    const cut02 = METRO_ISLAND_CUTOUTS[2];
+    const st02StairZ = (cut02.minZ + cut02.maxZ) * 0.5;
+
     // (A) Desce a pé pelas 3 Escadarias Subterrâneas até as plataformas das Estações 01 e 02 (-10.50m)!
     simulateControllerWalk([
-      { x: -58.5, y: 0.35, z: -100.4 },
-      { x: -91.0, y: -10.5, z: -100.4 },
-      { x: -91.0, y: -10.5, z: -109.5 },
-      { x: 0.0, y: -10.5, z: -109.5 }
+      { x: -58.5, y: 0.35, z: st01StairZ },
+      { x: -91.0, y: -10.5, z: st01StairZ },
+      { x: -91.0, y: -10.5, z: -109.5 + dz1 },
+      { x: 0.0, y: -10.5, z: -109.5 + dz1 }
     ]);
     assert.ok(Math.abs(controller.position.y - -10.5) < 0.08, 'Plataforma Oeste->Centro da Estação 01 em -10.5m');
 
     simulateControllerWalk([
-      { x: 58.5, y: 0.35, z: -100.4 },
-      { x: 91.0, y: -10.5, z: -100.4 },
-      { x: 91.0, y: -10.5, z: -109.5 },
-      { x: 0.0, y: -10.5, z: -109.5 }
+      { x: 58.5, y: 0.35, z: st01StairZ },
+      { x: 91.0, y: -10.5, z: st01StairZ },
+      { x: 91.0, y: -10.5, z: -109.5 + dz1 },
+      { x: 0.0, y: -10.5, z: -109.5 + dz1 }
     ]);
     assert.ok(Math.abs(controller.position.y - -10.5) < 0.08, 'Plataforma Leste->Centro da Estação 01 em -10.5m');
 
     simulateControllerWalk([
-      { x: -56.5, y: 0.35, z: 18.6 },
-      { x: -88.8, y: -10.5, z: 18.6 },
-      { x: -88.8, y: -10.5, z: 26.0 },
-      { x: -78.0, y: -10.5, z: 26.0 }
+      { x: cut02.maxX + 1.5, y: 0.35, z: st02StairZ },
+      { x: -88.8 + dx2, y: -10.5, z: st02StairZ },
+      { x: -88.8 + dx2, y: -10.5, z: st02StairZ + 7.4 },
+      { x: -78.0 + dx2, y: -10.5, z: st02StairZ + 7.4 }
     ]);
     assert.ok(Math.abs(controller.position.y - -10.5) < 0.08, 'Plataforma da Estação 02 em -10.5m');
 
@@ -479,7 +503,13 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       sp.sampleAtS(s, p);
       sp.sampleAtS(s + 2, q);
       if (p.y < 14 || q.y < 14) continue;
-      if (Math.abs(Math.abs(p.x) - 82) < 20 && p.z > -245 && p.z < -130) continue; // rampas dos portais do túnel
+      if (
+        Math.abs(Math.abs(p.x) - METRO_OFFSETS.portalEastX) < 22 &&
+        p.z > ws(-250) + 5 &&
+        p.z < -115 + METRO_OFFSETS.portalDz
+      ) {
+        continue; // rampas dos portais do túnel
+      }
       maxGrade = Math.max(maxGrade, Math.abs(q.y - p.y) / Math.max(0.5, Math.hypot(q.x - p.x, q.z - p.z)));
     }
     assert.ok(maxGrade <= 0.045, `Inclinação máxima da linha elevada ${(maxGrade * 100).toFixed(1)}%`);
@@ -526,7 +556,9 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     }
 
     // (D) Trilho elevado andável: piso em cima do trilho e muretas com colisão
-    for (const [x, z] of [[-388.5, -150], [-516, 300], [-300, 556], [200, 710], [518, 100]]) {
+    for (const [ux, uz] of [[-388.5, -150], [-516, 300], [-300, 556], [200, 710], [518, 100]]) {
+      const x = ws(ux);
+      const z = ws(uz);
       const s = (() => {
         let best = 0;
         let bd = Infinity;
@@ -546,7 +578,7 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       assert.ok(world.getSurfaceHeightAt(p.x, p.z, 0.3) < p.y - 5, 'Quem está na rua embaixo continua no chão');
     }
 
-    // Anda em cima do trilho na Av. X = -384 e não atravessa a mureta lateral
+    // Anda em cima do trilho na Av. X = ws(-384) e não atravessa a mureta lateral
     controller.activeRide = null;
     sp.sampleAtS(0, p);
     const walkS = metro.stations[2].stopS - 120;
@@ -567,9 +599,9 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
     const { parallelCorridorAt } = await import('../src/world/StreetPortalPlanner.js');
     // (A) Tabuleiro com a mesma largura e alinhamento da avenida onde a rampa encosta
     const checks = [
-      ['viaduct_ew_north', false, -440, -382],
-      ['viaduct_ns_panoramic', true, 252, -70],
-      ['viaduct_ew_central_ramp_pair', true, 0, -290]
+      ['viaduct_ew_north', false, ws(-440), ws(-382)],
+      ['viaduct_ns_panoramic', true, ws(252), ws(-70)],
+      ['viaduct_ew_central_ramp_pair', true, 0, ws(-382) + 92]
     ];
     for (const [id, alongZ, a, b] of checks) {
       const deck = world.elevatedDecks.find((d) => d.id === id);
@@ -583,44 +615,50 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       assert.ok(Math.abs(d0 - road.lo) < 0.05 && Math.abs(d1 - road.hi) < 0.05, `${id}: tabuleiro ${d0}..${d1} = avenida ${road.lo}..${road.hi}`);
     }
 
-    // (B) Cerca baixa do parque (1.9m) atravessando a Av. X = 252: no chão o carro bate, pulando passa por cima
+    // (B) Cerca baixa do parque (1.9m) na Av. X = ws(120): no chão o carro bate, pulando passa por cima
     hud.isTitleScreenActive = false; // sem tela inicial: o controle aceita acelerar
     const car = destructibles.objects.find((o) => o.mesh.userData?.carType === 'apex_gtx');
     assert.ok(car, 'Deve existir um carro terrestre');
     controller.activeRide = null;
     if (controller.currentVehicle) controller.exitVehicle();
-    car.mesh.position.set(254, world.getTerrainHeightAt(254, 146), 146);
-    car.mesh.rotation.y = 0; // apontando para +Z (cerca em z ~ 152)
+
+    const parkNorthZ = world.centralParkData.z - world.centralParkData.depth * 0.5;
+    const wallTestX = ws(120) + 4;
+    const approachZ = parkNorthZ - 6;
+    car.mesh.position.set(wallTestX, world.getTerrainHeightAt(wallTestX, approachZ), approachZ);
+    car.mesh.rotation.y = 0; // apontando para +Z (mureta norte do Parque em z = parkNorthZ)
     controller.enterVehicle(car);
     controller.keys.forward = true;
     for (let i = 0; i < 45; i++) controller.update(1 / 30);
     controller.keys.forward = false;
-    assert.ok(car.mesh.position.z < 151.5, `No chão o carro bate na cerca (z=${car.mesh.position.z.toFixed(2)})`);
+    assert.ok(car.mesh.position.z < parkNorthZ - 0.5, `No chão o carro bate na cerca (z=${car.mesh.position.z.toFixed(2)})`);
 
-    car.mesh.position.set(254, 4.5, 146);
-    controller.position.set(254, 4.5, 146);
+    car.mesh.position.set(wallTestX, 4.5, approachZ);
+    controller.position.set(wallTestX, 4.5, approachZ);
     controller.vehicleAirborne = true;
     controller.vehicleAirVelY = 4;
     controller.vehicleSpeed = 22;
     controller.keys.forward = true;
     for (let i = 0; i < 12; i++) controller.update(1 / 30);
     controller.keys.forward = false;
-    assert.ok(car.mesh.position.z > 153, `Pulando, o carro passa por cima da cerca baixa (z=${car.mesh.position.z.toFixed(2)})`);
+    assert.ok(car.mesh.position.z > parkNorthZ + 1.0, `Pulando, o carro passa por cima da cerca baixa (z=${car.mesh.position.z.toFixed(2)})`);
     controller.exitVehicle();
 
     // (C) Em cima do Viaduto Panorâmico o carro atravessa o lago (a água lá embaixo não bloqueia)
     const v2 = world.elevatedDecks.find((d) => d.id === 'viaduct_ns_panoramic');
-    assert.equal(world.isDeepWaterAt(252, 250, { forCar: true }), true, 'Há lago embaixo do viaduto');
-    const startZ = 200;
-    car.mesh.position.set(248, v2.getDeckY(248, startZ), startZ);
+    assert.equal(world.isDeepWaterAt(ws(252), ws(250), { forCar: true }), true, 'Há lago embaixo do viaduto');
+    const laneX = ws(252) - 4;
+    const startZ = ws(200);
+    const lakeFrames = IS_SCALED_WORLD ? 380 : 150;
+    car.mesh.position.set(laneX, v2.getDeckY(laneX, startZ), startZ);
     car.mesh.rotation.y = 0;
     controller.enterVehicle(car);
     controller.keys.forward = true;
-    for (let i = 0; i < 150; i++) controller.update(1 / 30);
+    for (let i = 0; i < lakeFrames; i++) controller.update(1 / 30);
     controller.keys.forward = false;
-    assert.ok(car.mesh.position.z > 320, `Carro atravessa o lago pelo viaduto (z=${car.mesh.position.z.toFixed(1)})`);
+    assert.ok(car.mesh.position.z > ws(320), `Carro atravessa o lago pelo viaduto (z=${car.mesh.position.z.toFixed(1)})`);
     assert.ok(
-      car.mesh.position.y > v2.getDeckY(248, car.mesh.position.z) - 0.5,
+      car.mesh.position.y > v2.getDeckY(laneX, car.mesh.position.z) - 0.5,
       'Continua em cima do viaduto'
     );
     controller.exitVehicle();
@@ -668,7 +706,7 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       }
       return { a, b };
     };
-    const drive = (x, y, z, heading, { airborne = false, velY = 0, speed = 0, frames = 60 } = {}) => {
+    const drive = (x, y, z, heading, { airborne = false, velY = 0, speed = 0, turbo = false, frames = 60 } = {}) => {
       car.mesh.position.set(x, y, z);
       car.mesh.rotation.y = heading;
       controller.enterVehicle(car);
@@ -677,14 +715,19 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
       controller.vehicleAirborne = airborne;
       controller.vehicleAirVelY = velY;
       controller.keys.forward = true;
+      controller.keys.turbo = turbo;
       for (let i = 0; i < frames; i++) controller.update(1 / 30);
       controller.keys.forward = false;
+      controller.keys.turbo = false;
       const p = car.mesh.position.clone();
       controller.exitVehicle();
       return p;
     };
 
-    for (const [name, z, x0, x1] of [['canal da praia', 850, -460, -300], ['rio leste', 300, 500, 640]]) {
+    for (const [name, z, x0, x1] of [
+      ['canal da praia', ws(895), ws(-120) - 50, ws(-120) + 50],
+      ['rio leste', ws(300), ws(540) - 40, ws(580) + 40]
+    ]) {
       const { a, b } = waterSpan(z, x0, x1);
       assert.ok(a !== null && b !== null, `${name}: água encontrada`);
       const startX = a - 12;
@@ -696,7 +739,18 @@ describe('OTIMIZAÇÃO 60 FPS, RELEVO URBANO VISÍVEL, VIADUTOS SUSPENSOS & METR
 
       // Pulando alto e rápido: atravessa por cima e pousa do outro lado, no seco
       const width = b - a;
-      const pJump = drive(startX, gy + 8, z, Math.PI / 2, { airborne: true, velY: 10, speed: 48, frames: Math.ceil((width + 30) / 48 * 30) + 20 });
+      const isWideSpan = width > 50;
+      const jumpY = gy + (isWideSpan ? 14 : 8);
+      const jumpVelY = isWideSpan ? 34 : 10;
+      const jumpSpeed = isWideSpan ? 62 : 48;
+      const jumpFrames = Math.ceil(((width + (isWideSpan ? 60 : 30)) / jumpSpeed) * 30) + (isWideSpan ? 35 : 20);
+      const pJump = drive(startX, jumpY, z, Math.PI / 2, {
+        airborne: true,
+        velY: jumpVelY,
+        speed: jumpSpeed,
+        turbo: isWideSpan,
+        frames: jumpFrames
+      });
       assert.ok(pJump.x > b, `${name}: pulando, o carro passa por cima da água (x=${pJump.x.toFixed(1)} > ${b.toFixed(1)})`);
       assert.ok(!world.isDeepWaterAt(pJump.x, z, { forCar: true }), `${name}: pousa no seco`);
 

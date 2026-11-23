@@ -2,6 +2,8 @@
 // ZONAS TERRITORIAIS, REGRAS DE INVASÃO E CONFIGURAÇÕES DAS FACÇÕES & POLÍCIA
 // ============================================================================
 
+import { IS_SCALED_WORLD, ws, wsP, wsBounds } from '../core/WorldLayoutScale.js';
+
 // Temas extras (não são territórios): polícia aliada no Mega Assalto
 export const EXTRA_THEMES = {
   guard: {
@@ -104,7 +106,7 @@ export const FACTION_CONFIGS = {
   ...EXTRA_THEMES
 };
 
-export const TERRITORY_ZONES = {
+const DESIGN_TERRITORY_ZONES = {
   cv: {
     id: 'cv',
     defaultOwner: 'cv',
@@ -354,6 +356,102 @@ export const TERRITORY_ZONES = {
     ]
   }
 };
+
+function buildScaledTerritoryZones(base) {
+  return {
+    cv: {
+      ...base.cv,
+      bounds: wsBounds(base.cv.bounds),
+      mapBadgePos: wsP(-770, 365),
+      safeExitGate: wsP(-508, 134),
+      gates: [
+        { ...base.cv.gates[0], ...wsP(-528, 134) },
+        { ...base.cv.gates[1], ...wsP(-528, -117) }
+      ],
+      garages: [
+        { ...base.cv.garages[0], x: ws(-538), z: ws(158) },
+        { ...base.cv.garages[1], x: ws(-702) - 2, z: ws(-135) + 24 }
+      ],
+      outposts: [
+        { ...base.cv.outposts[0], ...wsP(-605, -355) },
+        { ...base.cv.outposts[1], x: ws(-715) + 8, z: ws(-135) },
+        { ...base.cv.outposts[2], x: ws(-865) + 24, z: ws(-240) }
+      ],
+      bossCourtyard: { x: ws(-865) + 10, z: ws(-240) + 37 },
+      alliedBossSpawn: { x: ws(-865) + 24, z: ws(-240) + 18 },
+      alliedEntryRoutes: [
+        { startX: ws(-514), startZ: ws(134), targetX: ws(-514) - 82, targetZ: ws(134) },
+        { startX: ws(-514), startZ: ws(-117), targetX: ws(-514) - 82, targetZ: ws(-117) }
+      ],
+      defenderMotorRoutes: [
+        { startX: ws(-702) + 8, startZ: ws(-135) - 22, targetX: ws(-702) + 8, targetZ: ws(-135) + 16 },
+        { startX: ws(-540), startZ: ws(95), targetX: ws(-540), targetZ: ws(134) - 12 }
+      ]
+    },
+    pcc: {
+      ...base.pcc,
+      bounds: wsBounds(base.pcc.bounds),
+      mapBadgePos: wsP(1080, -555),
+      safeExitGate: wsP(516, -117),
+      gates: [
+        { ...base.pcc.gates[0], x: ws(606), z: ws(-117) },
+        { ...base.pcc.gates[1], x: ws(606), z: ws(-250) }
+      ],
+      garages: [
+        { ...base.pcc.garages[0], x: ws(684), z: ws(-316) + 113 },
+        { ...base.pcc.garages[1], x: ws(866) + 172, z: ws(-316) + 133 }
+      ],
+      outposts: [
+        { ...base.pcc.outposts[0], x: ws(684), z: ws(-250) - 40 },
+        { ...base.pcc.outposts[1], x: ws(866) - 168, z: ws(-316) + 68 },
+        { ...base.pcc.outposts[2], x: ws(866) + 172, z: ws(-316) + 68 }
+      ],
+      bossCourtyard: { x: ws(866) - 10, z: ws(-316) + 76 },
+      alliedBossSpawn: { x: ws(866), z: ws(-316) + 136 },
+      alliedEntryRoutes: [
+        { startX: ws(595), startZ: ws(-117), targetX: ws(595) + 95, targetZ: ws(-117) },
+        { startX: ws(595), startZ: ws(-250), targetX: ws(595) + 110, targetZ: ws(-250) }
+      ],
+      defenderMotorRoutes: [
+        { startX: ws(768) - 110, startZ: ws(-250), targetX: ws(684), targetZ: ws(-250) },
+        { startX: ws(866) + 115, startZ: ws(-250), targetX: ws(866), targetZ: ws(-250) - 35 }
+      ]
+    },
+    ares: {
+      ...base.ares,
+      bounds: wsBounds(base.ares.bounds),
+      mapBadgePos: wsP(1100, 685),
+      safeExitGate: wsP(516, 134),
+      gates: [
+        { ...base.ares.gates[0], x: ws(606), z: ws(134) },
+        { ...base.ares.gates[1], x: ws(606), z: ws(402) }
+      ],
+      garages: [
+        { ...base.ares.garages[0], x: ws(825) - 45, z: ws(335) + 50 },
+        { ...base.ares.garages[1], x: ws(995) - 165, z: ws(535) - 45 }
+      ],
+      outposts: [
+        { ...base.ares.outposts[0], x: ws(675), z: ws(134) + 43 },
+        { ...base.ares.outposts[1], x: ws(825) + 60, z: ws(402) + 14 },
+        { ...base.ares.outposts[2], x: ws(995) - 165, z: ws(535) + 45 }
+      ],
+      bossCourtyard: { x: ws(995), z: ws(622) - 98 },
+      alliedBossSpawn: { x: ws(995) - 50, z: ws(622) - 121 },
+      alliedEntryRoutes: [
+        { startX: ws(595), startZ: ws(134), targetX: ws(595) + 110, targetZ: ws(134) },
+        { startX: ws(595), startZ: ws(402), targetX: ws(595) + 110, targetZ: ws(402) }
+      ],
+      defenderMotorRoutes: [
+        { startX: ws(825), startZ: ws(402) - 95, targetX: ws(825), targetZ: ws(402) },
+        { startX: ws(995) - 45, startZ: ws(535), targetX: ws(995) - 150, targetZ: ws(535) + 30 }
+      ]
+    }
+  };
+}
+
+export const TERRITORY_ZONES = IS_SCALED_WORLD
+  ? buildScaledTerritoryZones(DESIGN_TERRITORY_ZONES)
+  : DESIGN_TERRITORY_ZONES;
 
 export function getTerritoryZoneAt(x, z, margin = 0) {
   for (const zone of Object.values(TERRITORY_ZONES)) {

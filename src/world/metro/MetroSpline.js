@@ -47,8 +47,36 @@ export function buildClosedMetroLoopSpline(world = null) {
 
   if (world?.getTerrainHeightAt) {
     const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
-    const isStreet = (x, z) =>
-      roads.some((r) => Math.abs(x - r.x) <= r.w * 0.5 && Math.abs(z - r.z) <= r.d * 0.5);
+    const cell = 64;
+    const roadGrid = new Map();
+    const keyOf = (gx, gz) => ((gx + 32768) << 16) | ((gz + 32768) & 0xffff);
+    for (let i = 0; i < roads.length; i++) {
+      const r = roads[i];
+      const gx0 = Math.floor((r.x - r.w * 0.5) / cell);
+      const gx1 = Math.floor((r.x + r.w * 0.5) / cell);
+      const gz0 = Math.floor((r.z - r.d * 0.5) / cell);
+      const gz1 = Math.floor((r.z + r.d * 0.5) / cell);
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const k = keyOf(gx, gz);
+          let list = roadGrid.get(k);
+          if (!list) {
+            list = [];
+            roadGrid.set(k, list);
+          }
+          list.push(r);
+        }
+      }
+    }
+    const isStreet = (x, z) => {
+      const list = roadGrid.get(keyOf(Math.floor(x / cell), Math.floor(z / cell)));
+      if (!list) return false;
+      for (let i = 0; i < list.length; i++) {
+        const r = list[i];
+        if (Math.abs(x - r.x) <= r.w * 0.5 && Math.abs(z - r.z) <= r.d * 0.5) return true;
+      }
+      return false;
+    };
     smoothPts = adjustMetroVerticalProfile(smoothPts, (x, z) => world.getTerrainHeightAt(x, z), METRO_STATIONS, {
       isStreet
     });

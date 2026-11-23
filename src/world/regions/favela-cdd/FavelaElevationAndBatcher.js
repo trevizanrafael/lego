@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { makeFastBox, flushSpatialChunkedBuckets } from '../../BuildingGenerator.js';
+import { IS_SCALED_WORLD, ws, fromWs } from '../../core/WorldLayoutScale.js';
 
 /**
  * FUNÇÃO MATEMÁTICA CONTÍNUA DE RELEVO DO MORRO DA CIDADE DE DEUS (`getFavelaElevation(x, z)`):
@@ -8,34 +9,41 @@ import { makeFastBox, flushSpatialChunkedBuckets } from '../../BuildingGenerator
  *   a altura começa EXATAMENTE em Y = 0 (no nível da rua, sem degrau brusco!) e sobe suavemente em curva de sino/cosseno
  *   como uma ladeira real até chegar a Y ≈ 43m no cume do morro!
  */
-export function getFavelaEastBorderX(z) {
-  if (z >= -490 && z <= 400) return -528;
-  if (z < -1318) {
-    const tNorth = THREE.MathUtils.clamp((-1318 - z) / 500, 0, 1);
+export function getFavelaEastBorderDesignX(dz) {
+  if (dz >= -490 && dz <= 400) return -528;
+  if (dz < -1318) {
+    const tNorth = THREE.MathUtils.clamp((-1318 - dz) / 500, 0, 1);
     return THREE.MathUtils.lerp(-658, -715, 0.5 * (1 - Math.cos(Math.PI * tNorth)));
   }
-  if (z < -525 || z > 435) return -658;
-  if (z < -490) {
-    const t = (-490 - z) / 35; // 0 em -490 -> 1 em -525
+  if (dz < -525 || dz > 435) return -658;
+  if (dz < -490) {
+    const t = (-490 - dz) / 35; // 0 em -490 -> 1 em -525
     const s = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp(t, 0, 1)));
     return THREE.MathUtils.lerp(-528, -658, s);
   }
-  const t = (z - 400) / 35; // 0 em +400 -> 1 em +435
+  const t = (dz - 400) / 35; // 0 em +400 -> 1 em +435
   const s = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp(t, 0, 1)));
   return THREE.MathUtils.lerp(-528, -658, s);
 }
 
+export function getFavelaEastBorderX(z) {
+  return ws(getFavelaEastBorderDesignX(fromWs(z)));
+}
+
 export function getFavelaElevation(x, z) {
+  const ux = fromWs(x);
+  const uz = fromWs(z);
+
   const zNorth = -1820;
   const zSouth = 675;
-  if (z <= zNorth || z >= zSouth) return 0;
+  if (uz <= zNorth || uz >= zSouth) return 0;
 
-  const xEast = getFavelaEastBorderX(z);
+  const xEast = getFavelaEastBorderDesignX(uz);
   const xWest = -1012;
-  if (x >= xEast || x <= xWest) return 0;
+  if (ux >= xEast || ux <= xWest) return 0;
 
   // 1. Perfil Leste-Oeste suave (u = 0 na rua da Cidade Y=0 -> pico em u = 0.70 -> u = 1 na borda do Aeroporto Y=0)
-  const u = (xEast - x) / (xEast - xWest);
+  const u = (xEast - ux) / (xEast - xWest);
   const peakU = 0.70;
   let profileX = 0;
   if (u <= peakU) {
@@ -50,50 +58,52 @@ export function getFavelaElevation(x, z) {
   // 2. Perfil Norte-Sul suave (0 nas extremidades zNorth/zSouth -> 1 ao longo da cordilheira central do Morro)
   let profileZ = 1.0;
   const rampLenZ = 145;
-  if (z < zNorth + rampLenZ) {
-    const tz = (z - zNorth) / rampLenZ;
+  if (uz < zNorth + rampLenZ) {
+    const tz = (uz - zNorth) / rampLenZ;
     profileZ = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp(tz, 0, 1)));
-  } else if (z > zSouth - rampLenZ) {
-    const tz = (zSouth - z) / rampLenZ;
+  } else if (uz > zSouth - rampLenZ) {
+    const tz = (zSouth - uz) / rampLenZ;
     profileZ = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp(tz, 0, 1)));
   }
 
-  // 3. Ondulação orgânica natural da crista do morro (mais alta no Cume do Barão Vermelho em Z ≈ -240)
-  const summitBoost = Math.exp(-Math.pow((z + 240) / 280, 2)) * 5.5;
-  const ridgeWave = Math.sin(z * 0.0085) * 2.2 + Math.cos(x * 0.015 + z * 0.006) * 1.2;
+  // 3. Ondulação orgânica natural da crista do morro (mais alta no Cume do Barão Vermelho em Z ≈ -240, pico em 1x <= 43.5m)
+  const summitBoost = Math.exp(-Math.pow((uz + 240) / 280, 2)) * 5.5;
+  const ridgeWave = Math.sin(uz * 0.0085) * 2.2 + Math.cos(ux * 0.015 + uz * 0.006) * 1.2;
   const basePeakH = 38.5 + summitBoost + ridgeWave * profileX;
 
   let h = Math.max(0, basePeakH * profileX * profileZ);
 
   // 4. Suavização local para os 3 platôs comunitários (integrados suavemente na ladeira, sem degrau!):
-  // 4.1 Campinho de Futebol da CDD (X = -605, Z = +195 -> Y ≈ 11.5m)
-  const dSoccer = Math.hypot((x - -605) / 34, (z - 195) / 46);
+  // 4.1 Campinho de Futebol da CDD (X = ws(-605), Z = ws(+195) -> Y ≈ 11.5m)
+  const dSoccer = Math.hypot((ux - -605) / 34, (uz - 195) / 46);
   if (dSoccer < 1.35) {
     const w = dSoccer <= 0.78 ? 1.0 : 0.5 * (1 + Math.cos(Math.PI * ((dSoccer - 0.78) / 0.57)));
     h = THREE.MathUtils.lerp(h, 11.5, w);
   }
 
-  // 4.2 Quadra do Baile do CV & Paredão (X = -715, Z = -135 -> Y ≈ 25.0m)
-  const dBaile = Math.hypot((x - -715) / 36, (z - -135) / 42);
+  // 4.2 Quadra do Baile do CV & Paredão + Mirante CDD (X = ws(-715), Z = ws(-135) -> Y ≈ 25.0m)
+  const dBaile = Math.hypot((ux - -715) / 36, (uz - -135) / 42);
   if (dBaile < 1.35) {
     const w = dBaile <= 0.78 ? 1.0 : 0.5 * (1 + Math.cos(Math.PI * ((dBaile - 0.78) / 0.57)));
     h = THREE.MathUtils.lerp(h, 25.0, w);
   }
 
-  // 4.3 Topo do Morro — Fortaleza do Barão Vermelho & Caixa d'Água Comunitária (X = -865, Z = -240 -> Y ≈ 42.5m)
-  const dSummit = Math.hypot((x - -865) / 42, (z - -240) / 56);
+  // 4.3 Topo do Morro — Fortaleza do Barão Vermelho & Caixa d'Água Comunitária (X = ws(-865), Z = ws(-240) -> Y ≈ 42.5m)
+  const dSummit = Math.hypot((ux - -865) / 42, (uz - -240) / 56);
   if (dSummit < 1.35) {
     const w = dSummit <= 0.8 ? 1.0 : 0.5 * (1 + Math.cos(Math.PI * ((dSummit - 0.8) / 0.55)));
     h = THREE.MathUtils.lerp(h, 42.5, w);
   }
 
-  // 5. Corte Viário / Cânion estilo Linha Amarela em `Z = 0` (`|z| < 30`) para passagem limpa do Viaduto Expresso Oeste (`Y = +9.2m`)!
+  // 5. Corte Viário / Cânion estilo Linha Amarela em `Z = 0` em METROS REAIS (`|z| <= 22m` em 3x, `|z| <= 14.5m` em 1x)!
   const absZ = Math.abs(z);
-  if (absZ < 30.0) {
-    if (absZ <= 14.5) {
+  const flatHalfZ = IS_SCALED_WORLD ? 22.0 : 14.5;
+  const rampHalfSpan = IS_SCALED_WORLD ? 24.0 : 15.5;
+  if (absZ < flatHalfZ + rampHalfSpan) {
+    if (absZ <= flatHalfZ) {
       return 0;
     }
-    const passT = (absZ - 14.5) / 15.5;
+    const passT = (absZ - flatHalfZ) / rampHalfSpan;
     const passWeight = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp(passT, 0, 1)));
     h *= passWeight;
   }
@@ -123,12 +133,15 @@ export const WINDING_LADEIRAS = [
 ];
 
 export function getLadeiraZAtX(ladeira, x) {
-  const xEast = getFavelaEastBorderX(ladeira.zStart);
-  const dx = Math.max(0, xEast - x);
+  const zStartWorld = ws(ladeira.zStart);
+  const xEast = getFavelaEastBorderX(zStartWorld);
+  const dxDesign = Math.max(0, fromWs(xEast - x));
   return (
-    ladeira.zStart +
-    Math.sin(dx * ladeira.freq1) * ladeira.amp1 +
-    Math.sin(dx * ladeira.freq2) * ladeira.amp2
+    zStartWorld +
+    ws(
+      Math.sin(dxDesign * ladeira.freq1) * ladeira.amp1 +
+      Math.sin(dxDesign * ladeira.freq2) * ladeira.amp2
+    )
   );
 }
 
@@ -288,17 +301,17 @@ export class FavelaBatcher {
  * e sobe suavemente até Y ≈ 43m no topo do morro!
  */
 export function buildContinuousSmoothHillMesh(world) {
-  const minX = -1016;
-  const maxX = -524;
-  const minZ = -1825;
-  const maxZ = 680;
-  const width = maxX - minX;   // 492m
-  const depth = maxZ - minZ;   // 2505m
+  const minX = ws(-1016);
+  const maxX = ws(-524);
+  const minZ = ws(-1825);
+  const maxZ = ws(680);
+  const width = maxX - minX;
+  const depth = maxZ - minZ;
   const centerX = (minX + maxX) * 0.5;
   const centerZ = (minZ + maxZ) * 0.5;
 
-  const segsX = 88;
-  const segsZ = 314;
+  const segsX = IS_SCALED_WORLD ? 156 : 88;
+  const segsZ = IS_SCALED_WORLD ? 560 : 314;
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(centerX, 0, centerZ);
@@ -314,7 +327,11 @@ export function buildContinuousSmoothHillMesh(world) {
 
   for (let i = 0; i < posAttr.count; i++) {
     const vx = posAttr.getX(i);
-    const vz = posAttr.getZ(i);
+    let vz = posAttr.getZ(i);
+    if (IS_SCALED_WORLD && Math.abs(vz) > 12.0 && Math.abs(vz) < 22.0) {
+      vz = Math.sign(vz) * 20.5;
+      posAttr.setZ(i, vz);
+    }
     const vy = getFavelaElevation(vx, vz);
 
     if (vy <= 0.02) {
@@ -326,7 +343,7 @@ export function buildContinuousSmoothHillMesh(world) {
     } else {
       posAttr.setY(i, vy);
       const heightRatio = Math.min(1, vy / 42.0);
-      const wave = 0.5 + 0.5 * Math.sin(vx * 0.07 + vz * 0.05);
+      const wave = 0.5 + 0.5 * Math.sin(fromWs(vx) * 0.07 + fromWs(vz) * 0.05);
       if (vy < 4.5) {
         tmpColor.copy(cStreetBorder).lerp(cFavelaOchre, vy / 4.5);
       } else if (wave > 0.72 && vy > 12) {
@@ -353,10 +370,10 @@ export function buildContinuousSmoothHillMesh(world) {
   hillMesh.castShadow = false;
   world.scene.add(hillMesh);
 
-  // Registra a massa contínua do Morro da Cidade de Deus no Minimapa / Mapa [M] (cobrindo até a borda Norte Z = -1320!)
+  // Registra a massa contínua do Morro da Cidade de Deus no Minimapa / Mapa [M]
   world.mapBlocks.push(
-    { x: -770, z: -45, w: 468, d: 900, color: '#7c2d12' },
-    { x: -835, z: -907.5, w: 354, d: 825, color: '#78350f' },
-    { x: -835, z: 540, w: 354, d: 270, color: '#78350f' }
+    { x: ws(-770), z: ws(-45), w: ws(468), d: ws(900), color: '#7c2d12' },
+    { x: ws(-835), z: ws(-907.5), w: ws(354), d: ws(825), color: '#78350f' },
+    { x: ws(-835), z: ws(540), w: ws(354), d: ws(270), color: '#78350f' }
   );
 }

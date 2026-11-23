@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createLegoBrick } from '../../../materials/LegoMaterials.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ws, wsP, fromWs } from '../../core/WorldLayoutScale.js';
 import {
   getFavelaEastBorderX,
   getFavelaElevation,
@@ -40,9 +41,10 @@ export function buildWindingHillsideRoadsAndStaircases(world, batcher) {
   let ladeiraIdx = 0;
   for (const ladeira of WINDING_LADEIRAS) {
     ladeiraIdx++;
-    const xEast = getFavelaEastBorderX(ladeira.zStart);
-    const xWest = -975;
-    const stepX = 6.0;
+    const zStartWorld = ws(ladeira.zStart);
+    const xEast = getFavelaEastBorderX(zStartWorld);
+    const xWest = ws(-975);
+    const stepX = IS_SCALED_WORLD ? 12.0 : 6.0;
     let segCounter = 0;
 
     for (let x = xEast - 3; x >= xWest; x -= stepX) {
@@ -52,6 +54,7 @@ export function buildWindingHillsideRoadsAndStaircases(world, batcher) {
       const nextZ = getLadeiraZAtX(ladeira, nextX);
       const midX = (x + nextX) * 0.5;
       const midZ = (z + nextZ) * 0.5;
+      if (IS_SCALED_WORLD && Math.abs(midZ) < 25) continue;
       const y = getFavelaElevation(midX, midZ);
       if (y <= 0.05) continue;
 
@@ -75,7 +78,7 @@ export function buildWindingHillsideRoadsAndStaircases(world, batcher) {
         }
       }
 
-      // Postes de Madeira & Gambiarras Luminosas nas Ladeiras Tortas (a cada 30m!)
+      // Postes de Madeira & Gambiarras Luminosas nas Ladeiras Tortas (tamanho 1x!)
       if (segCounter % 5 === 2 && y > 0.35) {
         const poleSide = (segCounter + ladeiraIdx) % 2 === 0 ? 1 : -1;
         const poleZ = midZ + poleSide * (roadW * 0.5 + 0.45);
@@ -104,12 +107,16 @@ export function buildWindingHillsideRoadsAndStaircases(world, batcher) {
   }
 
   // 3 Vielas Transversais Tortas (Norte-Sul) serpenteando a meia-encosta e ligando as ladeiras!
-  for (const baseX of [-595, -695, -805]) {
-    for (let z = -880; z <= 610; z += 8.0) {
-      const x = baseX + Math.sin(z * 0.018) * 14 + Math.cos(z * 0.009) * 8;
+  const stepAlleyZ = IS_SCALED_WORLD ? 16.0 : 8.0;
+  for (const baseDesignX of [-595, -695, -805]) {
+    const baseX = ws(baseDesignX);
+    for (let z = ws(-880); z <= ws(610); z += stepAlleyZ) {
+      if (IS_SCALED_WORLD && Math.abs(z) < 26) continue;
+      const uz = fromWs(z);
+      const x = baseX + ws(Math.sin(uz * 0.018) * 14 + Math.cos(uz * 0.009) * 8);
       const y = getFavelaElevation(x, z);
       if (y <= 0.2) continue;
-      batcher.addBox('alley_cement', 4.8, 1.6, 8.8, x, y - 0.68, z);
+      batcher.addBox('alley_cement', 4.8, 1.6, stepAlleyZ + 0.8, x, y - 0.68, z);
     }
   }
 }
@@ -121,14 +128,14 @@ export function buildWindingHillsideRoadsAndStaircases(world, batcher) {
  */
 export function buildCVBocasAndHeavyBarricades(world, batcher) {
   const bocas = [
-    { x: -524, z: -382, label: 'BOCA NORTE-1 (CV)' },
-    { x: -524, z: -250, label: 'BOCA CENTRAL-NORTE (CV)' },
-    { x: -524, z: -117, label: 'BOCA PRINCIPAL CDD (CV)' },
-    { x: -524, z: 36, label: 'BOCA CENTRAL CDD (CV)' },
-    { x: -524, z: 134, label: 'BOCA CAMPINHO (CV)' },
-    { x: -524, z: 380, label: 'BOCA SUL (CV)' },
-    { x: -654, z: -640, label: 'BOCA SUBÚRBIO-OESTE (CV)' },
-    { x: -654, z: 540, label: 'BOCA ORLA-OESTE (CV)' }
+    { ...wsP(-524, -382), label: 'BOCA NORTE-1 (CV)' },
+    { ...wsP(-524, -250), label: 'BOCA CENTRAL-NORTE (CV)' },
+    { ...wsP(-524, -117), label: 'BOCA PRINCIPAL CDD (CV)' },
+    { ...wsP(-524, 36), label: 'BOCA CENTRAL CDD (CV)' },
+    { ...wsP(-524, 134), label: 'BOCA CAMPINHO (CV)' },
+    { ...wsP(-524, 380), label: 'BOCA SUL (CV)' },
+    { ...wsP(-654, -640), label: 'BOCA SUBÚRBIO-OESTE (CV)' },
+    { ...wsP(-654, 540), label: 'BOCA ORLA-OESTE (CV)' }
   ];
 
   for (let i = 0; i < bocas.length; i++) {
@@ -336,6 +343,8 @@ export function buildCDDSoccerFieldVarzea(world, batcher, cx, yBase, cz) {
     label: 'CAMPINHO CDD'
   });
 
+  world.favelaSoccerData = { x: cx, y: yBase, z: cz, fieldW, fieldD };
+  world.favelaCDDData.soccerCenter = { x: cx, y: yBase, z: cz };
   world.favelaCDDData.hasSoccerField = true;
 }
 
@@ -456,6 +465,21 @@ export function buildCVBailePlazaAndGiantParedao(world, batcher, cx, yBase, cz) 
     coneR: 7.5
   });
 
+  // Em escala 3x, conecta o Mirante / Largo de Chegada da CDD (`lm_cdd.spawn` em `ws(-702)`) à Quadra do Baile!
+  if (IS_SCALED_WORLD) {
+    const miranteEastX = ws(-702) + 12;
+    const plazaEastX = cx + plazaW * 0.5;
+    if (miranteEastX > plazaEastX + 1) {
+      const mW = miranteEastX - plazaEastX;
+      const mCX = (plazaEastX + miranteEastX) * 0.5;
+      const mD = 34;
+      batcher.addBox('retaining_concrete', mW + 1.5, 4.5, mD + 1.5, mCX, yBase - 2.15, cz);
+      batcher.addBox('alley_cement', mW + 0.5, 0.14, mD, mCX, yBase + 0.07, cz);
+      batcher.addBox('cv_red', mW - 2, 0.95, 0.45, mCX, yBase + 0.48, cz - mD * 0.5 + 0.4);
+      batcher.addBox('cv_red', mW - 2, 0.95, 0.45, mCX, yBase + 0.48, cz + mD * 0.5 - 0.4);
+    }
+  }
+
   world.mapBuildings.push({
     x: cx,
     z: cz,
@@ -466,6 +490,22 @@ export function buildCVBailePlazaAndGiantParedao(world, batcher, cx, yBase, cz) 
     label: 'BAILE DO CV (PAREDÃO)'
   });
 
+  world.favelaBaileCenter = new THREE.Vector3(cx, yBase, cz);
+  world.favelaBaileData = {
+    x: cx,
+    y: yBase,
+    z: cz,
+    cx,
+    cz,
+    yBase,
+    plazaW,
+    plazaD,
+    paredaoX,
+    paredaoFaceX: paredaoX + 2.85,
+    stageX: paredaoX + 5.0,
+    stageTopY: yBase + 1.4
+  };
+  world.favelaCDDData.baileCenter = { x: cx, y: yBase, z: cz };
   world.favelaCDDData.hasBaileParedao = true;
 }
 
@@ -624,6 +664,8 @@ export function buildRedBaronSummitFortress(world, batcher, cx, yBase, cz) {
     }
   );
 
+  world.favelaFortressData = { x: cx, y: yBase, z: cz, fortW, fortD, towerX, towerZ };
+  world.favelaCDDData.fortressCenter = { x: cx, y: yBase, z: cz };
   world.favelaCDDData.hasRedBaronFortress = true;
   world.favelaCDDData.hasCommunityWaterTower = true;
 }

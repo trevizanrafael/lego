@@ -1,17 +1,24 @@
 import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
 import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
+import { IS_SCALED_WORLD, ROAD } from '../core/WorldLayoutScale.js';
 import { AgentSeparationSystem, computeDistinctArrivalSlot } from '../collision/AgentSeparation.js';
 import { projectSlideVelocity2D } from '../collision/CollisionQueries.js';
-import { DISPATCH_RULES } from './PursuitTuning.js';
-import { ensurePoliceRoadGraph, findNearestRoadNode, findRoadPathAStar } from './PoliceRoadGraph.js';
+import { DISPATCH_RULES, PURSUIT_WORLD_BOUNDS } from './PursuitTuning.js';
+import {
+  ensurePoliceRoadGraph,
+  findNearestRoadNode,
+  findRoadPathAStar,
+  clampPointToRoadAsphalt
+} from './PoliceRoadGraph.js';
 import { getCameraForward2D, despawnIfLostBeyondHorizon } from './PoliceDispatchDirector.js';
 import { getAliveOccupantCount, disembarkOccupants } from '../vehicles/VehicleOccupants.js';
 
 /**
  * PoliceCarDriver.js
  * Direção policial tática (60 FPS): OBB rotacionado (`updateDynamicCollider`), sweep contínuo
- * (`sweepOrientedBox`), slide em paredes, separação (`AgentSeparationSystem`) e slots distintos.
+ * (`sweepOrientedBox`), slide em paredes, separação (`AgentSeparationSystem`), slots distintos
+ * e disciplina de meio-fio em `3x` (`±(roadWidth * 0.5 - 2.0)`) preservando as calçadas de 10m.
  */
 
 const _sweepFrom = { x: 0, y: 0, z: 0 };
@@ -20,6 +27,7 @@ const _sweepOut = {};
 const _obbResOut = {};
 const _slideOut = { vx: 0, vz: 0, x: 0, z: 0 };
 const _staticColFilter = (col) => !col.isDynamic;
+const TACTICAL_LANE_OFFSETS = [-5.5, 5.5, -2.2, 2.2, -9.0, 9.0];
 
 function wrapAnglePi(angle) {
   let a = angle;
@@ -79,6 +87,10 @@ function computeSearchRingGoal(sys, graph, pv, slotIdx, activeCount, pos) {
     const node = findNearestRoadNode(graph, gx, gz, (n) => n.neighbors.length > 0);
     if (node) { const nSlot = computeDistinctArrivalSlot(node.x, node.z, slotIdx, Math.max(1, activeCount), 15.5, 7.5); gx = nSlot.x; gz = nSlot.z; }
   }
+  if (IS_SCALED_WORLD) {
+    const clamped = clampPointToRoadAsphalt(graph, gx, gz, 2.0);
+    gx = clamped.x; gz = clamped.z;
+  }
   if (Math.hypot(gx - pos.x, gz - pos.z) < 7.5) pv.searchSectorStep = sectorStep + 1;
   return { x: gx, z: gz };
 }
@@ -94,7 +106,24 @@ function updateAStarWaypointTarget(graph, pv, unitIndex, dt, pos, goalX, goalZ) 
   }
   while (pv.pathIndex < pv.roadPath.length - 1 && Math.hypot(pv.roadPath[pv.pathIndex].x - pos.x, pv.roadPath[pv.pathIndex].z - pos.z) < 14.0) pv.pathIndex++;
   const wp = pv.roadPath[pv.pathIndex];
-  return wp ? { x: wp.x, z: wp.z } : { x: goalX, z: goalZ };
+  if (!wp) return { x: goalX, z: goalZ };
+  if (!IS_SCALED_WORLD) return { x: wp.x, z: wp.z };
+
+  // Em 3x: distribui faixas táticas estritamente dentro do asfalto ±(roadWidth * 0.5 - 2.0)
+  const prevWp = pv.pathIndex > 0 ? pv.roadPath[pv.pathIndex - 1] : pos;
+  const segDx = wp.x - prevWp.x, segDz = wp.z - prevWp.z;
+  const segLen = Math.hypot(segDx, segDz);
+  const roadWidth = wp.roadWidth || ROAD.mainWidth;
+  const maxLaneOff = Math.max(2.0, roadWidth * 0.5 - 2.0);
+  const laneOff = THREE.MathUtils.clamp(TACTICAL_LANE_OFFSETS[unitIndex % TACTICAL_LANE_OFFSETS.length] || 0, -maxLaneOff, maxLaneOff);
+  let wx = wp.x, wz = wp.z;
+  if (segLen > 1.0) {
+    const rightX = segDz / segLen, rightZ = -segDx / segLen;
+    wx += rightX * laneOff;
+    wz += rightZ * laneOff;
+  }
+  const safe = clampPointToRoadAsphalt(graph, wx, wz, 2.0);
+  return { x: safe.x, z: safe.z };
 }
 function deployShelteredFootOfficers(sys, pv, pos, playerPos, dist) {
   if (pv.deployedTroops || pv.isTank || sys.stars <= 0) return;
@@ -297,6 +326,11 @@ export const policeCarDriverMethods = {
     const vehFrame = getPlayerVehicleFrame(this, controller);
     if (this.isEscaping) this._searchOrbitClock = ((this._searchOrbitClock || 0) + dt * 0.22) % (Math.PI * 2);
 
+    const minBoundX = Math.min(PURSUIT_WORLD_BOUNDS.minX, playerPos.x - 320);
+    const maxBoundX = Math.max(PURSUIT_WORLD_BOUNDS.maxX, playerPos.x + 320);
+    const minBoundZ = Math.min(PURSUIT_WORLD_BOUNDS.minZ, playerPos.z - 320);
+    const maxBoundZ = Math.max(PURSUIT_WORLD_BOUNDS.maxZ, playerPos.z + 320);
+
     const resolveY = (rx, rz, refY = 0) => this.world?.getSurfaceHeightAt
       ? this.world.getSurfaceHeightAt(rx, rz, refY)
       : (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(rx, rz) : 0);
@@ -370,8 +404,13 @@ export const policeCarDriverMethods = {
       } else if (!playerCar && !pv.isTank) {
         const arriveSlot = computeDistinctArrivalSlot(playerPos.x, playerPos.z, slotIdx, Math.max(1, slotCounter), 15.5, 7.5);
         const angFromPlayer = Math.atan2(pos.x - playerPos.x, pos.z - playerPos.z);
-        const holdX = slotCounter <= 1 ? playerPos.x + Math.sin(angFromPlayer) * arriveSlot.radius : arriveSlot.x;
-        const holdZ = slotCounter <= 1 ? playerPos.z + Math.cos(angFromPlayer) * arriveSlot.radius : arriveSlot.z;
+        let holdX = slotCounter <= 1 ? playerPos.x + Math.sin(angFromPlayer) * arriveSlot.radius : arriveSlot.x;
+        let holdZ = slotCounter <= 1 ? playerPos.z + Math.cos(angFromPlayer) * arriveSlot.radius : arriveSlot.z;
+        if (IS_SCALED_WORLD) {
+          const curbMargin = dist <= 22.0 ? 0.9 : 2.0;
+          const safeHold = clampPointToRoadAsphalt(graph, holdX, holdZ, curbMargin);
+          holdX = safeHold.x; holdZ = safeHold.z;
+        }
         pv.arrivalSlot = { x: holdX, z: holdZ };
         const nearSlot = slotCounter <= 1 || dist <= 15.8 || Math.hypot(holdX - pos.x, holdZ - pos.z) <= 6.0;
 
@@ -399,6 +438,9 @@ export const policeCarDriverMethods = {
         if (dist > 48.0 || blockedToPlayer) {
           const wp = updateAStarWaypointTarget(graph, pv, slotIdx, dt, pos, playerPos.x, playerPos.z);
           steerX = wp.x; steerZ = wp.z;
+        } else if (IS_SCALED_WORLD) {
+          const safeTac = clampPointToRoadAsphalt(graph, tac.x, tac.z, 2.0);
+          steerX = safeTac.x; steerZ = safeTac.z;
         } else {
           steerX = tac.x; steerZ = tac.z;
         }
@@ -436,6 +478,7 @@ export const policeCarDriverMethods = {
         if (this.isEscaping) desiredSpd = dSteer < 10.0 ? pv.maxSpeed * 0.42 : pv.maxSpeed * 0.68;
         else if (pv.isTank && !playerCar && dist <= standoffRadius && !blockedToPlayer) desiredSpd = 0;
         else if (tacticalMode === 'box_front' && dist < 11.0 && playerCar) desiredSpd = Math.min(effectiveMaxSpd, Math.max(8.0, playerSpeedAbs * 0.92));
+        else if (IS_SCALED_WORLD && !playerCar && dist <= 24.0) desiredSpd = Math.min(desiredSpd, 11.5);
 
         const absTurn = Math.abs(angleDiff);
         if (absTurn > 0.55) {
@@ -466,10 +509,21 @@ export const policeCarDriverMethods = {
       const pv = this.pursuitVehicles[i];
       if (!pv || pv.retreating || pv.carObj?.destroyed || pv.carObj?.isDriven) continue;
       const pos = pv.carObj.mesh.position;
+      const dist = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
+      if (IS_SCALED_WORLD && !pv.parkedBroadside && pv.speed > 7.5) {
+        const curbMargin = !playerCar && dist <= 22.0 ? 0.9 : 2.0;
+        const kept = clampPointToRoadAsphalt(graph, pos.x, pos.z, curbMargin);
+        if (kept.clamped && !this._isSegmentBlockedByBuilding(pos.x, pos.z, kept.x, kept.z)) {
+          pos.x = THREE.MathUtils.lerp(pos.x, kept.x, Math.min(1, dt * 9.0));
+          pos.z = THREE.MathUtils.lerp(pos.z, kept.z, Math.min(1, dt * 9.0));
+          pos.y = resolveY(pos.x, pos.z, pos.y);
+        }
+      }
+      pos.x = THREE.MathUtils.clamp(pos.x, minBoundX, maxBoundX);
+      pos.z = THREE.MathUtils.clamp(pos.z, minBoundZ, maxBoundZ);
       pv.carObj.mesh.rotation.y = pv.heading + (pv.driftSlip || 0);
       pv.carObj.basePos.copy(pos); pv.carObj.groundY = pos.y;
       syncPoliceVehicleCollider(this.world, pv, pos);
-      const dist = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
       handleVehicleContactManeuvers(this, pv, pos, playerPos, dist, controller, vehFrame);
       if (!pv.carObj.driverKilled && getAliveOccupantCount(pv.carObj) > 0) {
         tickArmyTankCannon(this, pv, dt, pos, playerPos, dist, this._isSegmentBlockedByBuilding(pos.x, pos.z, playerPos.x, playerPos.z), controller, vehFrame);

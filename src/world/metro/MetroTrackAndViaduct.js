@@ -1,7 +1,8 @@
 // Leito dos trilhos, rampas dos portais e estrutura elevada.
 import * as THREE from 'three';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 import { planElevatedSupports, SUPPORT_CONFIG } from './MetroSupportPlanner.js';
-import { makeFootingLookup, isBuildingAt } from '../StreetPortalPlanner.js';
+import { makeFootingLookup, makeBuildingLookup } from '../StreetPortalPlanner.js';
 
 // ============================================================================
 // 6. TRILHOS CONTÍNUOS, LINHA ELEVADA (`Y = +14.2m`) & 3 ESTAÇÕES ELEVADAS GRANDES
@@ -17,7 +18,7 @@ export function buildTrackBedAndElevatedManhattanStructure(world, batcher, splin
       d = Math.min(d, spline.totalLength - d);
       return d < STATION_CLEAR;
     });
-  const step = 6.0;
+  const step = IS_SCALED_WORLD ? 9.0 : 6.0;
   const count = Math.floor(spline.totalLength / step);
   const posA = new THREE.Vector3();
   const posB = new THREE.Vector3();
@@ -121,8 +122,10 @@ export function buildTrackBedAndElevatedManhattanStructure(world, batcher, splin
             rotY,
             0
           );
-          // Pinos LEGO amarelos no topo do guarda-corpo (1 por metro)
-          const studs = Math.max(1, Math.round(horizLen));
+          // Pinos LEGO amarelos no topo do guarda-corpo
+          const studs = IS_SCALED_WORLD
+            ? Math.max(1, Math.round(horizLen * 0.5))
+            : Math.max(1, Math.round(horizLen));
           for (let k = 0; k < studs; k++) {
             const t = (k + 0.5) / studs;
             batcher.studPositions.push([
@@ -155,16 +158,49 @@ function isDeckInRange(world, x, z, half, minY, maxY) {
   return false;
 }
 
-function isSpotBlocked(world, x, z, half, minY = -Infinity, maxY = Infinity) {
-  if (isDeckInRange(world, x, z, half, minY, maxY)) return true;
-  const r = half + 0.3;
-  const cols = world.getCollidersNear ? world.getCollidersNear(x, z, r + 1) : world.colliders || [];
-  for (const col of cols) {
+function makeGroundObstacleLookup(world) {
+  const cell = 32;
+  const grid = new Map();
+  const keyOf = (gx, gz) => ((gx + 32768) << 16) | ((gz + 32768) & 0xffff);
+  const allCols = world.colliders || [];
+  for (let i = 0; i < allCols.length; i++) {
+    const col = allCols[i];
     if (col.disabled) continue;
-    if ((col.minY ?? 0) > 6.0 || col.maxY < 0.8) continue; // ignora coisas no alto (ex.: tabuleiros) e pisos
-    if (x + r > col.minX && x - r < col.maxX && z + r > col.minZ && z - r < col.maxZ) return true;
+    if ((col.minY ?? 0) > 6.0 || col.maxY < 0.8) continue;
+    const gx0 = Math.floor(col.minX / cell);
+    const gx1 = Math.floor(col.maxX / cell);
+    const gz0 = Math.floor(col.minZ / cell);
+    const gz1 = Math.floor(col.maxZ / cell);
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const k = keyOf(gx, gz);
+        let list = grid.get(k);
+        if (!list) {
+          list = [];
+          grid.set(k, list);
+        }
+        list.push(col);
+      }
+    }
   }
-  return false;
+  return (x, z, half) => {
+    const r = half + 0.3;
+    const gx0 = Math.floor((x - r) / cell);
+    const gx1 = Math.floor((x + r) / cell);
+    const gz0 = Math.floor((z - r) / cell);
+    const gz1 = Math.floor((z + r) / cell);
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const list = grid.get(keyOf(gx, gz));
+        if (!list) continue;
+        for (let i = 0; i < list.length; i++) {
+          const col = list[i];
+          if (x + r > col.minX && x - r < col.maxX && z + r > col.minZ && z - r < col.maxZ) return true;
+        }
+      }
+    }
+    return false;
+  };
 }
 
 /** Chão que não é rua (calçada, calçadão, praça, parque) — ver `StreetPortalPlanner.makeFootingLookup`. */
@@ -172,15 +208,18 @@ export const makeSidewalkLookup = (world) => makeFootingLookup(world);
 
 export function buildElevatedSupports(world, batcher, spline) {
   const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
+  const hasGroundObstacle = makeGroundObstacleLookup(world);
+  const isBuildingFast = makeBuildingLookup(world);
   const bents = planElevatedSupports(spline, roads, {
-    isBlocked: (x, z, half, minY, maxY) => isSpotBlocked(world, x, z, half, minY, maxY),
+    isBlocked: (x, z, half, minY, maxY) =>
+      isDeckInRange(world, x, z, half, minY, maxY) || hasGroundObstacle(x, z, half),
     isDeckInRange: (x, z, half, minY, maxY) => isDeckInRange(world, x, z, half, minY, maxY),
     isSidewalk: (() => {
       const onFooting = makeSidewalkLookup(world);
       // Pilar dentro d'água (canal/rio) vira pilar de ponte: também vale como base fora da rua
       return (x, z) => onFooting(x, z) || Boolean(world.isDeepWaterAt?.(x, z));
     })(),
-    isBuildingAt: (x, z) => isBuildingAt(world, x, z),
+    isBuildingAt: isBuildingFast,
     getGroundY: (x, z) => (world.getTerrainHeightAt ? Math.max(0, world.getTerrainHeightAt(x, z)) : 0)
   });
 

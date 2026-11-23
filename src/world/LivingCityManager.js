@@ -39,6 +39,7 @@ export class LivingCityManager {
     this.caveiraSupportCooldown = 0;
     this.caveiraCallToggle = 0;
     this._sirenPhase = 0;
+    this._trafficLightClock = 0;
     this._crowdRingTimer = 0.6;
     this._wasPlayerAirborne = false;
     this._heroLandingCheerTimer = 0;
@@ -48,6 +49,7 @@ export class LivingCityManager {
     this._buildingGrid = new Map();
     this._buildingGridCellSize = 48;
     this._initBuildingSpatialGrid();
+    this._initRoadAndSidewalkSpatialIndex();
     this._initUrbanTraffic();
     this._initPedestrianInstancedPools();
     this._initPedestrians();
@@ -140,9 +142,6 @@ export class LivingCityManager {
     return { playerHp: this.playerHp, alliesHealed };
   }
 
-  /**
-   * Mantido para compatibilidade total com Saves e LegoHud (sem spawnar tropas de guerra)
-   */
   setPlayerFaction(factionKey = 'free_roam', controller = null, savedConquests = null) {
     this.playerFaction = factionKey || 'free_roam';
     const charKey = controller?.minifigure?.currentHeroKey || this.activeCharacterKey || getDefaultHybridOperatorKey(this.playerFaction);
@@ -151,15 +150,11 @@ export class LivingCityManager {
       this.hud.setPlayerFaction(this.playerFaction, false);
       this.hud.setPlayerHealth(this.playerMaxHp, this.playerMaxHp, false);
     }
-    if (this.factionWar) {
-      this.factionWar.setPlayerFaction(factionKey, controller, savedConquests);
-    }
+    this.factionWar?.setPlayerFaction(factionKey, controller, savedConquests);
   }
 
-  // ============================================================================
-  // LOOP PRINCIPAL (60 FPS CRAVADOS — ZERO DANO AO JOGADOR NO MODO LIVRE)
-  // ============================================================================
   update(dt, playerPos, controller = null) {
+    this._trafficLightClock = (this._trafficLightClock || 0) + dt;
     if (this.caveiraSupportCooldown > 0) {
       this.caveiraSupportCooldown = Math.max(0, this.caveiraSupportCooldown - dt);
     }

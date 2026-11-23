@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { wsP } from '../core/WorldLayoutScale.js';
 import {
   buildCarrierHullAndBelly,
   buildCarrierFourTurbines
@@ -23,14 +24,16 @@ export { buildLegoClouds };
  * - Hangar / Oficina de Personalização de Aeronaves no convés + Props instanciados em LOD de 3 níveis
  */
 export function buildSkyHelicarrier(world) {
+  const origin = wsP(0, -50);
   const cfg = {
-    hx: 0,
+    hx: origin.x,
     hy: 410.0,
-    hz: -50,
+    hz: origin.z,
     deckW: 104,
     deckD: 260,
     hullThickness: 26.0
   };
+  world.helicarrierData = { ...cfg };
 
   const carrierGroup = new THREE.Group();
   carrierGroup.position.set(cfg.hx, cfg.hy, cfg.hz);

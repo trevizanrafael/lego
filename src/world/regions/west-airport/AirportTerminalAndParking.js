@@ -9,6 +9,7 @@ import {
   flushSpatialChunkedBuckets
 } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 
 export function createWestBatcher() {
   const legoPlastic = (color, opts = {}) =>
@@ -92,7 +93,7 @@ export function createWestBatcher() {
     },
     flush(scene) {
       flushSpatialChunkedBuckets(scene, buckets, palette, {
-        chunkSize: 768,
+        chunkSize: IS_SCALED_WORLD ? 1536 : 768,
         castShadowFn: (key) => shadowCasterKeys.has(key),
         receiveShadowFn: () => true
       });
@@ -100,35 +101,177 @@ export function createWestBatcher() {
   };
 }
 
+function addExpressHighwayStripX(world, batcher, groundY, xEast, xWest, z, roadW, isMain = true) {
+  const len = xEast - xWest;
+  if (len <= 1) return;
+  const cx = (xEast + xWest) * 0.5;
+  batcher.addBox('asphalt_dark', len, 0.08, roadW, cx, groundY + 0.04, z);
+  batcher.addBox('mark_yellow', len - 4, 0.04, 0.35, cx, groundY + 0.095, z - 0.45);
+  batcher.addBox('mark_yellow', len - 4, 0.04, 0.35, cx, groundY + 0.095, z + 0.45);
+  for (let dx = xWest + 12; dx <= xEast - 12; dx += 20) {
+    batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, z - roadW * 0.25);
+    batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, z + roadW * 0.25);
+  }
+  world.mapRoads.push({ x: cx, z, w: len, d: roadW, isMain });
+}
+
 /**
  * 1. RODOVIA EXPRESSA + PERÍMETRO DE SEGURANÇA + GRANDE ESTACIONAMENTO COM CATRACAS/CANCELAS!
  */
 export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
-  // Pórtico de Acesso ao Aeroporto e Base Militar posicionado na entrada do perímetro Oeste (sem cortar a Favela!)
+  if (!IS_SCALED_WORLD) {
+    // Pórtico de Acesso ao Aeroporto e Base Militar posicionado na entrada do perímetro Oeste (sem cortar a Favela!)
+    const gantries = [
+      { x: -1018, z: -117, text: 'AEROPORTO / BASE MILITAR ' },
+      { x: -1018, z: 0, text: 'MEGA TERMINAL & ESTACIONAMENTO ' },
+      { x: -1018, z: 134, text: 'BASE MILITAR & HANGARES ' }
+    ];
+    for (const g of gantries) {
+      batcher.addBox('steel_silver', 1.2, 11.5, 1.2, g.x, 5.75, g.z - 16.5);
+      batcher.addBox('steel_silver', 1.2, 11.5, 1.2, g.x, 5.75, g.z + 16.5);
+      batcher.addBox('steel_silver', 1.0, 1.2, 34.2, g.x, 11.2, g.z);
+      world.addCollider(g.x, g.z - 16.5, 1.4, 1.4, 11.5, 0);
+      world.addCollider(g.x, g.z + 16.5, 1.4, 1.4, 11.5, 0);
+      addHighwayGreenSign(world, g.x, 11.2, g.z, 28.0, 4.2, g.text);
+    }
+
+    // Perímetro de Segurança em X = -1020 (Z = -650 a +650) com 5 Entradas de Catraca/Cancela!
+    const fenceX = -1020;
+    const isGateZ = (z) =>
+      Math.abs(z + 340) < 18 ||
+      Math.abs(z + 117) < 20 ||
+      Math.abs(z) < 22 ||
+      Math.abs(z - 134) < 20 ||
+      Math.abs(z - 340) < 18;
+
+    for (let fz = -640; fz <= 640; fz += 20) {
+      if (isGateZ(fz)) continue;
+      batcher.addBox('concrete_wall', 1.2, 1.4, 19.6, fenceX, groundY + 0.7, fz);
+      batcher.addBox('steel_dark', 0.45, 2.8, 0.45, fenceX, groundY + 2.8, fz - 9.5);
+      batcher.addBox('steel_silver', 0.2, 0.25, 19.6, fenceX, groundY + 2.6, fz);
+      batcher.addBox('steel_silver', 0.2, 0.25, 19.6, fenceX, groundY + 3.9, fz);
+      world.addCollider(fenceX, fz, 1.4, 19.8, groundY + 4.3, groundY);
+    }
+
+    for (const gz of [-340, -117, 0, 134, 340]) {
+      batcher.addBox('aviation_blue', 4.2, 1.6, 36.0, -1026, groundY + 7.8, gz);
+      for (const side of [-1, 1]) {
+        const bz = gz + side * 17.5;
+        batcher.addBox('white_clean', 5.8, 4.2, 4.4, -1026, groundY + 2.1, bz);
+        batcher.addBox('glass_cockpit', 6.0, 1.6, 3.8, -1026, groundY + 2.5, bz);
+        batcher.addBox('aviation_blue', 6.6, 0.65, 5.2, -1026, groundY + 4.5, bz);
+        world.addCollider(-1026, bz, 6.0, 4.6, groundY + 4.8, groundY);
+
+        const turnstileZ = gz + side * 11.2;
+        batcher.addBox('mark_yellow', 1.2, 2.1, 1.0, -1028, groundY + 1.05, turnstileZ);
+        batcher.addBox('light_green', 0.4, 0.4, 0.4, -1028, groundY + 2.25, turnstileZ);
+        batcher.addBox('aviation_red', 0.3, 0.3, 4.2, -1028, groundY + 3.6, turnstileZ - side * 2.2);
+        batcher.addBox('white_clean', 0.32, 0.32, 2.0, -1028, groundY + 3.6, turnstileZ - side * 2.2);
+      }
+    }
+    addHighwayGreenSign(world, -1024, groundY + 9.2, 0, 34.0, 3.8, 'ESTACIONAMENTO & EMBARQUE ');
+
+    batcher.addBox('asphalt_dark', 58, 0.08, 920, -1064, groundY + 0.04, 0);
+    buildParkingSectors(world, batcher, groundY, [-1044, -1078]);
+    return;
+  }
+
+  // ============================================================================
+  // ESCALA 3x: RODOVIA OESTE (ws(-1010) -> TERMINAL ws(-1145)), LIVRE SOB O VIADUTO 03!
+  // ============================================================================
+  const termX = ws(-1145);
+  const termDropoffX = termX + 71;   // Via de embarque/desembarque colada à fachada Leste do Terminal
+  const parkCenterX = termX + 127;   // Grande Estacionamento na frente do Mega Terminal (dimensões 1x!)
+  const forecourtBlvdX = termX + 180; // Boulevard Norte-Sul interligando Terminal, Estacionamento, Hangares e Ala Militar Norte
+  const boothX = ws(-1052);          // Guaritas/Catracas a Oeste do pouso do Viaduto 03 (ws(-1036)) e a Leste do spawn (ws(-1060))
+  const fenceX = ws(-1048);          // Perímetro de segurança 36m a Oeste da rampa do Viaduto 03
+  const gantryX = ws(-1044);         // Pórticos rodoviários livres da rampa do Viaduto 03
+
+  // 1) Rodovia Expressa Oeste Principal ao longo de Z = 0 (width = ROAD.mainWidth):
+  //    Registra continuamente de ws(-1010) até a porta do Terminal; o asfalto novo começa no pé da rampa do Viaduto 03 (ws(-1036))!
+  const hwyEastX = ws(-1010);
+  const viaductFootX = ws(-1036);
+  world.mapRoads.push({
+    x: (hwyEastX + termDropoffX) * 0.5,
+    z: 0,
+    w: hwyEastX - termDropoffX,
+    d: ROAD.mainWidth,
+    isMain: true
+  });
+  batcher.addBox(
+    'asphalt_dark',
+    viaductFootX - termDropoffX,
+    0.08,
+    ROAD.mainWidth,
+    (viaductFootX + termDropoffX) * 0.5,
+    groundY + 0.04,
+    0
+  );
+  batcher.addBox(
+    'mark_yellow',
+    viaductFootX - termDropoffX - 6,
+    0.04,
+    0.35,
+    (viaductFootX + termDropoffX) * 0.5,
+    groundY + 0.095,
+    -0.45
+  );
+  batcher.addBox(
+    'mark_yellow',
+    viaductFootX - termDropoffX - 6,
+    0.04,
+    0.35,
+    (viaductFootX + termDropoffX) * 0.5,
+    groundY + 0.095,
+    0.45
+  );
+  for (let dx = termDropoffX + 14; dx <= viaductFootX - 10; dx += 20) {
+    batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, -ROAD.mainWidth * 0.25);
+    batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, ROAD.mainWidth * 0.25);
+  }
+
+  // 2) Avenidas Paralelas de Acesso (Z = ws(-117) e Z = ws(134)) + Via Frontal de Embarque + Boulevard Perimetral N-S
+  for (const accZ of [ws(-117), ws(134)]) {
+    addExpressHighwayStripX(world, batcher, groundY, hwyEastX, termDropoffX, accZ, ROAD.mainWidth, true);
+  }
+  for (const portalZ of [-340, 340]) {
+    addExpressHighwayStripX(world, batcher, groundY, forecourtBlvdX, termDropoffX, portalZ, ROAD.secondaryWidth, false);
+  }
+
+  // Via Frontal de Embarque/Desembarque ao longo dos 960m do Mega Terminal
+  batcher.addBox('asphalt_dark', ROAD.secondaryWidth, 0.08, 960, termDropoffX, groundY + 0.04, 0);
+  batcher.addBox('mark_yellow', 0.45, 0.04, 948, termDropoffX, groundY + 0.095, 0);
+  world.mapRoads.push({ x: termDropoffX, z: 0, w: ROAD.secondaryWidth, d: 960, isMain: false });
+
+  // Boulevard Norte-Sul do Complexo Oeste interligando Ala Militar Norte (ws(-1285)) até Taxiway Sul (ws(560))
+  const blvdNorthZ = ws(-1285);
+  const blvdSouthZ = ws(560);
+  const blvdLenZ = blvdSouthZ - blvdNorthZ;
+  const blvdMidZ = (blvdNorthZ + blvdSouthZ) * 0.5;
+  batcher.addBox('asphalt_dark', ROAD.secondaryWidth, 0.08, blvdLenZ, forecourtBlvdX, groundY + 0.04, blvdMidZ);
+  batcher.addBox('mark_yellow', 0.45, 0.04, blvdLenZ - 12, forecourtBlvdX, groundY + 0.095, blvdMidZ);
+  world.mapRoads.push({ x: forecourtBlvdX, z: blvdMidZ, w: ROAD.secondaryWidth, d: blvdLenZ, isMain: true });
+
+  // 3) 3 Pórticos Rodoviários de Entrada (dimensões 1x, pilares fora da pista de 34m!)
+  const halfPillarSpan = ROAD.mainWidth * 0.5 + 1.8;
   const gantries = [
-    { x: -1018, z: -117, text: 'AEROPORTO / BASE MILITAR ' },
-    { x: -1018, z: 0, text: 'MEGA TERMINAL & ESTACIONAMENTO ' },
-    { x: -1018, z: 134, text: 'BASE MILITAR & HANGARES ' }
+    { x: gantryX, z: ws(-117), text: 'AEROPORTO / BASE MILITAR ' },
+    { x: gantryX, z: 0, text: 'MEGA TERMINAL & ESTACIONAMENTO ' },
+    { x: gantryX, z: ws(134), text: 'BASE MILITAR & HANGARES ' }
   ];
   for (const g of gantries) {
-    batcher.addBox('steel_silver', 1.2, 11.5, 1.2, g.x, 5.75, g.z - 16.5);
-    batcher.addBox('steel_silver', 1.2, 11.5, 1.2, g.x, 5.75, g.z + 16.5);
-    batcher.addBox('steel_silver', 1.0, 1.2, 34.2, g.x, 11.2, g.z);
-    world.addCollider(g.x, g.z - 16.5, 1.4, 1.4, 11.5, 0);
-    world.addCollider(g.x, g.z + 16.5, 1.4, 1.4, 11.5, 0);
+    batcher.addBox('steel_silver', 1.2, 11.5, 1.2, g.x, 5.75, g.z - halfPillarSpan);
+    batcher.addBox('steel_silver', 1.2, 11.5, 1.2, g.x, 5.75, g.z + halfPillarSpan);
+    batcher.addBox('steel_silver', 1.0, 1.2, halfPillarSpan * 2 + 1.2, g.x, 11.2, g.z);
+    world.addCollider(g.x, g.z - halfPillarSpan, 1.4, 1.4, 11.5, 0);
+    world.addCollider(g.x, g.z + halfPillarSpan, 1.4, 1.4, 11.5, 0);
     addHighwayGreenSign(world, g.x, 11.2, g.z, 28.0, 4.2, g.text);
   }
 
-  // Perímetro de Segurança em X = -1020 (Z = -650 a +650) com 5 Entradas de Catraca/Cancela!
-  const fenceX = -1020;
-  const isGateZ = (z) =>
-    Math.abs(z + 340) < 18 ||
-    Math.abs(z + 117) < 20 ||
-    Math.abs(z) < 22 ||
-    Math.abs(z - 134) < 20 ||
-    Math.abs(z - 340) < 18;
-
-  for (let fz = -640; fz <= 640; fz += 20) {
+  // 4) Perímetro de Segurança (dimensões 1x de muro/grade) com portões largos para as vias
+  const gateCentersZ = [ws(-340), ws(-117), 0, ws(134), ws(340)];
+  const isGateZ = (z) => gateCentersZ.some((gz) => Math.abs(z - gz) < 25);
+  for (let fz = ws(-640); fz <= ws(640); fz += 20) {
     if (isGateZ(fz)) continue;
     batcher.addBox('concrete_wall', 1.2, 1.4, 19.6, fenceX, groundY + 0.7, fz);
     batcher.addBox('steel_dark', 0.45, 2.8, 0.45, fenceX, groundY + 2.8, fz - 9.5);
@@ -137,37 +280,34 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
     world.addCollider(fenceX, fz, 1.4, 19.8, groundY + 4.3, groundY);
   }
 
-  // ============================================================================
-  // CABINES DE ENTRADA COM CATRACAS / CANCELAS AUTOMÁTICAS E TOTENS DE TICKET (X = -1028)
-  // ============================================================================
-  for (const gz of [-340, -117, 0, 134, 340]) {
-    // Pórtico superior da Entrada de Catracas/Cancelas
-    batcher.addBox('aviation_blue', 4.2, 1.6, 36.0, -1026, groundY + 7.8, gz);
+  // 5) 5 Conjuntos de Guaritas / Catracas / Cancelas (dimensões 100% 1x, livres da faixa de rolamento!)
+  const boothSideOff = ROAD.mainWidth * 0.5 + 3.5; // 20.5m
+  const turnstileSideOff = ROAD.mainWidth * 0.5 + 0.6; // 17.6m
+  for (const gz of gateCentersZ) {
+    batcher.addBox('aviation_blue', 4.2, 1.6, boothSideOff * 2 + 3.0, boothX, groundY + 7.8, gz);
     for (const side of [-1, 1]) {
-      const bz = gz + side * 17.5;
-      // Guarita de Cobrança / Segurança na Entrada
-      batcher.addBox('white_clean', 5.8, 4.2, 4.4, -1026, groundY + 2.1, bz);
-      batcher.addBox('glass_cockpit', 6.0, 1.6, 3.8, -1026, groundY + 2.5, bz);
-      batcher.addBox('aviation_blue', 6.6, 0.65, 5.2, -1026, groundY + 4.5, bz);
-      world.addCollider(-1026, bz, 6.0, 4.6, groundY + 4.8, groundY);
+      const bz = gz + side * boothSideOff;
+      batcher.addBox('white_clean', 5.8, 4.2, 4.4, boothX, groundY + 2.1, bz);
+      batcher.addBox('glass_cockpit', 6.0, 1.6, 3.8, boothX, groundY + 2.5, bz);
+      batcher.addBox('aviation_blue', 6.6, 0.65, 5.2, boothX, groundY + 4.5, bz);
+      world.addCollider(boothX, bz, 6.0, 4.6, groundY + 4.8, groundY);
 
-      // Totem Amarelo de Ticket + Catraca / Cancela Automática Vermelha e Branca!
-      const turnstileZ = gz + side * 11.2;
-      batcher.addBox('mark_yellow', 1.2, 2.1, 1.0, -1028, groundY + 1.05, turnstileZ);
-      batcher.addBox('light_green', 0.4, 0.4, 0.4, -1028, groundY + 2.25, turnstileZ);
-      // Braço da Cancela/Catraca Listrado (semi-erguido para não travar a passagem!)
-      batcher.addBox('aviation_red', 0.3, 0.3, 4.2, -1028, groundY + 3.6, turnstileZ - side * 2.2);
-      batcher.addBox('white_clean', 0.32, 0.32, 2.0, -1028, groundY + 3.6, turnstileZ - side * 2.2);
+      const turnstileZ = gz + side * turnstileSideOff;
+      batcher.addBox('mark_yellow', 1.2, 2.1, 1.0, boothX - 2, groundY + 1.05, turnstileZ);
+      batcher.addBox('light_green', 0.4, 0.4, 0.4, boothX - 2, groundY + 2.25, turnstileZ);
+      batcher.addBox('aviation_red', 0.3, 0.3, 4.2, boothX - 2, groundY + 3.6, turnstileZ - side * 2.2);
+      batcher.addBox('white_clean', 0.32, 0.32, 2.0, boothX - 2, groundY + 3.6, turnstileZ - side * 2.2);
     }
   }
-  addHighwayGreenSign(world, -1024, groundY + 9.2, 0, 34.0, 3.8, 'ESTACIONAMENTO & EMBARQUE ');
+  addHighwayGreenSign(world, boothX + 2, groundY + 9.2, 0, 34.0, 3.8, 'ESTACIONAMENTO & EMBARQUE ');
 
-  // ============================================================================
-  // GRANDE ESTACIONAMENTO NA FRENTE DO MEGA TERMINAL (X = -1034 a -1094, Z = -460 a +460)
-  // ============================================================================
-  batcher.addBox('asphalt_dark', 58, 0.08, 920, -1064, groundY + 0.04, 0);
+  // 6) Grande Estacionamento 1x (58m x 920m) na frente do Mega Terminal, com eixo central Z = -35..+35 aberto!
+  batcher.addBox('asphalt_dark', 58, 0.08, 920, parkCenterX, groundY + 0.04, 0);
+  world.mapBlocks.push({ x: parkCenterX, z: 0, w: 66, d: 920, color: '#1e293b' });
+  buildParkingSectors(world, batcher, groundY, [parkCenterX + 20, parkCenterX - 14]);
+}
 
-  // 4 Grandes Setores de Vagas Demarcadas no Estacionamento + Coberturas Solares + Carros Estacionados!
+function buildParkingSectors(world, batcher, groundY, rowXs) {
   const parkingSectorsZ = [
     [-440, -195],
     [-160, -35],
@@ -181,17 +321,20 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
     const secLen = zEnd - zStart;
     const secMidZ = (zStart + zEnd) * 0.5;
 
-    // Cobertura Solar Branca e Azul sobre as duas fileiras de carros do setor
-    for (const rowX of [-1044, -1078]) {
+    for (const rowX of rowXs) {
       batcher.addBox('steel_dark', 0.5, 4.2, secLen - 6, rowX, groundY + 2.1, secMidZ);
       batcher.addBox('white_clean', 11.5, 0.4, secLen, rowX, groundY + 4.3, secMidZ);
       batcher.addBox('aviation_blue', 11.8, 0.25, secLen + 0.4, rowX, groundY + 4.55, secMidZ);
 
-      // Dezenas de Linhas Brancas de Vagas + Carros Estacionados nas Baias!
       for (let vz = zStart + 8; vz <= zEnd - 8; vz += 10.5) {
         batcher.addBox('mark_white', 8.5, 0.04, 0.3, rowX, groundY + 0.09, vz - 4.8);
-        // Pula as 4 vagas onde já estão os veículos dirigíveis da frota (Z = -95, -65, +65, +95)
-        if (Math.abs(vz + 95) < 8 || Math.abs(vz + 65) < 8 || Math.abs(vz - 65) < 8 || Math.abs(vz - 95) < 8) {
+        if (
+          Math.abs(vz + 95) < 8 ||
+          Math.abs(vz + 65) < 8 ||
+          Math.abs(vz - 65) < 8 ||
+          Math.abs(vz - 95) < 8 ||
+          (IS_SCALED_WORLD && (Math.abs(vz + 351) < 18 || Math.abs(vz - 402) < 18))
+        ) {
           continue;
         }
         if (carSeed % 3 !== 2) {
@@ -213,18 +356,16 @@ function addParkedAirportCar(batcher, x, yBase, z, colorKey) {
 }
 
 /**
- * 2. MEGA TERMINAL INTERNACIONAL LEGO DE 960m DE EXTENSÃO (X = -1145, Z = -480 a +480)
- * - Cobre quase toda a frente do Aeroporto voltada para a cidade!
- * - 100% ENTRÁVEL por 5 Portais Frontais (X = -1099) e 5 Portais Traseiros (X = -1191)!
- * - Interior Decorado: Piso de granito, 8 Balcões de Check-In com Computadores e Telões de Voos,
- *   4 Esteiras Rolantes de Bagagem, 5 Pórticos de Raio-X, Bancos de Espera e Quiosques Duty Free!
+ * 2. MEGA TERMINAL INTERNACIONAL LEGO DE 960m DE EXTENSÃO (X = ws(-1145), Z = -480 a +480)
+ * - Cobre a frente do Aeroporto voltada para a cidade, mantendo dimensões 100% 1x (92m x 960m x 30m)!
+ * - 100% ENTRÁVEL por 5 Portais Frontais e 5 Portais Traseiros!
  */
 export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
-  const termX = -1145;
+  const termX = ws(-1145);
   const termZ = 0;
-  const termW = 92;  // X = -1191 (Fundo/Pátio) até X = -1099 (Frente/Estacionamento)
-  const termD = 960; // Z = -480 até Z +480!
-  const wallH = 30.0; // 30m de pé-direito livre interno!
+  const termW = 92;   // 1x estrito!
+  const termD = 960;  // 1x estrito!
+  const wallH = 30.0; // 30m de pé-direito livre interno (1x estrito)!
   const floorY = groundY + 0.18;
 
   // 1. Piso Interno Polido do Mega Terminal (92m x 960m!) + Faixas Guia Azuis de Embarque
@@ -240,9 +381,7 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
   world.addCollider(termX, -478.5, termW, 3.0, floorY + wallH, floorY);
   world.addCollider(termX, 478.5, termW, 3.0, floorY + wallH, floorY);
 
-  // 3. Fachadas Leste (Frente X = -1100.5) e Oeste (Fundo X = -1189.5) divididas em 6 blocos
-  //    para deixar 5 PORTAIS DE ENTRADA/SAÍDA DE 28m DE LARGURA TOTALMENTE ABERTOS!
-  //    Portais abertos em: Z = -340, Z = -170, Z = 0, Z = +170 e Z = +340
+  // 3. Fachadas Leste e Oeste divididas em 6 blocos deixando 5 PORTAIS DE 28m DE LARGURA TOTALMENTE ABERTOS!
   const wallSegmentsZ = [
     [-477, -354],
     [-326, -184],
@@ -270,12 +409,12 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     }
   }
 
-  // 4. Cobertura Metálica Branca Aerodinâmica de 968m + 24 Pares de Pilares em "V" na Fachada Frontal!
+  // 4. Cobertura Metálica Branca Aerodinâmica de 968m + Pares de Pilares em "V" na Fachada Frontal!
   batcher.addBox('white_clean', termW + 20, 2.8, termD + 8, termX + 3.0, floorY + wallH + 1.4, termZ);
   batcher.addBox('aviation_blue', termW + 22, 0.9, termD + 10, termX + 3.0, floorY + wallH + 3.2, termZ);
   world.addCollider(termX + 3.0, termZ, termW + 20, termD + 8, floorY + wallH + 3.6, floorY + wallH - 0.2);
 
-  const vPillarX = termX + termW * 0.5 + 8.0; // X = -1091
+  const vPillarX = termX + termW * 0.5 + 8.0;
   for (let pz = -450; pz <= 450; pz += 38) {
     if (Math.abs(pz) < 16 || Math.abs(pz - 170) < 16 || Math.abs(pz + 170) < 16 || Math.abs(pz - 340) < 16 || Math.abs(pz + 340) < 16) {
       continue;
@@ -290,49 +429,47 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
   addHighwayGreenSign(world, termX + 48, floorY + wallH + 5.8, -280, 64.0, 5.2, 'EMBARQUE DOMÉSTICO & CARGAS ');
   addHighwayGreenSign(world, termX + 48, floorY + wallH + 5.8, 280, 64.0, 5.2, 'ALA AÉREA & COMANDO MILITAR ');
 
-  // 8 Pontes de Embarque Telescópicas ("Jetways") saindo da parte traseira do Terminal (X = -1202)
+  // 8 Pontes de Embarque Telescópicas ("Jetways") saindo da parte traseira do Terminal
   for (const jz of [-415, -255, -115, -45, 45, 115, 255, 415]) {
     batcher.addBox('steel_silver', 22.0, 4.2, 4.6, termX - termW * 0.5 - 11.0, floorY + 11.5, jz);
     batcher.addBox('glass_cockpit', 20.0, 2.2, 4.8, termX - termW * 0.5 - 11.0, floorY + 11.8, jz);
   }
 
   // ============================================================================
-  // 5. DECORAÇÃO INTERNA DO MEGA TERMINAL (CHECK-IN, TELÕES, ESTEIRAS DE MALAS, RAIO-X E ASSENTOS!)
+  // 5. DECORAÇÃO INTERNA DO MEGA TERMINAL (ANCORADA EM termX!)
   // ============================================================================
-  // A) 6 Grandes Ilhas de Balcões de Check-In + Painéis Azuis Luminosos de Voos (X = -1122)
+  const checkInX = termX + 23; // -1122 em 1x
+  const flightBoardX = termX + 20; // -1125 em 1x
   const checkInZonesZ = [-415, -255, -85, 85, 255, 415];
   for (const cz of checkInZonesZ) {
-    // Balcão longo de Check-In (36m de extensão) com computadores e balanças
-    batcher.addBox('white_clean', 3.6, 1.4, 36.0, -1122, floorY + 0.7, cz);
-    batcher.addBox('aviation_blue', 3.8, 0.3, 36.4, -1122, floorY + 1.55, cz);
+    batcher.addBox('white_clean', 3.6, 1.4, 36.0, checkInX, floorY + 0.7, cz);
+    batcher.addBox('aviation_blue', 3.8, 0.3, 36.4, checkInX, floorY + 1.55, cz);
     for (let mz = cz - 14; mz <= cz + 14; mz += 7) {
-      batcher.addBox('charcoal', 0.45, 0.9, 1.4, -1121.5, floorY + 2.15, mz);
-      batcher.addBox('light_cyan', 0.5, 0.7, 1.2, -1121.4, floorY + 2.15, mz);
-      // Balança de bagagem com mala em cima
-      batcher.addBox('steel_dark', 2.2, 0.25, 1.8, -1122, floorY + 0.15, mz + 3.2);
-      batcher.addBox('aviation_red', 1.4, 1.1, 0.9, -1122, floorY + 0.8, mz + 3.2);
+      batcher.addBox('charcoal', 0.45, 0.9, 1.4, checkInX + 0.5, floorY + 2.15, mz);
+      batcher.addBox('light_cyan', 0.5, 0.7, 1.2, checkInX + 0.6, floorY + 2.15, mz);
+      batcher.addBox('steel_dark', 2.2, 0.25, 1.8, checkInX, floorY + 0.15, mz + 3.2);
+      batcher.addBox('aviation_red', 1.4, 1.1, 0.9, checkInX, floorY + 0.8, mz + 3.2);
     }
-    // Grande Painel Eletrônico Suspenso de Voos ("PARTIDAS / CHEGADAS") acima do Check-In
-    batcher.addBox('charcoal', 1.4, 4.8, 28.0, -1125, floorY + 11.5, cz);
-    batcher.addBox('light_cyan', 1.6, 4.0, 26.8, -1124.8, floorY + 11.5, cz);
-    world.addCollider(-1122, cz, 3.8, 36.4, floorY + 2.6, floorY);
+    batcher.addBox('charcoal', 1.4, 4.8, 28.0, flightBoardX, floorY + 11.5, cz);
+    batcher.addBox('light_cyan', 1.6, 4.0, 26.8, flightBoardX + 0.2, floorY + 11.5, cz);
+    world.addCollider(checkInX, cz, 3.8, 36.4, floorY + 2.6, floorY);
   }
 
-  // B) 4 Esteiras Rolantes de Bagagem (Carrosséis de Malas) com Malas Coloridas (X = -1145)
+  // B) 4 Esteiras Rolantes de Bagagem (Carrosséis de Malas)
   for (const bz of [-380, -120, 120, 380]) {
-    batcher.addBox('steel_silver', 9.5, 0.75, 24.0, -1145, floorY + 0.38, bz);
-    batcher.addBox('charcoal', 7.5, 0.82, 22.0, -1145, floorY + 0.42, bz);
+    batcher.addBox('steel_silver', 9.5, 0.75, 24.0, termX, floorY + 0.38, bz);
+    batcher.addBox('charcoal', 7.5, 0.82, 22.0, termX, floorY + 0.42, bz);
     for (let lz = bz - 8; lz <= bz + 8; lz += 4) {
-      batcher.addBox('orange_windsock', 1.5, 1.0, 1.1, -1142, floorY + 1.3, lz);
-      batcher.addBox('sky_blue', 1.5, 1.0, 1.1, -1148, floorY + 1.3, lz + 1.5);
+      batcher.addBox('orange_windsock', 1.5, 1.0, 1.1, termX + 3, floorY + 1.3, lz);
+      batcher.addBox('sky_blue', 1.5, 1.0, 1.1, termX - 3, floorY + 1.3, lz + 1.5);
     }
-    world.addCollider(-1145, bz, 9.5, 24.0, floorY + 1.4, floorY);
+    world.addCollider(termX, bz, 9.5, 24.0, floorY + 1.4, floorY);
   }
 
-  // C) Pórticos de Raio-X / Detector de Metais e Dezenas de Fileiras de Poltronas Azuis de Espera (X = -1168)
+  // C) Fileiras de Poltronas Azuis de Espera nos Portões de Embarque
   for (const sz of [-255, -85, 85, 255]) {
-    // 4 Fileiras de Poltronas de Espera por Portão de Embarque
-    for (let rx = -1174; rx <= -1160; rx += 4.5) {
+    for (let rxOff = -29; rxOff <= -15; rxOff += 4.5) {
+      const rx = termX + rxOff;
       batcher.addBox('steel_silver', 1.6, 0.35, 18.0, rx, floorY + 0.25, sz);
       batcher.addBox('aviation_blue', 1.4, 0.55, 17.6, rx, floorY + 0.65, sz);
       batcher.addBox('aviation_blue', 0.45, 1.1, 17.6, rx - 0.5, floorY + 1.25, sz);
@@ -340,9 +477,9 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     }
   }
 
-  // D) Colunas Internas Cilíndricas e Lustres Modernos no teto de 30m do Terminal
+  // D) Colunas Internas e Lustres Modernos no teto de 30m do Terminal
   for (let cz = -420; cz <= 420; cz += 60) {
-    for (const cx of [-1128, -1162]) {
+    for (const cx of [termX + 17, termX - 17]) {
       batcher.addBox('white_clean', 2.4, wallH, 2.4, cx, floorY + wallH * 0.5, cz);
       batcher.addBox('light_warm', 6.5, 0.6, 6.5, cx, floorY + wallH - 0.5, cz);
       world.addCollider(cx, cz, 2.4, 2.4, floorY + wallH, floorY);
@@ -361,12 +498,13 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
 }
 
 /**
- * 4A. AS 3 TORRES DE CONTROLE GIGANTES BRANCAS E VERMELHAS (124m!) RENTES À PISTA PRINCIPAL (X = -1582)
+ * 4A. AS 3 TORRES DE CONTROLE GIGANTES BRANCAS E VERMELHAS (124m!) RENTES À PISTA PRINCIPAL (X = ws(-1582))
  */
 export function buildThreeRunwayAtcTowers(world, batcher, groundY) {
-  const atcPositionsZ = [-360, 0, 360];
+  const atcX = ws(-1582);
+  const atcPositionsZ = [-360, 0, 360].map(ws);
   for (let i = 0; i < atcPositionsZ.length; i++) {
-    buildSingleGiantAtcTower(world, batcher, -1582, groundY, atcPositionsZ[i], i + 1);
+    buildSingleGiantAtcTower(world, batcher, atcX, groundY, atcPositionsZ[i], i + 1);
   }
 }
 

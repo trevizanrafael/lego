@@ -5,11 +5,12 @@
 // caminhões passarem com folga. Onde o relevo sobe (morros), a linha sobe junto com rampas suaves
 // (`maxGrade`), e cada estação elevada continua 100% plana.
 import * as THREE from 'three';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 
 export const PROFILE_CONFIG = {
   minClearance: 16.0,  // Vão livre mínimo entre o fundo da viga e o chão sobre a rua (m) — ~4 ônibus
   structureDepth: 2.39, // Topo do trilho até o fundo da viga do pórtico (1.09 tabuleiro + 1.3 viga)
-  lateralReach: 26,    // Mede o chão até esta distância para cada lado do trilho (todo o asfalto + calçadas)
+  lateralReach: IS_SCALED_WORLD ? 28 : 26, // Mede o chão até esta distância para cada lado do trilho (todo o asfalto + calçadas)
   maxGrade: 0.04,      // Inclinação máxima das rampas criadas (4%)
   elevatedBaseY: 12,   // Pontos com altura de projeto >= isto fazem parte da linha elevada
   sampleStep: 4,       // Densidade dos pontos do perfil (m)
@@ -71,7 +72,8 @@ export function adjustMetroVerticalProfile(points, getGroundY, stations = [], co
       const sx = pts[i].x - tz * o;
       const sz = pts[i].z + tx * o;
       gMax = Math.max(gMax, getGroundY(sx, sz));
-      if (!overStreet && Math.abs(o) <= 16 && cfg.isStreet(sx, sz)) overStreet = true;
+      const streetReach = IS_SCALED_WORLD ? 18 : 16;
+      if (!overStreet && Math.abs(o) <= streetReach && cfg.isStreet(sx, sz)) overStreet = true;
     }
     if (overStreet) req[i] = Math.max(0, gMax) + cfg.minClearance + cfg.structureDepth;
   }

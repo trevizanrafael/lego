@@ -1,20 +1,24 @@
 import {
+  PRISON_OFFSET_X,
+  PRISON_OFFSET_Z,
   addPrisonBannerSign,
   addBatchedLegoPerson
 } from './PrisonBatcherAndBridgeBuilder.js';
 import { buildCitadelRooftopHelipadsAndRadar } from './PrisonWallsAndTowersBuilder.js';
 
 /**
- * 3. A CIDADELA PANÓPTICA CENTRAL ("A BALSA" — X = 1375, Z = 1540, H = 126m! DENTRO DE 110..135m):
- * - Fortaleza-Torre Panóptica Colossal no centro exato da ilha em concreto preto fosco e aço cinza-chumbo
- *   com faixas amarelo-alerta e janelas blindadas azuis;
+ * 3. A CIDADELA PANÓPTICA CENTRAL ("A BALSA" — wsP(1375, 1540), H = 126m! DENTRO DE 110..135m):
+ * - Fortaleza-Torre Panóptica Colossal no centro do complexo em concreto preto fosco e aço cinza-chumbo
+ *   com faixas amarelo-alerta e janelas blindadas azuis (escala local 1x preservada);
  * - 4 Passarelas Aéreas Blindadas (Skybridges em Y = 40m, dentro de 35..45m) saindo em cruz (Norte, Sul, Leste, Oeste)
  *   conectando a Cidadela diretamente aos Pavilhões de Detenção ao redor;
  * - Topo da Cidadela (Y = 126.5m) com Duplo Heliponto Policial, antenas de comunicação, sirenes e radar!
  */
 export function buildCentralPanopticonCitadelAndSkybridges(world, batcher) {
-  const cx = 1375;
-  const cz = 1540;
+  const ox = PRISON_OFFSET_X;
+  const oz = PRISON_OFFSET_Z;
+  const cx = 1375 + ox;
+  const cz = 1540 + oz;
   const towerH = 126; // 110..135 unidades de altura!
 
   // 1. Base Blindada Octogonal/Quadrada Larga da Cidadela (112m x 112m x 36m) com Contrafortes de Aço
@@ -50,13 +54,13 @@ export function buildCentralPanopticonCitadelAndSkybridges(world, batcher) {
   const roofY = 0.28 + towerH; // 126.28m
   buildCitadelRooftopHelipadsAndRadar(batcher, cx, cz, roofY);
 
-  // Escada / Elevador Externo de Acesso Tático na Face Norte da Cidadela (X = 1375, Z = 1482)
+  // Escada / Elevador Externo de Acesso Tático na Face Norte da Cidadela
   batcher.addBox('dark_steel', 8.0, towerH, 6.0, cx, roofY * 0.5, cz - 58);
   for (let sy = 4; sy <= towerH; sy += 4) {
     batcher.addBox('alert_yellow', 6.4, 0.35, 1.4, cx, sy, cz - 61.2);
   }
 
-  // Letreiros Luminosos Gigantes nas 4 Faces da Cidadela Panóptica ("A BALSA")
+  // Letreiros Luminosos Gigantes nas Faces da Cidadela Panóptica ("A BALSA")
   addPrisonBannerSign(world, cx, 93.0, cz - 43.2, 72.0, 6.8, 'CIDADELA PANÓPTICA — "A BALSA"', 'COMANDO CENTRAL DE SEGURANÇA MÁXIMA • BOPE', Math.PI);
   addPrisonBannerSign(world, cx, 93.0, cz + 43.2, 72.0, 6.8, 'CONTROLE PANÓPTICO FEDERAL', 'VIGILÂNCIA 360° • DUPLO HELIPONTO TÁTICO', 0);
 
@@ -77,14 +81,14 @@ export function buildCentralPanopticonCitadelAndSkybridges(world, batcher) {
   // Saindo em cruz (Oeste, Leste, Sul, Norte) da Cidadela Central direto para os Pavilhões!
   // ==========================================================================
   const skyY = 40;
-  // 1. Skybridge Oeste (X = 1135..1325, Z = 1540 -> liga Cidadela ao Pavilhão 2 do CV)
-  _buildArmoredSkybridge(world, batcher, 1230, skyY, 1540, 190, 11, true);
-  // 2. Skybridge Leste (X = 1425..1615, Z = 1540 -> liga Cidadela ao Pavilhão 3 do PCC)
-  _buildArmoredSkybridge(world, batcher, 1520, skyY, 1540, 190, 11, true);
-  // 3. Skybridge Sul (X = 1375, Z = 1590..1785 -> liga Cidadela ao Pavilhão 1 Contenção Ômega)
-  _buildArmoredSkybridge(world, batcher, 1375, skyY, 1687.5, 11, 195, false);
-  // 4. Skybridge Norte (X = 1375, Z = 1255..1485 -> liga Cidadela aos Pavilhões 4 & 5 de Administração/Triagem)
-  _buildArmoredSkybridge(world, batcher, 1375, skyY, 1370, 11, 230, false);
+  // 1. Skybridge Oeste (liga Cidadela ao Pavilhão 2 do CV)
+  _buildArmoredSkybridge(world, batcher, 1230 + ox, skyY, 1540 + oz, 190, 11, true);
+  // 2. Skybridge Leste (liga Cidadela ao Pavilhão 3 do PCC)
+  _buildArmoredSkybridge(world, batcher, 1520 + ox, skyY, 1540 + oz, 190, 11, true);
+  // 3. Skybridge Sul (liga Cidadela ao Pavilhão 1 Contenção Ômega)
+  _buildArmoredSkybridge(world, batcher, 1375 + ox, skyY, 1687.5 + oz, 11, 195, false);
+  // 4. Skybridge Norte (liga Cidadela aos Pavilhões 4 & 5 de Administração/Triagem)
+  _buildArmoredSkybridge(world, batcher, 1375 + ox, skyY, 1370 + oz, 11, 230, false);
 }
 
 function _buildArmoredSkybridge(world, batcher, x, y, z, w, d, isAlongX) {
@@ -110,11 +114,14 @@ function _buildArmoredSkybridge(world, batcher, x, y, z, w, d, isAlongX) {
  *    com chaminés altas de 78m e caixas d'água cilíndricas pretas/amarelas.
  */
 export function buildSixTallPenitentiaryPavilions(world, batcher) {
+  const ox = PRISON_OFFSET_X;
+  const oz = PRISON_OFFSET_Z;
+
   // ==========================================================================
-  // PAVILHÃO 1 (SUL-INTERIOR: X = 1375, Z = 1825, H = 82m): ALA DE SUPER-SEGURANÇA ("CONTENÇÃO ÔMEGA")
+  // PAVILHÃO 1 (SUL-INTERIOR, H = 82m): ALA DE SUPER-SEGURANÇA ("CONTENÇÃO ÔMEGA")
   // ==========================================================================
-  const omX = 1375;
-  const omZ = 1825;
+  const omX = 1375 + ox;
+  const omZ = 1825 + oz;
   const omH = 82; // 75..85m!
   batcher.addBox('bope_black', 280, omH - 8, 64, omX, 8.5 + (omH - 8) * 0.5, omZ);
   batcher.addBox('gunmetal_concrete', 284, 4.2, 68, omX, omH - 1.5, omZ);
@@ -154,11 +161,11 @@ export function buildSixTallPenitentiaryPavilions(world, batcher) {
 
   // 8 CELAS DE CONTENÇÃO ENERGÉTICA NO TÉRREO DA CONTENÇÃO ÔMEGA (Barras de Laser Azul-Neon e Roxo!)
   const omegaCellX = [1270, 1300, 1330, 1360, 1390, 1420, 1450, 1480];
-  omegaCellX.forEach((cellX, idx) => {
+  omegaCellX.forEach((cellXBase, idx) => {
     _buildEnergyLaserContainmentCell(
       world,
       batcher,
-      cellX,
+      cellXBase + ox,
       omZ - 14.0,
       26,
       24,
@@ -177,13 +184,13 @@ export function buildSixTallPenitentiaryPavilions(world, batcher) {
   });
 
   // ==========================================================================
-  // PAVILHÃO 2 (OESTE: X = 1095, Z = 1540, H = 66m): ALA DOS PRESOS DO CV (COMANDO VERMELHO)
+  // PAVILHÃO 2 (OESTE, H = 66m): ALA DOS PRESOS DO CV (COMANDO VERMELHO)
   // ==========================================================================
   _buildSideDetentionPavilionWithCells(
     world,
     batcher,
-    1095,
-    1540,
+    1095 + ox,
+    1540 + oz,
     66,
     1,
     'PAVILHÃO 02 — ALA DE DETENÇÃO CV (OESTE)',
@@ -192,13 +199,13 @@ export function buildSixTallPenitentiaryPavilions(world, batcher) {
   );
 
   // ==========================================================================
-  // PAVILHÃO 3 (LESTE: X = 1655, Z = 1540, H = 66m): ALA DOS PRESOS DO PCC (PRIMEIRO COMANDO)
+  // PAVILHÃO 3 (LESTE, H = 66m): ALA DOS PRESOS DO PCC (PRIMEIRO COMANDO)
   // ==========================================================================
   _buildSideDetentionPavilionWithCells(
     world,
     batcher,
-    1655,
-    1540,
+    1655 + ox,
+    1540 + oz,
     66,
     -1,
     'PAVILHÃO 03 — ALA DE DETENÇÃO PCC (LESTE)',
@@ -207,14 +214,14 @@ export function buildSixTallPenitentiaryPavilions(world, batcher) {
   );
 
   // ==========================================================================
-  // PAVILHÕES 4 & 5 (ENTRADA NORTE: X = 1235 e X = 1515, Z = 1225, H = 58m) + SALLIE PORT DUPLO
+  // PAVILHÕES 4 & 5 (ENTRADA NORTE, H = 58m) + SALLIE PORT DUPLO
   // ==========================================================================
-  _buildAdminAndTriagePavilionsWithSalliePort(world, batcher);
+  _buildAdminAndTriagePavilionsWithSalliePort(world, batcher, ox, oz);
 
   // ==========================================================================
-  // PAVILHÃO 6 (SUDESTE INTERNO: X = 1535, Z = 1715, H = 60m): REFEITÓRIO, HOSPITAL & LAVANDERIA
+  // PAVILHÃO 6 (SUDESTE INTERNO, H = 60m): REFEITÓRIO, HOSPITAL & LAVANDERIA
   // ==========================================================================
-  _buildHospitalRefectoryAndLaundryPavilion(world, batcher);
+  _buildHospitalRefectoryAndLaundryPavilion(world, batcher, ox, oz);
 }
 
 /**
@@ -378,19 +385,20 @@ function _buildVisibleGroundCell(world, batcher, x, z, w, d, facing, prisonerPre
  * Constrói os Pavilhões 4 & 5 (H = 58m na Entrada Norte: X = 1235 e X = 1515, Z = 1225)
  * + Portões Internos de Grade Dupla para Comboios (Sallie Port em X = 1375, Z = 1190 e Z = 1258)
  */
-function _buildAdminAndTriagePavilionsWithSalliePort(world, batcher) {
+function _buildAdminAndTriagePavilionsWithSalliePort(world, batcher, ox = 0, oz = 0) {
+  const aveX = 1375 + ox;
   const configs = [
     {
-      x: 1235,
-      z: 1225,
+      x: 1235 + ox,
+      z: 1225 + oz,
       h: 58,
       title: 'PAVILHÃO 04 — ADMINISTRAÇÃO & ARSENAL DO BOPE',
       sub: 'COMANDO TÁTICO • SALA DE CONTROLE & PAIOL BLINDADO',
       label: 'ARSENAL DO BOPE (58M)'
     },
     {
-      x: 1515,
-      z: 1225,
+      x: 1515 + ox,
+      z: 1225 + oz,
       h: 58,
       title: 'PAVILHÃO 05 — CENTRO DE TRIAGEM & INCLUSÃO',
       sub: 'IDENTIFICAÇÃO DE DETENTOS • ESCOLTA PENITENCIÁRIA',
@@ -416,29 +424,30 @@ function _buildAdminAndTriagePavilionsWithSalliePort(world, batcher) {
     world.mapBuildings.push({ x: cfg.x, z: cfg.z, w: 148, d: 76, height: cfg.h, color: '#111827', label: cfg.label });
   }
 
-  // SALLIE PORT (2 Pórticos Internos de Grade Dupla para Comboios cruzando a Avenida Central em Z = 1190 e Z = 1258)
-  for (const spZ of [1190, 1258]) {
-    batcher.addBox('dark_steel', 132, 6.5, 6.0, 1375, 24.5, spZ);
-    batcher.addBox('alert_yellow', 133, 0.85, 6.4, 1375, 21.2, spZ);
+  // SALLIE PORT (2 Pórticos Internos de Grade Dupla para Comboios cruzando a Avenida Central)
+  for (const spZBase of [1190, 1258]) {
+    const spZ = spZBase + oz;
+    batcher.addBox('dark_steel', 132, 6.5, 6.0, aveX, 24.5, spZ);
+    batcher.addBox('alert_yellow', 133, 0.85, 6.4, aveX, 21.2, spZ);
     for (const side of [-1, 1]) {
-      const pilX = 1375 + side * 24;
+      const pilX = aveX + side * 24;
       batcher.addBox('bope_black', 8.0, 22.0, 6.5, pilX, 11.2, spZ);
       world.addCollider(pilX, spZ, 8.0, 6.5, 24, 0.28);
       // Grades laterais retráteis do Sallie Port (deixando 34m livres no centro para os ônibus celulares!)
       for (let gx = 16; gx <= 21; gx += 1.6) {
-        batcher.addCylinder('brushed_silver', 0.26, 0.26, 20.0, 1375 + side * gx, 10.5, spZ, 8);
+        batcher.addCylinder('brushed_silver', 0.26, 0.26, 20.0, aveX + side * gx, 10.5, spZ, 8);
       }
     }
   }
 }
 
 /**
- * Constrói o Pavilhão 6 (Sudeste Interno: X = 1535, Z = 1715, H = 60m):
- * Refeitório Central, Hospital Penitenciário & Lavanderia Industrial com Chaminés Altas (78m) e Caixas d'Água Pretas/Amarelas
+ * Constrói o Pavilhão 6 (Sudeste Interno, H = 60m):
+ * Refeitório Central, Hospital Penitenciário & Lavanderia Industrial com Chaminés Altas (78m)
  */
-function _buildHospitalRefectoryAndLaundryPavilion(world, batcher) {
-  const hx = 1535;
-  const hz = 1715;
+function _buildHospitalRefectoryAndLaundryPavilion(world, batcher, ox = 0, oz = 0) {
+  const hx = 1535 + ox;
+  const hz = 1715 + oz;
   const hh = 60; // 55..85m!
 
   batcher.addBox('gunmetal_concrete', 136, hh, 82, hx, hh * 0.5 + 0.28, hz);

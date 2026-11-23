@@ -1,24 +1,31 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, createLegoBrick } from '../../materials/LegoMaterials.js';
 import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
+import {
+  IS_SCALED_WORLD,
+  ROAD,
+  DESIGN_MAIN_AVENUES_Z,
+  ws,
+  fromWs,
+  wsStreetAnchored
+} from '../core/WorldLayoutScale.js';
+import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
 import { getSharedTemplates } from './StreetPropTemplates.js';
+
+const MAIN_Z_SET = new Set(DESIGN_MAIN_AVENUES_Z);
 
 // ============================================================================
 // VALIDAÇÃO ESPACIAL RÁPIDA DE CALÇADAS / PRAÇAS / ACOSTAMENTOS
 // ============================================================================
 function isProtectedZone(x, z) {
-  // Entrada do Super Banco Central
-  if (Math.abs(x) < 17 && z > -148 && z < -112) return true;
-  // Oficina LEGO Customs (pátio, elevador e portões)
-  if (x > 14 && x < 104 && z > -490 && z < -406) return true;
-  // Rampa Subterrânea OP-09 da Torre dos Heróis
-  if (x > -368 && x < -268 && z > -230 && z < -130) return true;
-  // Palco / Pista do Baile Funk na CDD
-  if (x > -742 && x < -688 && z > -162 && z < -108) return true;
-  // Spawn inicial limpo do jogador
-  if (Math.abs(x) < 6 && Math.abs(z + 88) < 6) return true;
-  // Píer Oceânico (exceto bordas laterais de quiosques/bancos)
-  if (z > 1072 && Math.abs(x) < 36) return true;
+  const ux = fromWs(x);
+  const uz = fromWs(z);
+  if (Math.abs(x) < 17 && uz > -148 && uz < -112) return true;
+  if (ux > 14 && ux < 104 && uz > -490 && uz < -406) return true;
+  if (ux > -368 && ux < -268 && uz > -230 && uz < -130) return true;
+  if (ux > -742 && ux < -688 && uz > -162 && uz < -108) return true;
+  if (Math.abs(x) < 6 && Math.abs(z - ws(-88)) < 6) return true;
+  if (uz > 1072 && Math.abs(x) < 36) return true;
   return false;
 }
 
@@ -59,7 +66,6 @@ export function buildStreetProps(world) {
   const M = T.mats;
   const placedList = [];
 
-  // Registry de Instancing para reduzir ~1.200+ Draw Calls dos ~450 objetos de rua para ~24 Draw Calls!
   const instPoolByKey = new Map();
   const dirtyInstPools = new Set();
   const propSlots = [];
@@ -119,7 +125,13 @@ export function buildStreetProps(world) {
         : world.getTerrainHeightAt
           ? world.getTerrainHeightAt(px, pz)
           : 0;
-    return baseTerrain + (onRoadSurface ? 0.04 : 0.28);
+    if (!IS_SCALED_WORLD) {
+      return baseTerrain + (onRoadSurface ? 0.04 : 0.28);
+    }
+    if (onRoadSurface) return baseTerrain + 0.04;
+    return getScaledUrbanCurbLiftAt(world, px, pz) > 0.05
+      ? baseTerrain + 0.02
+      : baseTerrain + ROAD.curbHeight;
   };
 
   const canPlaceAt = (x, z, radius, yBase, allowRoadEdge = false, minPeerDist = 2.4) => {
@@ -164,7 +176,6 @@ export function buildStreetProps(world) {
     const yBase = getGroundAndSidewalkY(x, z, onRoadSurface, refY);
     if (!canPlaceAt(x, z, radius, yBase, allowRoadEdge, minPeerDist)) return false;
 
-    // Grupo-proxy leve (0 nós na scene!) — a geometria 3D é desenhada via InstancedMesh compartilhada
     const group = new THREE.Group();
     group.userData.isOptimizedGroup = true;
     group.position.set(x, yBase, z);
@@ -206,18 +217,23 @@ export function buildStreetProps(world) {
     return true;
   };
 
-  // --------------------------------------------------------------------------
-  // 1. POSTES DE LUZ (~88) E SEMÁFOROS (~40) AO LONGO DAS GRANDES AVENIDAS
-  // --------------------------------------------------------------------------
-  const mainAvenuesX = [-384, -252, -120, 0, 120, 252, 384];
-  const lampZStops = [-960, -820, -690, -560, -440, -310, -185, -60, 68, 210, 330, 480, 630];
+  const mainHalfW = ROAD.mainWidth * 0.5;
+  const secHalfW = ROAD.secondaryWidth * 0.5;
+  const halfZRoad = (dz) => (MAIN_Z_SET.has(dz) ? mainHalfW : secHalfW);
 
-  for (let ia = 0; ia < mainAvenuesX.length; ia++) {
-    const ax = mainAvenuesX[ia];
+  // --------------------------------------------------------------------------
+  // 1. POSTES DE LUZ (~88) E SEMÁFOROS (~40) NA FAIXA DE SERVIÇO DE 2m DAS AVENIDAS
+  // --------------------------------------------------------------------------
+  const designMainAvenuesX = [-384, -252, -120, 0, 120, 252, 384];
+  const lampZStops = [-960, -820, -690, -560, -440, -310, -185, -60, 68, 210, 330, 480, 630];
+  const lampCurbOff = IS_SCALED_WORLD ? mainHalfW + 1.7 : 15.6;
+
+  for (let ia = 0; ia < designMainAvenuesX.length; ia++) {
+    const ax = ws(designMainAvenuesX[ia]);
     for (let iz = 0; iz < lampZStops.length; iz++) {
-      const lz = lampZStops[iz];
+      const lz = ws(lampZStops[iz]);
       const side = (ia + iz) % 2 === 0 ? -1 : 1;
-      const lx = ax + side * 15.6;
+      const lx = ax + side * lampCurbOff;
       const rotY = side < 0 ? Math.PI / 2 : -Math.PI / 2;
       spawnSharedProp({
         x: lx,
@@ -240,11 +256,12 @@ export function buildStreetProps(world) {
     }
   }
 
-  // Postes extras na Orla da Praia (Z = 726), Rodovia do Aeroporto (Z = -133) e Pontes Leste
+  // Postes extras na Orla da Praia e Rodovia do Aeroporto
+  const beachLampZ = IS_SCALED_WORLD ? ws(710) + mainHalfW + 1.8 : 726.5;
   for (let bx = -460; bx <= 460; bx += 76) {
     spawnSharedProp({
-      x: bx,
-      z: 726.5,
+      x: ws(bx),
+      z: beachLampZ,
       rotY: Math.PI,
       type: 'streetlamp',
       parts: [
@@ -261,10 +278,11 @@ export function buildStreetProps(world) {
       chaosValue: 4
     });
   }
+  const westHwyLampZ = IS_SCALED_WORLD ? ws(-117) - mainHalfW - 1.8 : -133.0;
   for (let wx = -1420; wx <= -720; wx += 115) {
     spawnSharedProp({
-      x: wx,
-      z: -133.0,
+      x: ws(wx),
+      z: westHwyLampZ,
       rotY: 0,
       type: 'streetlamp',
       parts: [
@@ -282,13 +300,15 @@ export function buildStreetProps(world) {
     });
   }
 
-  // Semáforos Destrutíveis LEGO nos cruzamentos principais (canto Noroeste -15.6, -15.6)
+  // Semáforos Destrutíveis LEGO nos cruzamentos principais (faixa de serviço de esquina)
   const tlIntersectionsZ = [-644, -512, -382, -250, -117, 0, 134, 402, 710];
-  for (let ia = 0; ia < mainAvenuesX.length; ia++) {
+  for (let ia = 0; ia < designMainAvenuesX.length; ia++) {
     for (let iz = 0; iz < tlIntersectionsZ.length; iz++) {
       if ((ia + iz) % 2 !== 0 && iz > 1 && iz < 7) continue;
-      const ix = mainAvenuesX[ia] - 15.6;
-      const jz = tlIntersectionsZ[iz] - 15.6;
+      const dax = designMainAvenuesX[ia];
+      const diz = tlIntersectionsZ[iz];
+      const ix = ws(dax) - (IS_SCALED_WORLD ? mainHalfW + 1.8 : 15.6);
+      const jz = ws(diz) - (IS_SCALED_WORLD ? halfZRoad(diz) + 1.8 : 15.6);
       spawnSharedProp({
         x: ix,
         z: jz,
@@ -314,14 +334,16 @@ export function buildStreetProps(world) {
   }
 
   // --------------------------------------------------------------------------
-  // 2. HIDRANTES VERMELHOS LEGO NAS ESQUINAS (~52 — Gêiser de 8m por 7s!)
+  // 2. HIDRANTES VERMELHOS LEGO NAS ESQUINAS (~52)
   // --------------------------------------------------------------------------
   const hydrantGridZ = [-908, -776, -644, -512, -382, -250, -117, 0, 134, 402, 710];
-  for (let ia = 0; ia < mainAvenuesX.length; ia++) {
+  for (let ia = 0; ia < designMainAvenuesX.length; ia++) {
     for (let iz = 0; iz < hydrantGridZ.length; iz++) {
       if ((ia * 3 + iz) % 2 !== 0) continue;
-      const hx = mainAvenuesX[ia] - 15.4;
-      const hz = hydrantGridZ[iz] + 15.4;
+      const dax = designMainAvenuesX[ia];
+      const dhz = hydrantGridZ[iz];
+      const hx = ws(dax) - (IS_SCALED_WORLD ? mainHalfW + 1.6 : 15.4);
+      const hz = ws(dhz) + (IS_SCALED_WORLD ? halfZRoad(dhz) + 1.6 : 15.4);
       spawnSharedProp({
         x: hx,
         z: hz,
@@ -342,16 +364,20 @@ export function buildStreetProps(world) {
       });
     }
   }
-  // Hidrantes clássicos próximos ao Banco Central e Parque
   const extraHydrants = [
     [-15, -100], [15, -100], [-15, -130], [15, -130],
     [-15.2, -16], [15.2, -16], [-15.2, 16], [15.2, 16],
     [616, -234], [784, -234], [-1160, -100], [-500, -100]
   ];
-  for (const [hx, hz] of extraHydrants) {
+  for (const [rawHx, rawHz] of extraHydrants) {
+    const p = IS_SCALED_WORLD
+      ? Math.abs(rawHx) < 20
+        ? { x: Math.sign(rawHx) * (mainHalfW + 1.6), z: wsStreetAnchored(rawHx, rawHz, { halfD: 0.5 }).z }
+        : wsStreetAnchored(rawHx, rawHz, { halfW: 0.5, halfD: 0.5 })
+      : { x: rawHx, z: rawHz };
     spawnSharedProp({
-      x: hx,
-      z: hz,
+      x: p.x,
+      z: p.z,
       rotY: 0,
       type: 'hydrant',
       parts: [
@@ -370,17 +396,23 @@ export function buildStreetProps(world) {
   }
 
   // --------------------------------------------------------------------------
-  // 3. PONTOS DE ÔNIBUS COM VIDRO AZUL (~26), CABINES TELEFÔNICAS (~24) & BANCAS (~20)
+  // 3. PONTOS DE ÔNIBUS (~26), CABINES TELEFÔNICAS (~24) & BANCAS (~20)
   // --------------------------------------------------------------------------
+  const busStopOff = IS_SCALED_WORLD ? mainHalfW + 2.1 : 16.8;
+  const aveBusStops = [
+    [-384, 1, -315, -Math.PI / 2], [-384, -1, -55, Math.PI / 2], [-384, 1, 260, -Math.PI / 2],
+    [-252, 1, -445, -Math.PI / 2], [-252, -1, -60, Math.PI / 2], [-252, 1, 220, -Math.PI / 2],
+    [-120, -1, -575, Math.PI / 2], [-120, 1, -315, -Math.PI / 2], [-120, -1, -55, Math.PI / 2], [-120, 1, 265, -Math.PI / 2],
+    [0, -1, -575, Math.PI / 2], [0, 1, -210, -Math.PI / 2], [0, -1, 220, Math.PI / 2], [0, 1, 520, -Math.PI / 2],
+    [120, 1, -575, -Math.PI / 2], [120, -1, -315, Math.PI / 2], [120, 1, -55, -Math.PI / 2], [120, -1, 265, Math.PI / 2],
+    [252, -1, -445, Math.PI / 2], [252, 1, 220, -Math.PI / 2],
+    [384, -1, -315, Math.PI / 2], [384, 1, -55, -Math.PI / 2], [384, -1, 265, Math.PI / 2]
+  ];
   const busStopSpots = [
-    [-384 + 16.8, -315, -Math.PI / 2], [-384 - 16.8, -55, Math.PI / 2], [-384 + 16.8, 260, -Math.PI / 2],
-    [-252 + 16.8, -445, -Math.PI / 2], [-252 - 16.8, -60, Math.PI / 2], [-252 + 16.8, 220, -Math.PI / 2],
-    [-120 - 16.8, -575, Math.PI / 2], [-120 + 16.8, -315, -Math.PI / 2], [-120 - 16.8, -55, Math.PI / 2], [-120 + 16.8, 265, -Math.PI / 2],
-    [0 - 16.8, -575, Math.PI / 2], [0 + 16.8, -210, -Math.PI / 2], [0 - 16.8, 220, Math.PI / 2], [0 + 16.8, 520, -Math.PI / 2],
-    [120 + 16.8, -575, -Math.PI / 2], [120 - 16.8, -315, Math.PI / 2], [120 + 16.8, -55, -Math.PI / 2], [120 - 16.8, 265, Math.PI / 2],
-    [252 - 16.8, -445, Math.PI / 2], [252 + 16.8, 220, -Math.PI / 2],
-    [384 - 16.8, -315, Math.PI / 2], [384 + 16.8, -55, -Math.PI / 2], [384 - 16.8, 265, Math.PI / 2],
-    [-185, 726.8, Math.PI], [65, 726.8, Math.PI], [-960, -100.5, 0]
+    ...aveBusStops.map(([dax, side, dbz, brot]) => [ws(dax) + side * busStopOff, ws(dbz), brot]),
+    [ws(-185), IS_SCALED_WORLD ? ws(710) + mainHalfW + 2.1 : 726.8, Math.PI],
+    [ws(65), IS_SCALED_WORLD ? ws(710) + mainHalfW + 2.1 : 726.8, Math.PI],
+    [ws(-960), IS_SCALED_WORLD ? ws(-117) + mainHalfW + 2.1 : -100.5, 0]
   ];
   for (const [bx, bz, brot] of busStopSpots) {
     spawnSharedProp({
@@ -405,11 +437,11 @@ export function buildStreetProps(world) {
     });
   }
 
-  // Cabines Telefônicas Vermelhas & Azuis LEGO
+  const boothOff = IS_SCALED_WORLD ? mainHalfW + 1.9 : 16.2;
   const phoneBoothSpots = [];
-  for (const ax of [-384, -252, -120, 0, 120, 252, 384]) {
+  for (const dax of designMainAvenuesX) {
     for (const pz of [-680, -335, -80, 175]) {
-      phoneBoothSpots.push([ax + 16.2, pz, -Math.PI / 2]);
+      phoneBoothSpots.push([ws(dax) + boothOff, ws(pz), -Math.PI / 2]);
     }
   }
   phoneBoothSpots.forEach(([px, pz, prot], idx) => {
@@ -436,7 +468,6 @@ export function buildStreetProps(world) {
     });
   });
 
-  // Bancas de Jornal espalhadas pela cidade
   const newsstandSpots = [
     [-24, -102, 0], [24, -102, 0],
     [-137, -101, 0], [137, -101, 0],
@@ -448,12 +479,13 @@ export function buildStreetProps(world) {
     [-180, -660, 0], [180, -660, 0],
     [-310, 728, Math.PI], [-60, 728, Math.PI], [185, 728, Math.PI], [330, 728, Math.PI]
   ];
-  newsstandSpots.forEach(([nx, nz, nrot], idx) => {
+  newsstandSpots.forEach(([rawNx, rawNz, nrot], idx) => {
+    const np = wsStreetAnchored(rawNx, rawNz, { halfW: 1.4, halfD: 1.0 });
     const awningMats = [M.red, M.blue, M.green, M.orange];
     const awningHexes = [LEGO_COLORS.red, LEGO_COLORS.blue, LEGO_COLORS.green, LEGO_COLORS.orange];
     spawnSharedProp({
-      x: nx,
-      z: nz,
+      x: np.x,
+      z: np.z,
       rotY: nrot,
       type: 'newsstand',
       parts: [
@@ -473,12 +505,9 @@ export function buildStreetProps(world) {
   });
 
   // --------------------------------------------------------------------------
-  // 4. CAIXAS ELETRÔNICOS (ATMs LEGO — ~32) NAS FACHADAS COMERCIAIS!
-  //    (Quando destruídos, jorram MUITOS Studs Dourados & Azuis + sobem Caos!)
+  // 4. CAIXAS ELETRÔNICOS (ATMs LEGO — ~28) JUNTO À BORDA INTERNA DA CALÇADA
   // --------------------------------------------------------------------------
   const atmSpots = [
-    // Centro Financeiro & Super Banco arredores
-    // (os 4 caixas da calçada do Super Banco foram para dentro do saguão)
     [-85, -100.5, Math.PI], [85, -100.5, Math.PI],
     [-185, -133.5, 0], [185, -133.5, 0],
     [-185, -266.5, 0], [185, -266.5, 0],
@@ -486,19 +515,17 @@ export function buildStreetProps(world) {
     [-315, -100.5, Math.PI], [315, -100.5, Math.PI],
     [-315, -266.5, 0], [315, -266.5, 0],
     [-58, -398.5, 0], [185, -398.5, 0], [-185, -398.5, 0],
-    // Times Square / Av. Z=0 & Z=134
     [-185, -16.5, 0], [185, -16.5, 0],
     [-315, -16.5, 0], [315, -16.5, 0],
-    // Subúrbio Comercial Norte & Posto
     [-60, -660.5, 0], [60, -660.5, 0], [-190, -792.5, 0], [190, -792.5, 0],
-    // Hotéis da Orla Sul & Aeroporto
     [-210, 693.5, 0], [-60, 693.5, 0], [90, 693.5, 0], [210, 693.5, 0],
     [-1220, -100.5, Math.PI]
   ];
-  for (const [ax, az, arot] of atmSpots) {
+  for (const [rawAx, rawAz, arot] of atmSpots) {
+    const ap = wsStreetAnchored(rawAx, rawAz, { halfW: 0.7, halfD: 0.6 });
     spawnSharedProp({
-      x: ax,
-      z: az,
+      x: ap.x,
+      z: ap.z,
       rotY: arot,
       type: 'atm_machine',
       parts: [
@@ -518,36 +545,35 @@ export function buildStreetProps(world) {
   }
 
   // --------------------------------------------------------------------------
-  // 5. CARRINHOS DE HOT-DOG, PIPOCA E SORVETE (~34) + MESINHAS COM GUARDA-SOL (~40)
+  // 5. CARRINHOS DE HOT-DOG/PIPOCA/SORVETE (~34) + MESINHAS COM GUARDA-SOL (~40)
   // --------------------------------------------------------------------------
   const foodCartSpots = [
-    // Parque Central & Praça do Banco
     [-38, -82, 0], [38, -82, 0], [-45, 22, 0], [45, 22, 0],
     [-95, 55, Math.PI / 2], [95, 55, -Math.PI / 2],
     [-45, 114, Math.PI], [45, 114, Math.PI],
-    // Calçadão da Praia Sul & Entrada do Mega Píer
     [-420, 732, Math.PI], [-330, 732, Math.PI], [-235, 732, Math.PI], [-150, 732, Math.PI],
     [-75, 732, Math.PI], [48, 732, Math.PI], [155, 732, Math.PI], [240, 732, Math.PI],
     [345, 732, Math.PI], [430, 732, Math.PI],
     [-40, 1085, Math.PI / 2], [40, 1085, -Math.PI / 2],
     [-40, 1165, Math.PI / 2], [40, 1165, -Math.PI / 2],
-    // Centro, Times Square & Subúrbio
     [-137, -45, Math.PI / 2], [137, -45, -Math.PI / 2],
     [-268, -165, Math.PI / 2], [268, -165, -Math.PI / 2],
     [-75, -530, 0], [75, -530, 0], [-165, -662, 0], [165, -662, 0],
     [-75, -794, 0], [75, -794, 0],
     [-1080, -100, 0], [620, -100, 0]
   ];
-  foodCartSpots.forEach(([fx, fz, frot], idx) => {
-    // 0: Hot-Dog (Vermelho/Amarelo), 1: Pipoca (Amarelo/Vermelho), 2: Sorvete (Ciano/Rosa)
+  foodCartSpots.forEach(([rawFx, rawFz, frot], idx) => {
+    const fp = rawFz > 1000
+      ? { x: rawFx, z: ws(rawFz) }
+      : wsStreetAnchored(rawFx, rawFz, { halfW: 1.0, halfD: 0.8 });
     const variant = idx % 3;
     const bodyMat = variant === 0 ? M.red : variant === 1 ? M.yellow : M.cyan;
     const canopyMat = variant === 0 ? M.yellow : variant === 1 ? M.red : M.pink;
     const c1 = variant === 0 ? LEGO_COLORS.red : variant === 1 ? LEGO_COLORS.yellow : 0x06b6d4;
     const c2 = variant === 0 ? LEGO_COLORS.yellow : variant === 1 ? LEGO_COLORS.red : 0xf472b6;
     spawnSharedProp({
-      x: fx,
-      z: fz,
+      x: fp.x,
+      z: fp.z,
       rotY: frot,
       type: 'food_cart',
       parts: [
@@ -566,7 +592,6 @@ export function buildStreetProps(world) {
     });
   });
 
-  // Mesinhas com Guarda-Sol (Calçadão da Praia, Praças do Centro e Subúrbio)
   const cafeSpots = [];
   for (let bx = -450; bx <= 450; bx += 38) {
     if (Math.abs(bx) < 28) continue;
@@ -581,12 +606,15 @@ export function buildStreetProps(world) {
   ];
   for (const s of extraCafeSpots) cafeSpots.push(s);
 
-  cafeSpots.forEach(([cx, cz, crot], idx) => {
+  cafeSpots.forEach(([rawCx, rawCz, crot], idx) => {
+    const cp = rawCz === 738.0
+      ? { x: ws(rawCx), z: IS_SCALED_WORLD ? ws(710) + mainHalfW + 14.0 : 738.0 }
+      : wsStreetAnchored(rawCx, rawCz, { halfW: 1.2, halfD: 1.0 });
     const umbMats = [M.red, M.yellow, M.cyan, M.orange, M.pink, M.blue];
     const umbHexes = [LEGO_COLORS.red, LEGO_COLORS.yellow, 0x06b6d4, LEGO_COLORS.orange, 0xf472b6, LEGO_COLORS.blue];
     spawnSharedProp({
-      x: cx,
-      z: cz,
+      x: cp.x,
+      z: cp.z,
       rotY: crot,
       type: 'cafe_table',
       parts: [
@@ -605,20 +633,19 @@ export function buildStreetProps(world) {
   });
 
   // --------------------------------------------------------------------------
-  // 6. LIXEIRAS (~36), CAÇAMBAS (~18), BANCOS (~32), PLACAS (~28) E
-  //    FILEIRAS DE CONES / BARRICADAS LARANJAS (~75) PARA ATROPELAR A 300 KM/H!
+  // 6. LIXEIRAS (~36), CAÇAMBAS (~18), BANCOS (~32), PLACAS (~28) & CONES (~75)
   // --------------------------------------------------------------------------
-  // Lixeiras nas calçadas
   const trashZ = [-850, -600, -350, -195, -40, 90, 290, 560];
+  const trashOff = IS_SCALED_WORLD ? mainHalfW + 1.6 : 15.2;
   let trashToggle = 0;
-  for (const ax of [-384, -252, -120, 0, 120, 252, 384]) {
+  for (const dax of designMainAvenuesX) {
     for (const tz of trashZ) {
       if ((trashToggle++ % 3) === 1) continue;
       const side = trashToggle % 2 === 0 ? 1 : -1;
       const useBlue = trashToggle % 4 === 0;
       spawnSharedProp({
-        x: ax + side * 15.2,
-        z: tz,
+        x: ws(dax) + side * trashOff,
+        z: ws(tz),
         rotY: 0,
         type: 'trash_can',
         parts: [
@@ -637,7 +664,6 @@ export function buildStreetProps(world) {
     }
   }
 
-  // Caçambas de Entulho LEGO (Dumpsters)
   const dumpsterSpots = [
     [-205, -232, 0], [205, -232, 0], [-335, -364, 0], [335, -364, 0],
     [-75, -364, 0], [205, -496, 0], [-205, -496, 0],
@@ -645,11 +671,12 @@ export function buildStreetProps(world) {
     [622, -180, Math.PI / 2], [750, -320, 0], [945, -180, Math.PI / 2],
     [-630, -560, 0], [630, -560, 0], [-920, -135, 0], [-1310, -135, 0]
   ];
-  dumpsterSpots.forEach(([dx, dz, drot], idx) => {
+  dumpsterSpots.forEach(([rawDx, rawDz, drot], idx) => {
+    const dp = wsStreetAnchored(rawDx, rawDz, { halfW: 1.2, halfD: 0.8 });
     const isYellow = idx % 2 === 0;
     spawnSharedProp({
-      x: dx,
-      z: dz,
+      x: dp.x,
+      z: dp.z,
       rotY: drot,
       type: 'dumpster',
       parts: [
@@ -667,7 +694,6 @@ export function buildStreetProps(world) {
     });
   });
 
-  // Bancos de Madeira LEGO (Parque Central, Orla da Praia, Praças e Avenidas)
   const benchSpots = [
     [-32, 16, 0], [32, 16, 0], [-32, 118, Math.PI], [32, 118, Math.PI],
     [-102, 42, Math.PI / 2], [-102, 88, Math.PI / 2], [102, 42, -Math.PI / 2], [102, 88, -Math.PI / 2],
@@ -678,10 +704,20 @@ export function buildStreetProps(world) {
     [-55, -924, 0], [55, -924, 0], [-310, -528, 0], [310, -528, 0],
     [-136, -155, Math.PI / 2], [136, -155, -Math.PI / 2]
   ];
-  for (const [bx, bz, brot] of benchSpots) {
+  for (const [rawBx, rawBz, brot] of benchSpots) {
+    let bp;
+    if (rawBz > 1000) {
+      bp = { x: rawBx, z: ws(rawBz) };
+    } else if (rawBz === 725) {
+      bp = { x: ws(rawBx), z: IS_SCALED_WORLD ? ws(710) + mainHalfW + 1.9 : 725 };
+    } else if (IS_SCALED_WORLD && Math.abs(Math.abs(rawBx) - 136) < 0.5) {
+      bp = { x: ws(Math.sign(rawBx) * 120) + Math.sign(rawBx) * (mainHalfW + 1.9), z: ws(rawBz) };
+    } else {
+      bp = wsStreetAnchored(rawBx, rawBz, { halfW: 1.1, halfD: 0.5 });
+    }
     spawnSharedProp({
-      x: bx,
-      z: bz,
+      x: bp.x,
+      z: bp.z,
       rotY: brot,
       type: 'park_bench',
       parts: [
@@ -699,15 +735,14 @@ export function buildStreetProps(world) {
     });
   }
 
-  // Placas de Trânsito LEGO nas esquinas
   let signIdx = 0;
-  for (const ax of [-384, -252, -120, 0, 120, 252, 384]) {
-    for (const sz of [-776, -512, -250, 134, 402]) {
+  for (const dax of designMainAvenuesX) {
+    for (const dsz of [-776, -512, -250, 134, 402]) {
       if ((signIdx++ % 3) === 2) continue;
       const isStop = signIdx % 2 === 0;
       spawnSharedProp({
-        x: ax + 15.2,
-        z: sz - 15.8,
+        x: ws(dax) + (IS_SCALED_WORLD ? mainHalfW + 1.6 : 15.2),
+        z: ws(dsz) - (IS_SCALED_WORLD ? halfZRoad(dsz) + 1.8 : 15.8),
         rotY: 0,
         type: 'street_sign',
         parts: [
@@ -727,23 +762,21 @@ export function buildStreetProps(world) {
     }
   }
 
-  // Fileiras suculentas de Cones Laranjas & Barricadas Laranjas (perfeitas para atropelar em sequência a 300+ km/h!)
+  // Fileiras de Cones Laranjas & Barricadas nos acostamentos das grandes avenidas
+  const shoulderOff = mainHalfW - 1.4; // 12.6m em 1x, 15.6m em 3x
   const coneStreaks = [
-    // Acostamentos das grandes avenidas Norte-Sul (sem bloquear a faixa de tráfego!)
-    { startX: -12.6, startZ: -240, dx: 0, dz: 3.2, count: 6, barricadeEnd: true },
-    { startX: 12.6, startZ: 165, dx: 0, dz: 3.2, count: 6, barricadeEnd: true },
-    { startX: -120 + 12.6, startZ: -460, dx: 0, dz: 3.2, count: 5, barricadeEnd: true },
-    { startX: 120 - 12.6, startZ: -210, dx: 0, dz: 3.2, count: 5, barricadeEnd: true },
-    { startX: 252 + 12.6, startZ: 175, dx: 0, dz: 3.2, count: 6, barricadeEnd: true },
-    { startX: -252 - 12.6, startZ: -340, dx: 0, dz: 3.2, count: 5, barricadeEnd: true },
-    // Avenida Beira-Mar (Z = 710) & Rodovia Expressa do Aeroporto (Z = -117 Oeste)
-    { startX: -320, startZ: 697.4, dx: 3.5, dz: 0, count: 6, barricadeEnd: true },
-    { startX: 150, startZ: 697.4, dx: 3.5, dz: 0, count: 6, barricadeEnd: true },
-    { startX: -880, startZ: -129.5, dx: -4.0, dz: 0, count: 6, barricadeEnd: true },
-    { startX: -1180, startZ: -104.5, dx: -4.0, dz: 0, count: 6, barricadeEnd: true },
-    // Ponte Leste & Avenida Central Norte
-    { startX: 535, startZ: -129.2, dx: 3.6, dz: 0, count: 5, barricadeEnd: false },
-    { startX: -12.6, startZ: -740, dx: 0, dz: -3.4, count: 6, barricadeEnd: true }
+    { startX: -shoulderOff, startZ: ws(-240), dx: 0, dz: 3.2, count: 6, barricadeEnd: true },
+    { startX: shoulderOff, startZ: ws(165), dx: 0, dz: 3.2, count: 6, barricadeEnd: true },
+    { startX: ws(-120) + shoulderOff, startZ: ws(-460), dx: 0, dz: 3.2, count: 5, barricadeEnd: true },
+    { startX: ws(120) - shoulderOff, startZ: ws(-210), dx: 0, dz: 3.2, count: 5, barricadeEnd: true },
+    { startX: ws(252) + shoulderOff, startZ: ws(175), dx: 0, dz: 3.2, count: 6, barricadeEnd: true },
+    { startX: ws(-252) - shoulderOff, startZ: ws(-340), dx: 0, dz: 3.2, count: 5, barricadeEnd: true },
+    { startX: ws(-320), startZ: ws(710) - shoulderOff, dx: 3.5, dz: 0, count: 6, barricadeEnd: true },
+    { startX: ws(150), startZ: ws(710) - shoulderOff, dx: 3.5, dz: 0, count: 6, barricadeEnd: true },
+    { startX: ws(-880), startZ: ws(-117) - (mainHalfW - 1.5), dx: -4.0, dz: 0, count: 6, barricadeEnd: true },
+    { startX: ws(-1180), startZ: ws(-117) + (mainHalfW - 1.5), dx: -4.0, dz: 0, count: 6, barricadeEnd: true },
+    { startX: ws(535), startZ: ws(-117) - (mainHalfW - 1.8), dx: 3.6, dz: 0, count: 5, barricadeEnd: false },
+    { startX: -shoulderOff, startZ: ws(-740), dx: 0, dz: -3.4, count: 6, barricadeEnd: true }
   ];
 
   for (const streak of coneStreaks) {
@@ -770,7 +803,7 @@ export function buildStreetProps(world) {
         onRoadSurface: true,
         allowRoadEdge: true,
         minPeerDist: 1.4,
-        noCollider: true // Zero perda de velocidade ao sair varrendo fileiras de cones a 300 km/h!
+        noCollider: true
       });
     }
     if (streak.barricadeEnd) {
@@ -802,15 +835,15 @@ export function buildStreetProps(world) {
     }
   }
 
-  // Fileiras de Barricadas Laranjas nos Viadutos Elevados (superfície em Y elevado!)
-  // (no acostamento, encostadas na mureta: as faixas do viaduto ficam livres)
+  // Barricadas Laranjas nos acostamentos dos Viadutos Elevados (junto à mureta, fora das faixas!)
+  const viadEdgeOff = mainHalfW - 1.6; // 12.4m em 1x (-382 - 12.4 = -394.4), 15.4m em 3x
   const viaductBarricades = [
-    { x: -110, z: -394.4, refY: 40.0, rotY: 0 },
-    { x: -106, z: -394.4, refY: 40.0, rotY: 0 },
-    { x: 110, z: -394.4, refY: 40.0, rotY: 0 },
-    { x: 114, z: -394.4, refY: 40.0, rotY: 0 },
-    { x: 264.4, z: 60, refY: 40.0, rotY: Math.PI / 2 },
-    { x: 264.4, z: 64, refY: 40.0, rotY: Math.PI / 2 }
+    { x: ws(-110), z: ws(-382) - viadEdgeOff, refY: 40.0, rotY: 0 },
+    { x: ws(-110) + 4, z: ws(-382) - viadEdgeOff, refY: 40.0, rotY: 0 },
+    { x: ws(110), z: ws(-382) - viadEdgeOff, refY: 40.0, rotY: 0 },
+    { x: ws(110) + 4, z: ws(-382) - viadEdgeOff, refY: 40.0, rotY: 0 },
+    { x: ws(252) + viadEdgeOff, z: ws(60), refY: 40.0, rotY: Math.PI / 2 },
+    { x: ws(252) + viadEdgeOff, z: ws(60) + 4, refY: 40.0, rotY: Math.PI / 2 }
   ];
   for (const vb of viaductBarricades) {
     spawnSharedProp({
@@ -840,16 +873,19 @@ export function buildStreetProps(world) {
 
   // Caixas LEGO clássicas nas esquinas e galpões
   const crateData = [
-    [-19, -98, LEGO_COLORS.orange],
-    [-20.6, -98, LEGO_COLORS.yellow],
-    [19, -98, LEGO_COLORS.blue],
-    [20.6, -98, LEGO_COLORS.green],
-    [-19, -18, LEGO_COLORS.orange],
-    [19, -18, LEGO_COLORS.blue],
-    [680, -340, LEGO_COLORS.red],
-    [682, -340, LEGO_COLORS.yellow]
+    [-19, -98, 0, LEGO_COLORS.orange],
+    [-19, -98, -1.6, LEGO_COLORS.yellow],
+    [19, -98, 0, LEGO_COLORS.blue],
+    [19, -98, 1.6, LEGO_COLORS.green],
+    [-19, -18, 0, LEGO_COLORS.orange],
+    [19, -18, 0, LEGO_COLORS.blue],
+    [680, -340, 0, LEGO_COLORS.red],
+    [680, -340, 2.0, LEGO_COLORS.yellow]
   ];
-  for (const [cx, cz, color] of crateData) {
+  for (const [rawCx, rawCz, localDx, color] of crateData) {
+    const cp = wsStreetAnchored(rawCx, rawCz, { halfW: 0.8, halfD: 0.8 });
+    const cx = cp.x + localDx;
+    const cz = cp.z;
     const sidewalkY = getGroundAndSidewalkY(cx, cz, false);
     const crate = createLegoBrick(1.3, 1.3, 1.3, color, { studStep: 0.55, castShadow: false });
     crate.traverse((c) => {
@@ -876,7 +912,6 @@ export function buildStreetProps(world) {
     }
   }
 
-  // Consolida todos os StreetProps em lotes InstancedMesh (~24 Draw Calls no total!)
   for (const byMat of instPoolByKey.values()) {
     for (const pool of byMat.values()) {
       const count = pool.entries.length;

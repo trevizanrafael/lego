@@ -9,12 +9,12 @@ import {
   getHighwayDistanceAt,
   isPointOnOrganicLand
 } from '../CoastlineProfile.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../core/WorldLayoutScale.js';
 import { buildBorealFjordBridge } from './BridgeAndPierSpecs.js';
 
 /**
  * Constrói as Rodovias Inter-Regionais da Pangeia (`PANGAEA_HIGHWAYS`), Ponte Boreal do Fiorde,
- * Pórticos de Divisa e os 4 Marcos Identitários do Supercontinente (Floresta Boreal, Radar NW,
- * Parque Eólico & Refinaria de Tétis e Vila das Dunas Sudoeste).
+ * Pórticos de Divisa e os 4 Marcos Identitários do Supercontinente (dimensões locais 1x preservadas!).
  */
 export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
   const {
@@ -29,8 +29,8 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     palmTreeTransforms
   } = buckets;
 
-  // 3) Rodovias Inter-Regionais da Pangeia (`PANGAEA_HIGHWAYS`) + Postes + Pórticos de Divisa
   const hwyPoleCoords = [];
+  const segTargetLen = IS_SCALED_WORLD ? 36 : 24;
   for (const hwy of PANGAEA_HIGHWAYS) {
     const roadW = hwy.width || 24;
     for (let p = 0; p < hwy.points.length - 1; p++) {
@@ -45,7 +45,6 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
       const uz = segDz / totalLen;
       const yaw = Math.atan2(segDx, segDz);
 
-      // Registra segmento para Minimapa & Mapa Tático [M]
       if (Math.abs(segDx) <= 4 || Math.abs(segDz) <= 4) {
         const horiz = Math.abs(segDx) > Math.abs(segDz);
         world.mapRoads.push({
@@ -57,7 +56,7 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
         });
       }
 
-      const subSteps = Math.max(1, Math.ceil(totalLen / 24));
+      const subSteps = Math.max(1, Math.ceil(totalLen / segTargetLen));
       const subLen = totalLen / subSteps;
       for (let i = 0; i < subSteps; i++) {
         const t0 = i / subSteps;
@@ -69,8 +68,7 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
         const mx = (sx0 + sx1) * 0.5;
         const mz = (sz0 + sz1) * 0.5;
 
-        // Pula vão do Rio Urban/Fjord em X=526..594 (coberto pela Ponte em Arco!)
-        if (mx > 528 && mx < 592) continue;
+        if (mx > ws(528) && mx < ws(592)) continue;
 
         const y0 = getPangaeaElevationAt(sx0, sz0);
         const y1 = getPangaeaElevationAt(sx1, sz1);
@@ -101,7 +99,8 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
           }
         }
 
-        if (i % 3 === 1) {
+        const poleModulo = IS_SCALED_WORLD ? 4 : 3;
+        if (i % poleModulo === 1) {
           hwyPoleCoords.push({
             x: mx + uz * (roadW * 0.5 + 1.6),
             y: ym + 0.25,
@@ -113,10 +112,8 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     }
   }
 
-  // Ponte Rodoviária Boreal sobre o Fjord em Z = -2150 (X = 526..594, archHeight = 5.5m)
   buildBorealFjordBridge(world, roadAsphaltGeos, cliffGeos);
 
-  // Postes instanciados ao longo das rodovias da Pangeia
   if (hwyPoleCoords.length > 0) {
     const dummy = new THREE.Object3D();
     const poleGeo = new THREE.BoxGeometry(0.45, 7.2, 0.45);
@@ -140,24 +137,25 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     world.scene.add(poleInst, armInst);
   }
 
-  // Pórticos de Divisa nas fronteiras das rodovias regionais
   const borderPortals = [
-    { x: -1215, z: -1328, yaw: 0, title: 'PLATÔ BOREAL NORTE', color: '#4ade80' },
-    { x: 964, z: -1328, yaw: 0, title: 'EXPRESSA TÉTIS NORTE', color: '#38bdf8' },
-    { x: -1832, z: -1285, yaw: Math.PI / 2, title: 'CABO RADAR NOROESTE', color: '#94a3b8' },
-    { x: 1634, z: -908, yaw: Math.PI / 2, title: 'PARQUE EÓLICO TÉTIS', color: '#38bdf8' },
-    { x: -1832, z: 710, yaw: Math.PI / 2, title: 'COSTA DAS DUNAS SUL', color: '#fde047' }
+    { x: ws(-1215), z: ws(-1328), yaw: 0, title: 'PLATÔ BOREAL NORTE', color: '#4ade80' },
+    { x: ws(964), z: ws(-1328), yaw: 0, title: 'EXPRESSA TÉTIS NORTE', color: '#38bdf8' },
+    { x: ws(-1832), z: ws(-1285), yaw: Math.PI / 2, title: 'CABO RADAR NOROESTE', color: '#94a3b8' },
+    { x: ws(1634), z: ws(-908), yaw: Math.PI / 2, title: 'PARQUE EÓLICO TÉTIS', color: '#38bdf8' },
+    { x: ws(-1832), z: ws(710), yaw: Math.PI / 2, title: 'COSTA DAS DUNAS SUL', color: '#fde047' }
   ];
+  const portalHalfSpan = IS_SCALED_WORLD ? ROAD.secondaryWidth * 0.5 + 1.5 : 13.5;
+  const portalBeamLen = IS_SCALED_WORLD ? portalHalfSpan * 2 + 2.0 : 29.0;
   for (const bp of borderPortals) {
     const py = getPangaeaElevationAt(bp.x, bp.z);
     const ux = Math.cos(bp.yaw);
     const uz = -Math.sin(bp.yaw);
-    for (const s of [-13.5, 13.5]) {
+    for (const s of [-portalHalfSpan, portalHalfSpan]) {
       cliffGeos.push(makeFastBox(1.8, 9.6, 1.8, bp.x + ux * s, py + 4.8, bp.z + uz * s));
     }
     const isZAligned = Math.abs(bp.yaw) > 0.1;
     cliffGeos.push(
-      makeFastBox(isZAligned ? 1.8 : 29.0, 1.4, isZAligned ? 29.0 : 1.8, bp.x, py + 9.4, bp.z)
+      makeFastBox(isZAligned ? 1.8 : portalBeamLen, 1.4, isZAligned ? portalBeamLen : 1.8, bp.x, py + 9.4, bp.z)
     );
     const sign = createSignBoardMesh({
       x: bp.x,
@@ -176,22 +174,22 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     world.scene.add(sign);
   }
 
-  // 4A. Floresta Boreal de Pinheiros + Mirante Florestal (-1265, -2420)
+  // 4A. Floresta Boreal de Pinheiros + Mirante Florestal (tamanhos locais 1x!)
   for (let gx = -2250; gx <= 420; gx += 165) {
     for (let gz = -2650; gz <= -1440; gz += 165) {
-      const tx = gx + Math.sin(gx * 0.03 + gz * 0.02) * 55;
-      const tz = gz + Math.cos(gz * 0.04 - gx * 0.01) * 55;
+      const tx = ws(gx + Math.sin(gx * 0.03 + gz * 0.02) * 55);
+      const tz = ws(gz + Math.cos(gz * 0.04 - gx * 0.01) * 55);
       if (!isPointOnOrganicLand(tx, tz)) continue;
       if (getDistanceToCoastAt(tx, tz) < 55) continue;
       if (getHighwayDistanceAt(tx, tz) < 28) continue;
-      if (Math.abs(tx - 560) < 60) continue;
+      if (Math.abs(tx - ws(560)) < ws(60)) continue;
       const ty = getPangaeaElevationAt(tx, tz);
       pineTreeTransforms.push({ x: tx, y: ty, z: tz, s: 1.15 + ((Math.abs(gx + gz) % 4) * 0.25) });
     }
   }
   {
-    const lx = -1265;
-    const lz = -2420;
+    const lx = ws(-1265);
+    const lz = ws(-2420);
     const ly = getPangaeaElevationAt(lx, lz);
     cliffGeos.push(makeFastBox(26, 2.0, 22, lx, ly + 1.0, lz));
     turfGeos.push(makeFastBox(20, 8.5, 16, lx, ly + 6.0, lz));
@@ -216,10 +214,10 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     );
   }
 
-  // 4B. Estação Radar Costeira no Cabo Noroeste (-2920, -1345)
+  // 4B. Estação Radar Costeira no Cabo Noroeste (tamanhos locais 1x!)
   {
-    const rx = -2920;
-    const rz = -1345;
+    const rx = ws(-2920);
+    const rz = ws(-1345);
     const ry = getPangaeaElevationAt(rx, rz);
     cliffGeos.push(
       makeFastBox(38, 3.0, 32, rx, ry + 1.5, rz),
@@ -255,7 +253,7 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     );
   }
 
-  // 4C. Parque Eólico de Tétis (8 Aerogeradores Gigantes) & Refinaria no Chifre Nordeste
+  // 4C. Parque Eólico de Tétis (8 Aerogeradores Gigantes em 1x!) & Refinaria
   const turbineCoords = [
     [2240, -1980], [2620, -2060], [2980, -1720], [2960, -1240],
     [2320, -1420], [2480, -680], [2140, -1720], [2840, -820]
@@ -265,7 +263,9 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
   const hubGeo = new THREE.BoxGeometry(3.2, 3.2, 5.4);
   const bladeGeo = new THREE.BoxGeometry(1.5, 22.0, 0.55);
   const mastGeo = new THREE.CylinderGeometry(1.4, 2.5, 52.0, 10);
-  for (const [wx, wz] of turbineCoords) {
+  for (const [rawWx, rawWz] of turbineCoords) {
+    const wx = ws(rawWx);
+    const wz = ws(rawWz);
     if (!isPointOnOrganicLand(wx, wz)) continue;
     const wy = getPangaeaElevationAt(wx, wz);
     const mast = new THREE.Mesh(mastGeo, turbinePoleMat);
@@ -288,14 +288,14 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     rotorPivot.add(hub);
     world.scene.add(rotorPivot);
     if (Array.isArray(world.rotatingElements)) {
-      world.rotatingElements.push({ mesh: rotorPivot, axis: 'z', speed: 1.45 + ((wx % 5) * 0.12) });
+      world.rotatingElements.push({ mesh: rotorPivot, axis: 'z', speed: 1.45 + ((rawWx % 5) * 0.12) });
     }
     world.addCollider(wx, wz, 5.5, 5.5, wy + 52.0, wy);
     world.mapBuildings.push({ x: wx, z: wz, w: 14, d: 14, height: 52, color: '#38bdf8', label: 'TORRE EÓLICA' });
   }
   {
-    const rx = 2740;
-    const rz = -1120;
+    const rx = ws(2740);
+    const rz = ws(-1120);
     const ry = getPangaeaElevationAt(rx, rz);
     cliffGeos.push(makeFastBox(46, 2.0, 42, rx, ry + 1.0, rz));
     for (const [ox, oz] of [[-12, -8], [12, -8], [-12, 10], [12, 10]]) {
@@ -321,22 +321,22 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
     );
   }
 
-  // 4D. Vila das Dunas Sudoeste & Coqueirais (-2520, +2020)
+  // 4D. Vila das Dunas Sudoeste & Coqueirais (cabanas em 1x!)
   for (let gx = -3050; gx <= -1750; gx += 170) {
     for (let gz = 880; gz <= 2280; gz += 170) {
-      const tx = gx + Math.cos(gx * 0.02 + gz) * 45;
-      const tz = gz + Math.sin(gz * 0.03 - gx) * 45;
+      const tx = ws(gx + Math.cos(gx * 0.02 + gz) * 45);
+      const tz = ws(gz + Math.sin(gz * 0.03 - gx) * 45);
       if (!isPointOnOrganicLand(tx, tz)) continue;
       const cd = getDistanceToCoastAt(tx, tz);
-      if (cd < 18 || cd > 180) continue;
+      if (cd < 18 || cd > ws(180)) continue;
       if (getHighwayDistanceAt(tx, tz) < 28) continue;
       const ty = getPangaeaElevationAt(tx, tz);
       palmTreeTransforms.push({ x: tx, y: ty, z: tz, s: 1.0 + ((Math.abs(gx) % 3) * 0.22) });
     }
   }
   {
-    const vx = -2520;
-    const vz = 2020;
+    const vx = ws(-2520);
+    const vz = ws(2020);
     const vy = getPangaeaElevationAt(vx, vz);
     const houseCols = ['#ef4444', '#fde047', '#38bdf8'];
     [-26, 0, 26].forEach((ox, idx) => {
@@ -364,9 +364,6 @@ export function buildPangaeaHighwaysAndLandmarks(world, buckets) {
   }
 }
 
-/**
- * Emite os `InstancedMesh` de pinheiros boreais e coqueiros costeiros da Pangeia/Arquipélago.
- */
 export function flushPangaeaTreeInstances(world, pineTreeTransforms, palmTreeTransforms) {
   if (pineTreeTransforms.length > 0) {
     const dummy = new THREE.Object3D();

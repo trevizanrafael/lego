@@ -1,6 +1,7 @@
 // Estações subterrâneas, escadarias de calçada e túnel.
 import * as THREE from 'three';
-import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from './MetroRouteData.js';
+import { IS_SCALED_WORLD, ROAD, ws } from '../core/WorldLayoutScale.js';
+import { METRO_ISLAND_CUTOUTS, METRO_OFFSETS, sliceRectAroundCutouts } from './MetroRouteData.js';
 import { addMetroSignBoard, spawnBreakableMetroTurnstile, spawnBreakableTicketMachine } from './MetroStationProps.js';
 
 // ============================================================================
@@ -12,7 +13,7 @@ export function buildSidewalkSubwayEntrance(world, batcher, cutout, enterFromEas
   const cz = (minZ + maxZ) * 0.5;
   const w = maxX - minX; // 28.0m!
   const d = maxZ - minZ; // 4.4m!
-  const groundY = 0.28;
+  const groundY = IS_SCALED_WORLD ? ROAD.curbHeight : 0.28;
 
   // Grade Verde/Aço Estilo Metrô de NY/SP cercando os 3 lados da boca da escada na calçada!
   // Colisores laterais levemente recuados (w - 0.8) no pé da escada para nunca estreitar a saída em Y = -10.5m!
@@ -36,10 +37,11 @@ export function buildSidewalkSubwayEntrance(world, batcher, cutout, enterFromEas
   batcher.addBox('subway_stripe_blue', w - 0.3, 0.42, 0.36, sideColX, -3.2, maxZ + 0.18);
 
   const steps = 32;
+  const topStepY = IS_SCALED_WORLD ? ROAD.curbHeight - 0.04 : 0.24;
   for (let s = 0; s < steps; s++) {
     const t = (s + 0.5) / steps;
     const sx = enterFromEast ? THREE.MathUtils.lerp(maxX, minX, t) : THREE.MathUtils.lerp(minX, maxX, t);
-    const sy = THREE.MathUtils.lerp(0.24, -10.5, t);
+    const sy = THREE.MathUtils.lerp(topStepY, -10.5, t);
     batcher.addBox('platform_floor', w / steps + 0.16, 0.55, d, sx, sy - 0.26, cz);
   }
 
@@ -64,6 +66,73 @@ export function buildSidewalkSubwayEntrance(world, batcher, cutout, enterFromEas
   );
 }
 
+function buildScaledTunnelCorridors(dz1, dx2, dz2, portalWestX, portalEastX, portalDz) {
+  const m01MinZ = -122.0 + dz1;
+  const m01TrackOpenMaxZ = -111.6 + dz1; // alinhado à abertura norte da Estação 01 (10.4m)
+  const m02MinX = -99.0 + dx2;
+  const m02TrackOpenMaxX = -87.0 + dx2;  // alinhado à abertura oeste da Estação 02 (12.0m)
+  const m02MinZ = -24.0 + dz2;
+  const m02MaxZ = 64.0 + dz2;
+  const loopSouthMaxZ = m02MaxZ + 16.0;
+  const westLoopX = ws(-134);
+  const portalBotZ = -136.0 + portalDz;
+  const loopNorthMinZ = portalBotZ + 10.0;
+
+  return [
+    // 1) Portal Leste -> Leste da Estação 01 (corredor N-S + cotovelo + corredor L-O sem parede bloqueando trilho)
+    { minX: portalEastX - 6, maxX: portalEastX + 8, minZ: portalBotZ, maxZ: m01MinZ, walls: ['minX', 'maxX'] },
+    {
+      minX: portalEastX - 6,
+      maxX: portalEastX + 8,
+      minZ: m01MinZ,
+      maxZ: m01TrackOpenMaxZ,
+      walls: ['maxX', 'maxZ']
+    },
+    { minX: 94, maxX: portalEastX - 6, minZ: m01MinZ, maxZ: m01TrackOpenMaxZ, walls: ['minZ', 'maxZ'] },
+
+    // 2) Oeste da Estação 01 -> Norte da Estação 02
+    { minX: m02TrackOpenMaxX, maxX: -94, minZ: m01MinZ, maxZ: m01TrackOpenMaxZ, walls: ['minZ', 'maxZ'] },
+    {
+      minX: m02MinX,
+      maxX: m02TrackOpenMaxX,
+      minZ: m01MinZ,
+      maxZ: m01TrackOpenMaxZ,
+      walls: ['minX', 'minZ']
+    },
+    { minX: m02MinX, maxX: m02TrackOpenMaxX, minZ: m01TrackOpenMaxZ, maxZ: m02MinZ, walls: ['minX', 'maxX'] },
+
+    // 3) Sul da Estação 02 -> Alça Subterrânea Oeste -> Portal Oeste
+    {
+      minX: westLoopX + 6,
+      maxX: m02TrackOpenMaxX,
+      minZ: m02MaxZ,
+      maxZ: loopSouthMaxZ,
+      walls: ['maxZ']
+    },
+    {
+      minX: westLoopX - 6,
+      maxX: westLoopX + 6,
+      minZ: loopNorthMinZ + 12,
+      maxZ: loopSouthMaxZ,
+      walls: ['minX', 'maxX']
+    },
+    {
+      minX: westLoopX - 6,
+      maxX: portalWestX - 6,
+      minZ: loopNorthMinZ,
+      maxZ: loopNorthMinZ + 12,
+      walls: ['minZ', 'maxZ']
+    },
+    {
+      minX: portalWestX - 6,
+      maxX: portalWestX + 8,
+      minZ: portalBotZ,
+      maxZ: loopNorthMinZ + 12,
+      walls: ['maxX', 'maxZ']
+    }
+  ];
+}
+
 export function buildUndergroundStationsAndTunnel(world, batcher) {
   if (!world.undergroundFloors) world.undergroundFloors = [];
 
@@ -73,33 +142,37 @@ export function buildUndergroundStationsAndTunnel(world, batcher) {
   const wallH = ceilY - trackFloorY + 0.8; // 11.1m
   const wallMidY = (ceilY + trackFloorY) * 0.5; // -6.05m
 
+  const dz1 = METRO_OFFSETS.st01Dz;
+  const dx2 = METRO_OFFSETS.st02Dx;
+  const dz2 = METRO_OFFSETS.st02Dz;
+
   // --------------------------------------------------------------------------
-  // 1) ESTAÇÃO 01 — CENTRAL / SUPER BANCO (`X = -94..+94, Z = -122..-89`, Piso `-10.5m`)
-  //    Borda da plataforma a EXATOS 2.38m do trilho (`Z = -116.0 + 2.38 = -113.62` -> 8cm visuais e ZERO fresta!)
+  // 1) ESTAÇÃO 01 — CENTRAL / SUPER BANCO (Dimensões 1x preservadas: 188m x 33m, Piso `-10.5m`)
+  //    Borda da plataforma a EXATOS 2.38m do trilho (`Z = trackZ + 2.38` -> 8cm visuais e ZERO fresta!)
   // --------------------------------------------------------------------------
   const s1MinX = -94;
   const s1MaxX = 94;
-  const s1MinZ = -122.0;
-  const s1MaxZ = -89.0;
-  const s1PlatEdgeZ = -113.62; // -116.0 + 2.38m (colada nos halfW = 2.30m do vagão!)
+  const s1MinZ = -122.0 + dz1;
+  const s1MaxZ = -89.0 + dz1;
+  const s1PlatEdgeZ = -113.62 + dz1; // trackZ + 2.38m (colada nos halfW = 2.30m do vagão!)
   const s1PlatDepth = s1MaxZ - s1PlatEdgeZ; // 24.62m
   const s1PlatCenterZ = (s1PlatEdgeZ + s1MaxZ) * 0.5;
   const s1W = s1MaxX - s1MinX; // 188m!
   const s1CX = 0;
 
   world.undergroundFloors.push(
-    // Estende 0.28m sob a soleira da porta (-113.90) para ZERO fresta física ao embarcar!
+    // Estende 0.28m sob a soleira da porta para ZERO fresta física ao embarcar!
     { id: 'st01_platform', minX: s1MinX, maxX: s1MaxX, minZ: s1PlatEdgeZ - 0.28, maxZ: s1MaxZ, floorY: platFloorY, ceilingY: ceilY },
     { id: 'st01_tracks', minX: s1MinX, maxX: s1MaxX, minZ: s1MinZ, maxZ: s1PlatEdgeZ - 0.28, floorY: trackFloorY, ceilingY: ceilY }
   );
 
-  // Salão da Plataforma Sul (`Z = -113.62 .. -89.0`) + Faixa Tátil Amarela na Borda + Fosso de Trilhos
+  // Salão da Plataforma Sul + Faixa Tátil Amarela na Borda + Fosso de Trilhos
   batcher.addBox('platform_floor', s1W, 0.7, s1PlatDepth, s1CX, platFloorY - 0.35, s1PlatCenterZ);
   batcher.addBox('subway_stripe_gold', s1W - 6, 0.08, 0.68, s1CX, platFloorY + 0.04, s1PlatEdgeZ + 0.45);
   for (let sx = -76; sx <= 76; sx += 4.5) {
     batcher.studPositions.push([sx, platFloorY + 0.1, s1PlatEdgeZ + 0.45]);
   }
-  batcher.addBox('tunnel_dark', s1W, 0.8, 9.2, s1CX, trackFloorY - 0.4, -117.6);
+  batcher.addBox('tunnel_dark', s1W, 0.8, 9.2, s1CX, trackFloorY - 0.4, -117.6 + dz1);
 
   // Teto Subterrâneo Alto em Y = -0.9m (recortado nas 2 escadarias longas de 28m!)
   const st1RoofRects = sliceRectAroundCutouts(
@@ -127,18 +200,18 @@ export function buildUndergroundStationsAndTunnel(world, batcher) {
   world.addCollider(s1CX, s1MaxZ, s1W, 0.9, -0.5, trackFloorY - 0.5);
 
   // Paredes de fechamento Leste/Oeste na área da plataforma (deixando o túnel dos trilhos aberto!)
-  batcher.addBox('subway_tile_white', 0.7, wallH, 22.4, s1MinX, wallMidY, -100.0);
-  batcher.addBox('subway_tile_white', 0.7, wallH, 22.4, s1MaxX, wallMidY, -100.0);
-  world.addCollider(s1MinX, -100.0, 0.9, 22.4, -0.5, trackFloorY - 0.5);
-  world.addCollider(s1MaxX, -100.0, 0.9, 22.4, -0.5, trackFloorY - 0.5);
+  batcher.addBox('subway_tile_white', 0.7, wallH, 22.4, s1MinX, wallMidY, -100.0 + dz1);
+  batcher.addBox('subway_tile_white', 0.7, wallH, 22.4, s1MaxX, wallMidY, -100.0 + dz1);
+  world.addCollider(s1MinX, -100.0 + dz1, 0.9, 22.4, -0.5, trackFloorY - 0.5);
+  world.addCollider(s1MaxX, -100.0 + dz1, 0.9, 22.4, -0.5, trackFloorY - 0.5);
 
-  // Colunas esbeltas afastadas no fundo, Luminárias no teto alto (-0.9m) e Bancos recuados (Z = -93.2)!
+  // Colunas esbeltas afastadas no fundo, Luminárias no teto alto (-0.9m) e Bancos recuados!
   for (let px = -72; px <= 72; px += 24) {
-    batcher.addBox('ny_truss_charcoal', 0.75, ceilY - platFloorY, 0.75, px, (ceilY + platFloorY) * 0.5, -96.0);
-    batcher.addBox('fluorescent_white', 6.8, 0.16, 1.1, px, ceilY - 0.08, -101.0);
-    batcher.addBox('fluorescent_white', 6.8, 0.16, 0.85, px, ceilY - 0.08, -115.5);
+    batcher.addBox('ny_truss_charcoal', 0.75, ceilY - platFloorY, 0.75, px, (ceilY + platFloorY) * 0.5, -96.0 + dz1);
+    batcher.addBox('fluorescent_white', 6.8, 0.16, 1.1, px, ceilY - 0.08, -101.0 + dz1);
+    batcher.addBox('fluorescent_white', 6.8, 0.16, 0.85, px, ceilY - 0.08, -115.5 + dz1);
     if (Math.abs(px) >= 18 && Math.abs(px) <= 54) {
-      batcher.addBox('bench_wood', 4.4, 0.55, 1.2, px, platFloorY + 0.28, -92.2);
+      batcher.addBox('bench_wood', 4.4, 0.55, 1.2, px, platFloorY + 0.28, -92.2 + dz1);
     }
   }
 
@@ -149,38 +222,38 @@ export function buildUndergroundStationsAndTunnel(world, batcher) {
   }
 
   for (const tz of [-106.5, -103.5, -100.5]) {
-    spawnBreakableMetroTurnstile(world, -54.0, platFloorY, tz, Math.PI / 2);
-    spawnBreakableMetroTurnstile(world, 54.0, platFloorY, tz, -Math.PI / 2);
+    spawnBreakableMetroTurnstile(world, -54.0, platFloorY, tz + dz1, Math.PI / 2);
+    spawnBreakableMetroTurnstile(world, 54.0, platFloorY, tz + dz1, -Math.PI / 2);
   }
   spawnBreakableTicketMachine(world, -44.0, platFloorY, s1MaxZ - 0.9, Math.PI);
   spawnBreakableTicketMachine(world, 44.0, platFloorY, s1MaxZ - 0.9, Math.PI);
 
   // --------------------------------------------------------------------------
-  // 2) ESTAÇÃO 02 — TIMES SQUARE / PARQUE (`X = -99..-54, Z = -24..+64`, Piso `-10.5m`)
-  //    Borda da plataforma a EXATOS 2.38m do trilho (`X = -93.0 + 2.38 = -90.62` -> 8cm visuais e ZERO fresta!)
+  // 2) ESTAÇÃO 02 — TIMES SQUARE / PARQUE (Dimensões 1x preservadas: 45m x 88m, Piso `-10.5m`)
+  //    Borda da plataforma a EXATOS 2.38m do trilho (`X = trackX + 2.38` -> 8cm visuais e ZERO fresta!)
   // --------------------------------------------------------------------------
-  const s2MinX = -99.0;
-  const s2MaxX = -54.0;
-  const s2MinZ = -24.0;
-  const s2MaxZ = 64.0;
-  const s2PlatEdgeX = -90.62; // -93.0 + 2.38m!
+  const s2MinX = -99.0 + dx2;
+  const s2MaxX = -54.0 + dx2;
+  const s2MinZ = -24.0 + dz2;
+  const s2MaxZ = 64.0 + dz2;
+  const s2PlatEdgeX = -90.62 + dx2; // trackX + 2.38m!
   const s2PlatW = s2MaxX - s2PlatEdgeX; // 36.62m
   const s2PlatCenterX = (s2PlatEdgeX + s2MaxX) * 0.5;
   const s2D = s2MaxZ - s2MinZ; // 88m!
-  const s2CZ = (s2MinZ + s2MaxZ) * 0.5; // +20.0
+  const s2CZ = (s2MinZ + s2MaxZ) * 0.5;
 
   world.undergroundFloors.push(
     { id: 'st02_platform', minX: s2PlatEdgeX - 0.28, maxX: s2MaxX, minZ: s2MinZ, maxZ: s2MaxZ, floorY: platFloorY, ceilingY: ceilY },
     { id: 'st02_tracks', minX: s2MinX, maxX: s2PlatEdgeX - 0.28, minZ: s2MinZ, maxZ: s2MaxZ, floorY: trackFloorY, ceilingY: ceilY }
   );
 
-  // Salão da Plataforma Leste (`X = -90.62 .. -54.0`) + Faixa Tátil Amarela + Fosso dos Trilhos
+  // Salão da Plataforma Leste + Faixa Tátil Amarela + Fosso dos Trilhos
   batcher.addBox('platform_floor', s2PlatW, 0.7, s2D, s2PlatCenterX, platFloorY - 0.35, s2CZ);
   batcher.addBox('subway_stripe_gold', 0.68, 0.08, s2D - 6, s2PlatEdgeX + 0.45, platFloorY + 0.04, s2CZ);
   for (let sz = -16; sz <= 56; sz += 4.5) {
-    batcher.studPositions.push([s2PlatEdgeX + 0.45, platFloorY + 0.1, sz]);
+    batcher.studPositions.push([s2PlatEdgeX + 0.45, platFloorY + 0.1, sz + dz2]);
   }
-  batcher.addBox('tunnel_dark', 9.2, 0.8, s2D, -94.8, trackFloorY - 0.4, s2CZ);
+  batcher.addBox('tunnel_dark', 9.2, 0.8, s2D, -94.8 + dx2, trackFloorY - 0.4, s2CZ);
 
   const st2RoofRects = sliceRectAroundCutouts(
     { minX: s2MinX, maxX: s2MaxX, minZ: s2MinZ, maxZ: s2MaxZ },
@@ -205,31 +278,33 @@ export function buildUndergroundStationsAndTunnel(world, batcher) {
   batcher.addBox('subway_stripe_blue', 0.78, 0.75, s2D, s2MaxX, -4.8, s2CZ);
   world.addCollider(s2MaxX, s2CZ, 0.9, s2D, -0.5, trackFloorY - 0.5);
 
-  batcher.addBox('subway_tile_white', 34.4, wallH, 0.7, -71.0, wallMidY, s2MinZ);
-  batcher.addBox('subway_tile_white', 34.4, wallH, 0.7, -71.0, wallMidY, s2MaxZ);
-  world.addCollider(-71.0, s2MinZ, 34.4, 0.9, -0.5, trackFloorY - 0.5);
-  world.addCollider(-71.0, s2MaxZ, 34.4, 0.9, -0.5, trackFloorY - 0.5);
+  batcher.addBox('subway_tile_white', 34.4, wallH, 0.7, -71.0 + dx2, wallMidY, s2MinZ);
+  batcher.addBox('subway_tile_white', 34.4, wallH, 0.7, -71.0 + dx2, wallMidY, s2MaxZ);
+  world.addCollider(-71.0 + dx2, s2MinZ, 34.4, 0.9, -0.5, trackFloorY - 0.5);
+  world.addCollider(-71.0 + dx2, s2MaxZ, 34.4, 0.9, -0.5, trackFloorY - 0.5);
 
-  for (let pz = -12; pz <= 52; pz += 16) {
-    batcher.addBox('ny_truss_charcoal', 0.75, ceilY - platFloorY, 0.75, -66.0, (ceilY + platFloorY) * 0.5, pz);
-    batcher.addBox('fluorescent_white', 1.1, 0.16, 6.4, -76.0, ceilY - 0.08, pz);
-    batcher.addBox('fluorescent_white', 0.85, 0.16, 6.4, -93.0, ceilY - 0.08, pz);
-    if (pz === -12 || pz === 4 || pz === 36 || pz === 52) {
-      batcher.addBox('bench_wood', 1.2, 0.55, 4.2, -60.5, platFloorY + 0.28, pz);
+  for (let pzBase = -12; pzBase <= 52; pzBase += 16) {
+    const pz = pzBase + dz2;
+    batcher.addBox('ny_truss_charcoal', 0.75, ceilY - platFloorY, 0.75, -66.0 + dx2, (ceilY + platFloorY) * 0.5, pz);
+    batcher.addBox('fluorescent_white', 1.1, 0.16, 6.4, -76.0 + dx2, ceilY - 0.08, pz);
+    batcher.addBox('fluorescent_white', 0.85, 0.16, 6.4, -93.0 + dx2, ceilY - 0.08, pz);
+    if (pzBase === -12 || pzBase === 4 || pzBase === 36 || pzBase === 52) {
+      batcher.addBox('bench_wood', 1.2, 0.55, 4.2, -60.5 + dx2, platFloorY + 0.28, pz);
     }
   }
 
   // Placas rentes às paredes Oeste e Leste (nunca no meio do ar!)
-  for (const sz of [0, 40]) {
+  for (const szBase of [0, 40]) {
+    const sz = szBase + dz2;
     addMetroSignBoard(world, s2MinX + 0.42, -4.6, sz, 16.5, 2.1, 'TIMES SQUARE • PARQUE', 'SENTIDO TORRE DOS HERÓIS', Math.PI / 2);
     addMetroSignBoard(world, s2MaxX - 0.42, -4.6, sz, 16.5, 2.1, 'ESTAÇÃO TIMES SQUARE', 'SAÍDA PARQUE CENTRAL', -Math.PI / 2);
   }
 
-  for (const tx of [-80.5, -77.5, -74.5]) {
-    spawnBreakableMetroTurnstile(world, tx, platFloorY, 10.5, 0);
+  for (const txBase of [-80.5, -77.5, -74.5]) {
+    spawnBreakableMetroTurnstile(world, txBase + dx2, platFloorY, 10.5 + dz2, 0);
   }
-  spawnBreakableTicketMachine(world, -55.2, platFloorY, 32.0, -Math.PI / 2);
-  spawnBreakableTicketMachine(world, -55.2, platFloorY, 36.0, -Math.PI / 2);
+  spawnBreakableTicketMachine(world, -55.2 + dx2, platFloorY, 32.0 + dz2, -Math.PI / 2);
+  spawnBreakableTicketMachine(world, -55.2 + dx2, platFloorY, 36.0 + dz2, -Math.PI / 2);
 
   // Entradas Amplas de 28m na Calçada das 2 Estações Subterrâneas
   buildSidewalkSubwayEntrance(world, batcher, METRO_ISLAND_CUTOUTS[0], true);
@@ -237,18 +312,27 @@ export function buildUndergroundStationsAndTunnel(world, batcher) {
   buildSidewalkSubwayEntrance(world, batcher, METRO_ISLAND_CUTOUTS[2], true);
 
   // --------------------------------------------------------------------------
-  // 3) TÚNEIS SUBTERRÂNEOS AMPLOS (`Y = -11.2m .. -0.9m`) & 2 PRAÇAS-PORTAL BLINDADAS (`X = ±82`)
+  // 3) TÚNEIS SUBTERRÂNEOS AMPLOS (`Y = -11.2m .. -0.9m`) & 2 PRAÇAS-PORTAL BLINDADAS
   // --------------------------------------------------------------------------
-  const tunnelCorridors = [
-    // Portal Leste (X=82, Z=-136) -> Parede Norte da Estação 01 (Z=-122)
-    { minX: 76, maxX: 90, minZ: -136, maxZ: -122 },
-    // Parede Sul da Estação 01 (Z=-89) -> Parede Norte da Estação 02 (Z=-24) — sem cortar o salão da Estação 01!
-    { minX: -99, maxX: -87, minZ: -89, maxZ: -24 },
-    // Estação 02 (Z=+64) -> Alça Subterrânea Oeste (X=-174..-162) -> Portal Oeste (X=-82, Z=-136)
-    { minX: -174, maxX: -87, minZ: 64, maxZ: 80 },
-    { minX: -174, maxX: -162, minZ: -135, maxZ: 68 },
-    { minX: -168, maxX: -76, minZ: -136, maxZ: -123 }
-  ];
+  const tunnelCorridors = IS_SCALED_WORLD
+    ? buildScaledTunnelCorridors(
+        dz1,
+        dx2,
+        dz2,
+        METRO_OFFSETS.portalWestX,
+        METRO_OFFSETS.portalEastX,
+        METRO_OFFSETS.portalDz
+      )
+    : [
+        // Portal Leste (X=82, Z=-136) -> Parede Norte da Estação 01 (Z=-122)
+        { minX: 76, maxX: 90, minZ: -136, maxZ: -122 },
+        // Parede Sul da Estação 01 (Z=-89) -> Parede Norte da Estação 02 (Z=-24) — sem cortar o salão da Estação 01!
+        { minX: -99, maxX: -87, minZ: -89, maxZ: -24 },
+        // Estação 02 (Z=+64) -> Alça Subterrânea Oeste (X=-174..-162) -> Portal Oeste (X=-82, Z=-136)
+        { minX: -174, maxX: -87, minZ: 64, maxZ: 80 },
+        { minX: -174, maxX: -162, minZ: -135, maxZ: 68 },
+        { minX: -168, maxX: -76, minZ: -136, maxZ: -123 }
+      ];
 
   for (const tc of tunnelCorridors) {
     world.undergroundFloors.push({
@@ -270,32 +354,41 @@ export function buildUndergroundStationsAndTunnel(world, batcher) {
     batcher.addBox('tunnel_concrete', cw, 0.65, cd, cx, ceilY + 0.32, cz);
     world.addCollider(cx, cz, cw, cd, -0.25, ceilY);
 
-    if (cw > cd) {
+    if (Array.isArray(tc.walls)) {
+      if (tc.walls.includes('minZ')) batcher.addBox('tunnel_concrete', cw, wallH, 0.65, cx, wallMidY, tc.minZ);
+      if (tc.walls.includes('maxZ')) batcher.addBox('tunnel_concrete', cw, wallH, 0.65, cx, wallMidY, tc.maxZ);
+      if (tc.walls.includes('minX')) batcher.addBox('tunnel_concrete', 0.65, wallH, cd, tc.minX, wallMidY, cz);
+      if (tc.walls.includes('maxX')) batcher.addBox('tunnel_concrete', 0.65, wallH, cd, tc.maxX, wallMidY, cz);
+    } else if (cw > cd) {
       batcher.addBox('tunnel_concrete', cw, wallH, 0.65, cx, wallMidY, tc.minZ);
       batcher.addBox('tunnel_concrete', cw, wallH, 0.65, cx, wallMidY, tc.maxZ);
+    } else {
+      batcher.addBox('tunnel_concrete', 0.65, wallH, cd, tc.minX, wallMidY, cz);
+      batcher.addBox('tunnel_concrete', 0.65, wallH, cd, tc.maxX, wallMidY, cz);
+    }
+
+    if (cw > cd) {
       for (let lx = tc.minX + 10; lx <= tc.maxX - 10; lx += 18) {
         batcher.addBox('fluorescent_white', 4.6, 0.16, 0.55, lx, ceilY - 0.08, cz);
       }
     } else {
-      batcher.addBox('tunnel_concrete', 0.65, wallH, cd, tc.minX, wallMidY, cz);
-      batcher.addBox('tunnel_concrete', 0.65, wallH, cd, tc.maxX, wallMidY, cz);
       for (let lz = tc.minZ + 10; lz <= tc.maxZ - 10; lz += 18) {
         batcher.addBox('fluorescent_white', 0.55, 0.16, 4.6, cx, ceilY - 0.08, lz);
       }
     }
   }
 
-  // Constrói as 2 Praças-Portal Blindadas Simétricas (X = -82 e X = +82, Z = -232..-131) — 100% fechadas sem vazar vazio!
+  // Constrói as 2 Praças-Portal Blindadas Simétricas — 100% fechadas sem vazar vazio!
   const buildArmoredPlazaPortal = (cutout, labelTitle) => {
     const { minX, maxX, minZ, maxZ } = cutout;
     const cx = (minX + maxX) * 0.5;
     const cz = (minZ + maxZ) * 0.5;
     const w = maxX - minX; // 9.6m
-    const d = maxZ - minZ; // 62.0m (-196..-134)
+    const d = maxZ - minZ; // 62.0m
 
-    // Calçamento Arquitetônico nas Praças Laterais ao redor da rampa (X = cx ± 22m, Z = -230..-131)
-    batcher.addBox('plaza_granite', 14.0, 0.28, 98.0, cx - 13.0, 0.14, -180.5);
-    batcher.addBox('plaza_granite', 14.0, 0.28, 98.0, cx + 13.0, 0.14, -180.5);
+    // Calçamento Arquitetônico nas Praças Laterais ao redor da rampa
+    batcher.addBox('plaza_granite', 14.0, 0.28, 98.0, cx - 13.0, 0.14, cz - 15.5);
+    batcher.addBox('plaza_granite', 14.0, 0.28, 98.0, cx + 13.0, 0.14, cz - 15.5);
 
     // Caixa de Concreto Maciça no Fundo e Laterais da Trincheira (de Y = -12.4m até +1.65m — ZERO vazamento do vazio!)
     batcher.addBox('tunnel_dark', w + 2.0, 1.4, d + 2.0, cx, -12.1, cz);
@@ -304,7 +397,7 @@ export function buildUndergroundStationsAndTunnel(world, batcher) {
       batcher.addBox('ny_truss_green', 0.6, 1.25, d + 1.6, sideX, 1.15, cz);
       world.addCollider(sideX, cz, 0.95, d + 1.6, 1.8, -12.0);
     }
-    // Mureta de cabeceira Sul em Z = maxZ (-134.0) + Pórtico Monumental do Túnel!
+    // Mureta de cabeceira Sul em Z = maxZ + Pórtico Monumental do Túnel!
     batcher.addBox('tunnel_concrete', w + 1.8, 5.8, 1.6, cx, -1.2, maxZ);
     batcher.addBox('ny_truss_green', w + 2.0, 1.15, 1.2, cx, 2.1, maxZ);
     world.addCollider(cx, maxZ, w + 1.8, 1.6, 2.7, -3.8);

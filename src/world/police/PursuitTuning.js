@@ -1,3 +1,5 @@
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
+
 /**
  * PursuitTuning.js
  * Fonte única da verdade (Single Source of Truth) para todos os parâmetros
@@ -13,7 +15,17 @@ export const PURSUIT_STATES = Object.freeze({
 });
 
 /**
- * Tempo necessário fora de TODOS os cones policiais para limpar o nível de procurado:
+ * Limites horizontais escalados do mapa para despacho e contenção segura sem clipar na cidade 3x.
+ */
+export const PURSUIT_WORLD_BOUNDS = Object.freeze({
+  minX: ws(-1850),
+  maxX: ws(1750),
+  minZ: ws(-1850),
+  maxZ: ws(1950)
+});
+
+/**
+ * Tempo necessário fora de TODOS os cones policiais para limpar o nível de procurado (estritamente ×1):
  * 1★ = 25s | 2★ = 40s | 3★ = 55s | 4★ = 70s | 5★ = 85s
  */
 export const SEARCH_DURATION_BY_STAR = Object.freeze([0, 25, 40, 55, 70, 85]);
@@ -46,7 +58,7 @@ export const STAR_FORCE_BUDGET = Object.freeze({
 });
 
 /**
- * Geometria real de percepção 2D/3D das unidades terrestres e aéreas,
+ * Geometria real de percepção 2D/3D das unidades terrestres e aéreas (metros reais ×1),
  * penalidade noturna (-30%) e cadência escalonada (Round-Robin) a 60 FPS.
  */
 export const VISION_CONES = Object.freeze({
@@ -83,7 +95,7 @@ export const VISION_PRECOMPUTED = Object.freeze({
 });
 
 /**
- * Regras de despacho e reciclagem fora do campo visual imediato do jogador.
+ * Regras de despacho e reciclagem fora do campo visual imediato do jogador (metros reais ×1).
  */
 export const DISPATCH_RULES = Object.freeze({
   minSpawnDist: 120,
@@ -93,8 +105,25 @@ export const DISPATCH_RULES = Object.freeze({
   searchBudgetFactor: 0.5
 });
 
+const HELIPAD_BASES_1X = Object.freeze([
+  Object.freeze({ id: 'central_precinct', label: 'Delegacia Central', x: 0, y: 54, z: -88 }),
+  Object.freeze({ id: 'west_airbase', label: 'Base Aérea Oeste', x: -690, y: 28, z: -80 }),
+  Object.freeze({ id: 'east_port', label: 'Capitania do Porto', x: 420, y: 34, z: 120 }),
+  Object.freeze({ id: 'north_precinct', label: 'Batalhão Norte', x: -80, y: 32, z: -540 }),
+  Object.freeze({ id: 'prison_island', label: 'Penitenciária Sudeste', x: 720, y: 38, z: 520 })
+]);
+
+// Em escala 3x: coordenadas X/Z seguem as montagens rígidas reais de cada região; altitudes Y permanecem estritamente ×1!
+const HELIPAD_BASES_SCALED = Object.freeze([
+  Object.freeze({ id: 'central_precinct', label: 'Heliponto Torre dos Heróis', x: ws(-324) + 6, y: 310.8, z: ws(-168) - 12 }),
+  Object.freeze({ id: 'west_airbase', label: 'Base Aérea & Militar Oeste', x: ws(-1340), y: 1.0, z: 0 }),
+  Object.freeze({ id: 'east_port', label: 'Cidadela Industrial & Porto Leste', x: ws(866), y: 112.3, z: ws(-316) - 47 }),
+  Object.freeze({ id: 'prison_island', label: 'Cidadela da Ilha da Prisão', x: ws(1375) - 23, y: 126.8, z: ws(1540) }),
+  Object.freeze({ id: 'sky_helicarrier', label: 'Aeroporta-Aviões no Céu', x: 0, y: 410.5, z: ws(-50) })
+]);
+
 /**
- * Dinâmica de voo, autonomia e helipontos oficiais dos helicópteros Águia/BOPE.
+ * Dinâmica de voo, autonomia (estritamente ×1: 55 m/s) e helipontos oficiais dos helicópteros Águia/BOPE.
  */
 export const HELI_TUNING = Object.freeze({
   maxSpeed: 55.0,
@@ -104,13 +133,7 @@ export const HELI_TUNING = Object.freeze({
   maxAltAboveGround: 58.0,
   respawnCooldownSec: 28.0,
   maxSearchFuelSec: 180.0,
-  bases: Object.freeze([
-    Object.freeze({ id: 'central_precinct', label: 'Delegacia Central', x: 0, y: 54, z: -88 }),
-    Object.freeze({ id: 'west_airbase', label: 'Base Aérea Oeste', x: -690, y: 28, z: -80 }),
-    Object.freeze({ id: 'east_port', label: 'Capitania do Porto', x: 420, y: 34, z: 120 }),
-    Object.freeze({ id: 'north_precinct', label: 'Batalhão Norte', x: -80, y: 32, z: -540 }),
-    Object.freeze({ id: 'prison_island', label: 'Penitenciária Sudeste', x: 720, y: 38, z: 520 })
-  ])
+  bases: IS_SCALED_WORLD ? HELIPAD_BASES_SCALED : HELIPAD_BASES_1X
 });
 
 /**

@@ -3,6 +3,7 @@ import {
   LEGO_COLORS,
   getLegoMaterial
 } from '../../../materials/LegoMaterials.js';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import {
   buildFortifiedCompoundWalls,
   addTallIndustrialSmokestack,
@@ -18,17 +19,23 @@ import {
  * 2. A CIDADELA / TORRE DO BUNKER CENTRAL DO PCC (112m DE ALTURA! QG DO "MESTRE DO COFRE")
  * - Mantém a Base Blindada Casamata de 30m (com porta-cofre gigante, frisos ciano e Rampa Subterrânea de Fuga);
  * - Faz subir do centro da base a Torre-Fortaleza Blindada Monumental até Y = 112m (dentro da faixa 85..120m!);
- * - Contrafortes blindados nas 4 quinas da torre, andares fortificados, 4 Passarelas Aéreas Blindadas (Skybridges)
- *   ligando a Torre Central aos prédios vizinhos, Radar Giratório e o Heliponto Principal do Chefe (`H`) no topo!
+ * - Contrafortes blindados nas 4 quinas da torre, andares fortificados, 4 Passarelas Aéreas Blindadas (Skybridges),
+ *   Radar Giratório e o Heliponto Principal do Chefe (`H`) no topo!
  */
 export function buildPCCCentralCitadelAndBunker(world, batcher) {
-  const cx = 866;
-  const cz = -381;
+  const origin = world.industrialPCCData?.citadelOrigin || {
+    x: ws(866),
+    z: IS_SCALED_WORLD ? ws(-316) : -381
+  };
+  const cx = origin.x;
+  const cz = origin.z;
   const compW = 172;
   const compD = 236;
 
   world.industrialPCCData.blocksCount += 2;
-  world._addCityBlockSidewalk(cx, cz, compW, compD, 0x1e293b);
+  if (!IS_SCALED_WORLD) {
+    world._addCityBlockSidewalk(cx, cz, compW, compD, 0x1e293b);
+  }
   buildFortifiedCompoundWalls(world, batcher, cx, cz, compW, compD, {
     wallH: 5.8,
     gateSouth: true,
@@ -36,9 +43,9 @@ export function buildPCCCentralCitadelAndBunker(world, batcher) {
     gateWidth: 34
   });
 
-  // 1) BASE CASAMATA BLINDADA DO BUNKER CENTRAL (X = 802..930 -> W=128, Z = -486..-370 -> D=116, H=30m)
-  const bX = 866;
-  const bZ = -428;
+  // 1) BASE CASAMATA BLINDADA DO BUNKER CENTRAL (W=128, D=116, H=30m — offsets locais 1x relativos a cx, cz)
+  const bX = cx;
+  const bZ = cz - 47;
   const bW = 128;
   const bD = 116;
   const bH = 30.0;
@@ -75,8 +82,8 @@ export function buildPCCCentralCitadelAndBunker(world, batcher) {
     batcher.addBox('dark_steel', 1.2, 1.6, bD - 18, bX + bW * 0.5 + 2.4, wy, bZ);
   }
 
-  // Porta Blindada Monumental Estilo Cofre na Fachada Sul (X = 838, Z = -369)
-  const vDoorX = 838;
+  // Porta Blindada Monumental Estilo Cofre na Fachada Sul (cx - 28)
+  const vDoorX = cx - 28;
   const vDoorZ = bZ + bD * 0.5 + 2.6;
   batcher.addBox('pcc_navy', 26, 13.5, 3.2, vDoorX, 0.28 + 6.75, vDoorZ);
   batcher.addBox('brushed_silver', 22, 11.5, 3.6, vDoorX, 0.28 + 5.75, vDoorZ + 0.3);
@@ -153,12 +160,20 @@ export function buildPCCCentralCitadelAndBunker(world, batcher) {
   batcher.addBox('tactical_white', 32, 2.2, 2.6, bX, citadelTopY - 4.0, bZ + 23.3);
 
   // ==========================================================================
-  // 3) 4 PONTES / PASSARELAS AÉREAS BLINDADAS (SKYBRIDGES) LIGANDO A CIDADELA AOS VIZINHOS
+  // 3) 4 PONTES / PASSARELAS AÉREAS BLINDADAS (SKYBRIDGES)
   // ==========================================================================
-  _buildArmoredSkybridge(world, batcher, 760, 36.0, -446, 148, 8.5, 'x');
-  _buildArmoredSkybridge(world, batcher, 976, 44.0, -446, 152, 8.5, 'x');
-  _buildArmoredSkybridge(world, batcher, 866, 38.0, -522, 8.5, 92, 'z');
-  _buildArmoredSkybridge(world, batcher, 764, 26.0, -356, 96, 7.5, 'x');
+  if (!IS_SCALED_WORLD) {
+    _buildArmoredSkybridge(world, batcher, 760, 36.0, -446, 148, 8.5, 'x');
+    _buildArmoredSkybridge(world, batcher, 976, 44.0, -446, 152, 8.5, 'x');
+    _buildArmoredSkybridge(world, batcher, 866, 38.0, -522, 8.5, 92, 'z');
+    _buildArmoredSkybridge(world, batcher, 764, 26.0, -356, 96, 7.5, 'x');
+  } else {
+    // Em 3x, interliga a Torre Central (bX, bZ) às 4 Torres de Vigia Blindadas da Casamata (Y = 35m, 100% interno)
+    _buildArmoredSkybridge(world, batcher, bX, 35.0, bZ - 49, 98, 7.5, 'x');
+    _buildArmoredSkybridge(world, batcher, bX, 35.0, bZ + 49, 98, 7.5, 'x');
+    _buildArmoredSkybridge(world, batcher, bX, 35.0, bZ - 40.5, 8.5, 20, 'z');
+    _buildArmoredSkybridge(world, batcher, bX, 35.0, bZ + 40.5, 8.5, 20, 'z');
+  }
 
   // ==========================================================================
   // 4) HELIPONTO PRINCIPAL DO CHEFE (`H`) NO TOPO DA CIDADELA (Y = 112.28m) + RADAR GIRATÓRIO
@@ -171,9 +186,11 @@ export function buildPCCCentralCitadelAndBunker(world, batcher) {
   batcher.addBox('tactical_white', 11.4, 0.66, 2.4, bX, citadelTopY + 0.34, bZ);
   world.addCollider(bX, bZ, 36, 36, citadelTopY + 0.6, citadelTopY - 0.5);
 
-  // Heliponto Auxiliar na Base Blindada do Bunker (X = 816, Y = 30.28m, Z = -386)
-  batcher.addCylinder('pcc_neon_blue', 9.5, 9.5, 0.3, 816, baseRoofY + 0.15, -386, 16);
-  batcher.addCylinder('matte_black', 8.4, 8.4, 0.34, 816, baseRoofY + 0.17, -386, 16);
+  // Heliponto Auxiliar na Base Blindada do Bunker (cx - 50, Y = 30.28m, cz - 5)
+  const auxHeliX = cx - 50;
+  const auxHeliZ = cz - 5;
+  batcher.addCylinder('pcc_neon_blue', 9.5, 9.5, 0.3, auxHeliX, baseRoofY + 0.15, auxHeliZ, 16);
+  batcher.addCylinder('matte_black', 8.4, 8.4, 0.34, auxHeliX, baseRoofY + 0.17, auxHeliZ, 16);
 
   // 4 Torres de Vigia Blindadas nas 4 Esquinas da Base do Bunker (Y = 30.28m..43m)
   const towerCoords = [
@@ -216,36 +233,40 @@ export function buildPCCCentralCitadelAndBunker(world, batcher) {
   // ==========================================================================
   // 5) RAMPA SUBTERRÂNEA / GARAGEM DE FUGA BLINDADA + ADENSAMENTO DO PÁTIO FRONTAL
   // ==========================================================================
-  const rampX = 896;
+  const rampX = cx + 30;
+  const rampZ = cz + 35;
   for (const rx of [rampX - 10.5, rampX + 10.5]) {
-    batcher.addBox('gunmetal_concrete', 1.8, 5.2, 56, rx, 1.6, -346);
-    batcher.addBox('matte_black', 2.0, 0.65, 56, rx, 4.3, -346);
-    for (let lz = -368; lz <= -322; lz += 11) {
+    batcher.addBox('gunmetal_concrete', 1.8, 5.2, 56, rx, 1.6, rampZ);
+    batcher.addBox('matte_black', 2.0, 0.65, 56, rx, 4.3, rampZ);
+    for (let dz = 13; dz <= 59; dz += 11) {
+      const lz = cz + dz;
       batcher.addBox('pcc_neon_blue', 0.65, 0.55, 1.2, rx, 4.75, lz);
       batcher.addBox('tactical_white', 2.05, 1.2, 2.2, rx, 2.4, lz);
     }
-    world.addCollider(rx, -346, 1.8, 56, 4.6, 0);
+    world.addCollider(rx, rampZ, 1.8, 56, 4.6, 0);
   }
-  batcher.addBox('armor_slate', 19.2, 1.2, 54, rampX, -1.4, -346, 0.085, 0, 0);
-  batcher.addBox('tactical_white', 0.45, 1.25, 48, rampX, -1.35, -346, 0.085, 0, 0);
-  batcher.addBox('matte_black', 24, 11.5, 12, rampX, 4.2, -372);
-  batcher.addBox('dark_steel', 18.5, 7.5, 8, rampX, 2.2, -371);
-  batcher.addBox('brushed_silver', 18.8, 2.8, 1.4, rampX, 6.8, -366.2);
-  batcher.addBox('pcc_neon_blue', 19.5, 0.55, 1.6, rampX, 8.6, -366.0);
+  batcher.addBox('armor_slate', 19.2, 1.2, 54, rampX, -1.4, rampZ, 0.085, 0, 0);
+  batcher.addBox('tactical_white', 0.45, 1.25, 48, rampX, -1.35, rampZ, 0.085, 0, 0);
+  batcher.addBox('matte_black', 24, 11.5, 12, rampX, 4.2, cz + 9);
+  batcher.addBox('dark_steel', 18.5, 7.5, 8, rampX, 2.2, cz + 10);
+  batcher.addBox('brushed_silver', 18.8, 2.8, 1.4, rampX, 6.8, cz + 14.8);
+  batcher.addBox('pcc_neon_blue', 19.5, 0.55, 1.6, rampX, 8.6, cz + 15);
 
-  // Anexo Blindado de Segurança & Arsenal no lado sudoeste do pátio do Bunker (X = 804, Z = -302)
-  batcher.addBox('matte_black', 36, 22.0, 42, 804, 0.28 + 11.0, -302);
-  batcher.addBox('pcc_navy', 37.5, 2.4, 43.5, 804, 0.28 + 20.5, -302);
-  batcher.addBox('pcc_neon_blue', 38.0, 0.5, 44.0, 804, 0.28 + 18.5, -302);
-  world.addCollider(804, -302, 36, 42, 22.5, 0.28);
+  // Anexo Blindado de Segurança & Arsenal no lado sudoeste do pátio do Bunker (cx - 62, cz + 79)
+  const annexSWX = cx - 62;
+  const annexSWZ = cz + 79;
+  batcher.addBox('matte_black', 36, 22.0, 42, annexSWX, 0.28 + 11.0, annexSWZ);
+  batcher.addBox('pcc_navy', 37.5, 2.4, 43.5, annexSWX, 0.28 + 20.5, annexSWZ);
+  batcher.addBox('pcc_neon_blue', 38.0, 0.5, 44.0, annexSWX, 0.28 + 18.5, annexSWZ);
+  world.addCollider(annexSWX, annexSWZ, 36, 42, 22.5, 0.28);
 
   // Pilhas de Contêineres Pretos/Azuis do PCC, Paletes de Ouro e Caixas de C4 preenchendo o leste do pátio
-  addPCCContainerStack(world, batcher, 932, -338, 3, true);
-  addPCCContainerStack(world, batcher, 932, -298, 2, true);
-  addStolenGoldPallet(world, batcher, 838, -352, true);
-  addStolenGoldPallet(world, batcher, 846, -352, false);
-  addSilverBriefcaseStack(world, batcher, 854, -352);
-  addC4ExplosiveCrateStack(world, batcher, 830, -352);
+  addPCCContainerStack(world, batcher, cx + 66, cz + 43, 3, true);
+  addPCCContainerStack(world, batcher, cx + 66, cz + 83, 2, true);
+  addStolenGoldPallet(world, batcher, cx - 28, cz + 29, true);
+  addStolenGoldPallet(world, batcher, cx - 20, cz + 29, false);
+  addSilverBriefcaseStack(world, batcher, cx - 12, cz + 29);
+  addC4ExplosiveCrateStack(world, batcher, cx - 36, cz + 29);
 }
 
 /**
@@ -273,13 +294,16 @@ function _buildArmoredSkybridge(world, batcher, cx, y, cz, w, d, axis = 'x') {
  * 3. PÁTIO DA FROTA — "O BONDE DO PCC" (X = 612..756, Z = -368..-264 — 100% PREENCHIDO!)
  */
 export function buildPCCFleetConvoyYard(world, batcher) {
-  const cx = 684;
-  const cz = -316;
+  const origin = world.industrialPCCData?.convoyYardOrigin || { x: ws(684), z: ws(-316) };
+  const cx = origin.x;
+  const cz = origin.z;
   const w = 144;
   const d = 104;
 
   world.industrialPCCData.blocksCount++;
-  world._addCityBlockSidewalk(cx, cz, w, d, 0x0f172a);
+  if (!IS_SCALED_WORLD) {
+    world._addCityBlockSidewalk(cx, cz, w, d, 0x0f172a);
+  }
   buildFortifiedCompoundWalls(world, batcher, cx, cz, w, d, {
     wallH: 5.0,
     gateSouth: true,
@@ -316,14 +340,17 @@ export function buildPCCFleetConvoyYard(world, batcher) {
   });
 
   // Coberturas Táticas Metálicas sobre as fileiras de SUVs Blindadas e Vans Quebra-Cofre
-  for (const canopyZ of [-338, -292]) {
+  const canopyZ1 = cz - 22;
+  const canopyZ2 = cz + 24;
+  for (const canopyZ of [canopyZ1, canopyZ2]) {
     batcher.addBox('matte_black', 102, 0.9, 15, cx - 10, 7.2, canopyZ);
     batcher.addBox('pcc_navy', 104, 0.6, 16, cx - 10, 7.8, canopyZ);
     batcher.addBox('pcc_neon_blue', 104, 0.28, 0.6, cx - 10, 6.8, canopyZ + (canopyZ < cz ? 7.8 : -7.8));
   }
-  for (let lx = 630; lx <= 728; lx += 18) {
-    batcher.addBox('tactical_white', 0.35, 0.08, 13, lx, 0.3, -338);
-    batcher.addBox('tactical_white', 0.35, 0.08, 13, lx, 0.3, -292);
+  for (let dx = -54; dx <= 44; dx += 18) {
+    const lx = cx + dx;
+    batcher.addBox('tactical_white', 0.35, 0.08, 13, lx, 0.3, canopyZ1);
+    batcher.addBox('tactical_white', 0.35, 0.08, 13, lx, 0.3, canopyZ2);
   }
 
   addPCCContainerStack(world, batcher, cx - 54, cz + 28, 3, false);
@@ -332,16 +359,22 @@ export function buildPCCFleetConvoyYard(world, batcher) {
 }
 
 /**
- * 4. PÁTIO DO DESMANCHE & FERRO-VELHO DO SINDICATO (X = 976..1148, Z = -368..-131 — 100% PREENCHIDO!)
+ * 4. PÁTIO DO DESMANCHE & FERRO-VELHO DO SINDICATO (100% PREENCHIDO!)
  */
 export function buildPCCChopShopAndScrapyard(world, batcher) {
-  const cx = 1062;
-  const cz = -250;
+  const origin = world.industrialPCCData?.chopShopOrigin || {
+    x: ws(1062),
+    z: IS_SCALED_WORLD ? ws(-316) : -250
+  };
+  const cx = origin.x;
+  const cz = origin.z;
   const w = 172;
   const d = 236;
 
   world.industrialPCCData.blocksCount += 2;
-  world._addCityBlockSidewalk(cx, cz, w, d, 0x1e293b);
+  if (!IS_SCALED_WORLD) {
+    world._addCityBlockSidewalk(cx, cz, w, d, 0x1e293b);
+  }
   buildFortifiedCompoundWalls(world, batcher, cx, cz, w, d, {
     wallH: 5.4,
     gateSouth: true,
@@ -349,9 +382,9 @@ export function buildPCCChopShopAndScrapyard(world, batcher) {
     gateWidth: 32
   });
 
-  // 1) Galpão Norte de Desmanche Pesado & Fundição de Ouro (H = 42m, 138m x 38m em Z = -342)
-  const shopX = 1054;
-  const shopZ = -342;
+  // 1) Galpão Norte de Desmanche Pesado & Fundição de Ouro (H = 42m, 138m x 38m em cz - 92)
+  const shopX = cx - 8;
+  const shopZ = cz - 92;
   batcher.addBox('matte_black', 138, 42.0, 38, shopX, 0.28 + 21.0, shopZ);
   batcher.addBox('pcc_navy', 140, 3.2, 40, shopX, 0.28 + 39.5, shopZ);
   batcher.addBox('pcc_neon_blue', 140.6, 0.55, 40.6, shopX, 0.28 + 37.5, shopZ);
@@ -363,15 +396,17 @@ export function buildPCCChopShopAndScrapyard(world, batcher) {
   world.industrialPCCData.bunkersCount++;
   world.industrialPCCData.c4WarehousesCount++;
 
-  // 2) Galpão Leste de Blindagem de Comboios (H = 36m, 36m x 136m em X = 1124, Z = -238)
-  batcher.addBox('gunmetal_concrete', 36, 36.0, 136, 1124, 0.28 + 18.0, -238);
-  batcher.addBox('matte_black', 37.2, 2.8, 137.2, 1124, 0.28 + 34.0, -238);
-  batcher.addBox('tactical_white', 37.6, 0.6, 137.6, 1124, 0.28 + 31.5, -238);
-  world.addCollider(1124, -238, 36, 136, 36.5, 0.28);
+  // 2) Galpão Leste de Blindagem de Comboios (H = 36m, 36m x 136m em cx + 62, cz + 12)
+  const eastWhX = cx + 62;
+  const eastWhZ = cz + 12;
+  batcher.addBox('gunmetal_concrete', 36, 36.0, 136, eastWhX, 0.28 + 18.0, eastWhZ);
+  batcher.addBox('matte_black', 37.2, 2.8, 137.2, eastWhX, 0.28 + 34.0, eastWhZ);
+  batcher.addBox('tactical_white', 37.6, 0.6, 137.6, eastWhX, 0.28 + 31.5, eastWhZ);
+  world.addCollider(eastWhX, eastWhZ, 36, 136, 36.5, 0.28);
   world.industrialPCCData.bunkersCount++;
 
-  addTallIndustrialSmokestack(world, batcher, 1126, -342, 74);
-  addGiantSiloBattery(world, batcher, 1122, -158, 3, 48);
+  addTallIndustrialSmokestack(world, batcher, cx + 64, cz - 92, 74);
+  addGiantSiloBattery(world, batcher, cx + 60, cz + 92, 3, 48);
 
   world.mapBuildings.push({
     x: shopX,
@@ -383,9 +418,9 @@ export function buildPCCChopShopAndScrapyard(world, batcher) {
     label: 'COMPLEXO DE DESMANCHE & BLINDAGEM (PCC)'
   });
 
-  // 3) Guindaste Eletromagnético Gigante (X = 1082, Z = -225, Altura 54m!)
-  const craneX = 1082;
-  const craneZ = -225;
+  // 3) Guindaste Eletromagnético Gigante (cx + 20, cz + 25, Altura 54m!)
+  const craneX = cx + 20;
+  const craneZ = cz + 25;
   batcher.addBox('matte_black', 15, 5.0, 15, craneX, 0.28 + 2.5, craneZ);
   batcher.addBox('forklift_yellow', 7.2, 48.0, 7.2, craneX, 0.28 + 26.5, craneZ);
   batcher.addBox('matte_black', 10.5, 6.0, 12.0, craneX, 0.28 + 49.0, craneZ);
@@ -398,9 +433,9 @@ export function buildPCCChopShopAndScrapyard(world, batcher) {
   world.addCollider(craneX, craneZ, 15, 15, 54.0, 0.28);
   world.industrialPCCData.industrialCranesCount++;
 
-  // 4) Prensa Hidráulica Industrial Colossal (X = 1014, Z = -215, Altura 26m)
-  const pressX = 1014;
-  const pressZ = -215;
+  // 4) Prensa Hidráulica Industrial Colossal (cx - 48, cz + 35, Altura 26m)
+  const pressX = cx - 48;
+  const pressZ = cz + 35;
   batcher.addBox('gunmetal_concrete', 24, 2.8, 20, pressX, 0.28 + 1.4, pressZ);
   batcher.addBox('matte_black', 3.6, 22.0, 18, pressX - 9.5, 0.28 + 12.4, pressZ);
   batcher.addBox('matte_black', 3.6, 22.0, 18, pressX + 9.5, 0.28 + 12.4, pressZ);
@@ -413,13 +448,13 @@ export function buildPCCChopShopAndScrapyard(world, batcher) {
 
   // 5) Pilhas Densas de Carros Amassados + Pilhas de Contêineres do PCC + Caminhões e Ouro Roubado
   const scrapStacks = [
-    [1092, -162, 5],
-    [1068, -162, 4],
-    [1044, -162, 5],
-    [1020, -162, 4],
-    [996, -162, 5],
-    [1092, -268, 4],
-    [996, -255, 4]
+    [cx + 30, cz + 88, 5],
+    [cx + 6, cz + 88, 4],
+    [cx - 18, cz + 88, 5],
+    [cx - 42, cz + 88, 4],
+    [cx - 66, cz + 88, 5],
+    [cx + 30, cz - 18, 4],
+    [cx - 66, cz - 5, 4]
   ];
   const scrapKeys = ['scrap_rust', 'scrap_teal', 'armor_slate', 'pcc_navy', 'forklift_yellow'];
   let sIdx = 0;
@@ -432,8 +467,8 @@ export function buildPCCChopShopAndScrapyard(world, batcher) {
     sIdx++;
   }
 
-  addPCCContainerStack(world, batcher, 994, -192, 3, false);
-  addStolenGoldPallet(world, batcher, 996, -310, true);
-  addStolenGoldPallet(world, batcher, 1004, -310, false);
-  addPCCArmoredBoxTruck(world, batcher, 1072, -296);
+  addPCCContainerStack(world, batcher, cx - 68, cz + 58, 3, false);
+  addStolenGoldPallet(world, batcher, cx - 66, cz - 60, true);
+  addStolenGoldPallet(world, batcher, cx - 58, cz - 60, false);
+  addPCCArmoredBoxTruck(world, batcher, cx + 10, cz - 46);
 }

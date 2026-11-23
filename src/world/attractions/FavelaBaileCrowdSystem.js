@@ -9,6 +9,7 @@ import {
   makeTranslatedBox
 } from '../BuildingGenerator.js';
 import { soundFX } from '../../audio/SoundFX.js';
+import { IS_SCALED_WORLD, wsP } from '../core/WorldLayoutScale.js';
 import { animateBaileDjRig, computeBaileNpcDancePose } from './EmoteDanceAnimations.js';
 
 const _dancePoseScratch = {
@@ -28,12 +29,16 @@ const _dancePoseScratch = {
 // BAILE FUNK VIVO NA QUADRA DA CDD (PAREDÃO PULSANTE, DJ LEGO & 64 DANÇARINOS DUAL-LOD!)
 // ============================================================================
 export function initBaileFunkStageAndCrowd(mgr) {
-  const cx = -715;
-  const cz = -135;
-  const yBase = mgr.world.getTerrainHeightAt ? mgr.world.getTerrainHeightAt(cx, cz) : 25.0;
+  const baileData = mgr.world?.favelaBaileData;
+  const fallbackPos = IS_SCALED_WORLD ? wsP(-715, -135) : { x: -715, z: -135 };
+  const cx = baileData?.cx ?? mgr.world?.favelaBaileCenter?.x ?? fallbackPos.x;
+  const cz = baileData?.cz ?? mgr.world?.favelaBaileCenter?.z ?? fallbackPos.z;
+  const yBase =
+    baileData?.yBase ??
+    (mgr.world?.getTerrainHeightAt ? mgr.world.getTerrainHeightAt(cx, cz) : 25.0);
   mgr.baileCenter.set(cx, yBase, cz);
 
-  const paredaoFaceX = cx - 19.0 + 2.85; // -731.15 (face frontal do Paredão voltada para +X!)
+  const paredaoFaceX = baileData?.paredaoFaceX ?? (cx - 19.0 + 2.85); // face frontal do Paredão voltada para +X!
 
   // A) 24 Cones de Alto-Falantes Subwoofer 3D Coloridos que pulsam em escala no grave!
   const coneMatDark = getLegoMaterial(0x111827, { roughness: 0.35 });
@@ -71,8 +76,8 @@ export function initBaileFunkStageAndCrowd(mgr) {
   }
 
   // C) Mesa de Som / Pickups Duplos + DJ Minifigura LEGO de Fone de Ouvido e Óculos Escuros no Palco!
-  const stageX = cx - 14.0; // -729.0
-  const stageTopY = yBase + 1.4;
+  const stageX = baileData?.stageX ?? (cx - 14.0);
+  const stageTopY = baileData?.stageTopY ?? (yBase + 1.4);
   const boothGroup = new THREE.Group();
   boothGroup.position.set(stageX + 0.85, stageTopY, cz);
 
@@ -183,6 +188,18 @@ export function initBaileFunkStageAndCrowd(mgr) {
     if (Math.abs(pz - (cz - 17.5)) < 1.8 || Math.abs(pz - (cz + 17.5)) < 1.8) {
       for (let mx = cx - 6; mx <= cx + 14; mx += 6.5) {
         if (Math.abs(px - mx) < 2.2) return true;
+      }
+    }
+    if (IS_SCALED_WORLD && mgr.world?.getCollidersNear) {
+      const nearCols = mgr.world.getCollidersNear(px, pz, 1.0);
+      for (let cIdx = 0; cIdx < nearCols.length; cIdx++) {
+        const col = nearCols[cIdx];
+        if (!col || col.disabled) continue;
+        if (col.maxY > yBase + 0.65 && (col.minY ?? 0) < yBase + 2.2) {
+          if (px >= col.minX - 0.45 && px <= col.maxX + 0.45 && pz >= col.minZ - 0.45 && pz <= col.maxZ + 0.45) {
+            return true;
+          }
+        }
       }
     }
     return false;

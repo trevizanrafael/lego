@@ -61,6 +61,7 @@ export {
 // ----------------------------------------------------------------------------
 export {
   StreetCustomsRuntime,
+  resolveLegoCustomsAnchor,
   buildLegoCustomsGarage,
   spawnDraggableCustomVehicle
 } from './garages/street-customs/CustomsBuildingAndRuntime3D.js';

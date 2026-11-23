@@ -1,5 +1,7 @@
 import { getHighwayDistanceAt } from '../../CoastlineProfile.js';
+import { IS_SCALED_WORLD, ws, wsP, fromWs } from '../../core/WorldLayoutScale.js';
 import {
+  getFavelaEastBorderDesignX,
   getFavelaEastBorderX,
   getFavelaElevation,
   WINDING_LADEIRAS,
@@ -149,6 +151,11 @@ export function createFavelaHouse(world, batcher, x, z, w, d, floors, seed, regi
  *   para os Becos e Vielas (eliminando todo o chão cinza vazio)!
  */
 export function buildGluedFavelaHouseClusters(world, batcher) {
+  if (IS_SCALED_WORLD) {
+    _buildScaledFavelaHouseClusters(world, batcher);
+    return;
+  }
+
   let seed = 1;
 
   // Verifica se (x, z) cai em cima de uma Ladeira Torta, Viela Transversal ou dos 3 Marcos Comunitários
@@ -278,6 +285,145 @@ export function buildGluedFavelaHouseClusters(world, batcher) {
         curZ += narrowAlleyWidth;
       } else {
         curZ += 5.0;
+      }
+    }
+  }
+}
+
+/**
+ * Em `WORLD_SCALE > 1`: move as âncoras dos clusters de barracos via `wsP(...)` preservando
+ * estritamente o tamanho `1x` (largura, profundidade e altura) de cada barraco colado!
+ */
+function _buildScaledFavelaHouseClusters(world, batcher) {
+  let seed = 1;
+  const soccerPos = wsP(-605, 195);
+  const bailePos = wsP(-715, -135);
+  const miranteEastX = ws(-702) + 20;
+  const summitPos = wsP(-865, -240);
+
+  const isWorldSpotBlocked = (wx, wz) => {
+    // 1. Corredor da Via Expressa / Cânion em Z = 0 + Muretas de Arrimo
+    if (Math.abs(wz) < 34) return true;
+    // 2. Campinho de Futebol da CDD (44x68m + arquibancadas)
+    if (Math.abs(wx - soccerPos.x) < 40 && Math.abs(wz - soccerPos.z) < 48) return true;
+    // 3. Quadra do Baile do CV + Paredão + Mirante de Chegada (`lm_cdd.spawn`)
+    if (wx >= bailePos.x - 40 && wx <= miranteEastX && Math.abs(wz - bailePos.z) < 44) return true;
+    // 4. Fortaleza do Barão Vermelho + Caixa d'Água Comunitária
+    if (Math.abs(wx - summitPos.x) < 40 && wz >= summitPos.z - 68 && wz <= summitPos.z + 46) return true;
+    // 5. Ladeiras Tortas e Escadões (largura 1x + margem para meia-largura do cluster)
+    for (const ladeira of WINDING_LADEIRAS) {
+      if (Math.abs(wz - getLadeiraZAtX(ladeira, wx)) < 12.5) return true;
+    }
+    // 6. Vielas Transversais Tortas Norte-Sul
+    const uz = fromWs(wz);
+    for (const baseDX of [-595, -695, -805]) {
+      const vx = ws(baseDX) + ws(Math.sin(uz * 0.018) * 14 + Math.cos(uz * 0.009) * 8);
+      if (Math.abs(wx - vx) < 15.5) return true;
+    }
+    // 7. Rodovias Regionais da Pangeia no Norte
+    if (wz < ws(-1300) && getHighwayDistanceAt(wx, wz) < 32) return true;
+    return false;
+  };
+
+  const minDesignZ = -1780;
+  const maxDesignZ = 645;
+
+  for (let designStripX = -552; designStripX >= -984; designStripX -= 25.2) {
+    let designCurZ = minDesignZ;
+
+    while (designCurZ < maxDesignZ) {
+      if (designStripX > getFavelaEastBorderDesignX(designCurZ) - 14) {
+        designCurZ += 12;
+        continue;
+      }
+
+      seed++;
+      const housesInClusterRow = 3 + (seed % 4);
+      const rowSpecs = [];
+      let totalClusterD = 0;
+      for (let c = 0; c < housesInClusterRow; c++) {
+        const houseD = 9.2 + ((seed + c) % 3) * 1.4;
+        rowSpecs.push({ c, houseD });
+        totalClusterD += houseD;
+      }
+
+      const designMidZ = designCurZ + totalClusterD * 0.5;
+      const anchor = wsP(designStripX, designMidZ);
+
+      let curLocalZ = anchor.z - totalClusterD * 0.5;
+      let builtInCluster = 0;
+      let clusterStartZ = Infinity;
+      let clusterEndZ = -Infinity;
+      let maxClusterTopY = 0;
+      let minClusterBaseY = Infinity;
+
+      for (let idx = 0; idx < rowSpecs.length; idx++) {
+        const { c, houseD } = rowSpecs[idx];
+        const hz = curLocalZ + houseD * 0.5;
+        curLocalZ += houseD;
+
+        if (
+          hz > ws(maxDesignZ) ||
+          anchor.x > getFavelaEastBorderX(hz) - 18 ||
+          getFavelaElevation(anchor.x, hz) < 0.55 ||
+          isWorldSpotBlocked(anchor.x, hz)
+        ) {
+          if (builtInCluster > 0) break;
+          continue;
+        }
+
+        const wFront = 10.2 + ((seed + c) % 2) * 1.2;
+        const wBack = 10.2 + ((seed + c + 1) % 2) * 1.2;
+        const xFront = anchor.x + wBack * 0.5;
+        const xBack = anchor.x - wFront * 0.5;
+        if (getFavelaElevation(xFront, hz) < 0.35 || getFavelaElevation(xBack, hz) < 0.35) {
+          if (builtInCluster > 0) break;
+          continue;
+        }
+
+        const floorsFront = 1 + ((seed + c * 3) % 4);
+        const floorsBack = 2 + ((seed + c * 5) % 3);
+
+        const resFront = createFavelaHouse(world, batcher, xFront, hz, wFront, houseD + 0.15, floorsFront, seed + c * 2, false);
+        const resBack = createFavelaHouse(world, batcher, xBack, hz, wBack, houseD + 0.15, floorsBack, seed + c * 2 + 1, false);
+
+        clusterStartZ = Math.min(clusterStartZ, hz - houseD * 0.5);
+        clusterEndZ = Math.max(clusterEndZ, hz + houseD * 0.5);
+        maxClusterTopY = Math.max(maxClusterTopY, resFront.topY, resBack.topY);
+        minClusterBaseY = Math.min(minClusterBaseY, resFront.yBase, resBack.yBase);
+        builtInCluster += 2;
+      }
+
+      if (builtInCluster > 0) {
+        world.favelaCDDData.clustersCount++;
+        const clusterDepthZ = clusterEndZ - clusterStartZ;
+        const clusterMidZ = (clusterStartZ + clusterEndZ) * 0.5;
+        const clusterWidthX = 21.5;
+
+        world.addCollider(anchor.x, clusterMidZ, clusterWidthX, clusterDepthZ, maxClusterTopY, minClusterBaseY - 3.0);
+        world.mapBuildings.push({
+          x: anchor.x,
+          z: clusterMidZ,
+          w: clusterWidthX,
+          d: clusterDepthZ,
+          height: maxClusterTopY - minClusterBaseY,
+          color: seed % 4 === 0 ? '#dc2626' : '#c2410c'
+        });
+
+        const poleX = anchor.x + clusterWidthX * 0.5 + 1.4;
+        const poleZ = clusterEndZ + 1.2;
+        const poleY = getFavelaElevation(poleX, poleZ);
+        if (poleY > 0.5 && Math.abs(poleZ) > 26) {
+          batcher.addBox('wood_pole', 0.34, 8.2, 0.34, poleX, poleY + 3.8, poleZ);
+          batcher.addBox('wire_black', 4.6, 0.09, 0.09, poleX + 2.1, poleY + 7.2, poleZ);
+          batcher.addBox('wire_black', 0.09, 0.09, Math.min(28, clusterDepthZ), poleX, poleY + 7.4, clusterMidZ);
+          batcher.addBox('cv_red', 0.55, 0.7, 0.14, poleX + 1.8, poleY + 6.8, poleZ);
+        }
+
+        const narrowAlleyWidth = 3.8 + (seed % 3) * 0.4;
+        designCurZ += totalClusterD + narrowAlleyWidth;
+      } else {
+        designCurZ += 14.0;
       }
     }
   }

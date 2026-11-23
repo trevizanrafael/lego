@@ -1,4 +1,5 @@
 import { buildTerritoryInfrastructureForZone } from '../FactionWarSystem.js';
+import { wsP } from '../core/WorldLayoutScale.js';
 import {
   getFavelaEastBorderX,
   getFavelaElevation,
@@ -67,10 +68,14 @@ export function buildFavelaCidadeDeDeus(world) {
   buildWindingHillsideRoadsAndStaircases(world, batcher);
 
   // 3. OS 4 PONTOS ICÔNICOS DA CIDADE DE DEUS (Posicionados em `y = getFavelaElevation(x, z)` com alicerce na encosta!):
+  const soccerPos = wsP(-605, 195);
+  const bailePos = wsP(-715, -135);
+  const summitPos = wsP(-865, -240);
+
   buildCVBocasAndHeavyBarricades(world, batcher);
-  buildCDDSoccerFieldVarzea(world, batcher, -605, getFavelaElevation(-605, 195), 195);
-  buildCVBailePlazaAndGiantParedao(world, batcher, -715, getFavelaElevation(-715, -135), -135);
-  buildRedBaronSummitFortress(world, batcher, -865, getFavelaElevation(-865, -240), -240);
+  buildCDDSoccerFieldVarzea(world, batcher, soccerPos.x, getFavelaElevation(soccerPos.x, soccerPos.z), soccerPos.z);
+  buildCVBailePlazaAndGiantParedao(world, batcher, bailePos.x, getFavelaElevation(bailePos.x, bailePos.z), bailePos.z);
+  buildRedBaronSummitFortress(world, batcher, summitPos.x, getFavelaElevation(summitPos.x, summitPos.z), summitPos.z);
 
   // 4. AGLOMERADOS DENSOS DE BARRACOS E SOBRADOS COLADOS PAREDE COM PAREDE (`clusters` de 5 a 10 casas coladas!)
   buildGluedFavelaHouseClusters(world, batcher);

@@ -4,6 +4,7 @@ import { mergeBufferGeometries } from '../BuildingGenerator.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { createFactionSoldierVisual, AIM_POSE } from '../../entities/FactionSoldierBuilder.js';
 import { FACTION_THEME } from './TerritoryZonesAndConfigs.js';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
 import { attachVehicleOccupants, disembarkOccupants } from '../vehicles/VehicleOccupants.js';
 
@@ -207,6 +208,17 @@ export const combatUnitsAndConvoysMethods = {
 
   _findSafeZonePos(x, z, radius = 1.4, refY = null) {
     const safe = this.livingCity._findSafeStreetSpawn(x, z, radius);
+    if (IS_SCALED_WORLD && !safe.valid && typeof this.world?.resolveCapsulePenetration === 'function') {
+      const approxY = this._groundAt(x, z, refY === null ? 2 : refY + 0.6);
+      const cap = this.world.resolveCapsulePenetration(
+        { x, y: approxY, z },
+        radius,
+        2.0,
+        { stepUpHeight: 0.4 }
+      );
+      const cy = this._groundAt(cap.x, cap.z, refY === null ? approxY + 1 : refY + 0.6);
+      return { x: cap.x, y: cy, z: cap.z };
+    }
     const y = this._groundAt(safe.x, safe.z, refY === null ? 2 : refY + 0.6);
     return { x: safe.x, y, z: safe.z };
   },
@@ -386,8 +398,12 @@ export const combatUnitsAndConvoysMethods = {
     }
 
     const startSafe = this._findSafeZonePos(bestRoute.startX, bestRoute.startZ, 2.4);
-    const blendX = THREE.MathUtils.lerp(bestRoute.targetX, focus.x, 0.35);
-    const blendZ = THREE.MathUtils.lerp(bestRoute.targetZ, focus.z, 0.35);
+    const fdx = focus.x - bestRoute.targetX;
+    const fdz = focus.z - bestRoute.targetZ;
+    const fDist = Math.hypot(fdx, fdz);
+    const pull = IS_SCALED_WORLD ? (fDist > 1e-3 ? Math.min(0.35, 65 / fDist) : 0) : 0.35;
+    const blendX = THREE.MathUtils.lerp(bestRoute.targetX, focus.x, pull);
+    const blendZ = THREE.MathUtils.lerp(bestRoute.targetZ, focus.z, pull);
     const targetSafe = this._findSafeZonePos(blendX, blendZ, 2.4);
 
     const vType = theme.convoyVehicles[Math.floor(Math.random() * theme.convoyVehicles.length)];
@@ -463,7 +479,7 @@ export const combatUnitsAndConvoysMethods = {
       targetX: targetSafe.x,
       targetZ: targetSafe.z,
       speed: 24.0,
-      maxTravelTimer: 4.5,
+      maxTravelTimer: IS_SCALED_WORLD ? 6.0 : 4.5,
       disembarked: false,
       squadRoles,
       anchor: target ? { x: target.x, z: target.z } : null,

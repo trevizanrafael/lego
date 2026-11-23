@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { soundFX } from '../../../audio/SoundFX.js';
 import { getLegoMaterial, markAsSharedAsset } from '../../../materials/LegoMaterials.js';
 import { createNavalOrAircraftMesh } from '../../NavalAndAirFleetBuilder.js';
+import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import {
   CUSTOMS_PAINT_PALETTE,
   CUSTOMS_FINISHES,
@@ -64,7 +65,7 @@ export class AircraftCustomStudio {
     this._controller = null;
     this._previewGroup = null;
     this._previewMesh = null;
-    this._padPos = new THREE.Vector3(20, 410.48, 64);
+    this._padPos = new THREE.Vector3(20, 410.48, IS_SCALED_WORLD ? ws(-50) + 114 : 64);
 
     this.camYaw = 0.68;
     this.camPitch = 0.34;
@@ -129,6 +130,29 @@ export class AircraftCustomStudio {
     window.addEventListener('wheel', (e) => this.handleWheel(e), { passive: true });
   }
 
+  _resolveCarrierPadPos(world = this._world) {
+    if (world?.helicarrierHangarData?.padPos) {
+      return world.helicarrierHangarData.padPos;
+    }
+    const hx = world?.helicarrierData?.hx ?? 0;
+    const hy = world?.helicarrierData?.hy ?? 410.0;
+    const hz = world?.helicarrierData?.hz ?? (IS_SCALED_WORLD ? ws(-50) : -50);
+    return { x: hx + 20, y: hy + 0.48, z: hz + 114 };
+  }
+
+  _resolveCarrierLaunchPos(world = this._world, aircraftType = 'jato_caca') {
+    const isHeli = String(aircraftType || '').startsWith('heli');
+    const hangar = world?.helicarrierHangarData;
+    if (isHeli && hangar?.heliLaunchPos) return hangar.heliLaunchPos;
+    if (!isHeli && hangar?.launchPos) return hangar.launchPos;
+    const hx = world?.helicarrierData?.hx ?? 0;
+    const hy = world?.helicarrierData?.hy ?? 410.0;
+    const hz = world?.helicarrierData?.hz ?? (IS_SCALED_WORLD ? ws(-50) : -50);
+    return isHeli
+      ? { x: hx + 22, y: hy + 0.48, z: hz + 82, rotY: Math.PI }
+      : { x: hx - 14, y: hy + 0.48, z: hz + 86, rotY: Math.PI };
+  }
+
   open(world, controller, initialType = null) {
     this._world = world;
     this._controller = controller;
@@ -139,7 +163,7 @@ export class AircraftCustomStudio {
     const savedCfg = saveData.configsByType?.[chosenType] || createDefaultAircraftConfig(chosenType);
     this.draftConfig = { ...savedCfg, aircraftType: chosenType };
 
-    const pad = world?.helicarrierHangarData?.padPos || { x: 20, y: 410.48, z: 64 };
+    const pad = this._resolveCarrierPadPos(world);
     this._padPos.set(pad.x, pad.y, pad.z);
 
     if (controller) {
@@ -216,6 +240,8 @@ export class AircraftCustomStudio {
 
   rebuildPreviewMesh() {
     if (!this._world?.scene) return;
+    const pad = this._resolveCarrierPadPos(this._world);
+    this._padPos.set(pad.x, pad.y, pad.z);
     const group = this._ensurePooledShowroomGroup();
     group.position.set(this._padPos.x, this._padPos.y + 1.45, this._padPos.z);
     if (group.parent !== this._world.scene) this._world.scene.add(group);
@@ -275,9 +301,13 @@ export class AircraftCustomStudio {
     const world = this._world;
     const ctrl = this._controller;
     const cfg = { ...this.draftConfig };
+    const launchOverride =
+      IS_SCALED_WORLD && !world?.helicarrierHangarData?.launchPos
+        ? this._resolveCarrierLaunchPos(world, cfg.aircraftType)
+        : null;
     this.close(false);
 
-    const vehicle = spawnCustomizedCarrierAircraft(world, cfg);
+    const vehicle = spawnCustomizedCarrierAircraft(world, cfg, launchOverride);
     if (vehicle && typeof ctrl?.enterVehicle === 'function') {
       ctrl.enterVehicle(vehicle);
       ctrl.relockPointer?.();

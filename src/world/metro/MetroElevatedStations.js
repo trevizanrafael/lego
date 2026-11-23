@@ -1,5 +1,6 @@
 // Estações elevadas (plataformas, coberturas e acessos).
 import * as THREE from 'three';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 import { METRO_STATIONS } from './MetroRouteData.js';
 import { addMetroSignBoard } from './MetroStationProps.js';
 import { isInsideAnyRoad } from './MetroSupportPlanner.js';
@@ -28,9 +29,12 @@ function hitsBuilding(world, minX, maxX, minZ, maxZ, yMin, yMax) {
  * Escolhe a posição da escada de uma estação elevada: paralela ao trilho, do lado de fora da plataforma,
  * com o pé da escada e todo o percurso em cima de calçada (nunca no asfalto) e fora de prédios. Em calçada apertada a escada fica mais estreita.
  */
-export function planElevatedStationStair(world, cfg, platY, pw, lenZ) {
-  const roads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
-  const isSidewalk = makeSidewalkLookup(world);
+export function planElevatedStationStair(world, cfg, platY, pw, lenZ, isSidewalkFn = null) {
+  const allRoads = Array.isArray(world.mapRoads) ? world.mapRoads : [];
+  const roads = allRoads.filter(
+    (r) => Math.abs(cfg.platCenterX - r.x) <= r.w * 0.5 + 80 && Math.abs(cfg.trackZ - r.z) <= r.d * 0.5 + 160
+  );
+  const isSidewalk = isSidewalkFn || makeSidewalkLookup(world);
   const ground = (x, z) => (world.getTerrainHeightAt ? world.getTerrainHeightAt(x, z) : 0);
   const side = cfg.platSide;
   const outerEdge = cfg.platCenterX + side * pw * 0.5;
@@ -42,7 +46,9 @@ export function planElevatedStationStair(world, cfg, platY, pw, lenZ) {
   zTops.sort((a, b) => Math.abs(a - cfg.trackZ) - Math.abs(b - cfg.trackZ));
 
   const xOffs = [];
-  for (let o = 2.0; o <= 12.0; o += 0.4) xOffs.push(o);
+  const maxXOff = IS_SCALED_WORLD ? 18.0 : 12.0;
+  const roadMargin = IS_SCALED_WORLD ? 1.0 : 0.4;
+  for (let o = 2.0; o <= maxXOff; o += 0.4) xOffs.push(o);
   for (const halfW of STAIR_HALF_WIDTHS) {
   for (const xOff of xOffs) {
     if (xOff < halfW + 0.5) continue; // não encosta na plataforma
@@ -63,7 +69,7 @@ export function planElevatedStationStair(world, cfg, platY, pw, lenZ) {
         for (let z = minZ; z <= maxZ && ok; z += 1) {
           for (const x of [stairX - halfW, stairX, stairX + halfW]) {
             // Escada inteira em cima de calçada de verdade (nunca no asfalto)
-            if (isInsideAnyRoad(roads, x, z, 0.4) || !isSidewalk(x, z)) {
+            if (isInsideAnyRoad(roads, x, z, roadMargin) || !isSidewalk(x, z)) {
               ok = false;
               break;
             }
@@ -91,39 +97,40 @@ export function buildThreeElevatedMetroStations(world, batcher) {
 
   // Borda interna a EXATOS 2.38m do eixo do trilho -> platCenterX = trackX + side * (2.38 + 6.25) = trackX + side * 8.63!
   const elevatedConfigs = [
-    // Estação 03 — TORRE DOS HERÓIS (`trackX = -388.5, trackZ = -60`)
+    // Estação 03 — TORRE DOS HERÓIS
     {
       stationIndex: 2,
-      trackX: -388.5,
-      trackZ: -60.0,
+      trackX: METRO_STATIONS[2].trackPos.x,
+      trackZ: METRO_STATIONS[2].trackPos.z,
       platSide: 1,
-      platCenterX: -379.87 // Borda interna em -386.12 (= -388.5 + 2.38m -> 8cm visuais do vagão!)
+      platCenterX: METRO_STATIONS[2].platformSpawn.x
     },
-    // Estação 04 — ORLA MARÍTIMA / PRAIA SUL (`trackX = -125.5, trackZ = +650`)
+    // Estação 04 — ORLA MARÍTIMA / PRAIA SUL
     {
       stationIndex: 3,
-      trackX: -125.5,
-      trackZ: 650.0,
+      trackX: METRO_STATIONS[3].trackPos.x,
+      trackZ: METRO_STATIONS[3].trackPos.z,
       platSide: 1,
-      platCenterX: -116.87 // Borda interna em -123.12 (= -125.5 + 2.38m!)
+      platCenterX: METRO_STATIONS[3].platformSpawn.x
     },
-    // Estação 05 — MARGEM DO RIO / DISTRITO LESTE (`trackX = +518.0, trackZ = -180`)
+    // Estação 05 — MARGEM DO RIO / DISTRITO LESTE
     {
       stationIndex: 4,
-      trackX: 518.0,
-      trackZ: -180.0,
+      trackX: METRO_STATIONS[4].trackPos.x,
+      trackZ: METRO_STATIONS[4].trackPos.z,
       platSide: -1,
-      platCenterX: 509.37 // Borda interna em +515.62 (= +518.0 - 2.38m!)
+      platCenterX: METRO_STATIONS[4].platformSpawn.x
     }
   ];
 
   if (!world.metroStationStairs) world.metroStationStairs = [];
+  const sharedSidewalkLookup = makeSidewalkLookup(world);
   for (const baseCfg of elevatedConfigs) {
     const st = METRO_STATIONS[baseCfg.stationIndex];
     // Altura real da plataforma (o trilho pode subir para manter o vão livre sobre a rua)
     const platY = st.platformSpawn.y;
     const roofY = platY + 8.8; // 8.8 METROS de altura livre acima da plataforma!
-    const stair = planElevatedStationStair(world, baseCfg, platY, pw, lenZ);
+    const stair = planElevatedStationStair(world, baseCfg, platY, pw, lenZ, sharedSidewalkLookup);
     if (!stair) {
       console.warn(`[Metrô] Sem calçada livre para a escada da estação ${st.code}`);
       continue;
@@ -273,8 +280,10 @@ export function buildThreeElevatedMetroStations(world, batcher) {
       z: cfg.trackZ,
       w: 22,
       d: lenZ,
+      minY: platY - 1.2,
       height: 24,
       color: '#0284c7',
+      isElevated: true,
       isLandmark: true,
       label: st.shortName
     });

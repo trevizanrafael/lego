@@ -11,6 +11,11 @@ const { TestBlockWorld, MAP_REGIONS, BUILDING_STYLES } = await import('../src/wo
 const { ThirdPersonController } = await import('../src/controls/ThirdPersonController.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
 const { getSvgIcon } = await import('../src/ui/TacticalIcons.js');
+const { IS_SCALED_WORLD, ws } = await import('../src/world/core/WorldLayoutScale.js');
+const { BANK_SPEC } = await import('../src/world/regions/SuperBankBuilder.js');
+const { SANTOS_CANALS_X } = await import('../src/world/regions/SouthBeachBuilder.js');
+const { getFavelaElevation } = await import('../src/world/regions/FavelaCDDBuilder.js');
+const { PRISON_DOCK_OFFSET_X, PRISON_DOCK_OFFSET_Z } = await import('../src/world/regions/PrisonIslandBuilder.js');
 
 function createFullCityHarness() {
   resetTestListeners();
@@ -47,7 +52,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     }
 
     // Verifica detecção especial do Interior Monumental do Super Banco Central
-    const insideBank = world.getRegionAt(0, 1.0, -170);
+    const insideBank = world.getRegionAt(0, 5.0, ws(-175));
     assert.equal(insideBank.id, 'super_banco_interior');
     assert.ok(insideBank.name.includes('SUPER BANCO'));
   });
@@ -55,6 +60,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
   it('2. Super Banco de 4 andares: entra pela frente, sobe de rampa e de elevador, e o cofre fica no 4º andar', () => {
     const { world, destructibles, controller, hud } = createFullCityHarness();
     const bank = world.superBankData;
+    const bz = (z) => z + BANK_SPEC.zShift;
 
     assert.equal(bank.floorsCount, 4, 'Banco tem 4 andares');
     assert.ok(bank.width >= 140, `Banco mais largo (${bank.width}m)`);
@@ -73,12 +79,12 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     };
 
     // Entra pela porta central da frente
-    controller.position.set(0, 0.35, -132);
+    controller.position.set(0, 0.35, bz(-132));
     walk(65);
-    assert.ok(controller.position.z < -145, `Entra no saguão (z=${controller.position.z.toFixed(2)})`);
+    assert.ok(controller.position.z < bz(-145), `Entra no saguão (z=${controller.position.z.toFixed(2)})`);
 
     // Sobe a rampa oeste (R1) do 1º para o 2º andar
-    controller.position.set(-66, 0.4, -142);
+    controller.position.set(-66, 0.4, bz(-142));
     controller.velocity?.set(0, 0, 0);
     walk(260);
     assert.ok(
@@ -100,19 +106,19 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const vaultDoor = destructibles.objects.find((o) => o.type === 'bank_vault_door' && !o.destroyed);
     assert.ok(vaultDoor, 'Porta circular gigante do cofre existe');
     assert.ok(Math.abs(vaultDoor.mesh.position.y - (f4 + 5.6)) < 0.1, 'Porta do cofre está no 4º andar');
-    controller.position.set(0, f4 + 0.05, -199);
+    controller.position.set(0, f4 + 0.05, bz(-199));
     controller.velocity?.set(0, 0, 0);
     walk(40);
-    assert.ok(controller.position.z > -205, `Porta fechada bloqueia (z=${controller.position.z.toFixed(2)})`);
+    assert.ok(controller.position.z > bz(-205), `Porta fechada bloqueia (z=${controller.position.z.toFixed(2)})`);
 
     destructibles.damageObject(vaultDoor, 999, new THREE.Vector3(0, 0, -1), { goldMelting: true });
     assert.equal(vaultDoor.destroyed, true);
     walk(30);
-    assert.ok(controller.position.z < -208, `Com a porta aberta entra na sala do ouro (z=${controller.position.z.toFixed(2)})`);
+    assert.ok(controller.position.z < bz(-208), `Com a porta aberta entra na sala do ouro (z=${controller.position.z.toFixed(2)})`);
     assert.ok(Math.abs(controller.position.y - f4) < 0.8, 'Continua no 4º andar');
 
     const goldStacks = destructibles.objects.filter(
-      (o) => o.type === 'gold_vault' && Math.abs(o.mesh.position.z - -211) < 2 && o.mesh.position.y > f4
+      (o) => o.type === 'gold_vault' && Math.abs(o.mesh.position.z - bz(-211)) < 2 && o.mesh.position.y > f4
     );
     assert.equal(goldStacks.length, 4, '4 pilhas de barras de ouro na sala do cofre');
     assert.ok(goldStacks.every((g) => g.goldOnly === true));
@@ -120,7 +126,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(destructibles.ambientStuds.length >= 30, 'Dezenas de studs na sala do cofre');
     const studsBefore = hud.totalStuds;
     for (let s = 0; s < 25; s++) {
-      destructibles.update(0.04, new THREE.Vector3(0, f4 + 0.4, -214));
+      destructibles.update(0.04, new THREE.Vector3(0, f4 + 0.4, bz(-214)));
     }
     assert.ok(hud.totalStuds > studsBefore, 'Andar na sala do cofre coleta os studs');
   });
@@ -162,18 +168,19 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const hullCollider = world.colliders.find((c) => Math.abs(c.maxY - 410.4) < 0.1 && c.minY === 384);
     assert.ok(hullCollider, 'Casco do Aeroporta-Aviões deve ter 26 unidades de espessura (minY=384, maxY=410.4)');
 
-    // 1) No chão embaixo do Aeroporta-Aviões (x=0, y=0.35, z=-50), o jogador anda livremente
-    controller.position.set(0, 0.35, -45);
+    // 1) No chão embaixo do Aeroporta-Aviões (x=0, y=0.35, z=ws(-50)), o jogador anda livremente
+    const carrierZ = ws(-50);
+    controller.position.set(0, 0.35, carrierZ + 5);
     controller.yaw = 0;
     controller.keys.forward = true;
     for (let i = 0; i < 20; i++) {
       controller.update(1 / 30);
     }
     controller.keys.forward = false;
-    assert.ok(controller.position.z < -48, 'Andar na rua embaixo do Aeroporta-Aviões não deve colidir com o casco aéreo');
+    assert.ok(controller.position.z < carrierZ + 2, 'Andar na rua embaixo do Aeroporta-Aviões não deve colidir com o casco aéreo');
 
-    // 2) Caindo de Y=413m sobre o convés do Aeroporta-Aviões (x=0, z=-50), o jogador pousa em Y ≈ 410.4m
-    controller.position.set(0, 413.0, -50);
+    // 2) Caindo de Y=413m sobre o convés do Aeroporta-Aviões (x=0, z=ws(-50)), o jogador pousa em Y ≈ 410.4m
+    controller.position.set(0, 413.0, carrierZ);
     controller.velocity.set(0, 0, 0);
     for (let i = 0; i < 30; i++) {
       controller.update(1 / 30);
@@ -260,10 +267,10 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
   });
 
   it('6. Tecla [F] entra e sai de carros próximos (sem disparar granada/raio) e permite dirigir pelas avenidas', () => {
-    const { destructibles, controller, minifig } = createFullCityHarness();
+    const { world, destructibles, controller, minifig } = createFullCityHarness();
 
     // 1) Longe de qualquer carro, apertar F não arremessa granada nem entra em carro
-    controller.position.set(0, 2.2, 250); // No Parque Central
+    controller.position.set(0, 2.2, ws(268)); // No Parque Central
     controller._onKey({ code: 'KeyF', repeat: false }, true);
     assert.equal(destructibles.grenades.length, 0, 'Tecla F não deve lançar granada (exclusivo do Mouse 2)');
     assert.ok(controller.currentVehicle === null, 'Longe de carros, F não deve entrar em veículo');
@@ -295,8 +302,8 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     }
 
     const testMoto = destructibles.objects.find((o) => o.mesh.userData?.carType === 'moto_pcc' && !o.destroyed);
-    testMoto.mesh.position.set(0, 0, -115);
-    testMoto.mesh.rotation.set(0, Math.PI / 2, 0); // Apontando para +X
+    testMoto.mesh.position.set(0, 0, ws(-117) + 6);
+    testMoto.mesh.rotation.set(0, Math.PI / 2, 0); // Apontando para +X na faixa de asfalto da avenida Z = ws(-117)
     controller.enterVehicle(testMoto);
     controller.keys.forward = true;
     controller.keys.jump = true; // Segurando Espaço para empinar (Wheelie)!
@@ -311,15 +318,17 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       wheeliePitch < -0.38,
       `Moto empinando deve inclinar o nariz para cima (pitch=${wheeliePitch.toFixed(3)} rad)`
     );
+    const localGroundY = world.getSurfaceHeightAt(testMoto.mesh.position.x, testMoto.mesh.position.z, 0);
+    assert.equal(localGroundY, 0, 'Faixa de rolamento asfaltada da avenida deve estar em Y=0');
     const rearAxleZ = testMoto.mesh.userData.vehicleSpec.rearAxleZ ?? 1.38;
-    const expectedLiftY = rearAxleZ * Math.sin(-wheeliePitch);
+    const expectedLiftY = localGroundY + rearAxleZ * Math.sin(-wheeliePitch);
     assert.ok(
-      Math.abs(testMoto.mesh.position.y - expectedLiftY) < 0.05 && testMoto.mesh.position.y > 0.45,
+      Math.abs(testMoto.mesh.position.y - expectedLiftY) < 0.05 && testMoto.mesh.position.y > localGroundY + 0.45,
       `Centro da moto deve subir em rearAxleZ*sin(angle) (y=${testMoto.mesh.position.y.toFixed(3)}m) para que a roda traseira fique apoiada em Y=0 sem entrar no chão`
     );
     const rearWheelContactY = testMoto.mesh.position.y - rearAxleZ * Math.sin(-wheeliePitch);
     assert.ok(
-      Math.abs(rearWheelContactY) < 0.02,
+      Math.abs(rearWheelContactY - localGroundY) < 0.02,
       `Pneu traseiro deve ficar exatamente no nível do chão (Y=0) durante a empinada (rearWheelContactY=${rearWheelContactY.toFixed(4)}m)`
     );
     assert.ok(
@@ -459,8 +468,10 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(world.heroTowerData.hasGlobalMonitorScreen, true, 'Interior do QG deve ter o Megatelão Global na Parede Norte');
     assert.equal(world.heroTowerData.hasCantileverAvengersDeck, true, 'Exterior deve ter o Hangar/Plataforma em Balanço estilo Avengers Tower em Y=228m');
 
-    // 2.5) Verifica que o jogador entra caminhando/correndo pelo Portal Sul Aberto (X=-318, Z=-128 -> -155) e usa o Elevador Quântico [E] até o Topo (310.8m)!
-    controller.position.set(-318, 0.4, -128);
+    // 2.5) Verifica que o jogador entra caminhando/correndo pelo Portal Sul Aberto e usa o Elevador Quântico [F] até o Topo (310.8m)!
+    const hxShift = world.heroTowerData.shiftX;
+    const hzShift = world.heroTowerData.shiftZ;
+    controller.position.set(-318 + hxShift, 0.4, -128 + hzShift);
     controller.yaw = 0; // Olhando para -Z (para dentro do Portal Sul da Torre dos Heróis!)
     controller.keys.forward = true;
     controller.keys.sprint = true;
@@ -470,18 +481,19 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     controller.keys.forward = false;
     controller.keys.sprint = false;
     assert.ok(
-      controller.position.z < -148,
+      controller.position.z < -148 + hzShift,
       `Jogador deve entrar livremente pelo Portal Sul Aberto no Saguão do QG da Torre dos Heróis (z=${controller.position.z.toFixed(2)})`
     );
 
-    // Posiciona na Plataforma do Elevador Quântico do Térreo (X=-318, Z=-204) e aperta [F]
-    controller.position.set(-318, 0.5, -204);
+    // Posiciona na Plataforma do Elevador Quântico do Térreo e aperta [F]
+    const groundPad = world.heroTowerData.elevatorPads.ground;
+    controller.position.set(groundPad.x, 0.5, groundPad.z);
     controller._onKey({ code: 'KeyF', repeat: false }, true);
     assert.ok(
       controller.position.y >= 310.5,
       `Elevador Quântico [F] deve transportar o herói do Saguão Térreo direto para o Heliponto do Topo a 310m (y=${controller.position.y.toFixed(2)})`
     );
-    controller.position.set(0, 0, -104);
+    controller.position.set(0, 0, ws(-117) + 6);
 
     // 3) Simula movimento de mouse olhando totalmente para cima (-1.48 rad) mesmo no chão
     controller.isPointerLocked = true;
@@ -526,8 +538,9 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
 
     // 3 Canais estilo Santos cortando a orla e separando a areia da praia até o mar
     assert.equal(world.santosCanals?.length, 3, 'Devem existir 3 Canais estilo Santos descendo da Avenida até o mar');
+    assert.deepEqual(world.santosCanals.map((c) => c.x), SANTOS_CANALS_X, 'Eixos X dos 3 Canais devem respeitar SANTOS_CANALS_X');
     assert.ok(
-      world.santosCanals.every((c) => c.zStart <= 725 && c.zEnd >= 1060),
+      world.santosCanals.every((c) => c.zStart <= ws(726) && c.zEnd >= ws(1060)),
       'Cada canal deve descer da Avenida Beira-Mar e atravessar toda a faixa de areia até o mar'
     );
 
@@ -544,7 +557,13 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(sandcastles[0].destroyed, true, 'Castelo de Areia deve desmontar em bloquinhos e soltar Studs ao ser atingido');
 
     // Mega Píer de 540m com Restaurante, Arcade, Big Drop, Farol e Roda-Gigante Colossal de 16 cabines
-    assert.ok(world.pierData?.length >= 500 && world.pierData?.zEnd >= 1550, 'Mega Píer deve avançar 540m mar adentro até Z=1570');
+    const expectedPierStart = IS_SCALED_WORLD ? ws(1036) : 1030;
+    assert.ok(
+      world.pierData?.length === 540 &&
+        world.pierData.zStart === expectedPierStart &&
+        world.pierData.zEnd - world.pierData.zStart === 540,
+      'Mega Píer deve avançar 540m (1x) mar adentro a partir da linha da água'
+    );
     assert.equal(world.ferrisWheelCabinCount, 16, 'Roda-Gigante deve possuir 16 cabines coloridas de LEGO');
     const prevRotX = world.ferrisWheelGroup.rotation.x;
     world.update(0.5, controller.position);
@@ -561,8 +580,10 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(world.centralParkData.treeCount >= 400, `Parque Central deve ter selva densa com mais de 400 árvores gigantes (atual: ${world.centralParkData.treeCount})`);
     assert.ok(world.centralParkData.undergrowthCount >= 350, `Parque Central deve ter centenas de arbustos, samambaias e rochas de sub-bosque (atual: ${world.centralParkData.undergrowthCount})`);
 
-    // Verifica que o jogador pode passar POR BAIXO do arco central da Ponte Arqueada (X=205, Z=268, Y=0.4)
-    controller.position.set(195, 0.4, 268);
+    // Verifica que o jogador pode passar POR BAIXO do arco central da Ponte Arqueada (X=ws(205), Z=ws(268), Y=0.4)
+    const bridgeX = world.centralParkData.bridgeCenter.x;
+    const parkZ = world.centralParkData.z;
+    controller.position.set(bridgeX - 10, 0.4, parkZ);
     controller.yaw = -Math.PI / 2; // Olhando para +X (passando por baixo da Ponte Arqueada!)
     controller.keys.forward = true;
     for (let i = 0; i < 85; i++) {
@@ -570,13 +591,13 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     }
     controller.keys.forward = false;
     assert.ok(
-      controller.position.x > 214,
+      controller.position.x > bridgeX + 9,
       `Jogador deve conseguir passar por baixo do arco central da Ponte Arqueada do Lago (x=${controller.position.x.toFixed(2)})`
     );
 
-    // Verifica que existem Studs dentro da água do Chafariz Central (X=0, Z=268)
+    // Verifica que existem Studs dentro da água do Chafariz Central (X=0, Z=ws(268))
     const fountainStuds = destructibles.ambientStuds.filter(
-      (s) => Math.hypot(s.basePos.x - 0, s.basePos.z - 268) < 12
+      (s) => Math.hypot(s.basePos.x - 0, s.basePos.z - ws(268)) < 12
     );
     assert.equal(fountainStuds.length, 20, 'Chafariz da Praça Circular Central deve ter 20 Studs dentro da água');
   });
@@ -594,8 +615,9 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(world.westAirportData.fighterJetsCount >= 8, 'Devem existir Jatos de Caça Supersônicos na Base Militar');
     assert.ok(world.westAirportData.attackHelicoptersCount >= 4, 'Devem existir Helicópteros de Ataque na Base Militar');
 
-    // Verifica que o jogador consegue entrar no Mega Terminal Internacional pelo portal central (X = -1094 -> -1115 em Z = 0)
-    controller.position.set(-1094, 0.4, 0);
+    // Verifica que o jogador consegue entrar no Mega Terminal Internacional pelo portal central (X = termX + 51 -> termX + 30 em Z = 0)
+    const termX = world.westAirportData.terminalCenter.x;
+    controller.position.set(termX + 51, 0.4, 0);
     controller.yaw = Math.PI / 2; // Olhando para -X (para dentro do Terminal!)
     controller.keys.forward = true;
     for (let i = 0; i < 60; i++) {
@@ -603,12 +625,12 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     }
     controller.keys.forward = false;
     assert.ok(
-      controller.position.x < -1108,
+      controller.position.x < termX + 37,
       `Jogador deve conseguir entrar livremente no Mega Terminal Internacional (x=${controller.position.x.toFixed(2)})`
     );
 
-    // Verifica que a Pista de Pouso 09/27 (X = -1660) está 100% livre de obstáculos
-    controller.position.set(-1660, 0.4, 0);
+    // Verifica que a Pista de Pouso 09/27 (X = ws(-1660)) está 100% livre de obstáculos
+    controller.position.set(ws(-1660), 0.4, 0);
     controller.yaw = 0; // Correndo ao longo da pista para -Z
     controller.keys.forward = true;
     for (let i = 0; i < 60; i++) {
@@ -617,8 +639,10 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     controller.keys.forward = false;
     assert.ok(controller.position.z < -12, 'Pista de Pouso 09/27 deve ser livre de obstáculos');
 
-    // Verifica que as portas frontais do Hangar 1 (X=-1298, Z=-475) estão abertas permitindo entrar
-    controller.position.set(-1255, 0.4, -468);
+    // Verifica que as portas frontais do Hangar 1 (X=ws(-1298), Z=ws(-475)) estão abertas permitindo entrar
+    const h1x = ws(-1298);
+    const h1z = ws(-475);
+    controller.position.set(h1x + 43, 0.4, h1z + 7);
     controller.yaw = Math.PI / 2; // Olhando para -X (para dentro do Hangar aberto!)
     controller.keys.forward = true;
     for (let i = 0; i < 65; i++) {
@@ -626,7 +650,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     }
     controller.keys.forward = false;
     assert.ok(
-      controller.position.x < -1268,
+      controller.position.x < h1x + 30,
       `Jogador deve conseguir entrar livremente pelas portas abertas do Hangar nos quarteirões (x=${controller.position.x.toFixed(2)})`
     );
   });
@@ -635,18 +659,18 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const { world, destructibles, controller } = createFullCityHarness();
 
     // 1) Verifica detecção de Água Profunda vs Terra Firme
-    assert.equal(world.isDeepWaterAt(160, 240), true, 'Grande Lago do Parque deve ser água profunda');
-    assert.equal(world.isDeepWaterAt(205, 240), false, 'Ponte Arqueada sobre o Lago deve ser seca para pedestres');
-    assert.equal(world.isDeepWaterAt(-384, 850), true, 'Canal 1 de Santos deve ser água profunda');
-    assert.equal(world.isDeepWaterAt(0, 1620), true, 'Oceano Atlântico além do Píer deve ser água profunda');
-    assert.equal(world.isDeepWaterAt(0, -100), false, 'Avenidas do Centro devem ser terra firme');
-    assert.equal(world.isDeepWaterAt(0, 1200), false, 'Deck do Mega Píer deve ser seco para pedestres');
+    assert.equal(world.isDeepWaterAt(ws(160), ws(268)), true, 'Grande Lago do Parque deve ser água profunda');
+    assert.equal(world.isDeepWaterAt(ws(205), ws(268)), false, 'Ponte Arqueada sobre o Lago deve ser seca para pedestres');
+    assert.equal(world.isDeepWaterAt(SANTOS_CANALS_X[0], ws(850)), true, 'Canal 1 de Santos deve ser água profunda');
+    assert.equal(world.isDeepWaterAt(0, ws(1620)), true, 'Oceano Atlântico além do Píer deve ser água profunda');
+    assert.equal(world.isDeepWaterAt(0, ws(-100)), false, 'Avenidas do Centro devem ser terra firme');
+    assert.equal(world.isDeepWaterAt(0, ws(1200)), false, 'Deck do Mega Píer deve ser seco para pedestres');
 
     // 2) Verifica que um Carro Terrestre é bloqueado pela água profunda (não anda no mar!)
     const landCar = destructibles.objects.find((o) => o.mesh.userData?.carType === 'apex_gtx');
     assert.ok(landCar, 'Deve existir um carro terrestre');
-    landCar.mesh.position.set(100, 0, 1043);
-    landCar.mesh.rotation.y = 0; // Apontando para +Z (em direção ao mar em Z > 1045)
+    landCar.mesh.position.set(ws(180), 0, ws(1043));
+    landCar.mesh.rotation.y = 0; // Apontando para +Z (em direção ao mar em Z > ws(1045))
     controller.enterVehicle(landCar);
     controller.keys.forward = true;
     for (let i = 0; i < 45; i++) {
@@ -654,7 +678,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     }
     controller.keys.forward = false;
     assert.ok(
-      landCar.mesh.position.z <= 1045.5,
+      landCar.mesh.position.z <= ws(1045) + 0.5,
       `Carro terrestre não deve conseguir entrar na água profunda do mar (z=${landCar.mesh.position.z.toFixed(2)})`
     );
     controller.exitVehicle();
@@ -728,10 +752,10 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(world.favelaCDDData.hasCommunityWaterTower, true, 'Deve existir a Caixa d\'Água Comunitária Gigante da CDD');
 
     // Verifica que nas bordas da Favela a altura começa exatamente em Y = 0 e sobe suavemente até o topo (~42.5m)
-    assert.equal(world.getTerrainHeightAt(-528, -117), 0, 'Na borda leste com a Cidade (X=-528), o morro deve começar exatamente em Y=0 sem degrau brusco');
-    assert.equal(world.getTerrainHeightAt(-1012, -117), 0, 'Na borda oeste com o Aeroporto (X=-1012), o morro deve começar exatamente em Y=0 sem degrau brusco');
-    const midSlopeY = world.getTerrainHeightAt(-680, -180);
-    const summitY = world.getTerrainHeightAt(-865, -240);
+    assert.equal(getFavelaElevation(ws(-528), 0), 0, 'Na borda leste com a Cidade (X=ws(-528)), o morro deve começar exatamente em Y=0 sem degrau brusco');
+    assert.equal(getFavelaElevation(ws(-1012), ws(-117)), 0, 'Na borda oeste com o Aeroporto (X=ws(-1012)), o morro deve começar exatamente em Y=0 sem degrau brusco');
+    const midSlopeY = world.getTerrainHeightAt(ws(-680), ws(-180));
+    const summitY = world.getTerrainHeightAt(ws(-865), ws(-240));
     assert.ok(midSlopeY > 12 && midSlopeY < 32, `Meio da encosta deve ter elevação intermediária suave (y=${midSlopeY.toFixed(2)})`);
     assert.ok(summitY >= 40 && summitY <= 45, `Topo do morro deve atingir 40..45m de altura (y=${summitY.toFixed(2)})`);
 
@@ -770,24 +794,24 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.ok(pccHeli.mesh.position.y >= 112.0, 'Helicóptero Principal do PCC deve estar no topo da Cidadela (Y >= 112m)');
 
     const pccSuvs = destructibles.objects.filter(
-      (o) => o.mesh.userData?.carType === 'suv_pcc' && o.mesh.position.x > 580
+      (o) => o.mesh.userData?.carType === 'suv_pcc' && o.mesh.position.x > ws(580)
     );
     const pccVans = destructibles.objects.filter(
-      (o) => o.mesh.userData?.carType === 'van_pcc' && o.mesh.position.x > 580
+      (o) => o.mesh.userData?.carType === 'van_pcc' && o.mesh.position.x > ws(580)
     );
     const stolenArmoredTrucks = destructibles.objects.filter(
-      (o) => o.mesh.userData?.carType === 'carro_forte' && o.mesh.position.x > 980
+      (o) => o.mesh.userData?.carType === 'carro_forte' && o.mesh.position.x > ws(980)
     );
     assert.ok(pccSuvs.length >= 10, `Devem existir pelo menos 10 SUVs Blindadas Pretas no Distrito Industrial (atual: ${pccSuvs.length})`);
     assert.ok(pccVans.length >= 6, `Devem existir pelo menos 6 Vans Quebra-Cofre no Distrito Industrial (atual: ${pccVans.length})`);
     assert.equal(stolenArmoredTrucks.length, 2, 'Devem existir 2 Carros-Fortes roubados escondidos no Pátio do Desmanche do PCC');
 
     // 2) Verifica detecção de Região dentro da Cidade de Deus
-    const cddRegion = world.getRegionAt(-715, 25.5, -135);
+    const cddRegion = world.getRegionAt(ws(-715), 25.5, ws(-135));
     assert.equal(cddRegion.id, 'favela_cdd_cv', 'Estar na Quadra do Baile deve resolver para a região favela_cdd_cv');
 
     // 3) Verifica física de relevo contínuo: pisar firme no Campinho (Y≈11.5m), na Quadra do Baile (Y≈25m) e na Fortaleza do Barão Vermelho (Y≈42.5m)
-    controller.position.set(-605, 14.0, 195);
+    controller.position.set(ws(-605), 14.0, ws(195));
     controller.velocity.set(0, 0, 0);
     for (let i = 0; i < 25; i++) controller.update(1 / 30);
     assert.ok(
@@ -795,7 +819,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       `Jogador deve pisar firme no platô suave do Campinho da CDD (y=${controller.position.y.toFixed(2)})`
     );
 
-    controller.position.set(-702, 27.5, -135);
+    controller.position.set(ws(-715) + 13, 27.5, ws(-135));
     controller.velocity.set(0, 0, 0);
     for (let i = 0; i < 25; i++) controller.update(1 / 30);
     assert.ok(
@@ -803,7 +827,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       `Jogador deve pisar firme na Quadra do Baile do CV na encosta (y=${controller.position.y.toFixed(2)})`
     );
 
-    controller.position.set(-850, 45.0, -240);
+    controller.position.set(ws(-865) + 15, 45.0, ws(-240));
     controller.velocity.set(0, 0, 0);
     for (let i = 0; i < 25; i++) controller.update(1 / 30);
     assert.ok(
@@ -813,10 +837,10 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
 
     // 4) Verifica que existem Motos e Picapes do CV nas Bocas de Entrada da Cidade de Deus
     const cvBikesInCDD = destructibles.objects.filter(
-      (o) => o.mesh.userData?.carType === 'moto_cv' && o.mesh.position.x < -500
+      (o) => o.mesh.userData?.carType === 'moto_cv' && o.mesh.position.x < ws(-500)
     );
     const cvPickupsInCDD = destructibles.objects.filter(
-      (o) => o.mesh.userData?.carType === 'picape_cv' && o.mesh.position.x < -500
+      (o) => o.mesh.userData?.carType === 'picape_cv' && o.mesh.position.x < ws(-500)
     );
     assert.ok(cvBikesInCDD.length >= 3, 'Devem existir Motos Vermelhas do CV estacionadas nas Bocas da CDD');
     assert.ok(cvPickupsInCDD.length >= 3, 'Devem existir Picapes Armadas do CV estacionadas nas Bocas da CDD');
@@ -861,18 +885,20 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(world.eastPortData.shipGangwaysCount, 6, 'Os 3 Navios devem somar 6 rampas metálicas de acesso para subir a bordo');
     assert.ok(world.eastPortData.cargoTrucksCount >= 24, 'Devem existir dezenas de Caminhões-Carreta estacionados nas docas e blocos');
 
-    // Verifica que o jogador pode caminhar sob as pernas de pórtico do Guindaste Portuário (X=1555, Z=421 -> 409) e subir no convés dos Navios Leste e Sul (A.R.E.S.)
-    controller.position.set(1555, 0.35, 421);
+    // Verifica que o jogador pode caminhar sob as pernas de pórtico do Guindaste Portuário e subir no convés dos Navios Leste e Sul (A.R.E.S.)
+    const craneX = ws(1620) - 65;
+    const craneZ = ws(415);
+    controller.position.set(craneX, 0.35, craneZ + 6);
     controller.yaw = 0; // Olhando para -Z
     controller.keys.forward = true;
     for (let i = 0; i < 55; i++) controller.update(1 / 30);
     controller.keys.forward = false;
     assert.ok(
-      controller.position.z < 411,
+      controller.position.z < craneZ - 4,
       `Vão livre sob as 4 pernas de pórtico do Guindaste Portuário deve permitir passagem por baixo (z=${controller.position.z.toFixed(2)})`
     );
 
-    controller.position.set(1668, 11.5, 255);
+    controller.position.set(ws(1620) + 48, 11.5, ws(240) + 15);
     controller.velocity.set(0, 0, 0);
     for (let i = 0; i < 20; i++) controller.update(1 / 30);
     assert.ok(
@@ -880,7 +906,7 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       `Jogador deve pisar firme no convés do Navio Porta-Contêineres Leste sem afundar na água (y=${controller.position.y.toFixed(2)})`
     );
 
-    controller.position.set(1125, 11.5, 768);
+    controller.position.set(ws(1125), 11.5, ws(768));
     controller.velocity.set(0, 0, 0);
     for (let i = 0; i < 20; i++) controller.update(1 / 30);
     assert.ok(
@@ -892,7 +918,10 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     const portSemiTrucks = destructibles.objects.filter((o) => o.mesh.userData?.carType === 'caminhao_carreta');
     assert.ok(portSemiTrucks.length >= 24, `Todos os Caminhões-Carreta do Porto devem ser pilotáveis (atual: ${portSemiTrucks.length})`);
 
-    const semiTruck = portSemiTrucks.find((t) => Math.abs(t.mesh.position.x - 825) < 5 && Math.abs(t.mesh.position.z - 362) < 5) || portSemiTrucks[0];
+    const semiTruck =
+      portSemiTrucks.find(
+        (t) => Math.abs(t.mesh.position.x - (IS_SCALED_WORLD ? ws(825) - 11 : 814)) < 15 && Math.abs(t.mesh.position.z - ws(362)) < 15
+      ) || portSemiTrucks[0];
     const startTruckPos = semiTruck.mesh.position.clone();
     // Posiciona o jogador ao lado da cabine no referencial local do caminhão (funciona com qualquer rotação no pátio)
     const truckYaw = semiTruck.mesh.rotation.y || 0;
@@ -981,9 +1010,9 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(world.prisonIslandData.powerTowersCount, 4, 'Setor 3 (Subestação) deve ter 4 Torres de Energia');
     assert.equal(world.prisonIslandData.waterTowersCount, 4, 'Setor 4 deve ter 4 Caixas d\'Água Cilíndricas Pretas/Amarelas');
 
-    // Verifica que a Ponte Blindada (X=1375, Z=930) e a Doca Naval (X=920, Z=1550) são superfícies secas e verifica os 2 Helicópteros e 2 Lanchas do BOPE
-    assert.equal(world.isDeepWaterAt(1375, 930, false), false, 'Tabuleiro da Grande Ponte Blindada deve ser superfície firme sobre o mar');
-    assert.equal(world.isDeepWaterAt(920, 1550, false), false, 'Píer da Doca Naval da Guarda Costeira deve ser superfície firme para pedestres');
+    // Verifica que a Ponte Blindada (X=ws(1375), Z=ws(930)) e a Doca Naval são superfícies secas e verifica os 2 Helicópteros e 2 Lanchas do BOPE
+    assert.equal(world.isDeepWaterAt(ws(1375), ws(930), false), false, 'Tabuleiro da Grande Ponte Blindada deve ser superfície firme sobre o mar');
+    assert.equal(world.isDeepWaterAt(920 + PRISON_DOCK_OFFSET_X, 1550 + PRISON_DOCK_OFFSET_Z, false), false, 'Píer da Doca Naval da Guarda Costeira deve ser superfície firme para pedestres');
     const prisonHeli1 = destructibles.objects.find(
       (o) =>
         o.mesh.userData?.carName === 'HELICÓPTERO ÁGUIA 01 (BOPE / PRISÃO)' ||
@@ -1012,13 +1041,13 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(world.westAirportData.extraNorthMilitaryHangarsCount, 4, 'Ala Militar Norte deve ter 4 Hangares Militares Extras');
 
     assert.ok(
-      world.getTerrainHeightAt(-750, -1180) > 10.0,
-      'Favela Cidade de Deus deve se estender até a borda Norte (Z = -1180..-1320) com relevo de morro'
+      world.getTerrainHeightAt(ws(-750), ws(-1180)) > 10.0,
+      'Favela Cidade de Deus deve se estender até a borda Norte (Z = ws(-1180..-1320)) com relevo de morro'
     );
     assert.equal(
-      world.getRegionAt(-750, 15, -1180).id,
+      world.getRegionAt(ws(-750), 15, ws(-1180)).id,
       'favela_cdd_cv',
-      'Setor Norte estendido da Favela (Z = -1180) deve pertencer à região favela_cdd_cv'
+      'Setor Norte estendido da Favela (Z = ws(-1180)) deve pertencer à região favela_cdd_cv'
     );
     assert.ok(
       world.industrialPCCData.blocksCount >= 56,
@@ -1029,15 +1058,19 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(world.southwestBeachData.hasSouthwestLighthouse, true, 'Canto Sudoeste deve ter o Farol Marítimo Vermelho e Branco de LEGO sobre rochas');
     assert.equal(world.southwestBeachData.hasSandDunes, true, 'Canto Sudoeste deve ter Dunas de Areia Dourada com Buggies');
     assert.equal(world.southwestBeachData.hasWestMarina, true, 'Canto Sudoeste deve ter a Marina Oeste com lanchas e jet-skis');
-    assert.equal(world.isDeepWaterAt(-1380, 1135, false), false, 'Passarela da Marina Oeste deve ser superfície firme sobre o mar');
+    assert.equal(
+      world.isDeepWaterAt(world.southwestBeachData.westMarinaPos.x, world.southwestBeachData.westMarinaPos.z, false),
+      false,
+      'Passarela da Marina Oeste deve ser superfície firme sobre o mar'
+    );
 
-    // Verifica Teleporte Rápido (TP) para a CDD — CIDADE DE DEUS (CV) no Largo Principal / Mirante (-702, 26.2, -135)
+    // Verifica Teleporte Rápido (TP) para a CDD — CIDADE DE DEUS (CV) no Largo Principal / Mirante (ws(-702), 26.2, ws(-135))
     const cddLandmark = world.landmarks.find((l) => l.code === 'CDD');
     assert.ok(cddLandmark, 'Deve existir o marco oficial CDD em MAP_LANDMARKS');
     assert.deepEqual(
       cddLandmark.spawn,
-      { x: -702, y: 26.2, z: -135 },
-      'Teleporte Rápido para CDD deve levar o jogador com segurança ao Largo Principal / Mirante (-702, 26.2, -135)'
+      { x: ws(-702), y: 26.2, z: ws(-135) },
+      'Teleporte Rápido para CDD deve levar o jogador com segurança ao Largo Principal / Mirante (ws(-702), 26.2, ws(-135))'
     );
 
     // 8) Verifica Overhaul de UX do Mapa/Minimapa e Proibição Total de Emojis (Ícones SVG / Vetoriais)
@@ -1067,22 +1100,23 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     assert.equal(world.urbanRiverData.connectedToNorthAndSouthOcean, true, 'Rio deve ligar o Oceano Norte direto ao Oceano Sul');
 
     // Confirma que os 2 antigos prédios da ponta direita da Orla da Praia (X = 582 em Z = 480 e Z = 630) foram removidos do alinhamento do rio
-    const blockingBeachHotel = world.southBeachHotels.find((h) => h.x > 520);
-    assert.equal(blockingBeachHotel, undefined, 'Nenhum hotel da Praia deve bloquear o alinhamento do Rio Urbano (X > 520)');
+    const blockingBeachHotel = world.southBeachHotels.find((h) => h.x > ws(520));
+    assert.equal(blockingBeachHotel, undefined, 'Nenhum hotel da Praia deve bloquear o alinhamento do Rio Urbano (X > ws(520))');
 
     // Confirma a equação senoidal suave bridgeY = 5.0 * sin(t * PI) nas pontes e que carros a 290 km/h sobem e descem sem bater em nenhum colisor!
-    assert.ok(Math.abs(world.getRoadElevation(560, -117) - 5.0) < 0.05, 'Centro da Ponte Financeira (X=560, Z=-117) deve estar em Y = +5.0m');
-    assert.ok(Math.abs(world.getRoadElevation(560, 712) - 5.0) < 0.05, 'Centro da Ponte Costeira da Orla Sul (X=560, Z=712) deve estar em Y = +5.0m');
+    assert.ok(Math.abs(world.getRoadElevation(ws(560), ws(-117)) - 5.0) < 0.05, 'Centro da Ponte Financeira (X=ws(560), Z=ws(-117)) deve estar em Y = +5.0m');
+    assert.ok(Math.abs(world.getRoadElevation(ws(560), ws(712)) - 5.0) < 0.05, 'Centro da Ponte Costeira da Orla Sul (X=ws(560), Z=ws(712)) deve estar em Y = +5.0m');
 
     const supercar = destructibles.objects.find((o) => o.mesh.userData?.carType === 'apex_gtx') || destructibles.objects.find((o) => o.type === 'car');
-    supercar.mesh.position.set(518, 0, 712);
+    supercar.mesh.position.set(ws(526) - 8, 0, ws(712));
     supercar.mesh.rotation.y = Math.PI / 2; // Apontado para +X (atravessando a Ponte Costeira da Praia rumo ao Porto!)
     controller.enterVehicle(supercar);
     controller.vehicleHeading = Math.PI / 2;
     controller.keys.forward = true;
     controller.keys.turbo = true; // 290 KM/H!
     let maxBridgeCarY = 0;
-    for (let step = 0; step < 45; step++) {
+    const bridgeSteps = IS_SCALED_WORLD ? 110 : 45;
+    for (let step = 0; step < bridgeSteps; step++) {
       controller.update(1 / 30);
       if (supercar.mesh.position.y > maxBridgeCarY) {
         maxBridgeCarY = supercar.mesh.position.y;
@@ -1091,8 +1125,8 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
     controller.keys.forward = false;
     controller.keys.turbo = false;
     assert.ok(
-      supercar.mesh.position.x > 596 && maxBridgeCarY >= 4.6,
-      `Carro a 290 km/h deve atravessar a Ponte em Arco de X=518 até X>596 subindo suavemente até Y≈5.0m sem bater em nenhum colisor (finalX=${supercar.mesh.position.x.toFixed(1)}, maxY=${maxBridgeCarY.toFixed(2)})`
+      supercar.mesh.position.x > ws(594) + 2 && maxBridgeCarY >= 4.6,
+      `Carro a 290 km/h deve atravessar a Ponte em Arco subindo suavemente até Y≈5.0m sem bater em nenhum colisor (finalX=${supercar.mesh.position.x.toFixed(1)}, maxY=${maxBridgeCarY.toFixed(2)})`
     );
     controller.exitVehicle();
 
@@ -1101,23 +1135,24 @@ describe('PASSO 4 OVERHAUL — Mapa Metropolitano 3000x3000, Super Banco Monumen
       (o) => o.mesh.userData?.carName === 'JET-SKI WAVE RUNNER FOZ SUL 01'
     );
     assert.ok(riverJetSki, 'Deve existir Jet-Ski atracado no Píer Fluvial da Foz da Praia Sul (Y = -3.5)');
-    controller.position.set(546.5, -2.9, 846.0); // Em cima do Deck de Madeira (Y = -2.9)
+    controller.position.set(ws(540) + 6.5, -2.9, ws(845) + 1.0); // Em cima do Deck de Madeira (Y = -2.9)
     controller._onKey({ code: 'KeyF', repeat: false }, true);
     assert.ok(controller.currentVehicle === riverJetSki, 'Jogador no Píer Fluvial deve conseguir embarcar no Jet-Ski apertando [F] (ou [E])');
 
-    // Posiciona o Jet-Ski antes da Ponte Costeira (X=560, Z=680) e navega por baixo da ponte até o Oceano Sul (Z > 1070)!
-    riverJetSki.mesh.position.set(560, -3.5, 680);
+    // Posiciona o Jet-Ski antes da Ponte Costeira (X=ws(560), Z=ws(680)) e navega por baixo da ponte até o Oceano Sul (Z > ws(1070))!
+    riverJetSki.mesh.position.set(ws(560), -3.5, ws(680));
     controller.vehicleHeading = 0; // Apontado para +Z (rumo à Foz da Praia e Oceano Sul)
     controller.keys.forward = true;
     controller.keys.turbo = true;
-    for (let step = 0; step < 190; step++) {
+    const riverNavSteps = IS_SCALED_WORLD ? 620 : 190;
+    for (let step = 0; step < riverNavSteps; step++) {
       controller.update(1 / 30);
     }
     controller.keys.forward = false;
     controller.keys.turbo = false;
     assert.ok(
-      riverJetSki.mesh.position.z > 1070,
-      `Jet-Ski deve navegar pelo Rio passando livremente por baixo da Ponte da Orla (Z=712) e atravessando a Foz da Praia até o Oceano Sul Z>1070 (atual z=${riverJetSki.mesh.position.z.toFixed(1)})`
+      riverJetSki.mesh.position.z > ws(1070),
+      `Jet-Ski deve navegar pelo Rio passando livremente por baixo da Ponte da Orla (Z=ws(712)) e atravessando a Foz da Praia até o Oceano Sul Z>ws(1070) (atual z=${riverJetSki.mesh.position.z.toFixed(1)})`
     );
     controller.exitVehicle();
   });

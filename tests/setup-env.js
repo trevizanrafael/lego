@@ -1,8 +1,11 @@
 /**
  * Ambiente DOM / Canvas 2D / Web Audio simulado para rodar todos os testes 3D em Node.js
  */
-export function setupTestEnvironment() {
+export function setupTestEnvironment(opts = {}) {
   if (typeof globalThis.window !== 'undefined' && globalThis.__testEnvReady) {
+    if (opts.search !== undefined && globalThis.window.location) {
+      globalThis.window.location.search = opts.search;
+    }
     return;
   }
 
@@ -216,6 +219,9 @@ export function setupTestEnvironment() {
     innerWidth: 1280,
     innerHeight: 720,
     devicePixelRatio: 1,
+    location: {
+      search: opts.search !== undefined ? opts.search : ''
+    },
     addEventListener(type, fn) {
       winListeners[type] = winListeners[type] || [];
       winListeners[type].push(fn);
