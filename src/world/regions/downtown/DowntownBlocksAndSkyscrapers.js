@@ -4,7 +4,10 @@ import {
   createLegoBrick
 } from '../../../materials/LegoMaterials.js';
 import { BUILDING_STYLE_KEYS } from '../../BuildingGenerator.js';
-import { fillOrganicUrbanSuperBlock } from '../../buildings/BlockLotFiller.js';
+import {
+  fillOrganicUrbanSuperBlock,
+  buildDowntownMonumentalEsplanades
+} from '../../buildings/BlockLotFiller.js';
 import { getMetroCutoutFloorY } from '../../MetroSystemBuilder.js';
 import { buildLegoCustomsGarage } from '../../StreetCustomGarage.js';
 import {
@@ -15,14 +18,15 @@ import {
 import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 
 /**
- * QUARTEIRÕES DO CENTRO, TIMES SQUARE & TRANSIÇÃO NORTE
+ * QUARTEIRÕES DO CENTRO, TIMES SQUARE, ESPLANADAS MONUMENTAIS & TRANSIÇÃO NORTE
  * - Em `!IS_SCALED_WORLD` (`?worldScale=1`): preserva 100% do layout clássico `1x`.
- * - Em `IS_SCALED_WORLD` (`3x`): constrói a LEGO Customs + preenche densamente todas as `8 × 5`
- *   super-quadras com ruas orgânicas integradas, cunhas Flatiron, fachadas `rotY` e skyline gradual!
+ * - Em `IS_SCALED_WORLD` (`3x`): constrói a LEGO Customs, as Esplanadas Cívicas + Torres de Moldura
+ *   do Super Banco e Torre dos Heróis, e preenche as `8 × 5` super-quadras com parcelas subdivididas!
  */
 export function buildDowntownSkyscrapersAndTransitionBlocks(world) {
   if (IS_SCALED_WORLD) {
     buildLegoCustomsGarage(world, 60, -448, 92, 96);
+    buildDowntownMonumentalEsplanades(world);
 
     for (let rowIdx = 0; rowIdx < DOWNTOWN_GRID_ROWS_DESIGN.length - 1; rowIdx++) {
       for (let colIdx = 0; colIdx < DOWNTOWN_GRID_COLS_DESIGN.length - 1; colIdx++) {

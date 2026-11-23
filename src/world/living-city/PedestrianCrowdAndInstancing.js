@@ -275,62 +275,28 @@ export const pedestrianCrowdAndInstancingMethods = {
     });
 
     const ped = {
-      id: seed,
-      archetype,
-      visual,
+      id: seed, archetype, visual,
       normalFaceKey: visual.preset.faceKey || 'civ_calm',
       currentFaceKey: visual.preset.faceKey || 'civ_calm',
-      isChatGroup,
-      chatPartnerAngle,
-      x1,
-      z1,
-      x2,
-      z2,
-      corridor: activeCorridor,
-      laneJitter: activeJitter,
-      crossState: 'SIDEWALK',
-      activeCrosswalk: null,
-      waitCrossTimer: 0,
-      cwWaitX: 0,
-      cwWaitZ: 0,
-      cwDestX: 0,
-      cwDestZ: 0,
-      dir: seed % 2 === 0 ? 1 : -1,
-      walkSpeed: visual.preset.speed,
-      state: 'NORMAL',
-      canCheerHero: seed % 3 !== 2,
+      isChatGroup, chatPartnerAngle, x1, z1, x2, z2,
+      corridor: activeCorridor, laneJitter: activeJitter,
+      crossState: 'SIDEWALK', activeCrosswalk: null, waitCrossTimer: 0,
+      cwWaitX: 0, cwWaitZ: 0, cwDestX: 0, cwDestZ: 0,
+      dir: seed % 2 === 0 ? 1 : -1, walkSpeed: visual.preset.speed,
+      state: 'NORMAL', canCheerHero: seed % 3 !== 2,
       cheerStyle: seed % 2 === 0 ? 'clap' : 'wave',
-      photoFlashTimer: 0,
-      photoCooldown: 0.6 + (seed % 5) * 0.35,
-      panicTimer: 0,
-      panicDirX: 0,
-      panicDirZ: 1,
-      crouchPanicTimer: 0,
-      vehicleHitCooldown: 0,
-      diveTimer: 0,
-      diveVelX: 0,
-      diveVelZ: 0,
-      knockVelX: 0,
-      knockVelZ: 0,
-      isDeadCorpse: false,
-      _corpseSinkOffset: 0,
-      animTime: seed * 0.77,
-      humanoidHealth,
-      destructible: null
+      photoFlashTimer: 0, photoCooldown: 0.6 + (seed % 5) * 0.35,
+      panicTimer: 0, panicDirX: 0, panicDirZ: 1, crouchPanicTimer: 0,
+      vehicleHitCooldown: 0, diveTimer: 0, diveVelX: 0, diveVelZ: 0,
+      knockVelX: 0, knockVelZ: 0, isDeadCorpse: false, _corpseSinkOffset: 0,
+      animTime: seed * 0.77, humanoidHealth, destructible: null
     };
 
     if (this.destructibles) {
       const dObj = this.destructibles.registerDestructible({
-        mesh: visual.root,
-        type: 'pedestrian_civilian',
-        hp: 100,
-        radius: 0.95,
-        height: 2.25,
-        colliders: [],
-        debrisColors: [visual.torsoHex, visual.legHex],
-        studDrops: { silver: 2, gold: 0, blue: 1, purple: 0 },
-        groundY: terrainY,
-        noAutoRespawn: true
+        mesh: visual.root, type: 'pedestrian_civilian', hp: 100, radius: 0.95, height: 2.25,
+        colliders: [], debrisColors: [visual.torsoHex, visual.legHex],
+        studDrops: { silver: 2, gold: 0, blue: 1, purple: 0 }, groundY: terrainY, noAutoRespawn: true
       });
       dObj.maxHp = 100;
       dObj.isCivilianPedestrian = true;
@@ -350,20 +316,13 @@ export const pedestrianCrowdAndInstancingMethods = {
 
   _initPedestrians() {
     const chatSpots = [
-      { cx: -22, cz: -132, count: 3 },
-      { cx: 22, cz: -132, count: 2 },
-      { cx: -32, cz: -101, count: 3 },
-      { cx: 34, cz: -101, count: 2 },
-      { cx: -75, cz: -15, count: 3 },
-      { cx: -195, cz: -52, count: 3 },
-      { cx: 65, cz: 22, count: 2 },
-      { cx: 145, cz: 155, count: 3 },
-      { cx: -12, cz: -526, count: 2 },
-      { cx: 56, cz: -662, count: 2 },
-      { cx: -28, cz: 728, count: 3 },
-      { cx: 15, cz: 765, count: 2 },
-      { cx: -502, cz: -132, count: 2 },
-      { cx: 642, cz: -132, count: 2 }
+      { cx: -22, cz: -132, count: 3 }, { cx: 22, cz: -132, count: 2 },
+      { cx: -32, cz: -101, count: 3 }, { cx: 34, cz: -101, count: 2 },
+      { cx: -75, cz: -15, count: 3 }, { cx: -195, cz: -52, count: 3 },
+      { cx: 65, cz: 22, count: 2 }, { cx: 145, cz: 155, count: 3 },
+      { cx: -12, cz: -526, count: 2 }, { cx: 56, cz: -662, count: 2 },
+      { cx: -28, cz: 728, count: 3 }, { cx: 15, cz: 765, count: 2 },
+      { cx: -502, cz: -132, count: 2 }, { cx: 642, cz: -132, count: 2 }
     ];
 
     let seedCounter = 1;
@@ -589,12 +548,45 @@ export const pedestrianCrowdAndInstancingMethods = {
   },
 
   _updateDynamicCrowdRing(playerPos) {
-    if (!playerPos || playerPos.y > 95) return;
-    let recycledCount = 0;
-    const maxRecyclesPerTick = 32;
+    const totalPeds = this.pedestrians.length;
+    if (!playerPos || playerPos.y > 95 || totalPeds === 0) return;
 
-    for (let i = 0; i < this.pedestrians.length; i++) {
-      if (recycledCount >= maxRecyclesPerTick) break;
+    let nearCount = 0;
+    for (let k = 0; k < totalPeds; k++) {
+      const p = this.pedestrians[k];
+      if (p.isDeadCorpse || p.humanoidHealth?.isDead()) continue;
+      const rp = p.visual.root.position;
+      const dx = rp.x - playerPos.x, dz = rp.z - playerPos.z;
+      if (dx * dx + dz * dz <= 125.0 * 125.0) nearCount++;
+    }
+    const targetLocalCrowd = 28;
+    if (nearCount >= targetLocalCrowd) return;
+
+    if (IS_SCALED_WORLD && typeof this._findSafeSidewalkSpawn === 'function') {
+      const probe = this._findSafeSidewalkSpawn(playerPos.x, playerPos.z, 125.0, 0);
+      if (!probe.valid || !probe.corridor) return;
+    }
+
+    const maxRelocationsPerCall = Math.min(18, targetLocalCrowd - nearCount);
+    let recycledCount = 0;
+    let checkedOutOfRange = 0;
+    let hasMoreOutOfRange = false;
+    const startCursor = (this._crowdRecycleCursor || 0) % totalPeds;
+    let nextCursor = startCursor;
+
+    const isTooCloseToPeer = (tx, tz, skipPed) => {
+      for (let m = 0; m < totalPeds; m++) {
+        const other = this.pedestrians[m];
+        if (other === skipPed || other.isDeadCorpse) continue;
+        const op = other.visual.root.position;
+        const odx = op.x - tx, odz = op.z - tz;
+        if (odx * odx + odz * odz < 5.0) return true;
+      }
+      return false;
+    };
+
+    for (let step = 0; step < totalPeds; step++) {
+      const i = (startCursor + step) % totalPeds;
       const ped = this.pedestrians[i];
       if (ped.isDeadCorpse || ped.humanoidHealth?.isDead()) continue;
       if (
@@ -605,37 +597,54 @@ export const pedestrianCrowdAndInstancingMethods = {
         continue;
       }
       const root = ped.visual.root;
-      if (Math.hypot(root.position.x - playerPos.x, root.position.z - playerPos.z) <= 125.0) continue;
+      const pdx = root.position.x - playerPos.x, pdz = root.position.z - playerPos.z;
+      if (pdx * pdx + pdz * pdz <= 125.0 * 125.0) continue;
 
-      for (let attempt = 0; attempt < 5; attempt++) {
+      if (recycledCount >= maxRelocationsPerCall || checkedOutOfRange >= 18) {
+        hasMoreOutOfRange = nearCount + recycledCount < targetLocalCrowd;
+        nextCursor = i;
+        break;
+      }
+      checkedOutOfRange++;
+      nextCursor = (i + 1) % totalPeds;
+
+      for (let attempt = 0; attempt < 3; attempt++) {
         const ang = ((i * 1.618 + attempt * 1.25 + performance.now() * 0.0003) % 1) * Math.PI * 2;
-        const ringDist = 25.0 + ((i * 19 + attempt * 23) % 90);
+        const ringDist = 28.0 + ((i * 19 + attempt * 23) % 86);
         const candX = playerPos.x + Math.cos(ang) * ringDist;
         const candZ = playerPos.z + Math.sin(ang) * ringDist;
         if (!this._isValidDryLandForPedestrian(candX, candZ)) continue;
         if (this.factionWar?.isInvasionActive && getTerritoryZoneAt(candX, candZ)?.id === this.factionWar.activeZoneId) continue;
 
         if (IS_SCALED_WORLD) {
-          const sw = this._findSafeSidewalkSpawn(candX, candZ, 95.0, i + attempt + recycledCount);
+          const sw = this._findSafeSidewalkSpawn(candX, candZ, 68.0, i + attempt + recycledCount);
           if (!sw.valid || !sw.corridor) continue;
-          const distToP = Math.hypot(sw.x - playerPos.x, sw.z - playerPos.z);
-          if (distToP < 22.0 || distToP > 122.0) continue;
           const c = sw.corridor, jit = sw.laneJitter || 0;
-          const tY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(sw.x, sw.z) : 0;
+          const pAlong = c.axis === 'x' ? playerPos.x : playerPos.z;
+          const minAl = Math.max(c.startAlong + 4.0, pAlong - 95.0);
+          const maxAl = Math.min(c.endAlong - 4.0, pAlong + 95.0);
+          const spreadU = ((i * 0.37 + attempt * 0.29 + recycledCount * 0.19) % 1 + 1) % 1;
+          const al = maxAl > minAl ? minAl + (maxAl - minAl) * spreadU : (c.axis === 'x' ? sw.x : sw.z);
+          const sx = c.axis === 'x' ? al : c.centerCoord + jit;
+          const sz = c.axis === 'x' ? c.centerCoord + jit : al;
+          const distToP = Math.hypot(sx - playerPos.x, sz - playerPos.z);
+          if (distToP < 22.0 || distToP > 122.0 || isTooCloseToPeer(sx, sz, ped)) continue;
+          if (this._isInsideAsphaltRoad?.(sx, sz, 1.4) || this._isInsideBuilding(sx, sz, 1.15) || !this._isValidDryLandForPedestrian(sx, sz)) continue;
+          const tY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(sx, sz) : 0;
           this._resetRecycledPedestrianState(
-            ped, sw.x, this._getPedestrianGroundY(sw.x, sw.z, tY), sw.z, tY,
+            ped, sx, this._getPedestrianGroundY(sx, sz, tY), sz, tY,
             c.axis === 'x' ? c.startAlong : c.centerCoord + jit,
             c.axis === 'x' ? c.centerCoord + jit : c.startAlong,
             c.axis === 'x' ? c.endAlong : c.centerCoord + jit,
             c.axis === 'x' ? c.centerCoord + jit : c.endAlong,
-            c, jit, i % 7 === 0, ang + Math.PI * 0.5, recycledCount
+            c, jit, i % 9 === 0, ang + Math.PI * 0.5, recycledCount
           );
           recycledCount++;
           break;
         }
 
         const safe = this._findSafeStreetSpawn(candX, candZ, 1.85);
-        if (!safe.valid) continue;
+        if (!safe.valid || isTooCloseToPeer(safe.x, safe.z, ped)) continue;
         const walkAlongX = (i + attempt) % 2 === 0;
         const halfSeg = 24.0 + (i % 4) * 5.5;
         const ax1 = walkAlongX ? safe.x - halfSeg : safe.x;
@@ -649,11 +658,16 @@ export const pedestrianCrowdAndInstancingMethods = {
           ped, safe.x, this._getPedestrianGroundY(safe.x, safe.z, terrainY), safe.z, terrainY,
           end1Ok ? ax1 : safe.x, end1Ok ? az1 : safe.z,
           end2Ok ? ax2 : safe.x + (walkAlongX ? 16 : 0), end2Ok ? az2 : safe.z + (walkAlongX ? 0 : 16),
-          null, 0, i % 7 === 0, ang + Math.PI * 0.5, recycledCount
+          null, 0, i % 9 === 0, ang + Math.PI * 0.5, recycledCount
         );
         recycledCount++;
         break;
       }
+    }
+
+    this._crowdRecycleCursor = nextCursor;
+    if (hasMoreOutOfRange && recycledCount > 0) {
+      this._crowdRingTimer = 0.05;
     }
   },
 

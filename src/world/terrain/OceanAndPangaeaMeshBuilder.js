@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LEGO_COLORS, getLegoMaterial, applyAnimatedLegoWaterShader } from '../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeFastBox } from '../buildings/GeometryMergeUtils.js';
+import { mergeBufferGeometries, mergeColoredGeometries, makeFastBox } from '../buildings/GeometryMergeUtils.js';
 import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from '../MetroSystemBuilder.js';
 import {
   MAIN_WEST_POLYGON,
@@ -194,6 +194,8 @@ export function buildSmoothCoastalBeachRibbon(poly, opts = {}) {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.setIndex(indices);
     geo.computeVertexNormals();
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
     ribbonGeos.push(geo);
   }
 }
@@ -226,9 +228,16 @@ export function buildOceanAndMainIsland(world) {
   addWaterPlate(ws(-1825), ws(540), ws(1035), ws(14500), -0.45);
   addWaterPlate(ws(540), ws(580), ws(1075), ws(14500), -0.45);
 
-  const mergedOcean = new THREE.Mesh(mergeBufferGeometries(waterGeos), oceanMat);
+  const oceanGeo = mergeBufferGeometries(waterGeos);
+  oceanGeo.computeBoundingBox();
+  oceanGeo.computeBoundingSphere();
+  const mergedOcean = new THREE.Mesh(oceanGeo, oceanMat);
   for (let i = 0; i < waterGeos.length; i++) waterGeos[i].dispose();
+  mergedOcean.castShadow = false;
   mergedOcean.receiveShadow = false;
+  mergedOcean.matrixAutoUpdate = false;
+  mergedOcean.updateMatrix();
+  mergedOcean.userData.isOcean = true;
   world.scene.add(mergedOcean);
 
   const asphaltMat = new THREE.MeshPhysicalMaterial({
@@ -258,21 +267,27 @@ export function buildOceanAndMainIsland(world) {
     }
   }
 
+  const pushSegmentedSkirt = (geos, x0, x1, z0, z1) => {
+    const step = 720;
+    for (let sx = x0; sx < x1 - 0.01; sx += step) {
+      const ex = Math.min(x1, sx + step);
+      const sw = ex - sx, sm = (sx + ex) * 0.5;
+      geos.push(makeFastBox(sw, 4.5, 1.5, sm, -2.25, z0 + 0.75), makeFastBox(sw, 4.5, 1.5, sm, -2.25, z1 - 0.75));
+    }
+    for (let sz = z0; sz < z1 - 0.01; sz += step) {
+      const ez = Math.min(z1, sz + step);
+      const sd = ez - sz, sm = (sz + ez) * 0.5;
+      geos.push(makeFastBox(1.5, 4.5, sd, x0 + 0.75, -2.25, sm), makeFastBox(1.5, 4.5, sd, x1 - 0.75, -2.25, sm));
+    }
+  };
+
   const [mainMinX, mainMaxX, mainMinZ, mainMaxZ, aeroSplitX] = [ws(-1825), ws(540), ws(-1320), ws(780), ws(-1040)];
-  pushChunkedTerrainSectorGeos(islandGeos, mainMinX, aeroSplitX, mainMinZ, mainMaxZ, IS_SCALED_WORLD ? 32 : 28, ws(512));
+  pushChunkedTerrainSectorGeos(islandGeos, mainMinX, aeroSplitX, mainMinZ, mainMaxZ, IS_SCALED_WORLD ? 120 : 28, 720);
   for (const s of sliceRectAroundCutouts({ minX: aeroSplitX, maxX: mainMaxX, minZ: mainMinZ, maxZ: mainMaxZ }, cutZones)) {
     if (s.maxX - s.minX <= 0.05 || s.maxZ - s.minZ <= 0.05) continue;
-    pushChunkedTerrainSectorGeos(islandGeos, s.minX, s.maxX, s.minZ, s.maxZ, IS_SCALED_WORLD ? 20 : 14, ws(512));
+    pushChunkedTerrainSectorGeos(islandGeos, s.minX, s.maxX, s.minZ, s.maxZ, IS_SCALED_WORLD ? 32 : 14, 720);
   }
-
-  const [mainSpanX, mainSpanZ] = [mainMaxX - mainMinX, mainMaxZ - mainMinZ];
-  const [mainMidX, mainMidZ] = [(mainMinX + mainMaxX) * 0.5, (mainMinZ + mainMaxZ) * 0.5];
-  islandGeos.push(
-    makeFastBox(mainSpanX, 4.5, 1.5, mainMidX, -2.25, mainMinZ + 0.75),
-    makeFastBox(mainSpanX, 4.5, 1.5, mainMidX, -2.25, mainMaxZ - 0.75),
-    makeFastBox(1.5, 4.5, mainSpanZ, mainMinX + 0.75, -2.25, mainMidZ),
-    makeFastBox(1.5, 4.5, mainSpanZ, mainMaxX - 0.75, -2.25, mainMidZ)
-  );
+  pushSegmentedSkirt(islandGeos, mainMinX, mainMaxX, mainMinZ, mainMaxZ);
 
   if (!world.waterShaderUniforms) world.waterShaderUniforms = { uTime: { value: 0 } };
   applyAnimatedLegoWaterShader(oceanMat, world.waterShaderUniforms, {
@@ -283,19 +298,13 @@ export function buildOceanAndMainIsland(world) {
   });
   world.oceanMaterial = oceanMat;
   world.oceanMesh = mergedOcean;
-  addChunkedArrayToScene(world.scene, islandGeos, asphaltMat, { receiveShadow: true, chunkSize: ws(720) });
+  addChunkedArrayToScene(world.scene, islandGeos, asphaltMat, { receiveShadow: true, chunkSize: 1200 });
 
   const [eastMinX, eastMaxX, eastMinZ, eastMaxZ] = [ws(580), ws(1628), ws(-1320), ws(735)];
-  const [eastSpanX, eastSpanZ] = [eastMaxX - eastMinX, eastMaxZ - eastMinZ];
-  const [eastMidX, eastMidZ] = [(eastMinX + eastMaxX) * 0.5, (eastMinZ + eastMaxZ) * 0.5];
-  const eastGeos = [
-    makeFastBox(eastSpanX, 4.5, 1.5, eastMidX, -2.25, eastMinZ + 0.75),
-    makeFastBox(eastSpanX, 4.5, 1.5, eastMidX, -2.25, eastMaxZ - 0.75),
-    makeFastBox(1.5, 4.5, eastSpanZ, eastMinX + 0.75, -2.25, eastMidZ),
-    makeFastBox(1.5, 4.5, eastSpanZ, eastMaxX - 0.75, -2.25, eastMidZ)
-  ];
-  pushChunkedTerrainSectorGeos(eastGeos, eastMinX, eastMaxX, eastMinZ, eastMaxZ, 20, ws(512));
-  addChunkedArrayToScene(world.scene, eastGeos, asphaltMat, { receiveShadow: true, chunkSize: ws(720) });
+  const eastGeos = [];
+  pushSegmentedSkirt(eastGeos, eastMinX, eastMaxX, eastMinZ, eastMaxZ);
+  pushChunkedTerrainSectorGeos(eastGeos, eastMinX, eastMaxX, eastMinZ, eastMaxZ, IS_SCALED_WORLD ? 34 : 20, 720);
+  addChunkedArrayToScene(world.scene, eastGeos, asphaltMat, { receiveShadow: true, chunkSize: 1200 });
 
   buildPangaeaSupercontinentAndSandCoast(world, asphaltMat);
 }
@@ -327,7 +336,12 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     if (w < 4 || d < 4) return;
     const cx = (x0 + x1) * 0.5;
     const cz = (z0 + z1) * 0.5;
-    const geo = new THREE.PlaneGeometry(w, d, Math.max(2, Math.round(w / cellSize)), Math.max(2, Math.round(d / cellSize)));
+    const isOuterDistant = Math.abs(cx) > ws(1950) || Math.abs(cz) > ws(1950);
+    const effCell = isOuterDistant ? cellSize * 1.85 : cellSize;
+    const maxSeg = isOuterDistant ? 16 : 24;
+    const segX = Math.min(maxSeg, Math.max(2, Math.round(w / effCell)));
+    const segZ = Math.min(maxSeg, Math.max(2, Math.round(d / effCell)));
+    const geo = new THREE.PlaneGeometry(w, d, segX, segZ);
     geo.rotateX(-Math.PI / 2);
 
     const pos = geo.attributes.position;
@@ -390,9 +404,12 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
       for (let i = 0; i < pos.count; i++) normAttr.setXYZ(i, 0, 1, 0);
     }
     normAttr.needsUpdate = true;
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
 
     const mesh = new THREE.Mesh(geo, terrainMat);
     mesh.position.set(cx, 0, cz);
+    mesh.castShadow = false;
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
@@ -406,7 +423,7 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     wsBounds({ minX: -1825, maxX: -1530, minZ: 1020, maxZ: 2560 }),
     wsBounds({ minX: 1628, maxX: 3480, minZ: -1320, maxZ: 140 })
   ];
-  const chunkSpan = ws(480);
+  const chunkSpan = ws(640);
   const pCellSize = 44 * WORLD_SCALE;
   for (const reg of sectorRegions) {
     for (let x0 = reg.minX; x0 < reg.maxX - 1; x0 += chunkSpan) {
@@ -506,21 +523,20 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
     }
   }
 
-  if (isletDomeGeos.length) {
-    const mergedIslets = mergeBufferGeometries(isletDomeGeos);
-    for (let i = 0; i < isletDomeGeos.length; i++) isletDomeGeos[i].dispose();
-    const isletMesh = new THREE.Mesh(mergedIslets, terrainMat);
-    isletMesh.receiveShadow = true;
-    isletMesh.matrixAutoUpdate = false;
-    isletMesh.updateMatrix();
-    world.scene.add(isletMesh);
-  }
-
   const flushBatch = (geos, mat, opts = {}) => {
     if (!geos.length) return;
-    addChunkedArrayToScene(world.scene, geos, mat, { chunkSize: ws(720), receiveShadow: true, ...opts });
+    addChunkedArrayToScene(world.scene, geos, mat, { chunkSize: 2200, receiveShadow: true, ...opts });
   };
 
+  const borderEntries = [];
+  for (const [hexStr, list] of Object.entries(borderAccentGeos)) {
+    if (!list.length) continue;
+    const col = new THREE.Color(parseInt(hexStr.replace('#', ''), 16));
+    for (let i = 0; i < list.length; i++) borderEntries.push({ geo: list[i], color: col });
+  }
+  if (borderEntries.length) coastalRibbonGeos.push(mergeColoredGeometries(borderEntries));
+
+  flushBatch(isletDomeGeos, terrainMat, { chunkSize: 2400 });
   flushBatch(coastalRibbonGeos, terrainMat);
   flushBatch(sandGeos, getLegoMaterial(0x7d6b4a, { roughness: 0.82 }));
   flushBatch(turfGeos, getLegoMaterial(0x1f3d23, { roughness: 0.78 }));
@@ -535,12 +551,8 @@ export function buildPangaeaSupercontinentAndSandCoast(world, sharedAsphaltMat =
   flushBatch(
     horizonGeos,
     new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.92, metalness: 0.04 }),
-    { receiveShadow: false, chunkSize: ws(2400) }
+    { receiveShadow: false, chunkSize: 3600 }
   );
-
-  for (const [hexStr, list] of Object.entries(borderAccentGeos)) {
-    if (list.length) flushBatch(list, getLegoMaterial(parseInt(hexStr.replace('#', ''), 16), { roughness: 0.35 }));
-  }
 
   flushPangaeaTreeInstances(world, pineTreeTransforms, palmTreeTransforms);
 }

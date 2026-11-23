@@ -1,30 +1,13 @@
 import * as THREE from 'three';
-import { mergeBufferGeometries } from '../BuildingGenerator.js';
-import {
-  createTrapezoidTorsoGeometry,
-  createMinifigHipGeometry,
-  createMinifigLegGeometry,
-  createMinifigArmGeometry,
-  createMinifigHandGeometry,
-  createMinifigHeadGeometry,
-  createMinifigFaceShellGeometry
-} from '../../entities/minifigure/MinifigBaseRigBuilder.js';
+import { mergeBufferGeometries, markAsSharedAsset } from '../BuildingGenerator.js';
 
 // ============================================================================
 // TONS DE PELE HUMANOS REALISTAS & ANATOMIA EXATA DOS OPERADORES (60 FPS INSTANCED)
 // ============================================================================
-export const HUMAN_SKIN_TONES = [
-  0xe0ac69,
-  0xc68642,
-  0x8d5524,
-  0xf1c27d,
-  0x6b4226,
-  0xd4a373
-];
+export const HUMAN_SKIN_TONES = [0xe0ac69, 0xc68642, 0x8d5524, 0xf1c27d, 0x6b4226, 0xd4a373];
 
 export function pickHumanSkinTone(seed = 0) {
-  const idx = Math.abs(Math.imul(seed + 11, 2654435761)) % HUMAN_SKIN_TONES.length;
-  return HUMAN_SKIN_TONES[idx];
+  return HUMAN_SKIN_TONES[Math.abs(Math.imul(seed + 11, 2654435761)) % HUMAN_SKIN_TONES.length];
 }
 
 function makeTrapezoidPlane(bottomW, topW, height) {
@@ -39,156 +22,138 @@ function makeTrapezoidPlane(bottomW, topW, height) {
 }
 
 function buildNpcTorsoDecalGeo() {
-  const frontPlane = makeTrapezoidPlane(0.75, 0.9, 0.72);
-  frontPlane.translate(0, 0, 0.223);
-  const backPlane = makeTrapezoidPlane(0.75, 0.9, 0.72);
-  backPlane.rotateY(Math.PI);
-  backPlane.translate(0, 0, -0.223);
+  const frontPlane = makeTrapezoidPlane(0.75, 0.9, 0.72).translate(0, 0, 0.223);
+  const backPlane = makeTrapezoidPlane(0.75, 0.9, 0.72).rotateY(Math.PI).translate(0, 0, -0.223);
   return mergeBufferGeometries([frontPlane, backPlane]);
 }
 
+function finalizeCrowdGeo(geo) {
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return markAsSharedAsset(geo);
+}
+
+function buildNpcHeadGeo() {
+  const headCyl = new THREE.CylinderGeometry(0.35, 0.35, 0.55, 8);
+  const headStud = new THREE.CylinderGeometry(0.16, 0.16, 0.11, 6, 1, false).translate(0, 0.33, 0);
+  return finalizeCrowdGeo(mergeBufferGeometries([headCyl, headStud]));
+}
+
+function buildNpcFaceShellGeo() {
+  return finalizeCrowdGeo(new THREE.CylinderGeometry(0.358, 0.358, 0.52 * 0.9, 8, 1, true, -Math.PI * 0.45, Math.PI * 0.9));
+}
+
+function buildNpcTrapezoidTorsoGeo(bottomWidth = 0.78, topWidth = 0.94, height = 0.76, depth = 0.44) {
+  const geom = new THREE.BoxGeometry(1, height, depth, 1, 1, 1);
+  const pos = geom.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const halfW = (pos.getY(i) > 0 ? topWidth : bottomWidth) * 0.5;
+    pos.setX(i, pos.getX(i) > 0 ? halfW : -halfW);
+  }
+  geom.computeVertexNormals();
+  return finalizeCrowdGeo(geom);
+}
+
+function buildNpcHipGeo() {
+  const waist = new THREE.BoxGeometry(0.78, 0.14, 0.42).translate(0, 0.07, 0);
+  const crotch = new THREE.BoxGeometry(0.08, 0.2, 0.4).translate(0, -0.06, 0);
+  return finalizeCrowdGeo(mergeBufferGeometries([waist, crotch]));
+}
+
+function buildNpcLegGeo() {
+  const legShaft = new THREE.BoxGeometry(0.35, 0.6, 0.38).translate(0, -0.26, 0);
+  const footMesh = new THREE.BoxGeometry(0.35, 0.16, 0.52).translate(0, -0.64, 0.07);
+  return finalizeCrowdGeo(mergeBufferGeometries([legShaft, footMesh]));
+}
+
+function buildNpcArmGeo() {
+  const upperArm = new THREE.CylinderGeometry(0.125, 0.118, 0.36, 6).translate(0, -0.16, 0);
+  const forearm = new THREE.BoxGeometry(0.21, 0.24, 0.21).translate(0, -0.11, 0).rotateX(-0.18).translate(0, -0.32, 0);
+  return finalizeCrowdGeo(mergeBufferGeometries([upperArm, forearm]));
+}
+
+function buildNpcHandGeo() {
+  const wrist = new THREE.BoxGeometry(0.1, 0.09, 0.1).translate(0, -0.25, 0);
+  const clawBack = new THREE.BoxGeometry(0.11, 0.11, 0.045).translate(0, -0.315, -0.035);
+  const clawProngs = new THREE.BoxGeometry(0.11, 0.09, 0.11).translate(0, -0.335, 0.025);
+  return finalizeCrowdGeo(mergeBufferGeometries([wrist, clawBack, clawProngs]).rotateX(-0.18).translate(0, -0.32, 0));
+}
+
 function buildCivilianPropGeos() {
-  // Acessórios de mão proporcionais à mãozinha em C (r=0.068, origem na palma)
-  const bcHandle = new THREE.CylinderGeometry(0.02, 0.02, 0.11, 8);
-  bcHandle.rotateX(Math.PI / 2);
-  const bcBody = new THREE.BoxGeometry(0.075, 0.23, 0.31);
-  bcBody.translate(0, -0.14, 0);
-  const briefcaseGeo = mergeBufferGeometries([bcHandle, bcBody]);
-
-  const cupBody = new THREE.CylinderGeometry(0.054, 0.042, 0.14, 12);
-  cupBody.translate(0, 0.01, 0.01);
-  const cupLid = new THREE.CylinderGeometry(0.06, 0.06, 0.024, 12);
-  cupLid.translate(0, 0.088, 0.01);
-  const coffeeCupGeo = mergeBufferGeometries([cupBody, cupLid]);
-
-  const camBody = new THREE.BoxGeometry(0.18, 0.12, 0.09);
-  camBody.translate(-0.03, 0.01, 0.02);
-  const camLens = new THREE.CylinderGeometry(0.045, 0.05, 0.075, 12);
-  camLens.rotateX(Math.PI / 2);
-  camLens.translate(-0.03, 0.005, 0.085);
-  const camTop = new THREE.BoxGeometry(0.06, 0.03, 0.055);
-  camTop.translate(0.01, 0.08, 0.015);
-  const cameraGeo = mergeBufferGeometries([camBody, camLens, camTop]);
-
-  const smartphoneGeo = new THREE.BoxGeometry(0.075, 0.016, 0.145);
-  smartphoneGeo.rotateX(0.32);
-  smartphoneGeo.translate(0, 0.01, 0.03);
-
-  const bagHandle = new THREE.TorusGeometry(0.044, 0.013, 6, 12, Math.PI);
-  bagHandle.rotateY(Math.PI / 2);
-  bagHandle.translate(0, -0.01, 0);
-  const bagBody = new THREE.BoxGeometry(0.095, 0.24, 0.21);
-  bagBody.translate(0, -0.135, 0);
-  const shoppingBagGeo = mergeBufferGeometries([bagHandle, bagBody]);
-
-  // Acessórios de cabeça modelados para abraçar o cilindro r=0.35 centrado em (0, 1.95, 0)
-  const hhShell = new THREE.CylinderGeometry(0.34, 0.382, 0.15, 18);
-  hhShell.translate(0, 0.22, 0);
-  const hhDome = new THREE.SphereGeometry(0.368, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5);
-  hhDome.scale(1, 0.52, 1);
-  hhDome.translate(0, 0.25, 0);
-  const hhRidge = new THREE.BoxGeometry(0.085, 0.055, 0.56);
-  hhRidge.translate(0, 0.41, 0.01);
-  const hhBrim = new THREE.CylinderGeometry(0.32, 0.335, 0.034, 16);
-  hhBrim.translate(0, 0.155, 0.16);
-  const hardhatGeo = mergeBufferGeometries([hhShell, hhDome, hhRidge, hhBrim]);
-
-  const makeCap = (dirSign) => {
-    const band = new THREE.CylinderGeometry(0.368, 0.368, 0.13, 18);
-    band.translate(0, 0.225, 0);
-    const dome = new THREE.SphereGeometry(0.368, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5);
-    dome.scale(1, 0.48, 1);
-    dome.translate(0, 0.245, 0);
-    const bill = new THREE.CylinderGeometry(0.295, 0.31, 0.034, 16);
-    bill.rotateX(dirSign * 0.06);
-    bill.translate(0, 0.165, dirSign * 0.215);
-    return mergeBufferGeometries([band, dome, bill]);
-  };
-  const capForwardGeo = makeCap(1);
-  const capBackwardGeo = makeCap(-1);
-
-  const hairCrown = new THREE.SphereGeometry(0.376, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
-  hairCrown.scale(1.0, 0.56, 1.03);
-  hairCrown.translate(0, 0.205, -0.01);
-  const hairNape = new THREE.SphereGeometry(0.366, 16, 12);
-  hairNape.scale(0.98, 0.74, 0.68);
-  hairNape.translate(0, 0.06, -0.13);
-  const hairFringe = new THREE.SphereGeometry(0.33, 14, 10);
-  hairFringe.scale(0.94, 0.2, 0.52);
-  hairFringe.rotateZ(0.08);
-  hairFringe.translate(0.02, 0.23, 0.165);
-  const classicHairGeo = mergeBufferGeometries([hairCrown, hairNape, hairFringe]);
-
-  const afroBand = new THREE.CylinderGeometry(0.368, 0.374, 0.15, 18);
-  afroBand.translate(0, 0.245, -0.01);
-  const afroTop = new THREE.SphereGeometry(0.376, 16, 10);
-  afroTop.scale(1.01, 0.5, 1.02);
-  afroTop.translate(0, 0.285, -0.01);
-  const afroBack = new THREE.SphereGeometry(0.362, 14, 10);
-  afroBack.scale(0.97, 0.6, 0.65);
-  afroBack.translate(0, 0.1, -0.12);
-  const curlyFadeGeo = mergeBufferGeometries([afroBand, afroTop, afroBack]);
-
-  const beanieCuff = new THREE.TorusGeometry(0.358, 0.035, 10, 20);
-  beanieCuff.rotateX(Math.PI / 2 - 0.08);
-  beanieCuff.translate(0, 0.19, -0.01);
-  const beanieDome = new THREE.SphereGeometry(0.374, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
-  beanieDome.scale(1.0, 0.66, 1.03);
-  beanieDome.rotateX(-0.08);
-  beanieDome.translate(0, 0.185, -0.02);
-  const beanieGeo = mergeBufferGeometries([beanieCuff, beanieDome]);
-
-  const headbandGeo = new THREE.CylinderGeometry(0.362, 0.362, 0.082, 20);
-  headbandGeo.translate(0, 0.175, 0);
-
-  const hpArc = new THREE.TorusGeometry(0.384, 0.026, 8, 18, Math.PI);
-  hpArc.translate(0, 0.03, 0);
-  const hpCupL = new THREE.CylinderGeometry(0.102, 0.102, 0.068, 14);
-  hpCupL.rotateZ(Math.PI / 2);
-  hpCupL.translate(-0.374, 0.01, 0);
-  const hpCupR = new THREE.CylinderGeometry(0.102, 0.102, 0.068, 14);
-  hpCupR.rotateZ(Math.PI / 2);
-  hpCupR.translate(0.374, 0.01, 0);
-  const headphonesGeo = mergeBufferGeometries([hpArc, hpCupL, hpCupR]);
-
-  // Mochila urbana compacta (0.38 x 0.40 x 0.15) encostada nas costas
-  const bpMain = new THREE.BoxGeometry(0.38, 0.4, 0.15);
-  const bpPocket = new THREE.BoxGeometry(0.28, 0.17, 0.045);
-  bpPocket.translate(0, -0.07, -0.095);
-  const bpStrapL = new THREE.BoxGeometry(0.055, 0.38, 0.03);
-  bpStrapL.translate(-0.12, 0, 0.08);
-  const bpStrapR = new THREE.BoxGeometry(0.055, 0.38, 0.03);
-  bpStrapR.translate(0.12, 0, 0.08);
-  const backpackGeo = mergeBufferGeometries([bpMain, bpPocket, bpStrapL, bpStrapR]);
+  const briefcaseGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.CylinderGeometry(0.02, 0.02, 0.11, 6).rotateX(Math.PI / 2),
+    new THREE.BoxGeometry(0.075, 0.23, 0.31).translate(0, -0.14, 0)
+  ]));
+  const coffeeCupGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.CylinderGeometry(0.054, 0.042, 0.14, 7).translate(0, 0.01, 0.01),
+    new THREE.CylinderGeometry(0.06, 0.06, 0.024, 7).translate(0, 0.088, 0.01)
+  ]));
+  const cameraGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.BoxGeometry(0.18, 0.12, 0.09).translate(-0.03, 0.01, 0.02),
+    new THREE.CylinderGeometry(0.045, 0.05, 0.075, 7).rotateX(Math.PI / 2).translate(-0.03, 0.005, 0.085),
+    new THREE.BoxGeometry(0.06, 0.03, 0.055).translate(0.01, 0.08, 0.015)
+  ]));
+  const smartphoneGeo = finalizeCrowdGeo(new THREE.BoxGeometry(0.075, 0.016, 0.145).rotateX(0.32).translate(0, 0.01, 0.03));
+  const shoppingBagGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.TorusGeometry(0.044, 0.013, 4, 6, Math.PI).rotateY(Math.PI / 2).translate(0, -0.01, 0),
+    new THREE.BoxGeometry(0.095, 0.24, 0.21).translate(0, -0.135, 0)
+  ]));
+  const hardhatGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.CylinderGeometry(0.34, 0.382, 0.15, 8).translate(0, 0.22, 0),
+    new THREE.SphereGeometry(0.368, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.5).scale(1, 0.52, 1).translate(0, 0.25, 0),
+    new THREE.BoxGeometry(0.085, 0.055, 0.56).translate(0, 0.41, 0.01),
+    new THREE.CylinderGeometry(0.32, 0.335, 0.034, 8).translate(0, 0.155, 0.16)
+  ]));
+  const makeCap = (dirSign) => finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.CylinderGeometry(0.368, 0.368, 0.13, 8).translate(0, 0.225, 0),
+    new THREE.SphereGeometry(0.368, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.5).scale(1, 0.48, 1).translate(0, 0.245, 0),
+    new THREE.CylinderGeometry(0.295, 0.31, 0.034, 8).rotateX(dirSign * 0.06).translate(0, 0.165, dirSign * 0.215)
+  ]));
+  const classicHairGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.SphereGeometry(0.376, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.52).scale(1.0, 0.56, 1.03).translate(0, 0.205, -0.01),
+    new THREE.SphereGeometry(0.366, 8, 6).scale(0.98, 0.74, 0.68).translate(0, 0.06, -0.13),
+    new THREE.SphereGeometry(0.33, 7, 5).scale(0.94, 0.2, 0.52).rotateZ(0.08).translate(0.02, 0.23, 0.165)
+  ]));
+  const curlyFadeGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.CylinderGeometry(0.368, 0.374, 0.15, 8).translate(0, 0.245, -0.01),
+    new THREE.SphereGeometry(0.376, 8, 6).scale(1.01, 0.5, 1.02).translate(0, 0.285, -0.01),
+    new THREE.SphereGeometry(0.362, 7, 5).scale(0.97, 0.6, 0.65).translate(0, 0.1, -0.12)
+  ]));
+  const beanieGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.TorusGeometry(0.358, 0.035, 5, 8).rotateX(Math.PI / 2 - 0.08).translate(0, 0.19, -0.01),
+    new THREE.SphereGeometry(0.374, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55).scale(1.0, 0.66, 1.03).rotateX(-0.08).translate(0, 0.185, -0.02)
+  ]));
+  const headbandGeo = finalizeCrowdGeo(new THREE.CylinderGeometry(0.362, 0.362, 0.082, 8).translate(0, 0.175, 0));
+  const headphonesGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.TorusGeometry(0.384, 0.026, 4, 8, Math.PI).translate(0, 0.03, 0),
+    new THREE.CylinderGeometry(0.102, 0.102, 0.068, 7).rotateZ(Math.PI / 2).translate(-0.374, 0.01, 0),
+    new THREE.CylinderGeometry(0.102, 0.102, 0.068, 7).rotateZ(Math.PI / 2).translate(0.374, 0.01, 0)
+  ]));
+  const backpackGeo = finalizeCrowdGeo(mergeBufferGeometries([
+    new THREE.BoxGeometry(0.38, 0.4, 0.15),
+    new THREE.BoxGeometry(0.28, 0.17, 0.045).translate(0, -0.07, -0.095),
+    new THREE.BoxGeometry(0.055, 0.38, 0.03).translate(-0.12, 0, 0.08),
+    new THREE.BoxGeometry(0.055, 0.38, 0.03).translate(0.12, 0, 0.08)
+  ]));
 
   return {
-    briefcase: briefcaseGeo,
-    coffee_cup: coffeeCupGeo,
-    camera: cameraGeo,
-    smartphone: smartphoneGeo,
-    shopping_bag: shoppingBagGeo,
-    hardhat: hardhatGeo,
-    cap_forward: capForwardGeo,
-    cap_backward: capBackwardGeo,
-    classic_hair: classicHairGeo,
-    curly_fade: curlyFadeGeo,
-    beanie: beanieGeo,
-    headband: headbandGeo,
-    headphones: headphonesGeo,
-    backpack: backpackGeo
+    briefcase: briefcaseGeo, coffee_cup: coffeeCupGeo, camera: cameraGeo, smartphone: smartphoneGeo,
+    shopping_bag: shoppingBagGeo, hardhat: hardhatGeo, cap_forward: makeCap(1), cap_backward: makeCap(-1),
+    classic_hair: classicHairGeo, curly_fade: curlyFadeGeo, beanie: beanieGeo, headband: headbandGeo,
+    headphones: headphonesGeo, backpack: backpackGeo
   };
 }
 
-export const NPC_HEAD_GEO = createMinifigHeadGeometry();
-export const NPC_FACE_SHELL_GEO = createMinifigFaceShellGeometry();
-export const NPC_TRAPEZOID_TORSO_GEO = createTrapezoidTorsoGeometry(0.78, 0.94, 0.76, 0.44);
-export const NPC_TORSO_DECAL_GEO = buildNpcTorsoDecalGeo();
-export const NPC_HIP_GEO = createMinifigHipGeometry();
-export const NPC_ARM_GEO = createMinifigArmGeometry(0);
-export const NPC_HAND_GEO = createMinifigHandGeometry(0);
-export const NPC_LEG_GEO = createMinifigLegGeometry();
+export const NPC_HEAD_GEO = buildNpcHeadGeo();
+export const NPC_FACE_SHELL_GEO = buildNpcFaceShellGeo();
+export const NPC_TRAPEZOID_TORSO_GEO = buildNpcTrapezoidTorsoGeo(0.78, 0.94, 0.76, 0.44);
+export const NPC_TORSO_DECAL_GEO = finalizeCrowdGeo(buildNpcTorsoDecalGeo());
+export const NPC_HIP_GEO = buildNpcHipGeo();
+export const NPC_ARM_GEO = buildNpcArmGeo();
+export const NPC_HAND_GEO = buildNpcHandGeo();
+export const NPC_LEG_GEO = buildNpcLegGeo();
 export const SHARED_CIV_PROP_GEOS = buildCivilianPropGeos();
-export const CAMERA_FLASH_GEO = new THREE.OctahedronGeometry(0.22, 0);
+export const CAMERA_FLASH_GEO = finalizeCrowdGeo(new THREE.OctahedronGeometry(0.22, 0));
 export const SHARED_CAMERA_FLASH_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
 // ============================================================================

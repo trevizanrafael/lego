@@ -8,6 +8,94 @@ import { IS_SCALED_WORLD, ROAD, ws, wsStreetAnchored } from '../core/WorldLayout
 import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
 import { spawnBreakableWhiteFence } from '../SuburbHouseGenerator.js';
 
+export const SUBURB_PROP_CHUNK_SIZE = 960;
+const _TMP_SUBURB_CHUNK_M4 = new THREE.Matrix4();
+const _TMP_SUBURB_CHUNK_Q = new THREE.Quaternion();
+const _TMP_SUBURB_CHUNK_S1 = new THREE.Vector3(1, 1, 1);
+const _TMP_SUBURB_CHUNK_S0 = new THREE.Vector3(0, 0, 0);
+
+export function finalizeChunkedSuburbBreakableProps(world, chunkSize = SUBURB_PROP_CHUNK_SIZE) {
+  if (!world?._suburbPropInstPools || !world.scene) return 0;
+  const nextPools = new Map();
+  let createdChunks = 0;
+
+  for (const [baseKey, pool] of world._suburbPropInstPools.entries()) {
+    if (!pool?.items?.length) continue;
+    if (pool.inst) {
+      pool.inst.computeBoundingBox();
+      pool.inst.computeBoundingSphere();
+      nextPools.set(baseKey, pool);
+      continue;
+    }
+
+    const effCell = pool.items.length < 48 ? 24000 : chunkSize;
+    const byCell = new Map();
+    for (let i = 0; i < pool.items.length; i++) {
+      const item = pool.items[i];
+      const px = item.basePos?.x ?? item.mesh?.position?.x ?? 0;
+      const pz = item.basePos?.z ?? item.mesh?.position?.z ?? 0;
+      const cKey = `${Math.floor(px / effCell)},${Math.floor(pz / effCell)}`;
+      let list = byCell.get(cKey);
+      if (!list) {
+        list = [];
+        byCell.set(cKey, list);
+      }
+      list.push(item);
+    }
+
+    for (const [cKey, chunkItems] of byCell.entries()) {
+      const inst = new THREE.InstancedMesh(pool.geo, pool.mat, chunkItems.length);
+      inst.castShadow = false;
+      inst.receiveShadow = true;
+      inst.matrixAutoUpdate = false;
+      inst.userData.isSuburbBreakablePool = true;
+
+      const chunkPool = { geo: pool.geo, mat: pool.mat, items: chunkItems, inst };
+      for (let idx = 0; idx < chunkItems.length; idx++) {
+        const item = chunkItems[idx];
+        item._instPool = inst;
+        item._instIndex = idx;
+        item._syncInstancedVisual = (obj) => {
+          const targetInst = obj._instPool;
+          if (!targetInst) return;
+          const vis = Boolean(obj.mesh && obj.mesh.visible && !obj.destroyed);
+          _TMP_SUBURB_CHUNK_Q.setFromEuler(obj.mesh.rotation);
+          _TMP_SUBURB_CHUNK_M4.compose(obj.mesh.position, _TMP_SUBURB_CHUNK_Q, vis ? _TMP_SUBURB_CHUNK_S1 : _TMP_SUBURB_CHUNK_S0);
+          targetInst.setMatrixAt(obj._instIndex, _TMP_SUBURB_CHUNK_M4);
+          targetInst.instanceMatrix.needsUpdate = true;
+        };
+        item._syncInstancedVisual(item);
+      }
+
+      inst.instanceMatrix.needsUpdate = true;
+      inst.updateMatrix();
+      inst.computeBoundingBox();
+      inst.computeBoundingSphere();
+      const sc = inst.boundingSphere?.center;
+      if (sc && chunkItems.length >= 16) {
+        const cx = sc.x, cy = sc.y, cz = sc.z;
+        const lod = new THREE.LOD();
+        lod.position.set(cx, cy, cz);
+        inst.position.set(-cx, -cy, -cz);
+        inst.updateMatrix();
+        lod.addLevel(inst, 0);
+        lod.addLevel(new THREE.Object3D(), 520);
+        lod.matrixAutoUpdate = false;
+        lod.updateMatrix();
+        lod.updateMatrixWorld(true);
+        world.scene.add(lod);
+      } else {
+        world.scene.add(inst);
+      }
+      nextPools.set(`${baseKey}|${cKey}`, chunkPool);
+      createdChunks++;
+    }
+  }
+
+  world._suburbPropInstPools = nextPools;
+  return createdChunks;
+}
+
 function getSidewalkSurfaceY(world, px, pz) {
   const baseTerrain = world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : 0;
   if (!IS_SCALED_WORLD) return baseTerrain + 0.28;
@@ -36,6 +124,8 @@ export function buildNewsstandsAndFences(world) {
     const fz = anchored.z;
     spawnBreakableWhiteFence(world, fx, fz, 2.2, spec.rotY);
   });
+
+  finalizeChunkedSuburbBreakableProps(world);
 }
 
 export function buildGoldenLegoObjects(world) {

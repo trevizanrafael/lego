@@ -18,8 +18,31 @@ import {
 // ============================================================================
 
 export const invasionWarDirectorMethods = {
+  _clearPendingSpawnQueue() {
+    if (this._pendingSpawnQueue) this._pendingSpawnQueue.length = 0;
+  },
+
+  _enqueuePendingUnit(opts, retreating = false, onUnit = null) {
+    (this._pendingSpawnQueue || (this._pendingSpawnQueue = [])).push({ opts, retreating, onUnit });
+  },
+
+  _drainPendingSpawnQueue(maxUnitsPerFrame = 3) {
+    const q = this._pendingSpawnQueue;
+    if (!q || q.length === 0) return;
+    const budget = Math.min(maxUnitsPerFrame, q.length);
+    for (let i = 0; i < budget; i++) {
+      const entry = q.shift();
+      if (!entry) continue;
+      const u = this._spawnCombatUnit(entry.opts);
+      if (u && entry.retreating) u.retreating = true;
+      if (u && entry.onUnit) entry.onUnit(u);
+    }
+  },
+
   _enterInvasionWarMode(zoneKey, playerPos) {
+    this._clearPendingSpawnQueue();
     this._cleanupActiveZoneUnits();
+    this._prewarmWarPoolsOnce?.();
     this.activeZoneId = zoneKey;
     this.activeMode = 'INVASION_1V1';
     this.isInvasionActive = true;
@@ -37,7 +60,6 @@ export const invasionWarDirectorMethods = {
     st.invasionClock = INVASION_RULES.startClock;
     st.reinforceTimer = 7;
 
-    // Invasão em SEQUÊNCIA: P1 -> P2 -> P3 -> Pátio do Chefe
     for (const op of st.outposts) op.ownerFaction = defenderFaction;
     this._syncZone3DColors(zoneKey);
     st.activeIndex = 0;
@@ -46,30 +68,19 @@ export const invasionWarDirectorMethods = {
       cz.setActive(idx === 0);
     });
 
-    // Civis próximos da fronteira correm para fora da zona invadida!
     this.livingCity.triggerPedestrianPanicNear(playerPos, 72);
     soundFX.playHeroSwap();
 
-    // Guarnição forte no ponto ativo + vigias nos próximos (a frente de batalha)
+    // Frame 0: spawna núcleo imediato de P1; enfileira piquetes distantes P2/P3 (máx 3/frame)
     st.outposts.forEach((op, idx) => {
-      this._spawnOutpostGarrison(st, op, idx === 0 ? 'full' : 'picket', idx);
+      this._spawnOutpostGarrison(st, op, idx === 0 ? 'full' : 'picket', idx, idx > 0);
     });
     this._refreshInvasionWarzones(st);
 
-    // Comboio de Invasão da SUA FACÇÃO + Reforço Motorizado Inimigo
+    this._spawnMotorizedSquad({ faction: this.playerFaction, isAllied: true, zoneState: st, playerPos });
     this._spawnMotorizedSquad({
-      faction: this.playerFaction,
-      isAllied: true,
-      zoneState: st,
-      playerPos
-    });
-    this._spawnMotorizedSquad({
-      faction: defenderFaction,
-      isAllied: false,
-      zoneState: st,
-      playerPos,
-      roles: buildFactionSquad(defenderFaction, 0),
-      target: st.outposts[0]
+      faction: defenderFaction, isAllied: false, zoneState: st, playerPos,
+      roles: buildFactionSquad(defenderFaction, 0), target: st.outposts[0]
     });
 
     const theme = FACTION_THEME[defenderFaction] || FACTION_THEME.cv;
@@ -78,40 +89,20 @@ export const invasionWarDirectorMethods = {
       title: `CAPTURE ${st.outposts[0]?.name || 'O POSTO'}`,
       accent: theme.color
     });
-    this.hud?.showWantedBanner?.(
-      `INVASÃO: ${st.spec.title}`,
-      'TOME P1 → P2 → P3 E DERROTE O CHEFE',
-      'pursuit',
-      3400
-    );
+    this.hud?.showWantedBanner?.(`INVASÃO: ${st.spec.title}`, 'TOME P1 → P2 → P3 E DERROTE O CHEFE', 'pursuit', 3400);
   },
 
-  /**
-   * Guarnição de um posto. 'full' = defesa do ponto ativo; 'picket' = vigias leves.
-   */
-  _spawnOutpostGarrison(zoneState, op, mode = 'full', tier = 0) {
+  _spawnOutpostGarrison(zoneState, op, mode = 'full', tier = 0, defer = false) {
     const faction = zoneState.ownerFaction;
-    const roles =
-      mode === 'full'
-        ? [
-            'rifleman',
-            'rifleman',
-            'tank',
-            'medic',
-            ...(tier >= 1 ? ['special'] : []),
-            ...(tier >= 2 ? ['special', 'rifleman'] : [])
-          ]
-        : ['rifleman', 'rifleman'];
+    const roles = mode === 'full'
+      ? ['rifleman', 'rifleman', 'tank', 'medic', ...(tier >= 1 ? ['special'] : []), ...(tier >= 2 ? ['special', 'rifleman'] : [])]
+      : ['rifleman', 'rifleman'];
     roles.forEach((role, i) => {
       const ang = (i / roles.length) * Math.PI * 2 + tier;
       const rad = role === 'tank' ? 3.2 : 4.6;
-      this._spawnCombatUnit({
-        faction,
-        role,
-        x: op.x + Math.cos(ang) * rad,
-        z: op.z + Math.sin(ang) * rad,
-        outpostId: op.id
-      });
+      const spec = { faction, role, x: op.x + Math.cos(ang) * rad, z: op.z + Math.sin(ang) * rad, outpostId: op.id };
+      if (defer || i >= 4) this._enqueuePendingUnit(spec);
+      else this._spawnCombatUnit(spec);
     });
   },
 
@@ -133,11 +124,9 @@ export const invasionWarDirectorMethods = {
 
     const opIdx = zoneState.outposts.indexOf(op);
     zoneState.captureZones[opIdx]?.markCaptured();
-
     this._syncZone3DColors(zoneState.id);
     soundFX.playTrueHeroFanfare();
 
-    // Recompensa em Studs no Piso do Outpost
     for (let i = 0; i < 6; i++) {
       const ang = (i / 6) * Math.PI * 2;
       this.destructibles.spawnAmbientStud(
@@ -148,38 +137,17 @@ export const invasionWarDirectorMethods = {
       );
     }
 
-    // Tropas aliadas passam a nascer do posto conquistado
-    this._spawnCombatUnit({
-      faction: this.playerFaction,
-      role: 'rifleman',
-      x: op.x - 2.2,
-      z: op.z + 2.0,
-      outpostId: op.id
-    });
-    this._spawnCombatUnit({
-      faction: this.playerFaction,
-      role: 'medic',
-      x: op.x + 2.2,
-      z: op.z + 2.0,
-      outpostId: op.id
-    });
-
-    // +1:30 no relógio
+    this._spawnCombatUnit({ faction: this.playerFaction, role: 'rifleman', x: op.x - 2.2, z: op.z + 2.0, outpostId: op.id });
+    this._spawnCombatUnit({ faction: this.playerFaction, role: 'medic', x: op.x + 2.2, z: op.z + 2.0, outpostId: op.id });
     zoneState.invasionClock += INVASION_RULES.clockPerCapture;
-
-    // Próximo objetivo da sequência
     zoneState.activeIndex = opIdx + 1;
     const nextOp = zoneState.outposts[zoneState.activeIndex];
 
-    // RECUO: sobreviventes do posto perdido correm para reforçar o próximo
     const fallback = nextOp || zoneState.spec.bossCourtyard;
     for (const npc of this.combatNpcs) {
       if (npc.isAllied || npc.outpostId !== op.id) continue;
       npc.outpostId = nextOp ? nextOp.id : 'boss_court';
-      npc.patrolAnchor = {
-        x: fallback.x + (Math.random() - 0.5) * 6,
-        z: fallback.z + (Math.random() - 0.5) * 6
-      };
+      npc.patrolAnchor = { x: fallback.x + (Math.random() - 0.5) * 6, z: fallback.z + (Math.random() - 0.5) * 6 };
       npc.retreating = true;
     }
 
@@ -187,24 +155,11 @@ export const invasionWarDirectorMethods = {
       zoneState.captureZones[zoneState.activeIndex]?.setActive(true);
       this._spawnOutpostGarrison(zoneState, nextOp, 'full', zoneState.activeIndex);
       this.objectiveHud?.setTitle(`CAPTURE ${nextOp.name}`);
-      this.hud?.showWantedBanner?.(
-        `${op.code} CAPTURADO!`,
-        `+1:30 // PRÓXIMO: ${nextOp.code}`,
-        'escaped',
-        2600
-      );
+      this.hud?.showWantedBanner?.(`${op.code} CAPTURADO!`, `+1:30 // PRÓXIMO: ${nextOp.code}`, 'escaped', 2600);
     } else {
-      // Os 3 postos são seus: o chefe aparece no pátio!
       this._triggerBossClimaxDuel(zoneState, playerPos);
-      this.objectiveHud?.setTitle(
-        `DERROTE ${FACTION_THEME[zoneState.ownerFaction]?.bossTitle || 'O CHEFE'}`
-      );
-      this.hud?.showWantedBanner?.(
-        'CHEFÃO NO PÁTIO!',
-        'OS 3 POSTOS SÃO SEUS // DERRUBE O CHEFE',
-        'pursuit',
-        3200
-      );
+      this.objectiveHud?.setTitle(`DERROTE ${FACTION_THEME[zoneState.ownerFaction]?.bossTitle || 'O CHEFE'}`);
+      this.hud?.showWantedBanner?.('CHEFÃO NO PÁTIO!', 'OS 3 POSTOS SÃO SEUS // DERRUBE O CHEFE', 'pursuit', 3200);
     }
     this._refreshInvasionWarzones(zoneState);
   },
@@ -300,19 +255,18 @@ export const invasionWarDirectorMethods = {
     // Restaura os 4 Corações LEGO, salva a conquista e transforma o território em QG Aliado!
     this.livingCity.playerHp = this.livingCity.playerMaxHp;
     this.hud?.setPlayerHealth(this.livingCity.playerMaxHp, this.livingCity.playerMaxHp, false);
+    this._clearPendingSpawnQueue();
     this._enterAllyHqMode(zoneState.id);
     this.onTerritoryConquered?.(zoneState);
     this.hud?.saveCurrentProgress?.();
   },
 
-  /**
-   * Invasão falhou (tempo esgotado ou jogador derrubado): volta ao portão e os postos voltam ao dono.
-   */
   _failInvasion(
     zoneState,
     title = 'INVASÃO FRACASSADA',
     subtitle = 'A FACÇÃO SEGUROU O TERRITÓRIO'
   ) {
+    this._clearPendingSpawnQueue();
     const controller = this._lastController;
     const exitGate = zoneState?.spec?.safeExitGate || { x: 0, z: ws(-92) };
     const ey = this._groundAt(exitGate.x, exitGate.z, 1) + 0.5;
@@ -348,6 +302,7 @@ export const invasionWarDirectorMethods = {
   // ==========================================================================
   update(dt, playerPos, controller = null) {
     if (!playerPos) return;
+    this._prewarmWarPoolsOnce?.();
     this._animClock += dt;
     if (controller) this._lastController = controller;
 
@@ -405,9 +360,9 @@ export const invasionWarDirectorMethods = {
       return;
     }
 
-    // Modo Livre sem facção escolhida -> apenas cidade pacífica
     if (!FACTION_THEME[this.playerFaction]) {
       if (this.activeZoneId) {
+        this._clearPendingSpawnQueue();
         this._cleanupActiveZoneUnits();
         this.activeZoneId = null;
         this.activeMode = 'PEACEFUL_CITY';
@@ -431,6 +386,7 @@ export const invasionWarDirectorMethods = {
           : 'INVASION_1V1';
 
       if (this.activeZoneId !== strictZone.id || this.activeMode !== desiredMode) {
+        this._clearPendingSpawnQueue();
         if (desiredMode === 'COUNTER_ATTACK') {
           ca.beginDefense();
         } else if (desiredMode === 'ALLY_HQ') {
@@ -440,14 +396,13 @@ export const invasionWarDirectorMethods = {
         }
       }
     } else if (this.activeZoneId && !hysteresisZone) {
-      // DESENGAJAMENTO LIMPO AO SAIR DO TERRITÓRIO PARA A CIDADE CIVIL!
+      this._clearPendingSpawnQueue();
       const leftZone = this.territories[this.activeZoneId];
       if (leftZone) {
         for (const op of leftZone.outposts) {
           if (op.spotlightMat) op.spotlightMat.opacity = 0.12;
         }
         if (this.isInvasionActive && !leftZone.conqueredByPlayer) {
-          // Saiu no meio da invasão: postos tomados voltam ao dono
           for (const op of leftZone.outposts) op.ownerFaction = leftZone.ownerFaction;
           leftZone.captureZones.forEach((cz) => cz.reset());
           this._syncZone3DColors(leftZone.id);
@@ -468,6 +423,9 @@ export const invasionWarDirectorMethods = {
     if (!this.activeZoneId) return;
 
     const currentZone = this.territories[this.activeZoneId];
+    if (this.activeMode === 'INVASION_1V1') {
+      this._drainPendingSpawnQueue(3);
+    }
     this._updateConvoyDrops(dt);
     this._updateCombatUnitsAndHealBeams(dt, playerPos, controller, currentZone);
     this._updateProjectilesAndShockwaves(dt, playerPos, controller, currentZone);
