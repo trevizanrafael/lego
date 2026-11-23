@@ -10,13 +10,16 @@ import {
 } from '../../world/CoastlineProfile.js';
 import {
   remapBlockColorToGothamNoir,
-  remapBuildingColorToGothamNoir,
-  getGothamBuildingStrokeColor,
   remapBiomeTintToGothamNoir,
-  remapRegionBorderToGothamNoir,
-  classifyGothamRoadKind
+  remapRegionBorderToGothamNoir
 } from '../TacticalIcons.js';
 import { IS_SCALED_WORLD, ws } from '../../world/core/WorldLayoutScale.js';
+import {
+  paintRoadsAndOrganicLayer,
+  paintBuildingsSonarLayer
+} from './MinimapOrganicAndSonarPainter.js';
+
+export { paintRoadsAndOrganicLayer, paintBuildingsSonarLayer };
 
 export const STATIC_MAP_MIN_WX = ws(-3700);
 export const STATIC_MAP_MIN_WZ = ws(-3250);
@@ -28,11 +31,13 @@ export function getStaticMinimapCache(world) {
   const bldCount = world.mapBuildings?.length || 0;
   const rdCount = world.mapRoads?.length || 0;
   const blkCount = world.mapBlocks?.length || 0;
+  const orgRdCount = world.mapOrganicRoads?.length || 0;
   if (
     world._staticMinimapCache &&
     world._staticMinimapCache.bldCount === bldCount &&
     world._staticMinimapCache.rdCount === rdCount &&
-    world._staticMinimapCache.blkCount === blkCount
+    world._staticMinimapCache.blkCount === blkCount &&
+    world._staticMinimapCache.orgRdCount === orgRdCount
   ) {
     return world._staticMinimapCache;
   }
@@ -216,108 +221,24 @@ export function getStaticMinimapCache(world) {
     }
   }
 
-  // 4. Malha Viaria em 2 Passes (Meio-Fio/Guarda-Corpos Nitidos + Leito Asfaltico/Pista/Pontes)
-  if (Array.isArray(world.mapRoads)) {
-    // Passe 4A: Meio-fio (#2e3d56 avenidas / #1e293b locais) e guarda-corpos de pontes (#475569)
-    for (let i = 0; i < world.mapRoads.length; i++) {
-      const rd = world.mapRoads[i];
-      const kind = classifyGothamRoadKind(rd);
-      const pad = kind === 'bridge' ? 1.5 : kind === 'main' || kind === 'runway' ? 1.15 : 0.75;
-      cctx.fillStyle =
-        kind === 'bridge' ? '#475569' : kind === 'main' || kind === 'runway' ? '#2e3d56' : '#1e293b';
-      cctx.fillRect(
-        toX(rd.x - rd.w * 0.5) - pad,
-        toY(rd.z - rd.d * 0.5) - pad,
-        rd.w * pxPerMeter + pad * 2,
-        rd.d * pxPerMeter + pad * 2
-      );
-    }
+  // 4. Malha Viaria em 2 Passes + Vias Organicas Continuas (`polyline` e `roundabout`)
+  paintRoadsAndOrganicLayer(cctx, world, toX, toY, pxPerMeter, {
+    bridgePad: 1.5,
+    mainPad: 1.15,
+    localPad: 0.75,
+    minRunwayMarkPx: 0,
+    drawRunwayThresholds: true,
+    drawRectMainDashes: true
+  });
 
-    // Passe 4B: Superficie asfaltica + eixos tracejados e cabeceiras da pista do aeroporto
-    for (let i = 0; i < world.mapRoads.length; i++) {
-      const rd = world.mapRoads[i];
-      const kind = classifyGothamRoadKind(rd);
-      const rx = toX(rd.x - rd.w * 0.5);
-      const ry = toY(rd.z - rd.d * 0.5);
-      const rw = rd.w * pxPerMeter;
-      const rh = rd.d * pxPerMeter;
-
-      cctx.fillStyle =
-        kind === 'bridge'
-          ? '#222d42'
-          : kind === 'runway'
-            ? '#161e2e'
-            : kind === 'main'
-              ? '#1b2436'
-              : '#131a27';
-      cctx.fillRect(rx, ry, rw, rh);
-
-      if (kind === 'runway') {
-        const horiz = rw >= rh;
-        cctx.save();
-        if (typeof cctx.setLineDash === 'function') cctx.setLineDash([5, 4]);
-        cctx.strokeStyle = 'rgba(226, 232, 240, 0.52)';
-        cctx.lineWidth = 1.1;
-        cctx.beginPath();
-        if (horiz) {
-          cctx.moveTo(rx + 6, ry + rh * 0.5);
-          cctx.lineTo(rx + rw - 6, ry + rh * 0.5);
-        } else {
-          cctx.moveTo(rx + rw * 0.5, ry + 6);
-          cctx.lineTo(rx + rw * 0.5, ry + rh - 6);
-        }
-        cctx.stroke();
-        cctx.restore();
-
-        cctx.fillStyle = 'rgba(217, 119, 6, 0.68)';
-        if (horiz) {
-          cctx.fillRect(rx + 2, ry + rh * 0.2, 2.5, rh * 0.6);
-          cctx.fillRect(rx + rw - 4.5, ry + rh * 0.2, 2.5, rh * 0.6);
-        } else {
-          cctx.fillRect(rx + rw * 0.2, ry + 2, rw * 0.6, 2.5);
-          cctx.fillRect(rx + rw * 0.2, ry + rh - 4.5, rw * 0.6, 2.5);
-        }
-      } else if ((kind === 'main' || kind === 'bridge') && Math.max(rw, rh) >= 12) {
-        const horiz = rw >= rh;
-        cctx.save();
-        if (typeof cctx.setLineDash === 'function') cctx.setLineDash([4, 5]);
-        cctx.strokeStyle =
-          kind === 'bridge' ? 'rgba(203, 213, 225, 0.34)' : 'rgba(148, 163, 184, 0.22)';
-        cctx.lineWidth = 0.8;
-        cctx.beginPath();
-        if (horiz) {
-          cctx.moveTo(rx + 2, ry + rh * 0.5);
-          cctx.lineTo(rx + rw - 2, ry + rh * 0.5);
-        } else {
-          cctx.moveTo(rx + rw * 0.5, ry + 2);
-          cctx.lineTo(rx + rw * 0.5, ry + rh - 2);
-        }
-        cctx.stroke();
-        cctx.restore();
-      }
-    }
-  }
-
-  // 5. Pegadas Arquitetonicas Sonar 3D dos Predios (Sombra #020306 + Aco/Ardosia + Contorno #334155 / Bronze)
-  if (Array.isArray(world.mapBuildings)) {
-    for (let i = 0; i < world.mapBuildings.length; i++) {
-      const bld = world.mapBuildings[i];
-      const isLm = Boolean(bld.isLandmark || bld.landmark);
-      const bx = toX(bld.x - bld.w * 0.5);
-      const by = toY(bld.z - bld.d * 0.5);
-      const bw = bld.w * pxPerMeter;
-      const bd = bld.d * pxPerMeter;
-
-      cctx.fillStyle = '#020306';
-      cctx.fillRect(bx + 1.6, by + 1.8, bw, bd);
-
-      cctx.fillStyle = remapBuildingColorToGothamNoir(bld.color, isLm);
-      cctx.strokeStyle = getGothamBuildingStrokeColor(bld.color, isLm);
-      cctx.lineWidth = isLm ? 1.5 : 0.95;
-      cctx.fillRect(bx, by, bw, bd);
-      cctx.strokeRect(bx, by, bw, bd);
-    }
-  }
+  // 5. Pegadas Arquitetonicas Sonar 3D dos Predios (`polygon` Flatiron, `rotY` girados e retangulares)
+  paintBuildingsSonarLayer(cctx, world.mapBuildings, toX, toY, pxPerMeter, {
+    shadowDx: 1.6,
+    shadowDy: 1.8,
+    lmLineWidth: 1.5,
+    stdLineWidth: 0.95,
+    minStrokePx: 0
+  });
 
   // 5.2 Linha Circular do Metro (Viadutos Elevados e Tuneis Tracejados em Aco-Glacial)
   if (Array.isArray(world.metroLoopWaypoints) && world.metroLoopWaypoints.length > 2) {
@@ -369,7 +290,8 @@ export function getStaticMinimapCache(world) {
     pxPerMeter,
     bldCount,
     rdCount,
-    blkCount
+    blkCount,
+    orgRdCount
   };
   world._staticMinimapCache = cache;
   return cache;

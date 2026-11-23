@@ -12,8 +12,139 @@ import {
 } from '../core/WorldLayoutScale.js';
 import { getUrbanCityReliefY } from './UrbanReliefFunctions.js';
 import { addChunkedArrayToScene } from './BridgeAndPierSpecs.js';
+import { queryOrganicFeaturesInBounds } from './OrganicDowntownNetworkSpec.js';
+import { getOrganicRoadElevationStateAt } from './OrganicRoadRibbonBuilder.js';
 
 const BLOCK_HASH_CELL = 128;
+const _ORG_SLICE_SCRATCH = {};
+
+function sliceStripAroundOrganicMouths(world, strip, axis, margin = 1.5, minSpan = 4.0) {
+  const start = axis === 'x' ? strip.minX : strip.minZ;
+  const end = axis === 'x' ? strip.maxX : strip.maxZ;
+  const total = end - start;
+  if (total <= 0.1) return [];
+
+  const steps = Math.max(1, Math.ceil(total / 1.0));
+  const step = total / steps;
+  const c0 = axis === 'x' ? strip.minZ + 0.4 : strip.minX + 0.4;
+  const cm = axis === 'x' ? (strip.minZ + strip.maxZ) * 0.5 : (strip.minX + strip.maxX) * 0.5;
+  const c1 = axis === 'x' ? strip.maxZ - 0.4 : strip.maxX - 0.4;
+
+  const isSampleBlocked = (u) => {
+    for (const crossC of [c0, cm, c1]) {
+      const px = axis === 'x' ? u : crossC;
+      const pz = axis === 'x' ? crossC : u;
+      const st = getOrganicRoadElevationStateAt(world, px, pz, _ORG_SLICE_SCRATCH);
+      if (st.minSignedDist <= margin) return true;
+    }
+    return false;
+  };
+
+  const out = [];
+  let runStart = null;
+  for (let i = 0; i < steps; i++) {
+    const u0 = start + i * step;
+    const u1 = u0 + step;
+    const um = (u0 + u1) * 0.5;
+    if (!isSampleBlocked(um)) {
+      if (runStart === null) runStart = u0;
+    } else if (runStart !== null) {
+      if (u0 - runStart >= minSpan) {
+        out.push(
+          axis === 'x'
+            ? { ...strip, minX: runStart, maxX: u0 }
+            : { ...strip, minZ: runStart, maxZ: u0 }
+        );
+      }
+      runStart = null;
+    }
+  }
+  if (runStart !== null && end - runStart >= minSpan) {
+    out.push(
+      axis === 'x'
+        ? { ...strip, minX: runStart, maxX: end }
+        : { ...strip, minZ: runStart, maxZ: end }
+    );
+  }
+  return out;
+}
+
+function sliceLineSpanAroundOrganicMouths(world, fixedCoord, fromCoord, toCoord, axis, margin = 1.5) {
+  const total = toCoord - fromCoord;
+  if (total <= 0.5) return [];
+  const steps = Math.max(1, Math.ceil(total / 1.0));
+  const step = total / steps;
+  const out = [];
+  let runStart = null;
+  for (let i = 0; i < steps; i++) {
+    const u0 = fromCoord + i * step;
+    const u1 = u0 + step;
+    const um = (u0 + u1) * 0.5;
+    const px = axis === 'x' ? um : fixedCoord;
+    const pz = axis === 'x' ? fixedCoord : um;
+    const st = getOrganicRoadElevationStateAt(world, px, pz, _ORG_SLICE_SCRATCH);
+    if (st.minSignedDist > margin) {
+      if (runStart === null) runStart = u0;
+    } else if (runStart !== null) {
+      if (u0 - runStart >= 2.0) out.push([runStart, u0]);
+      runStart = null;
+    }
+  }
+  if (runStart !== null && toCoord - runStart >= 2.0) {
+    out.push([runStart, toCoord]);
+  }
+  return out;
+}
+
+function pushOrganicAwareInnerPad(world, innerPadGeos, innerRect, cutouts, topOffsetY) {
+  const w = innerRect.maxX - innerRect.minX;
+  const d = innerRect.maxZ - innerRect.minZ;
+  if (w <= 0.5 || d <= 0.5) return;
+  const nx = Math.max(1, Math.ceil(w / 14));
+  const nz = Math.max(1, Math.ceil(d / 14));
+  const stepX = w / nx;
+  const stepZ = d / nz;
+
+  const isTileClearOfAsphalt = (x0, x1, z0, z1) => {
+    const xm = (x0 + x1) * 0.5;
+    const zm = (z0 + z1) * 0.5;
+    const pts = [
+      [xm, zm],
+      [x0, z0],
+      [x1, z0],
+      [x0, z1],
+      [x1, z1],
+      [xm, z0],
+      [xm, z1],
+      [x0, zm],
+      [x1, zm]
+    ];
+    for (let i = 0; i < pts.length; i++) {
+      const st = getOrganicRoadElevationStateAt(world, pts[i][0], pts[i][1], _ORG_SLICE_SCRATCH);
+      if (st.inAsphalt || st.inIsland || st.minSignedDist <= 0.8) return false;
+    }
+    return true;
+  };
+
+  for (let iz = 0; iz < nz; iz++) {
+    const z0 = innerRect.minZ + iz * stepZ;
+    const z1 = z0 + stepZ;
+    let runStartX = null;
+    for (let ix = 0; ix < nx; ix++) {
+      const x0 = innerRect.minX + ix * stepX;
+      const x1 = x0 + stepX;
+      if (isTileClearOfAsphalt(x0, x1, z0, z1)) {
+        if (runStartX === null) runStartX = x0;
+      } else if (runStartX !== null) {
+        pushSlicedSlab(innerPadGeos, { minX: runStartX, maxX: x0, minZ: z0, maxZ: z1 }, cutouts, topOffsetY, 0.26);
+        runStartX = null;
+      }
+    }
+    if (runStartX !== null) {
+      pushSlicedSlab(innerPadGeos, { minX: runStartX, maxX: innerRect.maxX, minZ: z0, maxZ: z1 }, cutouts, topOffsetY, 0.26);
+    }
+  }
+}
 
 const WEST_GRID_DESIGN_X = [-648, -516, -384, -252, -120, 0, 120, 252, 384, 516];
 const EAST_SUBURB_DESIGN_X = [600, 648, 768, 964, 1160, 1344, 1524];
@@ -221,40 +352,87 @@ export function buildScaledUrbanSidewalksAndBlockPads(world) {
       }
     }
 
-    // 4 faixas perimetrais de calçada (10m de largura, +0.18m acima da rua local)
-    const northStrip = { minX: bMinX, maxX: bMaxX, minZ: bMinZ, maxZ: bMinZ + sw };
-    const southStrip = { minX: bMinX, maxX: bMaxX, minZ: bMaxZ - sw, maxZ: bMaxZ };
-    const westStrip = { minX: bMinX, maxX: bMinX + sw, minZ: bMinZ + sw, maxZ: bMaxZ - sw };
-    const eastStrip = { minX: bMaxX - sw, maxX: bMaxX, minZ: bMinZ + sw, maxZ: bMaxZ - sw };
+    const isOrganicCandidate = dx0 >= -516 && dx1 <= 516 && dz0 >= -512 && dz1 <= 134;
+    let hasOrganic = false;
+    if (isOrganicCandidate) {
+      const orgFeats = queryOrganicFeaturesInBounds(bMinX, bMaxX, bMinZ, bMaxZ, 24);
+      hasOrganic = orgFeats.segments.length > 0 || orgFeats.roundabouts.length > 0;
+    }
 
-    for (const st of [northStrip, southStrip, westStrip, eastStrip]) {
-      pushSlicedSlab(sidewalkGeos, st, expandedCutouts, curbH, 0.34);
-      const safeFootings = sliceRectAroundCutouts(st, expandedCutouts);
-      for (let i = 0; i < safeFootings.length; i++) {
-        world.mapSidewalks.push(safeFootings[i]);
+    // 4 faixas perimetrais de calçada (10m de largura, +0.18m acima da rua local)
+    const northStrip = { minX: bMinX, maxX: bMaxX, minZ: bMinZ, maxZ: bMinZ + sw, _axis: 'x' };
+    const southStrip = { minX: bMinX, maxX: bMaxX, minZ: bMaxZ - sw, maxZ: bMaxZ, _axis: 'x' };
+    const westStrip = { minX: bMinX, maxX: bMinX + sw, minZ: bMinZ + sw, maxZ: bMaxZ - sw, _axis: 'z' };
+    const eastStrip = { minX: bMaxX - sw, maxX: bMaxX, minZ: bMinZ + sw, maxZ: bMaxZ - sw, _axis: 'z' };
+
+    for (const rawSt of [northStrip, southStrip, westStrip, eastStrip]) {
+      const subStrips = hasOrganic
+        ? sliceStripAroundOrganicMouths(world, rawSt, rawSt._axis, 1.5, 4.0)
+        : [rawSt];
+      for (let s = 0; s < subStrips.length; s++) {
+        const st = subStrips[s];
+        pushSlicedSlab(sidewalkGeos, st, expandedCutouts, curbH, 0.34);
+        const safeFootings = sliceRectAroundCutouts(st, expandedCutouts);
+        for (let i = 0; i < safeFootings.length; i++) {
+          world.mapSidewalks.push(safeFootings[i]);
+        }
       }
     }
 
-    // Meio-fio chanfrado de 0.35m (recuado 6.2m nas esquinas onde entram as rampas acessíveis)
-    pushCurbSkirtAlongX(curbGeos, bMinZ + 0.175, bMinX + 6.2, bMaxX - 6.2, curbH);
-    pushCurbSkirtAlongX(curbGeos, bMaxZ - 0.175, bMinX + 6.2, bMaxX - 6.2, curbH);
-    pushCurbSkirtAlongZ(curbGeos, bMinX + 0.175, bMinZ + 6.2, bMaxZ - 6.2, curbH);
-    pushCurbSkirtAlongZ(curbGeos, bMaxX - 0.175, bMinZ + 6.2, bMaxZ - 6.2, curbH);
+    // Meio-fio chanfrado de 0.35m (recuado 6.2m nas esquinas e fatiado nas bocas orgânicas)
+    if (!hasOrganic) {
+      pushCurbSkirtAlongX(curbGeos, bMinZ + 0.175, bMinX + 6.2, bMaxX - 6.2, curbH);
+      pushCurbSkirtAlongX(curbGeos, bMaxZ - 0.175, bMinX + 6.2, bMaxX - 6.2, curbH);
+      pushCurbSkirtAlongZ(curbGeos, bMinX + 0.175, bMinZ + 6.2, bMaxZ - 6.2, curbH);
+      pushCurbSkirtAlongZ(curbGeos, bMaxX - 0.175, bMinZ + 6.2, bMaxZ - 6.2, curbH);
+    } else {
+      for (const [zLn, x0, x1] of [
+        [bMinZ + 0.175, bMinX + 6.2, bMaxX - 6.2],
+        [bMaxZ - 0.175, bMinX + 6.2, bMaxX - 6.2]
+      ]) {
+        const spans = sliceLineSpanAroundOrganicMouths(world, zLn, x0, x1, 'x', 1.5);
+        for (let i = 0; i < spans.length; i++) {
+          pushCurbSkirtAlongX(curbGeos, zLn, spans[i][0], spans[i][1], curbH);
+        }
+      }
+      for (const [xLn, z0, z1] of [
+        [bMinX + 0.175, bMinZ + 6.2, bMaxZ - 6.2],
+        [bMaxX - 0.175, bMinZ + 6.2, bMaxZ - 6.2]
+      ]) {
+        const spans = sliceLineSpanAroundOrganicMouths(world, xLn, z0, z1, 'z', 1.5);
+        for (let i = 0; i < spans.length; i++) {
+          pushCurbSkirtAlongZ(curbGeos, xLn, spans[i][0], spans[i][1], curbH);
+        }
+      }
+    }
 
-    // 4 pares de rampas acessíveis nos cantos da quadra
-    pushCornerCurbRamps(rampGeos, bMinX, bMinZ, 1, 1, curbH);
-    pushCornerCurbRamps(rampGeos, bMaxX, bMinZ, -1, 1, curbH);
-    pushCornerCurbRamps(rampGeos, bMinX, bMaxZ, 1, -1, curbH);
-    pushCornerCurbRamps(rampGeos, bMaxX, bMaxZ, -1, -1, curbH);
+    // 4 pares de rampas acessíveis nos cantos da quadra (pulando caso uma diagonal desembogue na esquina)
+    for (const [cx, cz, dxIn, dzIn] of [
+      [bMinX, bMinZ, 1, 1],
+      [bMaxX, bMinZ, -1, 1],
+      [bMinX, bMaxZ, 1, -1],
+      [bMaxX, bMaxZ, -1, -1]
+    ]) {
+      if (
+        !hasOrganic ||
+        getOrganicRoadElevationStateAt(world, cx + dxIn * 2.5, cz + dzIn * 2.5, _ORG_SLICE_SCRATCH).minSignedDist > 1.5
+      ) {
+        pushCornerCurbRamps(rampGeos, cx, cz, dxIn, dzIn, curbH);
+      }
+    }
 
-    // Miolo liso urbano (piso escuro limpo em +0.14m no centro da quadra)
+    // Miolo liso urbano (piso escuro limpo em +0.14m no centro da quadra, respeitando o asfalto orgânico)
     const innerRect = {
       minX: bMinX + sw,
       maxX: bMaxX - sw,
       minZ: bMinZ + sw,
       maxZ: bMaxZ - sw
     };
-    pushSlicedSlab(innerPadGeos, innerRect, expandedCutouts, innerPadTop, 0.26);
+    if (hasOrganic) {
+      pushOrganicAwareInnerPad(world, innerPadGeos, innerRect, expandedCutouts, innerPadTop);
+    } else {
+      pushSlicedSlab(innerPadGeos, innerRect, expandedCutouts, innerPadTop, 0.26);
+    }
 
     // Registra bloco no minimapa / mapa tático [M]
     world.mapBlocks.push({
@@ -266,13 +444,23 @@ export function buildScaledUrbanSidewalksAndBlockPads(world) {
       type: 'urban_block'
     });
 
-    // Registra os 4 corredores de pedestres no centro de cada calçada (+5.0m da guia)
-    world.sidewalkCorridors.push(
+    // Registra os corredores de pedestres no centro de cada calçada (+5.0m da guia), fatiados nas bocas orgânicas
+    const baseCorridors = [
       { minX: bMinX, maxX: bMinX + sw, minZ: bMinZ, maxZ: bMaxZ, axis: 'z', centerCoord: bMinX + sw * 0.5, blockId },
       { minX: bMaxX - sw, maxX: bMaxX, minZ: bMinZ, maxZ: bMaxZ, axis: 'z', centerCoord: bMaxX - sw * 0.5, blockId },
       { minX: bMinX, maxX: bMaxX, minZ: bMinZ, maxZ: bMinZ + sw, axis: 'x', centerCoord: bMinZ + sw * 0.5, blockId },
       { minX: bMinX, maxX: bMaxX, minZ: bMaxZ - sw, maxZ: bMaxZ, axis: 'x', centerCoord: bMaxZ - sw * 0.5, blockId }
-    );
+    ];
+    if (!hasOrganic) {
+      world.sidewalkCorridors.push(...baseCorridors);
+    } else {
+      for (let i = 0; i < baseCorridors.length; i++) {
+        const sliced = sliceStripAroundOrganicMouths(world, baseCorridors[i], baseCorridors[i].axis, 1.5, 18.0);
+        for (let k = 0; k < sliced.length; k++) {
+          world.sidewalkCorridors.push(sliced[k]);
+        }
+      }
+    }
   };
 
   // 1) Malha Oeste / Centro / Subúrbio / Orla Sul
@@ -367,11 +555,20 @@ export function getScaledUrbanCurbLiftAt(world, x, z) {
     const dzEdge = Math.min(z - b.minZ, b.maxZ - z);
     const dEdge = Math.min(dxEdge, dzEdge);
 
+    const org = getOrganicRoadElevationStateAt(world, x, z, _ORG_SLICE_SCRATCH);
+    if (org.inIsland || org.inAsphalt) {
+      return org.curbLift;
+    }
+
     // Rampa acessível de esquina (1.8m) vs guia padrão (0.45m)
     const isCornerRampZone = dxEdge < 6.5 && dzEdge < 6.5;
     const rampSpan = isCornerRampZone ? 1.8 : 0.45;
     if (dEdge < rampSpan) {
       return (dEdge / rampSpan) * ROAD.curbHeight;
+    }
+
+    if (org.inSidewalk) {
+      return ROAD.curbHeight;
     }
 
     // Faixa de 10m da calçada (+0.18m) descendo suavemente para +0.14m no miolo interno
@@ -382,6 +579,9 @@ export function getScaledUrbanCurbLiftAt(world, x, z) {
     if (dEdge < sw + 0.5) {
       const t = (dEdge - sw) / 0.5;
       return ROAD.curbHeight * (1 - t) + 0.14 * t;
+    }
+    if (org.hasFeature && org.curbLift > 0.14) {
+      return org.curbLift;
     }
     return 0.14;
   }

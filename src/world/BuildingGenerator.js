@@ -68,8 +68,19 @@ export {
 } from './buildings/BuildingStylesAndFacades.js';
 
 // ----------------------------------------------------------------------------
-// 3. Construtor de Edifícios Detalhados Art-Deco / Brutalistas & Terraços
+// 3. Construtor de Edifícios Detalhados Art-Deco / Brutalistas, Flatirons & LOD
 // ----------------------------------------------------------------------------
 export {
   buildDetailedBuilding
 } from './buildings/DetailedBuildingBuilder.js';
+
+export {
+  buildFlatironWedgeBuilding
+} from './buildings/FlatironWedgeBuilder.js';
+
+export {
+  ChunkedBuildingLodBatcher,
+  BUILDING_LOD_CHUNK_SIZE,
+  BUILDING_LOD1_DISTANCE,
+  BUILDING_LOD2_DISTANCE
+} from './buildings/ChunkedBuildingLodBatcher.js';
