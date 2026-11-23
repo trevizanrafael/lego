@@ -8,14 +8,28 @@ setupTestEnvironment();
 const { LEGO_COLORS, getLegoMaterial, createLegoBrick } = await import('../src/materials/LegoMaterials.js');
 const { Minifigure, MINIFIG_PRESETS } = await import('../src/entities/Minifigure.js');
 
-test('Materiais PBR Opção 2 (Gotham Noir) usam MeshPhysicalMaterial fosco/acetinado sem brilho infantil', () => {
+test('Materiais PBR Opção 2 (Seção 3.2): MeshStandardMaterial fosco por padrão e MeshPhysicalMaterial apenas em vidros/verniz', () => {
   const mat1 = getLegoMaterial(LEGO_COLORS.red);
-  const mat2 = getLegoMaterial(LEGO_COLORS.red);
+  const mat2 = getLegoMaterial(LEGO_COLORS.red, { studs: true, studStep: 0.6, castShadow: false, receiveShadow: false });
+  const matMicroVar = getLegoMaterial(0x9e1c21, { roughness: 0.59, metalness: 0.06 });
 
-  assert.equal(mat1, mat2, 'Materiais idênticos devem ser cacheados e reutilizados');
-  assert.ok(mat1 instanceof THREE.MeshPhysicalMaterial, 'Deve ser instância de MeshPhysicalMaterial');
+  assert.equal(mat1, mat2, 'Flags de malha (studs/shadows) devem ser ignoradas na chave do cache');
+  assert.equal(mat1, matMicroVar, 'Micro-variações dentro do passo de quantização devem reutilizar o mesmo material');
+  assert.ok(mat1 instanceof THREE.MeshStandardMaterial, 'Superfície opaca padrão deve ser MeshStandardMaterial');
+  assert.equal(mat1 instanceof THREE.MeshPhysicalMaterial, false, 'Superfície opaca comum não deve alocar MeshPhysicalMaterial');
   assert.ok(mat1.roughness >= 0.45, `Roughness (${mat1.roughness}) deve evitar brilho de plástico infantil`);
-  assert.ok(mat1.clearcoat <= 0.15, `Clearcoat (${mat1.clearcoat}) deve ser contido no padrão sombrio`);
+  assert.equal(mat1.clearcoat, 0, 'MeshStandardMaterial deve expor clearcoat numérico 0 por compatibilidade');
+
+  const matPhys = getLegoMaterial(LEGO_COLORS.red, { physical: true, clearcoat: 0.6 });
+  assert.ok(matPhys instanceof THREE.MeshPhysicalMaterial, 'physical: true / clearcoat >= 0.35 deve retornar MeshPhysicalMaterial');
+  assert.ok(matPhys.clearcoat >= 0.35, 'Carenagem automotiva preserva clearcoat brilhante');
+
+  const matGlass = getLegoMaterial(0x38bdf8, { transparent: true, opacity: 0.55 });
+  assert.ok(matGlass instanceof THREE.MeshPhysicalMaterial, 'Vidro translúcido real deve retornar MeshPhysicalMaterial');
+
+  const matAlmostOpaque = getLegoMaterial(LEGO_COLORS.blue, { transparent: true, opacity: 0.98 });
+  assert.equal(matAlmostOpaque.transparent, false, 'Opacity >= 0.96 deve ser normalizado para opaco');
+  assert.equal(matAlmostOpaque instanceof THREE.MeshPhysicalMaterial, false, 'Opaco normalizado deve usar MeshStandardMaterial');
 });
 
 test('createLegoBrick é studless por padrão na Opção 2 e suporta studs InstancedMesh quando studs: true', () => {
@@ -136,4 +150,42 @@ test('Animação de Rolamento Tático 360° deve girar no centro de massa sem nu
       `Pés não podem entrar na terra durante o rolamento (step=${step}, feetWorldY=${feetWorldY.toFixed(2)})`
     );
   }
+});
+
+test('MaterialRegistry.consolidateSceneMaterials deduplica materiais estáticos, protege dinâmicos e SignBoardHelper reutiliza faceMat', async () => {
+  const { consolidateSceneMaterials, quantizeColorHex } = await import('../src/graphics/MaterialRegistry.js');
+  const { createSignBoardMesh } = await import('../src/utils/SignBoardHelper.js');
+
+  assert.equal(quantizeColorHex(0x123456, 16), quantizeColorHex(0x113355, 16));
+
+  const s1 = createSignBoardMesh({ width: 8, height: 1.8, title: 'METRO M01', subText: 'LINHA CIRCULAR' });
+  const s2 = createSignBoardMesh({ width: 8, height: 1.8, title: 'METRO M01', subText: 'LINHA CIRCULAR' });
+  assert.equal(s1.material[4], s2.material[4], 'Placas idênticas devem compartilhar o mesmo faceMat em SIGN_FACE_MAT_CACHE');
+  assert.equal(s1.castShadow, false, 'Placa não deve projetar sombra');
+  assert.equal(s1.receiveShadow, false, 'Placa não deve receber sombra');
+
+  const scene = new THREE.Scene();
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mA = new THREE.MeshPhysicalMaterial({ color: 0x334455, roughness: 0.62, metalness: 0.05, clearcoat: 0.08 });
+  const mB = new THREE.MeshPhysicalMaterial({ color: 0x344556, roughness: 0.58, metalness: 0.08, clearcoat: 0.1 });
+  const mProtected = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.4 });
+  const mCarGlass = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.5 });
+  mCarGlass.userData.isVehicleGlass = true;
+
+  const meshA = new THREE.Mesh(geo, mA);
+  const meshB = new THREE.Mesh(geo, mB);
+  const meshDyn = new THREE.Mesh(geo, mProtected);
+  const meshGlass = new THREE.Mesh(geo, mCarGlass);
+  scene.add(meshA, meshB, meshDyn, meshGlass);
+
+  const stats = consolidateSceneMaterials(scene, {
+    atmosphere: { landmarkNeonMaterials: [mProtected] }
+  });
+
+  assert.equal(stats.beforeCount, 4);
+  assert.equal(stats.afterCount, 3, 'mA e mB devem colapsar em 1 único MeshStandardMaterial compartilhado');
+  assert.equal(meshA.material, meshB.material);
+  assert.equal(meshA.material instanceof THREE.MeshPhysicalMaterial, false, 'Deve rebaixar para MeshStandardMaterial');
+  assert.equal(meshDyn.material, mProtected, 'Material dinâmico da atmosfera deve permanecer intocado');
+  assert.equal(meshGlass.material, mCarGlass, 'Vidro automotivo deve permanecer protegido');
 });

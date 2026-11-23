@@ -1,26 +1,67 @@
 import * as THREE from 'three';
 import {
   makeFastBox,
-  mergeBufferGeometries,
   mergeColoredGeometries,
-  getSharedVertexColorMaterial,
   markAsSharedAsset
 } from './VertexColorBufferMerge.js';
+import {
+  getFamilyFacadeMaterialForStyle,
+  getStyleVertexTintColor
+} from './BuildingFamiliesAndAtlas.js';
 
-export const BUILDING_LOD_CHUNK_SIZE = 420;
-export const BUILDING_LOD1_DISTANCE = 470;
-export const BUILDING_LOD2_DISTANCE = 1380;
+export const BUILDING_LOD_CHUNK_SIZE = 320;
+export const BUILDING_LOD1_DISTANCE = 300;
+export const BUILDING_LOD2_DISTANCE = 1180;
 
-const NEON_MAT_CACHE = new Map();
+const _COLOR_CACHE = new Map();
+let _sharedTrimAndGroundVcMat = null;
+let _sharedFarSilhouetteVcMat = null;
+let _sharedNeonVcMat = null;
 
-function getSharedNeonMat(colorHex) {
-  let mat = NEON_MAT_CACHE.get(colorHex);
-  if (!mat) {
-    mat = new THREE.MeshBasicMaterial({ color: colorHex });
-    markAsSharedAsset(mat);
-    NEON_MAT_CACHE.set(colorHex, mat);
+function getCachedHexColor(hex) {
+  let col = _COLOR_CACHE.get(hex);
+  if (!col) {
+    col = new THREE.Color(hex);
+    _COLOR_CACHE.set(hex, col);
   }
-  return mat;
+  return col;
+}
+
+function getSharedTrimAndGroundMaterial() {
+  if (!_sharedTrimAndGroundVcMat) {
+    _sharedTrimAndGroundVcMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      roughness: 0.42,
+      metalness: 0.12
+    });
+    markAsSharedAsset(_sharedTrimAndGroundVcMat);
+  }
+  return _sharedTrimAndGroundVcMat;
+}
+
+function getSharedFarSilhouetteMaterial() {
+  if (!_sharedFarSilhouetteVcMat) {
+    _sharedFarSilhouetteVcMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      roughness: 0.58,
+      metalness: 0.12
+    });
+    markAsSharedAsset(_sharedFarSilhouetteVcMat);
+  }
+  return _sharedFarSilhouetteVcMat;
+}
+
+function getSharedNeonVertexColorMaterial() {
+  if (!_sharedNeonVcMat) {
+    _sharedNeonVcMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      vertexColors: true
+    });
+    markAsSharedAsset(_sharedNeonVcMat);
+  }
+  return _sharedNeonVcMat;
 }
 
 function makeLocalRotatedBox(w, h, d, lx, ly, lz, rotY = 0) {
@@ -34,10 +75,10 @@ function makeLocalRotatedBox(w, h, d, lx, ly, lz, rotY = 0) {
 }
 
 /**
- * Agrupador espacial 3-Níveis `THREE.LOD` para centenas de arranha-céus e prédios urbanos a 60 FPS:
- *  - Nível 0 (0..470m): Detalhe Art-Deco/Brutalista completo (fachada texturizada, cornijas, pilares, térreo, telões)
- *  - Nível 1 (470..1380m): Prismas simplificados com textura de janelas acesas (reduz ~88% dos triângulos distantes)
- *  - Nível 2 (>1380m): Silhueta sólida unificada em 1 único Draw Call por chunk de 420m!
+ * Agrupador espacial 3-Níveis `THREE.LOD` com Famílias Unificadas de Fachada + Vertex Colors (M2):
+ *  - Nível 0 (0..300m): Até 4 meshes de fachada por família + 1 `l0TrimAndGround` + 1 `l0Neon`
+ *  - Nível 1 (300..1180m): Até 4 prismas de família com textura de janelas acesas + vertex color
+ *  - Nível 2 (>1180m): Silhueta sólida unificada em 1 único Draw Call `MeshStandardMaterial` por chunk de 320m
  */
 export class ChunkedBuildingLodBatcher {
   constructor(chunkSize = BUILDING_LOD_CHUNK_SIZE) {
@@ -59,9 +100,8 @@ export class ChunkedBuildingLodBatcher {
         originX: (gx + 0.5) * this.chunkSize,
         originZ: (gz + 0.5) * this.chunkSize,
         l0FacadeByMat: new Map(),
-        l0TrimEntries: [],
-        l0GroundEntries: [],
-        l0NeonByHex: new Map(),
+        l0TrimAndGroundEntries: [],
+        l0NeonEntries: [],
         l1FacadeByMat: new Map(),
         l2SilhouetteEntries: [],
         count: 0
@@ -77,8 +117,8 @@ export class ChunkedBuildingLodBatcher {
       cz,
       yBase,
       rotY = 0,
+      styleKey = 'sapphire_glass',
       style,
-      facadeMat,
       bodyGeo,
       trimGeo,
       groundGeo,
@@ -96,58 +136,64 @@ export class ChunkedBuildingLodBatcher {
     const chunk = this._getChunk(cx, cz);
     const lx = cx - chunk.originX;
     const lz = cz - chunk.originZ;
+    const seedVariant = entry.seed ?? Math.abs(Math.round(cx * 7 + cz * 13 + h * 3));
+    const familyFacadeMat = getFamilyFacadeMaterialForStyle(styleKey, { useVertexColors: true });
+    const facadeTintColor = getStyleVertexTintColor(styleKey, seedVariant);
 
-    // 1. Nível 0 — Geometrias completas transformadas para o espaço local do chunk
-    if (bodyGeo && facadeMat) {
+    // 1. Nível 0 — Fachada na família compartilhada + acabamento/térreo unificados por Vertex Color
+    if (bodyGeo && familyFacadeMat) {
       if (Math.abs(rotY) > 1e-4) bodyGeo.rotateY(rotY);
       bodyGeo.translate(lx, yBase, lz);
-      let list0 = chunk.l0FacadeByMat.get(facadeMat);
+      let list0 = chunk.l0FacadeByMat.get(familyFacadeMat);
       if (!list0) {
         list0 = [];
-        chunk.l0FacadeByMat.set(facadeMat, list0);
+        chunk.l0FacadeByMat.set(familyFacadeMat, list0);
       }
-      list0.push(bodyGeo);
+      list0.push({ geo: bodyGeo, color: facadeTintColor });
     }
 
     if (trimGeo) {
       if (Math.abs(rotY) > 1e-4) trimGeo.rotateY(rotY);
       trimGeo.translate(lx, yBase, lz);
-      chunk.l0TrimEntries.push({
+      chunk.l0TrimAndGroundEntries.push({
         geo: trimGeo,
-        color: new THREE.Color(style.pillarHex)
+        color: getCachedHexColor(style?.pillarHex ?? 0x334155)
       });
     }
 
     if (groundGeo) {
       if (Math.abs(rotY) > 1e-4) groundGeo.rotateY(rotY);
       groundGeo.translate(lx, yBase, lz);
-      chunk.l0GroundEntries.push({
+      chunk.l0TrimAndGroundEntries.push({
         geo: groundGeo,
-        color: new THREE.Color(style.baseHex)
+        color: getCachedHexColor(style?.baseHex ?? 0x090d16)
       });
     }
 
-    // 2. Nível 1 — Prisma médio texturizado (1 ou 2 caixas limpas sem cornijas/térreo/HVAC)
-    if (facadeMat) {
-      let list1 = chunk.l1FacadeByMat.get(facadeMat);
+    // 2. Nível 1 — Prisma médio texturizado na mesma família com Vertex Color
+    if (familyFacadeMat) {
+      let list1 = chunk.l1FacadeByMat.get(familyFacadeMat);
       if (!list1) {
         list1 = [];
-        chunk.l1FacadeByMat.set(facadeMat, list1);
+        chunk.l1FacadeByMat.set(familyFacadeMat, list1);
       }
       if (lod1CustomGeo) {
         if (Math.abs(rotY) > 1e-4) lod1CustomGeo.rotateY(rotY);
         lod1CustomGeo.translate(lx, yBase, lz);
-        list1.push(lod1CustomGeo);
+        list1.push({ geo: lod1CustomGeo, color: facadeTintColor });
       } else if (useArtDecoSetbacks && tier1H > 4 && h - tier1H > 2.5) {
         const upperH = h - tier1H;
         const midCrownW = (w * 0.82 + topCrownW) * 0.5;
         const midCrownD = (d * 0.82 + topCrownD) * 0.5;
         list1.push(
-          makeLocalRotatedBox(w, tier1H, d, lx, yBase + tier1H * 0.5, lz, rotY),
-          makeLocalRotatedBox(midCrownW, upperH, midCrownD, lx, yBase + tier1H + upperH * 0.5, lz, rotY)
+          { geo: makeLocalRotatedBox(w, tier1H, d, lx, yBase + tier1H * 0.5, lz, rotY), color: facadeTintColor },
+          { geo: makeLocalRotatedBox(midCrownW, upperH, midCrownD, lx, yBase + tier1H + upperH * 0.5, lz, rotY), color: facadeTintColor }
         );
       } else {
-        list1.push(makeLocalRotatedBox(w, h, d, lx, yBase + h * 0.5, lz, rotY));
+        list1.push({
+          geo: makeLocalRotatedBox(w, h, d, lx, yBase + h * 0.5, lz, rotY),
+          color: facadeTintColor
+        });
       }
     }
 
@@ -161,7 +207,7 @@ export class ChunkedBuildingLodBatcher {
     }
     chunk.l2SilhouetteEntries.push({
       geo: silGeo,
-      color: new THREE.Color(style.wallHex)
+      color: getCachedHexColor(style?.wallHex ?? 0x09192e)
     });
 
     chunk.count++;
@@ -172,40 +218,23 @@ export class ChunkedBuildingLodBatcher {
     const chunk = this._getChunk(wx, wz);
     const lx = wx - chunk.originX;
     const lz = wz - chunk.originZ;
-    let list = chunk.l0NeonByHex.get(colorHex);
-    if (!list) {
-      list = [];
-      chunk.l0NeonByHex.set(colorHex, list);
-    }
-    list.push(makeLocalRotatedBox(w, h, d, lx, wy, lz, rotY));
+    chunk.l0NeonEntries.push({
+      geo: makeLocalRotatedBox(w, h, d, lx, wy, lz, rotY),
+      color: getCachedHexColor(colorHex)
+    });
   }
 
   flushToScene(scene) {
     if (!scene || this.chunks.size === 0) return 0;
 
-    const trimVcMat = getSharedVertexColorMaterial({
-      roughness: 0.34,
-      metalness: 0.16,
-      clearcoat: 0.06,
-      clearcoatRoughness: 0.45
-    });
-    const groundVcMat = getSharedVertexColorMaterial({
-      roughness: 0.38,
-      metalness: 0.1,
-      clearcoat: 0.04,
-      clearcoatRoughness: 0.5
-    });
-    const farVcMat = getSharedVertexColorMaterial({
-      roughness: 0.58,
-      metalness: 0.14,
-      clearcoat: 0.02,
-      clearcoatRoughness: 0.6
-    });
+    const trimAndGroundVcMat = getSharedTrimAndGroundMaterial();
+    const farVcMat = getSharedFarSilhouetteMaterial();
+    const neonVcMat = getSharedNeonVertexColorMaterial();
 
     let createdChunks = 0;
 
     for (const chunk of this.chunks.values()) {
-      if (chunk.count === 0 && chunk.l0NeonByHex.size === 0) continue;
+      if (chunk.count === 0 && chunk.l0NeonEntries.length === 0) continue;
 
       const lod = new THREE.LOD();
       lod.name = `BuildingChunkLOD_${chunk.key}`;
@@ -214,39 +243,29 @@ export class ChunkedBuildingLodBatcher {
 
       // Nível 0 (Detalhe Completo)
       const level0 = new THREE.Group();
-      for (const [facadeMat, geos] of chunk.l0FacadeByMat.entries()) {
-        if (!geos.length) continue;
-        const merged = mergeBufferGeometries(geos);
-        for (let i = 0; i < geos.length; i++) geos[i].dispose?.();
+      for (const [facadeMat, entries] of chunk.l0FacadeByMat.entries()) {
+        if (!entries.length) continue;
+        const merged = mergeColoredGeometries(entries);
         const m = new THREE.Mesh(merged, facadeMat);
         m.castShadow = true;
         m.receiveShadow = true;
+        m.userData.isChunkBuildingShadowCaster = true;
         level0.add(m);
       }
 
-      if (chunk.l0TrimEntries.length > 0) {
-        const mergedTrim = mergeColoredGeometries(chunk.l0TrimEntries);
-        for (let i = 0; i < chunk.l0TrimEntries.length; i++) chunk.l0TrimEntries[i].geo.dispose?.();
-        const tm = new THREE.Mesh(mergedTrim, trimVcMat);
-        tm.castShadow = false;
-        tm.receiveShadow = true;
-        level0.add(tm);
+      if (chunk.l0TrimAndGroundEntries.length > 0) {
+        const mergedTrimAndGround = mergeColoredGeometries(chunk.l0TrimAndGroundEntries);
+        const tgm = new THREE.Mesh(mergedTrimAndGround, trimAndGroundVcMat);
+        tgm.name = 'l0TrimAndGround';
+        tgm.castShadow = false;
+        tgm.receiveShadow = true;
+        level0.add(tgm);
       }
 
-      if (chunk.l0GroundEntries.length > 0) {
-        const mergedGround = mergeColoredGeometries(chunk.l0GroundEntries);
-        for (let i = 0; i < chunk.l0GroundEntries.length; i++) chunk.l0GroundEntries[i].geo.dispose?.();
-        const gm = new THREE.Mesh(mergedGround, groundVcMat);
-        gm.castShadow = false;
-        gm.receiveShadow = true;
-        level0.add(gm);
-      }
-
-      for (const [hex, geos] of chunk.l0NeonByHex.entries()) {
-        if (!geos.length) continue;
-        const mergedNeon = mergeBufferGeometries(geos);
-        for (let i = 0; i < geos.length; i++) geos[i].dispose?.();
-        const nm = new THREE.Mesh(mergedNeon, getSharedNeonMat(hex));
+      if (chunk.l0NeonEntries.length > 0) {
+        const mergedNeon = mergeColoredGeometries(chunk.l0NeonEntries);
+        const nm = new THREE.Mesh(mergedNeon, neonVcMat);
+        nm.name = 'l0Neon';
         nm.castShadow = false;
         nm.receiveShadow = false;
         level0.add(nm);
@@ -254,10 +273,9 @@ export class ChunkedBuildingLodBatcher {
 
       // Nível 1 (Média Distância)
       const level1 = new THREE.Group();
-      for (const [facadeMat, geos] of chunk.l1FacadeByMat.entries()) {
-        if (!geos.length) continue;
-        const merged1 = mergeBufferGeometries(geos);
-        for (let i = 0; i < geos.length; i++) geos[i].dispose?.();
+      for (const [facadeMat, entries] of chunk.l1FacadeByMat.entries()) {
+        if (!entries.length) continue;
+        const merged1 = mergeColoredGeometries(entries);
         const m1 = new THREE.Mesh(merged1, facadeMat);
         m1.castShadow = false;
         m1.receiveShadow = true;
@@ -268,7 +286,6 @@ export class ChunkedBuildingLodBatcher {
       const level2 = new THREE.Group();
       if (chunk.l2SilhouetteEntries.length > 0) {
         const merged2 = mergeColoredGeometries(chunk.l2SilhouetteEntries);
-        for (let i = 0; i < chunk.l2SilhouetteEntries.length; i++) chunk.l2SilhouetteEntries[i].geo.dispose?.();
         const m2 = new THREE.Mesh(merged2, farVcMat);
         m2.castShadow = false;
         m2.receiveShadow = false;

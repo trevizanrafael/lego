@@ -7,6 +7,7 @@ import { DestructibleManager } from './world/DestructibleManager.js';
 import { ThirdPersonController } from './controls/ThirdPersonController.js';
 import { LegoHud } from './ui/LegoHud.js';
 import { GraphicsPipeline } from './graphics/GraphicsPipeline.js';
+import { consolidateSceneMaterials } from './graphics/MaterialRegistry.js';
 import { prewarmAllRuntimeShaders } from './graphics/ShaderWarmupRig.js';
 import { HitchProfiler } from './debug/HitchProfiler.js';
 import { PerfOverlay, auditSceneGraph } from './debug/PerfOverlay.js';
@@ -191,7 +192,7 @@ class LegoCityGame {
       60,
       window.innerWidth / window.innerHeight,
       0.65,
-      7800 * WORLD_SCALE
+      3100
     );
 
     // Instancia Destruição Física, Cidade 3D Completa, Minifigura e Controlador 3ª Pessoa
@@ -212,6 +213,7 @@ class LegoCityGame {
     );
     this.controller.switchToHero(starterKey, true);
     this.hud._lastController = this.controller;
+    consolidateSceneMaterials(this.scene, this.world);
     const initialQuality =
       this._pendingGraphicsQuality || this.hud?.settings?.graphicsQuality || 'auto';
     this.graphicsPipeline = new GraphicsPipeline(

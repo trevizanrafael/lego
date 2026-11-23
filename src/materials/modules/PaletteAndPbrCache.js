@@ -89,44 +89,96 @@ export function disposeTransientObject3D(root) {
   });
 }
 
-function canonicalizeMaterialOptions(restOptions) {
-  const keys = Object.keys(restOptions);
-  if (keys.length === 0) return '';
-  keys.sort();
-  let out = '';
-  for (let i = 0; i < keys.length; i++) {
-    const k = keys[i];
-    const v = restOptions[k];
-    if (v !== undefined) {
-      out += `${k}:${v};`;
-    }
-  }
-  return out;
+export function quantizeColorHex(hex, step = 12) {
+  const c = typeof hex === 'number' ? hex : new THREE.Color(hex ?? 0xffffff).getHex();
+  if (step <= 1) return c & 0xffffff;
+  const r = Math.min(255, Math.max(0, Math.round(((c >> 16) & 0xff) / step) * step));
+  const g = Math.min(255, Math.max(0, Math.round(((c >> 8) & 0xff) / step) * step));
+  const b = Math.min(255, Math.max(0, Math.round((c & 0xff) / step) * step));
+  return (r << 16) | (g << 8) | b;
+}
+
+function quantizeStep(value, step, min = 0, max = 1) {
+  const q = Math.round(value / step) * step;
+  return Number(Math.min(max, Math.max(min, q)).toFixed(2));
 }
 
 /**
- * Retorna um MeshPhysicalMaterial com acabamento PBR urbano / ABS LEGO em cache compartilhado.
+ * Retorna um material PBR urbano otimizado em cache compartilhado:
+ * - `THREE.MeshPhysicalMaterial` apenas para vidros reais e carenagens automotivas (`physical: true`, `clearcoat >= 0.35` ou transparente real).
+ * - `THREE.MeshStandardMaterial` leve para todo o restante (95%+ das superfícies opacas), com quantização de parâmetros e ignorando flags de malha.
  */
 export function getLegoMaterial(colorHex, options = {}) {
-  const resolvedColor = colorHex ?? 0xffffff;
-  const { map, ...restOptions } = options;
-  const key = `${resolvedColor}_${map ? map.uuid : 'nomap'}_${canonicalizeMaterialOptions(restOptions)}`;
+  const resolvedColor =
+    typeof colorHex === 'number'
+      ? colorHex
+      : colorHex != null
+        ? new THREE.Color(colorHex).getHex()
+        : 0xffffff;
+
+  const qColor = quantizeColorHex(resolvedColor, 12);
+  const qRoughness = quantizeStep(options.roughness ?? 0.58, 0.15, 0, 1);
+  const qMetalness = quantizeStep(options.metalness ?? 0.08, 0.2, 0, 1);
+
+  const rawOpacity = options.opacity !== undefined ? options.opacity : (options.transparent ? 0.65 : 1.0);
+  const isTransparent = Boolean(options.transparent) && rawOpacity < 0.96;
+  const qOpacity = isTransparent ? quantizeStep(rawOpacity, 0.15, 0.05, 0.95) : 1;
+
+  const clearcoatVal = options.clearcoat ?? 0;
+  const usePhysical = options.physical === true || clearcoatVal >= 0.35 || isTransparent;
+  const qClearcoat = usePhysical
+    ? quantizeStep(options.clearcoat ?? (isTransparent ? 0.15 : 0.4), 0.15, 0, 1)
+    : 0;
+
+  const emissiveHex = options.emissive
+    ? typeof options.emissive === 'number'
+      ? options.emissive
+      : new THREE.Color(options.emissive).getHex()
+    : 0;
+  const qEmissive = emissiveHex ? quantizeColorHex(emissiveHex, 16) : 0;
+  const qEmissiveInt = emissiveHex ? quantizeStep(options.emissiveIntensity ?? 1.0, 0.25, 0, 8) : 0;
+  const mapKey = options.map ? options.map.uuid : 'nomap';
+  const side = options.side ?? THREE.FrontSide;
+  const vertexColors = Boolean(options.vertexColors);
+  const polyOffset = options.polygonOffset ? (options.polygonOffsetFactor ?? -1) : 0;
+
+  const key = `${usePhysical ? 'P' : 'S'}_${qColor}_r${qRoughness}_m${qMetalness}_cc${qClearcoat}_t${isTransparent ? qOpacity : 0}_e${qEmissive}_${qEmissiveInt}_${mapKey}_s${side}_vc${vertexColors ? 1 : 0}_po${polyOffset}`;
   if (materialCache.has(key)) {
     return materialCache.get(key);
   }
 
-  const mat = new THREE.MeshPhysicalMaterial({
+  const baseParams = {
     color: resolvedColor,
-    roughness: options.roughness ?? 0.58,
-    metalness: options.metalness ?? 0.08,
-    clearcoat: options.clearcoat ?? 0.06,
-    clearcoatRoughness: options.clearcoatRoughness ?? 0.48,
-    reflectivity: 0.35,
-    ...(options.transparent ? { transparent: true, opacity: options.opacity ?? 0.65 } : {}),
-    ...(options.emissive ? { emissive: options.emissive, emissiveIntensity: options.emissiveIntensity ?? 1.0 } : {}),
-    ...(options.map ? { map: options.map } : {})
-  });
-  const defaultBevel = options.transparent ? 0.2 : options.emissive ? 0.3 : 1.0;
+    roughness: qRoughness,
+    metalness: qMetalness,
+    side,
+    vertexColors,
+    ...(isTransparent ? { transparent: true, opacity: qOpacity } : { transparent: false, opacity: 1 }),
+    ...(emissiveHex ? { emissive: emissiveHex, emissiveIntensity: qEmissiveInt } : {}),
+    ...(options.map ? { map: options.map } : {}),
+    ...(options.polygonOffset
+      ? {
+          polygonOffset: true,
+          polygonOffsetFactor: options.polygonOffsetFactor ?? -1,
+          polygonOffsetUnits: options.polygonOffsetUnits ?? -1
+        }
+      : {})
+  };
+
+  let mat;
+  if (usePhysical) {
+    mat = new THREE.MeshPhysicalMaterial({
+      ...baseParams,
+      clearcoat: options.clearcoat ?? qClearcoat,
+      clearcoatRoughness: options.clearcoatRoughness ?? 0.48,
+      reflectivity: 0.35
+    });
+  } else {
+    mat = new THREE.MeshStandardMaterial(baseParams);
+    mat.clearcoat = 0;
+  }
+
+  const defaultBevel = isTransparent ? 0.2 : emissiveHex ? 0.3 : 1.0;
   applyLegoSurfaceFX(mat, { bevelWeight: options.bevelWeight ?? defaultBevel });
   markAsSharedAsset(mat);
 

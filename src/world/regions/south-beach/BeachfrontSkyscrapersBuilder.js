@@ -2,9 +2,14 @@ import * as THREE from 'three';
 import {
   LEGO_COLORS,
   getLegoMaterial,
-  configureCrispCanvasTexture
+  configureCrispCanvasTexture,
+  markAsSharedAsset
 } from '../../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeTranslatedBox } from '../../BuildingGenerator.js';
+import {
+  mergeBufferGeometries,
+  mergeColoredGeometries,
+  makeTranslatedBox
+} from '../../BuildingGenerator.js';
 import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 import {
   TROPICAL_WALL_KEYS,
@@ -24,13 +29,52 @@ const BEACH_FACADE_THEMES = {
   retail_arcade: { wall: '#1e293b', slab: '#f8fafc', glass: '#0f172a', glassHi: '#38bdf8', warmWin: '#fef08a', glow: '#facc15', rough: 0.22, metal: 0.24 }
 };
 
+const BEACH_THEME_FAMILY_MAP = {
+  azure_balcony: 'azure_balcony',
+  aqua_wave: 'azure_balcony',
+  sapphire_curtain: 'sapphire_curtain',
+  retail_arcade: 'sapphire_curtain',
+  gold_imperial: 'gold_imperial',
+  sand_terrace: 'gold_imperial',
+  coral_resort: 'coral_resort',
+  aurora_deco: 'coral_resort'
+};
+
 const _BEACH_FACADE_CACHE = new Map();
+let _SHARED_BEACH_SOLID_VC_MAT = null;
+let _SHARED_BEACH_BASIC_VC_MAT = null;
 
-function _getBeachFacadeMaterial(themeKey = 'azure_balcony', variant = 0) {
-  const key = `${themeKey}_${variant % 2}`;
-  if (_BEACH_FACADE_CACHE.has(key)) return _BEACH_FACADE_CACHE.get(key);
+function _getSharedBeachSolidVcMat() {
+  if (!_SHARED_BEACH_SOLID_VC_MAT) {
+    _SHARED_BEACH_SOLID_VC_MAT = markAsSharedAsset(
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        vertexColors: true,
+        roughness: 0.34,
+        metalness: 0.12
+      })
+    );
+  }
+  return _SHARED_BEACH_SOLID_VC_MAT;
+}
 
-  const th = BEACH_FACADE_THEMES[themeKey] || BEACH_FACADE_THEMES.azure_balcony;
+function _getSharedBeachBasicVcMat() {
+  if (!_SHARED_BEACH_BASIC_VC_MAT) {
+    _SHARED_BEACH_BASIC_VC_MAT = markAsSharedAsset(
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        vertexColors: true
+      })
+    );
+  }
+  return _SHARED_BEACH_BASIC_VC_MAT;
+}
+
+function _getBeachFacadeMaterial(themeKey = 'azure_balcony', _variant = 0) {
+  const familyKey = BEACH_THEME_FAMILY_MAP[themeKey] || 'azure_balcony';
+  if (_BEACH_FACADE_CACHE.has(familyKey)) return _BEACH_FACADE_CACHE.get(familyKey);
+
+  const th = BEACH_FACADE_THEMES[familyKey] || BEACH_FACADE_THEMES.azure_balcony;
   const dayCanvas = document.createElement('canvas');
   dayCanvas.width = 256;
   dayCanvas.height = 512;
@@ -47,14 +91,13 @@ function _getBeachFacadeMaterial(themeKey = 'azure_balcony', variant = 0) {
     nctx.fillStyle = '#000000';
     nctx.fillRect(0, 0, 256, 512);
 
-    const floors = themeKey === 'retail_arcade' ? 2 : 12;
-    const cols = themeKey === 'retail_arcade' ? 4 : 6;
+    const floors = 12;
+    const cols = 6;
     const rowH = 512 / floors;
     const colW = 256 / cols;
 
     for (let r = 0; r < floors; r++) {
       const y = r * rowH;
-      // Laje de varanda grossa e suave na textura (sem faixas finas que causem Moiré à distância!)
       ctx.fillStyle = th.slab;
       ctx.fillRect(0, y, 256, Math.max(8, rowH * 0.26));
 
@@ -65,7 +108,6 @@ function _getBeachFacadeMaterial(themeKey = 'azure_balcony', variant = 0) {
         const winY = y + rowH * 0.28;
         const winH = rowH * 0.66;
 
-        // Vidraça ampla de apartamento frente-mar com gradiente sutil (zero contraste binário duro)
         ctx.fillStyle = th.glass;
         ctx.fillRect(x + padX, winY, winW, winH);
         ctx.fillStyle = th.glassHi;
@@ -73,15 +115,13 @@ function _getBeachFacadeMaterial(themeKey = 'azure_balcony', variant = 0) {
         ctx.fillRect(x + padX + 2, winY + 2, winW * 0.42, winH - 4);
         ctx.globalAlpha = 1.0;
 
-        // Guarda-corpo de vidro da varanda na metade inferior da janela
         ctx.fillStyle = th.slab;
         ctx.globalAlpha = 0.42;
         ctx.fillRect(x + padX, winY + winH * 0.58, winW, 4);
         ctx.globalAlpha = 1.0;
 
-        const hash = ((r * 23 + c * 41 + variant * 17 + themeKey.length * 7) * 2654435761) >>> 0;
-        const isLit = themeKey === 'retail_arcade' ? hash % 10 < 8 : hash % 10 < 5;
-        if (isLit) {
+        const hash = ((r * 23 + c * 41 + familyKey.length * 7) * 2654435761) >>> 0;
+        if (hash % 10 < 5) {
           nctx.fillStyle = (hash % 7 === 0) ? th.glow : th.warmWin;
           nctx.fillRect(x + padX + 2, winY + 3, winW - 4, winH - 6);
         }
@@ -89,26 +129,27 @@ function _getBeachFacadeMaterial(themeKey = 'azure_balcony', variant = 0) {
     }
   }
 
-  const dayTex = configureCrispCanvasTexture(new THREE.CanvasTexture(dayCanvas), 8);
+  const dayTex = markAsSharedAsset(configureCrispCanvasTexture(new THREE.CanvasTexture(dayCanvas), 8));
   dayTex.wrapS = THREE.RepeatWrapping;
   dayTex.wrapT = THREE.RepeatWrapping;
 
-  const nightTex = configureCrispCanvasTexture(new THREE.CanvasTexture(nightCanvas), 8);
+  const nightTex = markAsSharedAsset(configureCrispCanvasTexture(new THREE.CanvasTexture(nightCanvas), 8));
   nightTex.wrapS = THREE.RepeatWrapping;
   nightTex.wrapT = THREE.RepeatWrapping;
 
-  const mat = new THREE.MeshPhysicalMaterial({
-    map: dayTex,
-    emissive: new THREE.Color(0xffffff),
-    emissiveMap: nightTex,
-    emissiveIntensity: 0.0,
-    roughness: th.rough,
-    metalness: th.metal,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.16
-  });
+  const mat = markAsSharedAsset(
+    new THREE.MeshStandardMaterial({
+      map: dayTex,
+      emissive: new THREE.Color(0xffffff),
+      emissiveMap: nightTex,
+      emissiveIntensity: 0.0,
+      roughness: th.rough,
+      metalness: th.metal
+    })
+  );
+  mat.userData.isDynamicMaterial = true;
 
-  _BEACH_FACADE_CACHE.set(key, mat);
+  _BEACH_FACADE_CACHE.set(familyKey, mat);
   return mat;
 }
 
@@ -142,54 +183,61 @@ function _makeUvScaledBox(w, h, d, lx, ly, lz, tileW = 24, tileH = 44) {
  */
 export class BeachTowerBuilder {
   constructor() {
-    this.lodGroups = [new Map(), new Map(), new Map()];
-    this.materials = new Map();
+    this.lodFacades = [new Map(), new Map(), new Map()];
+    this.lodSolids = [[], [], []];
+    this.lodBasics = [[], [], []];
   }
 
-  _getSolidMat(key, hex, opts = {}) {
-    if (this.materials.has(key)) return this.materials.get(key);
-    const mat = opts.basic
-      ? new THREE.MeshBasicMaterial({ color: hex })
-      : getLegoMaterial(hex, { roughness: opts.roughness ?? 0.28, metalness: opts.metalness ?? 0.08 });
-    this.materials.set(key, mat);
-    return mat;
-  }
-
-  _push(lodIdx, matKey, mat, geo) {
-    const map = this.lodGroups[lodIdx];
-    let entry = map.get(matKey);
-    if (!entry) {
-      entry = { mat, geos: [] };
-      map.set(matKey, entry);
+  addSolid(lodIdx, _key, hex, w, h, d, lx, ly, lz, opts = {}) {
+    const entry = {
+      geo: makeTranslatedBox(w, h, d, lx, ly, lz),
+      color: new THREE.Color(hex)
+    };
+    if (opts.basic) {
+      this.lodBasics[lodIdx].push(entry);
+    } else {
+      this.lodSolids[lodIdx].push(entry);
     }
-    entry.geos.push(geo);
-  }
-
-  addSolid(lodIdx, key, hex, w, h, d, lx, ly, lz, opts = {}) {
-    const mat = this._getSolidMat(key, hex, opts);
-    this._push(lodIdx, key, mat, makeTranslatedBox(w, h, d, lx, ly, lz));
   }
 
   addFacade(lodIdx, themeKey, variant, w, h, d, lx, ly, lz, tileW = 24, tileH = 44) {
-    const matKey = `facade_${themeKey}_${variant % 2}`;
     const mat = _getBeachFacadeMaterial(themeKey, variant);
-    this._push(lodIdx, matKey, mat, _makeUvScaledBox(w, h, d, lx, ly, lz, tileW, tileH));
+    const map = this.lodFacades[lodIdx];
+    let geos = map.get(mat);
+    if (!geos) {
+      geos = [];
+      map.set(mat, geos);
+    }
+    geos.push(_makeUvScaledBox(w, h, d, lx, ly, lz, tileW, tileH));
   }
 
   buildLOD(worldX, worldY, worldZ) {
     const lod = new THREE.LOD();
     lod.position.set(worldX, worldY, worldZ);
-    const distances = [0, 360, 1050];
+    const distances = [0, 320, 1020];
+    const solidVcMat = _getSharedBeachSolidVcMat();
+    const basicVcMat = _getSharedBeachBasicVcMat();
 
     for (let li = 0; li < 3; li++) {
       const grp = new THREE.Group();
-      for (const { mat, geos } of this.lodGroups[li].values()) {
+      for (const [mat, geos] of this.lodFacades[li].entries()) {
         if (!geos.length) continue;
-        const merged = mergeBufferGeometries(geos);
-        const mesh = new THREE.Mesh(merged, mat);
-        mesh.castShadow = li === 0;
-        mesh.receiveShadow = li < 2 && !mat.isMeshBasicMaterial;
-        grp.add(mesh);
+        const m = new THREE.Mesh(mergeBufferGeometries(geos), mat);
+        m.castShadow = li === 0;
+        m.receiveShadow = li < 2;
+        grp.add(m);
+      }
+      if (this.lodSolids[li].length > 0) {
+        const sm = new THREE.Mesh(mergeColoredGeometries(this.lodSolids[li]), solidVcMat);
+        sm.castShadow = li === 0;
+        sm.receiveShadow = li < 2;
+        grp.add(sm);
+      }
+      if (this.lodBasics[li].length > 0) {
+        const bm = new THREE.Mesh(mergeColoredGeometries(this.lodBasics[li]), basicVcMat);
+        bm.castShadow = false;
+        bm.receiveShadow = false;
+        grp.add(bm);
       }
       lod.addLevel(grp, distances[li]);
     }
@@ -198,8 +246,13 @@ export class BeachTowerBuilder {
 }
 
 export function registerBeachEmissiveMaterials(world) {
+  for (const k of ['azure_balcony', 'sapphire_curtain', 'gold_imperial', 'coral_resort']) {
+    _getBeachFacadeMaterial(k, 0);
+  }
   for (const mat of _BEACH_FACADE_CACHE.values()) {
-    world.southBeachEmissiveMats.push(mat);
+    if (!world.southBeachEmissiveMats.includes(mat)) {
+      world.southBeachEmissiveMats.push(mat);
+    }
   }
 }
 

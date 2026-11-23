@@ -25,4 +25,14 @@
 - Testes adicionados: [perf-overlay.test.js](../../tests/perf-overlay.test.js).
 - Baseline salvo em `docs/noite/bench-M0.json` e `docs/noite/M0/*.jpg` (`14.166` meshes, `1.198` materiais únicos, `4.956` shadowCasters, `506` transparentes, `camera.far = 23.400 m`).
 
-*(Os próximos marcos M2–M9 serão registrados abaixo conforme concluídos.)*
+## M2 — Unificação de Materiais, 4 Famílias de Fachada, Orçamento de Sombras & Pipeline Noir
+- Criados [MaterialRegistry.js](../../src/graphics/MaterialRegistry.js), [BuildingFamiliesAndAtlas.js](../../src/world/buildings/BuildingFamiliesAndAtlas.js), [ShadowBudgetController.js](../../src/graphics/ShadowBudgetController.js) e [perf-budget.test.js](../../tests/perf-budget.test.js).
+- Placas 3D empacotadas em páginas de Atlas `2048×256` em [SignBoardHelper.js](../../src/utils/SignBoardHelper.js) e fachadas costeiras consolidadas em 4 famílias `MeshStandardMaterial` em [BeachfrontSkyscrapersBuilder.js](../../src/world/regions/south-beach/BeachfrontSkyscrapersBuilder.js).
+- Resultados medidos (`docs/noite/bench-M2.json` vs `M0`):
+  - `shadowCasters`: **`4.956` → `186`** (`-96,2%`, `0` no preset Baixo + sombras de contato instanciadas).
+  - `physicalMaterials`: **`562` → `17`** (`-97,0%`).
+  - `uniqueMaterials`: **`1.198` → `216`** (`165` na cena base; será reduzido a `< 140` após batching estático/ocupantes no M3).
+  - `camera.far`: **`23.400 m` → `3.100 m`** com `FogExp2` Noir (`0.00082`), Bloom em meia-resolução e DRS piso `0.70`.
+  - Draw calls já caíram de `3.245 → 1.167` (`praia_sul`), `2.863 → 1.225` (`X_port_close`) e `1.885 → 636` (`ilha_prisao`).
+
+*(Os próximos marcos M3–M9 serão registrados abaixo conforme concluídos.)*

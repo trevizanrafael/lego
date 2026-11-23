@@ -1,5 +1,24 @@
 import * as THREE from 'three';
 import { markAsSharedAsset } from '../../materials/LegoMaterials.js';
+import {
+  BUILDING_FACADE_FAMILIES,
+  STYLE_TO_FAMILY_MAP,
+  getFacadeFamilyKeyForStyle,
+  getFamilyFacadeMaterialForStyle,
+  getStyleVertexTintColor,
+  ensureGeometryVertexColor,
+  getAllFacadeFamilyMaterials
+} from './BuildingFamiliesAndAtlas.js';
+
+export {
+  BUILDING_FACADE_FAMILIES,
+  STYLE_TO_FAMILY_MAP,
+  getFacadeFamilyKeyForStyle,
+  getFamilyFacadeMaterialForStyle,
+  getStyleVertexTintColor,
+  ensureGeometryVertexColor,
+  getAllFacadeFamilyMaterials
+};
 
 /**
  * Catálogo dos 8 Estilos Arquitetônicos de Edifícios do Centro Metropolitano
@@ -145,7 +164,6 @@ export const BUILDING_STYLES = {
 
 export const BUILDING_STYLE_KEYS = Object.keys(BUILDING_STYLES);
 
-const FACADE_MATERIAL_CACHE = new Map();
 const TRIM_MATERIAL_CACHE = new Map();
 
 export function getFastStandardMaterial(colorHex, roughness = 0.28, metalness = 0.15) {
@@ -165,144 +183,11 @@ export function getFastStandardMaterial(colorHex, roughness = 0.28, metalness = 
 }
 
 export function getCachedFacadeMaterials() {
-  return Array.from(FACADE_MATERIAL_CACHE.values());
+  return getAllFacadeFamilyMaterials();
 }
 
-export function getFacadeMaterial(styleKey, seedVariant = 0) {
-  const style = BUILDING_STYLES[styleKey] || BUILDING_STYLES.sapphire_glass;
-  const cacheKey = `${styleKey}_${seedVariant % 3}`;
-  if (FACADE_MATERIAL_CACHE.has(cacheKey)) {
-    return FACADE_MATERIAL_CACHE.get(cacheKey);
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-
-  // Segundo canvas exclusivo para emissiveMap (apenas retângulos de janelas acesas isLit sobre #000000!)
-  const emissiveCanvas = document.createElement('canvas');
-  emissiveCanvas.width = 256;
-  emissiveCanvas.height = 512;
-  const ectx = emissiveCanvas.getContext('2d');
-
-  ctx.fillStyle = style.bgColor;
-  ctx.fillRect(0, 0, 256, 512);
-  ectx.fillStyle = '#000000';
-  ectx.fillRect(0, 0, 256, 512);
-
-  const cols = 4;
-  const rows = 8;
-  const cellW = 256 / cols;
-  const cellH = 512 / rows;
-
-  for (let r = 0; r < rows; r++) {
-    const y = r * cellH;
-    ctx.fillStyle = style.spandrelColor;
-    ctx.fillRect(0, y, 256, 12);
-
-    ctx.fillStyle = style.mullionColor;
-    ctx.globalAlpha = 0.72;
-    ctx.fillRect(0, y + 9, 256, 3);
-    ctx.globalAlpha = 1;
-
-    for (let c = 0; c < cols; c++) {
-      const x = c * cellW;
-      ctx.fillStyle = style.mullionColor;
-      ctx.globalAlpha = 0.78;
-      ctx.fillRect(x, y, 6, cellH);
-      ctx.globalAlpha = 1;
-
-      const hash = ((r * 17 + c * 31 + seedVariant * 13) * 2654435761) >>> 0;
-      const isLit = (hash % 10) < 4;
-      const winX = x + 9;
-      const winY = y + 16;
-      const winW = cellW - 14;
-      const winH = cellH - 22;
-
-      if (isLit) {
-        const litColor = style.litColors[hash % style.litColors.length];
-        ctx.fillStyle = '#05070c';
-        ctx.fillRect(winX - 2, winY - 2, winW + 4, winH + 4);
-        ctx.fillStyle = litColor;
-        ctx.fillRect(winX, winY, winW, winH);
-        ctx.fillStyle = 'rgba(255, 251, 235, 0.72)';
-        ctx.fillRect(winX + 2, winY + 2, winW - 4, 5);
-        // Sombra interna de persiana / caixilho Art-Deco
-        ctx.fillStyle = 'rgba(8, 10, 16, 0.38)';
-        ctx.fillRect(winX, winY + (winH >> 1), winW, 2);
-
-        ectx.fillStyle = litColor;
-        ectx.fillRect(winX, winY, winW, winH);
-        ectx.fillStyle = '#fffbeb';
-        ectx.fillRect(winX + 2, winY + 2, winW - 4, 5);
-      } else {
-        ctx.fillStyle = '#04060a';
-        ctx.fillRect(winX - 2, winY - 2, winW + 4, winH + 4);
-        ctx.fillStyle = style.darkWinColor;
-        ctx.fillRect(winX, winY, winW, winH);
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.09)';
-        ctx.fillRect(winX + 3, winY + 3, 8, winH - 6);
-      }
-    }
-  }
-
-  // Fuligem urbana / escorrido de chuva ácido sutil nas fachadas Gotham (sem afetar emissiveMap)
-  if (typeof ctx.createLinearGradient === 'function') {
-    const sootTop = ctx.createLinearGradient(0, 0, 0, 96);
-    sootTop.addColorStop(0, 'rgba(4, 6, 10, 0.42)');
-    sootTop.addColorStop(1, 'rgba(4, 6, 10, 0)');
-    ctx.fillStyle = sootTop;
-    ctx.fillRect(0, 0, 256, 96);
-
-    const sootBot = ctx.createLinearGradient(0, 400, 0, 512);
-    sootBot.addColorStop(0, 'rgba(4, 6, 10, 0)');
-    sootBot.addColorStop(1, 'rgba(4, 6, 10, 0.46)');
-    ctx.fillStyle = sootBot;
-    ctx.fillRect(0, 400, 256, 112);
-  }
-  ctx.fillStyle = 'rgba(5, 7, 12, 0.16)';
-  for (let sx = 12; sx < 256; sx += 29) {
-    const streakLen = 70 + ((sx * 37 + seedVariant * 19) % 190);
-    ctx.fillRect(sx, 0, 2, streakLen);
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.generateMipmaps = true;
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.anisotropy = 8;
-  tex.needsUpdate = true;
-  markAsSharedAsset(tex);
-
-  const emissiveTex = new THREE.CanvasTexture(emissiveCanvas);
-  emissiveTex.colorSpace = THREE.SRGBColorSpace;
-  emissiveTex.generateMipmaps = true;
-  emissiveTex.wrapS = THREE.RepeatWrapping;
-  emissiveTex.wrapT = THREE.RepeatWrapping;
-  emissiveTex.minFilter = THREE.LinearMipmapLinearFilter;
-  emissiveTex.magFilter = THREE.LinearFilter;
-  emissiveTex.anisotropy = 8;
-  emissiveTex.needsUpdate = true;
-  markAsSharedAsset(emissiveTex);
-
-  // MeshPhysicalMaterial com emissiveMap + clearcoat garante reflexos vitrificados de dia e janelas acesas à noite!
-  const mat = new THREE.MeshPhysicalMaterial({
-    map: tex,
-    emissive: new THREE.Color(0xffffff),
-    emissiveMap: emissiveTex,
-    emissiveIntensity: 0.0,
-    roughness: style.roughness,
-    metalness: style.metalness,
-    clearcoat: style.roughness < 0.35 ? 0.65 : 0.22,
-    clearcoatRoughness: 0.1,
-    reflectivity: 0.78
-  });
-  markAsSharedAsset(mat);
-
-  FACADE_MATERIAL_CACHE.set(cacheKey, mat);
-  return mat;
+export function getFacadeMaterial(styleKey, _seedVariant = 0) {
+  // Fallback seguro sem vertexColors para malhas avulsas (ex.: ?worldScale=1 ou testes unitários isolados).
+  // No mundo 3x, ChunkedBuildingLodBatcher usa os 4 materiais de família com vertexColors: true.
+  return getFamilyFacadeMaterialForStyle(styleKey, { useVertexColors: false });
 }

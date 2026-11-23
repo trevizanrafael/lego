@@ -29,6 +29,7 @@ import { worldSpatialColliderMethods } from './core/WorldSpatialColliderGrid.js'
 import { worldBatchingAndFreezeMethods } from './core/WorldBatchingAndFreeze.js';
 import { worldElevationAndWaterMethods } from './core/WorldElevationAndWaterQueries.js';
 import { IS_SCALED_WORLD, ws } from './core/WorldLayoutScale.js';
+import { consolidateSceneMaterials } from '../graphics/MaterialRegistry.js';
 
 export { MAP_REGIONS, MAP_LANDMARKS, BUILDING_STYLES, BUILDING_STYLE_KEYS };
 
@@ -128,8 +129,9 @@ export class TestBlockWorld {
       staticPhaseChildren.add(this.scene.children[i]);
     }
 
-    // 13. Sub-regiões pré-alocadas (zero GC em getRegionAt) + Congelamento de Matrizes Estáticas!
+    // 13. Sub-regiões pré-alocadas (zero GC em getRegionAt) + Deduplicação Global de Materiais + Congelamento de Matrizes Estáticas!
     this._subRegions = this._createStaticSubRegions();
+    this.materialConsolidation = consolidateSceneMaterials(this.scene, this);
     this._freezeStaticSceneGraph(staticPhaseChildren);
   }
 

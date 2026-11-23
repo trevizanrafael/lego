@@ -1,0 +1,52 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { setupTestEnvironment } from './setup-env.js';
+
+setupTestEnvironment();
+
+const { DestructibleManager } = await import('../src/world/DestructibleManager.js');
+const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
+const { Minifigure } = await import('../src/entities/Minifigure.js');
+const { consolidateSceneMaterials } = await import('../src/graphics/MaterialRegistry.js');
+const { GraphicsPipeline } = await import('../src/graphics/GraphicsPipeline.js');
+const { auditSceneGraph } = await import('../src/debug/PerfOverlay.js');
+
+describe('ORÇAMENTO DE PERFORMANCE DE CENA (M2 — Materiais, Sombras & Alcance)', () => {
+  it('Mantém materiais únicos <= 200 (meta < 150), shadowCasters < 400 e camera.far <= 4500', () => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.65, 3100);
+    camera.position.set(0, 4, -276);
+
+    const dest = new DestructibleManager(scene);
+    const world = new TestBlockWorld(scene, dest);
+    const fig = new Minifigure('cv_marretao');
+    scene.add(fig.root);
+
+    consolidateSceneMaterials(scene, world);
+
+    const mockRenderer = { shadowMap: { enabled: true, autoUpdate: true, needsUpdate: false } };
+    const pipeline = new GraphicsPipeline(mockRenderer, scene, camera, world, 'medium');
+
+    const audit = auditSceneGraph(scene, camera);
+
+    assert.ok(
+      audit.uniqueMaterials <= 200,
+      `Materiais únicos da cena devem ser <= 200 (atual: ${audit.uniqueMaterials})`
+    );
+    assert.ok(
+      audit.shadowCasters < 400,
+      `Shadow casters ativos devem ser < 400 (atual: ${audit.shadowCasters})`
+    );
+    assert.ok(
+      audit.cameraFar <= 4500,
+      `camera.far em solo deve ser <= 4500m (atual: ${audit.cameraFar})`
+    );
+    assert.ok(
+      audit.fogDensity >= 0.0005,
+      `Densidade da névoa Noir deve ser >= 0.0005 (atual: ${audit.fogDensity})`
+    );
+
+    pipeline.dispose();
+  });
+});

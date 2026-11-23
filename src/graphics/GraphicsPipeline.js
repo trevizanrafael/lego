@@ -11,15 +11,14 @@ import {
   applyLegoSceneShaderEnhancements,
   setLegoShaderQualityFX
 } from '../materials/LegoMaterials.js';
-import { WORLD_SCALE, IS_SCALED_WORLD } from '../world/core/WorldLayoutScale.js';
+import { WORLD_SCALE } from '../world/core/WorldLayoutScale.js';
+import { ShadowBudgetController } from './ShadowBudgetController.js';
 
 export const GRAPHICS_PRESETS = ['auto', 'low', 'medium', 'ultra'];
 
 /**
  * Shader cinematográfico "Gotham Noir" (Estilo LEGO DC Super-Villains / Arkham):
- * - Dessaturação seletiva (mata cores infantis preservando vermelho-sangue, âmbar de sódio e violeta neon)
- * - Curva S de contraste com sombras densas (crushed blacks) e split-toning frio nas sombras
- * - Vinheta tática nas bordas + micro-grão de filme sutil
+ * Dessaturação seletiva, curva S de contraste, split-toning frio, vinheta e micro-grão.
  */
 export const GOTHAM_NOIR_SHADER = {
   uniforms: {
@@ -51,34 +50,24 @@ export const GOTHAM_NOIR_SHADER = {
     void main() {
       vec4 texel = texture2D(tDiffuse, vUv);
       vec3 col = texel.rgb;
-
       float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
 
-      // Preserva vermelhos arteriais, âmbar quente de sódio e violeta-neon das facções
       float redDominance = clamp((col.r - max(col.g, col.b)) * 2.6, 0.0, 1.0);
       float amberDominance = clamp((min(col.r, col.g * 1.25) - col.b) * 1.8, 0.0, 1.0);
       float violetDominance = clamp((min(col.r, col.b) - col.g) * 2.2, 0.0, 1.0);
       float accentKeep = clamp(max(redDominance, max(amberDominance * 0.75, violetDominance)), 0.0, 0.85);
 
-      float desatAmt = uDesaturate * (1.0 - accentKeep);
-      col = mix(col, vec3(luma), desatAmt);
-
-      // Curva de contraste pesada + esmagamento sutil de sombras
+      col = mix(col, vec3(luma), uDesaturate * (1.0 - accentKeep));
       col = clamp((col - 0.46) * uContrast + 0.44, 0.0, 1.0);
 
-      // Split-toning: sombras em azul-petróleo/chumbo frio de Gotham, luzes levemente âmbar-sujo
       float shadowMask = 1.0 - smoothstep(0.0, 0.45, luma);
       float highlightMask = smoothstep(0.55, 1.0, luma);
-      col += vec3(-0.010, 0.008, 0.022) * shadowMask;
-      col += vec3(0.018, 0.008, -0.010) * highlightMask;
+      col += vec3(-0.010, 0.008, 0.022) * shadowMask + vec3(0.018, 0.008, -0.010) * highlightMask;
 
-      // Vinheta cinematográfica escura nas bordas da lente
       vec2 centered = vUv - 0.5;
       float distSq = dot(centered, centered) * 2.15;
-      float vig = clamp(1.0 - distSq * uVignette, 0.38, 1.0);
-      col *= vig;
+      col *= clamp(1.0 - distSq * uVignette, 0.38, 1.0);
 
-      // Pulso curto branco-frio dessaturado e contrastado ao eliminar alvo (estilo GTA V)
       if (uKillFlash > 0.0) {
         luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
         col = mix(col, vec3(luma), uKillFlash * 0.78);
@@ -87,60 +76,37 @@ export const GOTHAM_NOIR_SHADER = {
         col = clamp((col - 0.5) * (1.0 + 0.32 * edgeWeight) + 0.5, 0.0, 1.0);
       }
 
-      // Micro-grão sutil de película urbana
       float noise = fract(sin(dot(vUv * vec2(1280.0, 720.0) + fract(uTime * 0.37), vec2(12.9898, 78.233))) * 43758.5453);
       col += (noise - 0.5) * uGrain * (0.4 + 0.6 * shadowMask);
-
       gl_FragColor = vec4(clamp(col, 0.0, 1.0), texel.a);
     }
   `
 };
 
-const PRESET_PROFILES = {
+export const PRESET_PROFILES = {
   low: {
-    useComposer: false,
-    gtao: false,
-    bloom: false,
-    noirGrade: false,
-    aa: 'none',
-    pixelRatioCap: 1.0,
-    shadowMapSize: 1024,
-    shaderFx: false,
-    microBevel: 0.0,
-    bloomStrength: 0.0,
-    bloomRadius: 0.2
+    useComposer: false, gtao: false, bloom: false, noirGrade: false, aa: 'none',
+    pixelRatioCap: 1.0, shadowMapSize: 1024, dynamicShadows: false,
+    cameraFar: 2600, fogDensity: 0.00095,
+    shaderFx: false, microBevel: 0.0, bloomStrength: 0.0, bloomRadius: 0.2
   },
   medium: {
-    useComposer: true,
-    gtao: false,
-    bloom: true,
-    noirGrade: true,
-    aa: 'fxaa',
-    pixelRatioCap: 1.2,
-    shadowMapSize: 1536,
-    shaderFx: true,
-    microBevel: 0.85,
-    bloomStrength: 0.42,
-    bloomRadius: 0.34
+    useComposer: true, gtao: false, bloom: true, noirGrade: true, aa: 'fxaa',
+    pixelRatioCap: 1.0, shadowMapSize: 1536, dynamicShadows: true,
+    cameraFar: 3100, fogDensity: 0.00082,
+    shaderFx: true, microBevel: 0.85, bloomStrength: 0.42, bloomRadius: 0.34
   },
   ultra: {
-    useComposer: true,
-    gtao: true,
-    bloom: true,
-    noirGrade: true,
-    aa: 'smaa',
-    pixelRatioCap: 1.5,
-    shadowMapSize: 2048,
-    shaderFx: true,
-    microBevel: 1.0,
-    bloomStrength: 0.48,
-    bloomRadius: 0.38
+    useComposer: true, gtao: true, bloom: true, noirGrade: true, aa: 'smaa',
+    pixelRatioCap: 1.5, shadowMapSize: 2048, dynamicShadows: true,
+    cameraFar: 4200, fogDensity: 0.00062,
+    shaderFx: true, microBevel: 1.0, bloomStrength: 0.48, bloomRadius: 0.38
   }
 };
 
 /**
- * Pipeline gráfico unificado HDR com EffectComposer, GTAO, UnrealBloom, SMAA/FXAA e DRS (Auto 60 FPS).
- * Opera com fallback direto seguro em ambientes headless sem contexto WebGL2.
+ * Pipeline gráfico HDR com EffectComposer, GTAO, UnrealBloom meia-resolução, SMAA/FXAA,
+ * Orçamento Dinâmico de Sombras (< 320 casters) e DRS (Auto 60 FPS, piso 0.70).
  */
 export class GraphicsPipeline {
   constructor(renderer, scene, camera, world = null, initialPreset = 'auto') {
@@ -157,12 +123,10 @@ export class GraphicsPipeline {
       Boolean(this.renderer) &&
       typeof this.renderer.getContext === 'function' &&
       Boolean(this.renderer.getContext());
-
     this.isHeadless = !hasDomAndGl;
 
-    // Estado DRS (Auto 60 FPS)
     this._drsScale = 1.0;
-    this._autoTier = 2; // 0: low, 1: medium sans-bloom, 2: bloom+fxaa, 3: gtao+bloom+fxaa
+    this._autoTier = 2; // 0: low-fx, 1: medium sans-bloom, 2: bloom+fxaa, 3: gtao+bloom+fxaa
     this._emaDt = 1 / 60;
     this._autoEvalTimer = 0;
     this._autoCooldown = 2.0;
@@ -177,7 +141,6 @@ export class GraphicsPipeline {
     this.smaaPass = null;
     this._noirTime = 0;
 
-    // Estado do pulso pós-FX de Kill estilo GTA V (0.18s sem acumular)
     this.killFlashEnabled = true;
     this._killFlashTimer = 0;
     this._killFlashDuration = 0.18;
@@ -187,23 +150,44 @@ export class GraphicsPipeline {
     this._usingCssKillFlashFallback = false;
 
     this._activeProfile = { ...PRESET_PROFILES.medium };
+    if (this.scene) applyLegoSceneShaderEnhancements(this.scene);
 
-    if (this.scene) {
-      applyLegoSceneShaderEnhancements(this.scene);
-      if (IS_SCALED_WORLD && this.scene.fog?.isFogExp2) {
-        this.scene.fog.density = 0.00042 / WORLD_SCALE;
-      }
-    }
-    if (IS_SCALED_WORLD && this.camera?.isPerspectiveCamera && this.camera.far < 7800 * WORLD_SCALE) {
-      this.camera.far = 7800 * WORLD_SCALE;
-      this.camera.updateProjectionMatrix?.();
-    }
+    this.shadowBudget =
+      this.scene && this.world
+        ? new ShadowBudgetController(this.renderer, this.scene, this.world)
+        : null;
 
-    if (!this.isHeadless) {
-      this._initComposer();
-    }
-
+    if (!this.isHeadless) this._initComposer();
     this.setPreset(this.preset);
+  }
+
+  attachShadowBudget(world = this.world) {
+    this.world = world || this.world;
+    if (!this.scene) return null;
+    this.shadowBudget?.dispose?.();
+    this.shadowBudget = new ShadowBudgetController(this.renderer, this.scene, this.world);
+    this.shadowBudget.update(
+      0, this._resolveFocusPosition(), this.preset, this._resolveHorizontalSpeed(), this._autoTier
+    );
+    return this.shadowBudget;
+  }
+
+  _resolveFocusPosition() {
+    const ctl = this.world?.destructibles?.hud?._lastController;
+    return ctl?.position || this.world?.livingCity?._lastPlayerPos || this.camera?.position || null;
+  }
+
+  _resolveHorizontalSpeed() {
+    const ctl = this.world?.destructibles?.hud?._lastController;
+    return typeof ctl?.getHorizontalSpeed === 'function' ? ctl.getHorizontalSpeed() : 0;
+  }
+
+  _syncBloomHalfResSize(w, h, pr) {
+    if (!this.bloomPass) return;
+    this.bloomPass.setSize(
+      Math.max(1, Math.floor(w * pr * 0.5)),
+      Math.max(1, Math.floor(h * pr * 0.5))
+    );
   }
 
   _initComposer() {
@@ -219,17 +203,13 @@ export class GraphicsPipeline {
       let hdrTarget = null;
       try {
         hdrTarget = new THREE.WebGLRenderTarget(ew, eh, {
-          type: THREE.HalfFloatType,
-          depthBuffer: true,
-          stencilBuffer: false
+          type: THREE.HalfFloatType, depthBuffer: true, stencilBuffer: false
         });
       } catch (_rtErr) {
         hdrTarget = null;
       }
 
-      this.composer = hdrTarget
-        ? new EffectComposer(this.renderer, hdrTarget)
-        : new EffectComposer(this.renderer);
+      this.composer = hdrTarget ? new EffectComposer(this.renderer, hdrTarget) : new EffectComposer(this.renderer);
       this.composer.setPixelRatio(pr);
       this.composer.setSize(w, h);
 
@@ -237,10 +217,8 @@ export class GraphicsPipeline {
       this.composer.addPass(this.renderPass);
 
       this.bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(Math.max(1, Math.floor(w * pr)), Math.max(1, Math.floor(h * pr))),
-        0.44,
-        0.36,
-        0.86
+        new THREE.Vector2(Math.max(1, Math.floor(w * pr * 0.5)), Math.max(1, Math.floor(h * pr * 0.5))),
+        0.44, 0.36, 0.86
       );
       this.composer.addPass(this.bloomPass);
 
@@ -268,19 +246,8 @@ export class GraphicsPipeline {
       const gtao = new GTAOPass(this.scene, this.camera, ew, eh);
       gtao.output = GTAOPass.OUTPUT.Default;
       gtao.blendIntensity = 0.56;
-      gtao.updateGtaoMaterial({
-        radius: 0.62,
-        distanceExponent: 1.75,
-        thickness: 1.5,
-        scale: 1.0,
-        samples: 12
-      });
-      gtao.updatePdMaterial({
-        lumaPhi: 8,
-        depthPhi: 3,
-        normalPhi: 3,
-        radius: 5
-      });
+      gtao.updateGtaoMaterial({ radius: 0.62, distanceExponent: 1.75, thickness: 1.5, scale: 1.0, samples: 12 });
+      gtao.updatePdMaterial({ lumaPhi: 8, depthPhi: 3, normalPhi: 3, radius: 5 });
       this.composer.insertPass(gtao, 1);
       this.gtaoPass = gtao;
     } catch (err) {
@@ -293,9 +260,7 @@ export class GraphicsPipeline {
     if (this.smaaPass || !this.composer) return;
     try {
       const pr = this._computeEffectivePixelRatio();
-      const ew = Math.max(1, Math.floor(this.width * pr));
-      const eh = Math.max(1, Math.floor(this.height * pr));
-      const smaa = new SMAAPass(ew, eh);
+      const smaa = new SMAAPass(Math.max(1, Math.floor(this.width * pr)), Math.max(1, Math.floor(this.height * pr)));
       this.composer.addPass(smaa);
       this.smaaPass = smaa;
     } catch (err) {
@@ -306,48 +271,68 @@ export class GraphicsPipeline {
 
   _computeEffectivePixelRatio() {
     const rawDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-    const cap = this._activeProfile?.pixelRatioCap ?? 1.25;
+    const cap = this._activeProfile?.pixelRatioCap ?? 1.0;
     const scale = this.preset === 'auto' ? this._drsScale : 1.0;
-    return Math.max(0.75, Math.min(rawDpr * scale, cap));
+    return Math.max(0.70, Math.min(rawDpr * scale, cap));
   }
 
   _resolveAutoProfile() {
-    if (this._autoTier <= 0) return PRESET_PROFILES.low;
+    if (this._autoTier <= 0) {
+      return { ...PRESET_PROFILES.low, pixelRatioCap: 1.0, dynamicShadows: true, cameraFar: 3100, fogDensity: 0.00082 };
+    }
     if (this._autoTier === 1) {
-      return {
-        ...PRESET_PROFILES.medium,
-        bloom: false,
-        shadowMapSize: 1024,
-        pixelRatioCap: 1.05
-      };
+      return { ...PRESET_PROFILES.medium, bloom: false, shadowMapSize: 1024, pixelRatioCap: 1.0 };
     }
     if (this._autoTier === 2) {
       return {
-        ...PRESET_PROFILES.medium,
-        shadowMapSize: 2048,
-        pixelRatioCap: 1.3,
-        microBevel: 1.0,
-        bloomStrength: 0.36,
-        bloomRadius: 0.3
+        ...PRESET_PROFILES.medium, shadowMapSize: 1536, pixelRatioCap: 1.0,
+        microBevel: 1.0, bloomStrength: 0.36, bloomRadius: 0.3
       };
     }
-    return {
-      ...PRESET_PROFILES.ultra,
-      aa: 'fxaa',
-      pixelRatioCap: 1.35
-    };
+    return { ...PRESET_PROFILES.ultra, aa: 'fxaa', pixelRatioCap: 1.25, cameraFar: 3100, fogDensity: 0.00082 };
+  }
+
+  updateCameraAndFogForAltitude(altitudeY = this.camera?.position?.y ?? 0, dt = 0.016) {
+    const p = this._activeProfile || PRESET_PROFILES.medium;
+    if (this.scene) {
+      if (this.scene.fog?.isFogExp2) {
+        this.scene.fog.density = p.fogDensity;
+      } else if (!this.scene.fog) {
+        const bgHex = this.scene.background?.isColor ? this.scene.background.getHex() : 0x0a101a;
+        this.scene.fog = new THREE.FogExp2(bgHex, p.fogDensity);
+      }
+    }
+    if (this.camera?.isPerspectiveCamera) {
+      const baseFar = p.cameraFar ?? 3100;
+      const highFar = Math.max(baseFar, 4600);
+      const altT = altitudeY > 220 ? THREE.MathUtils.clamp((altitudeY - 220) / 190, 0, 1) : 0;
+      const targetFar = baseFar + (highFar - baseFar) * altT;
+      const nextFar = dt > 0 ? this.camera.far + (targetFar - this.camera.far) * Math.min(1, dt * 6.0) : targetFar;
+
+      if (Math.abs(nextFar - this.camera.far) > 0.25) {
+        this.camera.far = Math.abs(targetFar - nextFar) < 1.0 ? targetFar : nextFar;
+        this.camera.updateProjectionMatrix?.();
+      }
+      const celRoot = this.world?.atmosphere?.celestialRoot;
+      if (celRoot) {
+        const skyScale = Math.min(1.0, (this.camera.far * 0.88) / Math.max(1, 6600 * WORLD_SCALE));
+        celRoot.scale.setScalar(skyScale);
+        if (this.world.atmosphere.starMat) {
+          this.world.atmosphere.starMat.size = 6.5 * WORLD_SCALE * skyScale;
+        }
+      }
+    }
   }
 
   setPreset(preset) {
     const next = GRAPHICS_PRESETS.includes(preset) ? preset : 'auto';
     this.preset = next;
+    this._drsScale = 1.0;
     if (next === 'auto') {
-      this._drsScale = 1.0;
       this._autoTier = 2;
       this._autoCooldown = 2.0;
       this._activeProfile = this._resolveAutoProfile();
     } else {
-      this._drsScale = 1.0;
       this._activeProfile = { ...PRESET_PROFILES[next] };
     }
     this._applyActiveProfile();
@@ -356,17 +341,21 @@ export class GraphicsPipeline {
   _applyActiveProfile() {
     const p = this._activeProfile;
     setLegoShaderQualityFX({ enabled: p.shaderFx, microBevel: p.microBevel });
+    this.updateCameraAndFogForAltitude(this.camera?.position?.y ?? 0, 0);
 
     if (this.world?.sunLight?.shadow) {
       const sm = this.world.sunLight.shadow;
       if (sm.mapSize && sm.mapSize.width !== p.shadowMapSize) {
         sm.mapSize.set(p.shadowMapSize, p.shadowMapSize);
-        if (sm.map) {
-          sm.map.dispose();
-          sm.map = null;
-        }
+        if (sm.map) { sm.map.dispose(); sm.map = null; }
         sm.needsUpdate = true;
       }
+    }
+
+    if (this.shadowBudget) {
+      this.shadowBudget.update(
+        0, this._resolveFocusPosition(), this.preset, this._resolveHorizontalSpeed(), this._autoTier
+      );
     }
 
     if (this.isHeadless || !this.renderer) return;
@@ -374,84 +363,70 @@ export class GraphicsPipeline {
     const pr = this._computeEffectivePixelRatio();
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(this.width, this.height);
-
     if (!this.composer) return;
 
     this.composer.setPixelRatio(pr);
     this.composer.setSize(this.width, this.height);
+    this._syncBloomHalfResSize(this.width, this.height, pr);
 
-    if (p.useComposer && p.gtao) {
-      this._ensureGtaoPass();
-    }
-    if (this.gtaoPass) {
-      this.gtaoPass.enabled = Boolean(p.useComposer && p.gtao);
-    }
+    if (p.useComposer && p.gtao) this._ensureGtaoPass();
+    if (this.gtaoPass) this.gtaoPass.enabled = Boolean(p.useComposer && p.gtao);
 
     if (this.bloomPass) {
       this.bloomPass.enabled = Boolean(p.useComposer && p.bloom);
       this.bloomPass.strength = p.bloomStrength;
       this.bloomPass.radius = p.bloomRadius;
     }
-    if (this.noirPass) {
-      this.noirPass.enabled = Boolean(p.useComposer && p.noirGrade !== false);
-    }
+    if (this.noirPass) this.noirPass.enabled = Boolean(p.useComposer && p.noirGrade !== false);
 
-    if (p.useComposer && p.aa === 'smaa') {
-      this._ensureSmaaPass();
-    }
+    if (p.useComposer && p.aa === 'smaa') this._ensureSmaaPass();
     if (this.fxaaPass) {
       const fxaaOn = Boolean(p.useComposer && p.aa === 'fxaa');
       this.fxaaPass.enabled = fxaaOn;
       if (fxaaOn) {
         this.fxaaPass.material.uniforms.resolution.value.set(
-          1 / Math.max(1, this.width * pr),
-          1 / Math.max(1, this.height * pr)
+          1 / Math.max(1, this.width * pr), 1 / Math.max(1, this.height * pr)
         );
       }
     }
-    if (this.smaaPass) {
-      this.smaaPass.enabled = Boolean(p.useComposer && p.aa === 'smaa');
-    }
+    if (this.smaaPass) this.smaaPass.enabled = Boolean(p.useComposer && p.aa === 'smaa');
   }
 
   _updateAutoDRS(dt) {
-    if (this.preset !== 'auto' || this.isHeadless) return;
+    if (this.preset !== 'auto') return;
     const clampedDt = Math.max(0.004, Math.min(0.08, dt || 0.016));
-    this._emaDt = this._emaDt * 0.92 + clampedDt * 0.08;
-
+    this._emaDt = this._emaDt * 0.90 + clampedDt * 0.10;
     if (this._autoCooldown > 0) {
       this._autoCooldown -= clampedDt;
       return;
     }
-
     this._autoEvalTimer += clampedDt;
-    if (this._autoEvalTimer < 1.5) return;
+    if (this._autoEvalTimer < 0.8) return;
     this._autoEvalTimer = 0;
 
     const emaMs = this._emaDt * 1000;
     let changed = false;
-
-    if (emaMs > 18.2) {
-      if (this._drsScale > 0.78) {
-        this._drsScale = Number(Math.max(0.75, this._drsScale - 0.12).toFixed(2));
+    if (emaMs > 16.6) {
+      if (this._drsScale > 0.70) {
+        this._drsScale = Number(Math.max(0.70, this._drsScale - 0.10).toFixed(2));
         changed = true;
       } else if (this._autoTier > 0) {
         this._autoTier -= 1;
-        this._drsScale = 0.9;
+        this._drsScale = 0.85;
         changed = true;
       }
-    } else if (emaMs < 13.0) {
+    } else if (emaMs < 13.2) {
       if (this._drsScale < 1.0) {
-        this._drsScale = Number(Math.min(1.0, this._drsScale + 0.1).toFixed(2));
+        this._drsScale = Number(Math.min(1.0, this._drsScale + 0.10).toFixed(2));
         changed = true;
-      } else if (this._autoTier < 2 && emaMs < 11.2) {
+      } else if (this._autoTier < 3 && emaMs < 11.2) {
         this._autoTier += 1;
         changed = true;
       }
     }
 
     if (changed) {
-      this._autoCooldown = 4.0;
+      this._autoCooldown = 1.2;
       this._activeProfile = this._resolveAutoProfile();
       this._applyActiveProfile();
     }
@@ -465,15 +440,14 @@ export class GraphicsPipeline {
     const pr = this._computeEffectivePixelRatio();
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(this.width, this.height);
-
     if (this.composer) {
       this.composer.setPixelRatio(pr);
       this.composer.setSize(this.width, this.height);
+      this._syncBloomHalfResSize(this.width, this.height, pr);
     }
     if (this.fxaaPass) {
       this.fxaaPass.material.uniforms.resolution.value.set(
-        1 / Math.max(1, this.width * pr),
-        1 / Math.max(1, this.height * pr)
+        1 / Math.max(1, this.width * pr), 1 / Math.max(1, this.height * pr)
       );
     }
   }
@@ -552,12 +526,18 @@ export class GraphicsPipeline {
 
   render(dt = 0.016) {
     this._updateKillFlash(dt);
-    if (this.isHeadless || !this.renderer || !this.scene || !this.camera) return;
     this._updateAutoDRS(dt);
-    this._noirTime += Math.min(0.05, dt || 0.016);
-    if (this.noirPass?.uniforms?.uTime) {
-      this.noirPass.uniforms.uTime.value = this._noirTime;
+    this.updateCameraAndFogForAltitude(this.camera?.position?.y ?? 0, dt);
+
+    if (this.shadowBudget) {
+      this.shadowBudget.update(
+        dt, this._resolveFocusPosition(), this.preset, this._resolveHorizontalSpeed(), this._autoTier
+      );
     }
+
+    if (this.isHeadless || !this.renderer || !this.scene || !this.camera) return;
+    this._noirTime += Math.min(0.05, dt || 0.016);
+    if (this.noirPass?.uniforms?.uTime) this.noirPass.uniforms.uTime.value = this._noirTime;
 
     if (this.composer && this._activeProfile.useComposer) {
       this.composer.render(dt);
@@ -578,11 +558,17 @@ export class GraphicsPipeline {
       bloomEnabled: Boolean(this.bloomPass?.enabled),
       noirGradeEnabled: Boolean(this.noirPass?.enabled),
       aaMode: this._activeProfile.aa,
-      shadowMapSize: this._activeProfile.shadowMapSize
+      shadowMapSize: this._activeProfile.shadowMapSize,
+      dynamicShadows: Boolean(this.preset !== 'low'),
+      activeShadowCasters: this.shadowBudget?.activeCasterCount ?? null,
+      cameraFar: this.camera?.far ?? this._activeProfile.cameraFar,
+      fogDensity: this.scene?.fog?.density ?? this._activeProfile.fogDensity
     };
   }
 
   dispose() {
+    this.shadowBudget?.dispose?.();
+    this.shadowBudget = null;
     if (this.gtaoPass?.dispose) this.gtaoPass.dispose();
     if (this.bloomPass?.dispose) this.bloomPass.dispose();
     if (this.outputPass?.dispose) this.outputPass.dispose();
