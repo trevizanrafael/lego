@@ -49,4 +49,14 @@
   - Draw calls por vista: `praia_sul` `3.245 → 541` (`-83,3%`), `X_port_close` `2.863 → 566` (`-80,2%`), `torre_herois` `402`, `suburbio_norte` `342`, `industrial_leste` `329`, `porto_leste` `449`, `aeroporto_oeste` `369`, `ilha_prisao` `364`, `X_fav_aerial` `393`, `X_sky_downtown` `427`.
   - Tempo de quadro em `centro_financeiro`: **`avg = 9,05 ms` (~110 FPS), `p90 = 12,1 ms` (~82 FPS)**.
 
-*(Os próximos marcos M4–M9 serão registrados abaixo conforme concluídos.)*
+## M4 — Rede Viária Unificada da Ilha, Interseções Chanfradas, Costa Orgânica Chaikin & Oceano 4-Oitavas
+- **Rede Viária Hierárquica Unificada ([CityRoadNetworkSpec.js](../../src/world/terrain/CityRoadNetworkSpec.js) + [RoadIntersectionsBuilder.js](../../src/world/terrain/RoadIntersectionsBuilder.js)):**
+  - Corredores classificados em 4 níveis (`expressway`: 10, `arterial`: 21, `collector`: 46, `local`: 42) + 8 conectores orgânicos inter-bairros (`Subúrbio Norte`, `Canal Oeste`, `Aeroporto/Base Militar`, `Orla Sul`, `Canal Leste` e `Porto`).
+  - Esquinas com raios chanfrados (*bellmouth fillets*), faixas de pedestres oblíquas e **6 praças triangulares urbanas arborizadas** (`+0,22 m`) nas bifurcações em Y, mescladas diretamente nos buckets estáticos (`0` malhas soltas extras).
+  - Grafo policial A* unificado em [PoliceOrganicGraphHelper.js](../../src/world/police/PoliceOrganicGraphHelper.js): **`2.907` nós ativos em `1` único componente conexo (`isolatedComponentsCount === 0`)** cobrindo todas as regiões + inclinações longitudinais auditadas (`<= 12%` em arteriais, `<= 18%` nas ladeiras).
+  - Nova suíte [city-network.test.js](../../tests/city-network.test.js) (`4/4` testes verdes).
+- **Costa Suavizada Chaikin, Costuras de Terreno & Shader de Oceano ([CoastlineProfile.js](../../src/world/CoastlineProfile.js), [OceanAndPangaeaMeshBuilder.js](../../src/world/terrain/OceanAndPangaeaMeshBuilder.js), [SceneAndWaterShaders.js](../../src/materials/modules/SceneAndWaterShaders.js)):**
+  - Polígonos costeiros suavizados por Chaikin preservando âncoras exatas do rio (`538..582`), bocas dos 3 canais de Santos, Marina, Mega Píer, Cais Leste e Ponte da Prisão; ilhotas convertidas de pirâmides quadradas (`Math.max`) para domos elípticos suaves; fita contínua de praia/baixio substituindo caixas escalonadas; normais analíticas por diferenças centrais eliminando costuras entre chunks de terreno; shader de água com 4 ondas não-ortogonais e atenuação por distância eliminando moiré no horizonte.
+- **Validação (`docs/noite/bench-M4.json`):** **`189/189` testes passando nas 35 suítes** (`meshes = 2.964`, `shadowCasters = 182`, `uniqueGeometries = 2.147`, `invalidColliders = 0`, `pageErrors = []`).
+
+*(Os próximos marcos M5–M9 serão registrados abaixo conforme concluídos.)*

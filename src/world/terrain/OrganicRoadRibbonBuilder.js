@@ -1,7 +1,8 @@
 /**
  * OrganicRoadRibbonBuilder.js
- * Construção 3D batcheada das Fitas Asfálticas Orgânicas, Calçadas Laterais de 10m (+0.18m),
- * Pintura Viária / Faixas de Pedestres, 4 Rotatórias Paisagísticas e Índice Espacial O(1) de Guias.
+ * Construção 3D batcheada das Fitas Asfálticas Orgânicas (Centro + Conectores Inter-Distritais),
+ * Calçadas Laterais (+0.18m), Concordâncias Chanfradas/Curvas (Bellmouth Fillets), Praças
+ * Triangulares ("Gore Islands"), 4 Rotatórias Paisagísticas e Índice Espacial O(1) de Guias.
  */
 
 import * as THREE from 'three';
@@ -9,6 +10,7 @@ import { getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { makeFastBox } from '../buildings/GeometryMergeUtils.js';
 import { IS_SCALED_WORLD, ROAD, ws } from '../core/WorldLayoutScale.js';
 import { getDowntownOrganicNetwork } from './OrganicDowntownNetworkSpec.js';
+import { buildOrganicIntersectionsAndPlazas } from './RoadIntersectionsBuilder.js';
 import { getUrbanCityReliefY } from './UrbanReliefFunctions.js';
 import { addChunkedArrayToScene } from './BridgeAndPierSpecs.js';
 import {
@@ -96,12 +98,8 @@ function buildPolylineAsphaltGeo(pts, halfWidth, yOff = 0.03) {
     const hw1 = halfWidth * m1;
 
     const rowPts = [
-      [ax - n0x * hw0, az - n0z * hw0],
-      [ax, az],
-      [ax + n0x * hw0, az + n0z * hw0],
-      [bx - n1x * hw1, bz - n1z * hw1],
-      [bx, bz],
-      [bx + n1x * hw1, bz + n1z * hw1]
+      [ax - n0x * hw0, az - n0z * hw0], [ax, az], [ax + n0x * hw0, az + n0z * hw0],
+      [bx - n1x * hw1, bz - n1z * hw1], [bx, bz], [bx + n1x * hw1, bz + n1z * hw1]
     ];
     for (let r = 0; r < 6; r++) {
       const [vx, vz] = rowPts[r];
@@ -124,10 +122,6 @@ function buildPolylineAsphaltGeo(pts, halfWidth, yOff = 0.03) {
   return geo;
 }
 
-/**
- * Constrói todas as fitas asfálticas orgânicas, calçadas laterais de 10m, guias de 0.35m,
- * pintura viária e as 4 rotatórias paisagísticas do Centro e Transição Norte.
- */
 export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = null) {
   if (!IS_SCALED_WORLD || !world?.scene) return;
   ensureOrganicRoadSpatialIndex(world);
@@ -135,6 +129,29 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
   const net = getDowntownOrganicNetwork();
   if (!world.mapOrganicRoads) world.mapOrganicRoads = [];
   if (!world.mapRoads) world.mapRoads = [];
+
+  const existingRectRoads = world.mapRoads.filter((r) => r && !r.isOrganicTile && !r.isElevated);
+  const sidewalkCorridors = world.sidewalkCorridors || [];
+
+  const isInsideExistingRectRoad = (px, pz, pad = 0.5) => {
+    for (let i = 0; i < existingRectRoads.length; i++) {
+      const r = existingRectRoads[i];
+      if (px >= r.x - r.w * 0.5 - pad && px <= r.x + r.w * 0.5 + pad && pz >= r.z - r.d * 0.5 - pad && pz <= r.z + r.d * 0.5 + pad) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const isClearOfSidewalkCorridors = (tx, tz, pad = 7.0) => {
+    for (let i = 0; i < sidewalkCorridors.length; i++) {
+      const s = sidewalkCorridors[i];
+      if (tx >= s.minX - pad && tx <= s.maxX + pad && tz >= s.minZ - pad && tz <= s.maxZ + pad) {
+        return false;
+      }
+    }
+    return true;
+  };
 
   const asphaltGeos = [];
   const sidewalkGeos = [];
@@ -146,34 +163,36 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
   const yellowGeos = sharedBuckets?.yellowGeos || [];
   const whiteGeos = sharedBuckets?.whiteGeos || [];
 
-  const sw = ROAD.sidewalk;
   const curbH = ROAD.curbHeight;
   const orgScratch = {};
 
   const canPlaceSidewalkPoint = (px, pz, minAsphaltClearance) => {
     if (isPointInMetroCutout(px, pz, 0.8)) return false;
     if (isPointInCartesianGridAsphalt(px, pz, 0.35)) return false;
+    if (isInsideExistingRectRoad(px, pz, 0.5)) return false;
     const st = getOrganicRoadElevationStateAt(world, px, pz, orgScratch);
     if (st.inIsland) return false;
     return st.minSignedDist >= minAsphaltClearance;
   };
 
-  // 1) Catálogo `mapOrganicRoads`, ladrilhos AABB internos `mapRoads`, leito asfáltico e pintura das polilinhas
+  // 1) Polilinhas orgânicas (Centro + Conectores Inter-Distritais com hierarquia `tier`)
   for (let p = 0; p < net.polylines.length; p++) {
     const poly = net.polylines[p];
+    const polySw = poly.sidewalk ?? ROAD.sidewalk;
     world.mapOrganicRoads.push({
       kind: 'polyline',
       id: poly.id,
+      tier: poly.tier || (poly.isMain ? 'arterial' : 'collector'),
+      district: poly.district || 'centro_financeiro',
       points: poly.points,
       width: poly.width,
-      sidewalk: poly.sidewalk,
+      sidewalk: polySw,
       isMain: poly.isMain
     });
 
     const ribbonGeo = buildPolylineAsphaltGeo(poly.points, poly.halfWidth, 0.03);
     if (ribbonGeo) asphaltGeos.push(ribbonGeo);
 
-    // Discos de solda asfáltica em entroncamentos internos T/Y e cotovelos
     for (let vi = 0; vi < poly.points.length; vi++) {
       const [vx, vz] = poly.points[vi];
       if (isPointInMetroCutout(vx, vz, poly.halfWidth) || isPointInCartesianGridAsphalt(vx, vz, 2.0)) continue;
@@ -199,23 +218,24 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
       const nx = -uz, nz = ux;
       const yaw = Math.atan2(ux, uz);
 
-      // Ladrilhos AABB 10m x 10m estritamente inscritos no asfalto (>= 8m dentro da guia!)
+      // Ladrilhos AABB 10m x 10m inscritos no asfalto (evitando calçadas perimetrais em conectores inter-distritais)
       const tileSteps = Math.max(1, Math.round(len / 9.0));
       for (let ts = 0; ts <= tileSteps; ts++) {
         const u = ts / tileSteps;
         const tx = x1 + dx * u;
         const tz = z1 + dz * u;
         if (isPointInCartesianGridAsphalt(tx, tz, -4.0) || isPointInMetroCutout(tx, tz, 6.0)) continue;
+        if (poly.isInterDistrict && (isInsideExistingRectRoad(tx, tz, 4.0) || !isClearOfSidewalkCorridors(tx, tz, 7.5))) continue;
         world.mapRoads.push({ x: tx, z: tz, w: 10, d: 10, isMain: false, isOrganicTile: true });
       }
 
-      // Pintura viária central tracejada (+0.058m)
       const paintBucket = poly.isMain ? yellowGeos : whiteGeos;
       const dashW = poly.isMain ? 0.42 : 0.32;
       for (let dPos = 6.5; dPos < len - 6.0; dPos += 11.0) {
         const mx = x1 + ux * dPos;
         const mz = z1 + uz * dPos;
         if (isPointInCartesianGridAsphalt(mx, mz, 2.5) || isPointInMetroCutout(mx, mz, 2.5)) continue;
+        if (poly.isInterDistrict && isInsideExistingRectRoad(mx, mz, 2.5)) continue;
         let inOtherCore = false;
         for (let r = 0; r < net.roundabouts.length; r++) {
           const rb = net.roundabouts[r];
@@ -229,7 +249,6 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
         paintBucket.push(dg);
       }
 
-      // Zebras nos encontros das pontas com as avenidas principais
       if (i === 0 && len >= 16 && isPointInCartesianGridAsphalt(x1 - ux * 5.0, z1 - uz * 5.0, 4.5)) {
         pushZebraCrosswalkAt(whiteGeos, x1 + ux * 4.2, z1 + uz * 4.2, ux, uz, poly.halfWidth);
       }
@@ -243,10 +262,10 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
         pushZebraCrosswalkAt(whiteGeos, x2 - ux * 23.0, z2 - uz * 23.0, ux, uz, poly.halfWidth);
       }
 
-      // Calçadas laterais de 10m (2 sub-faixas de 5m) + guias chanfradas de 0.35m
-      const swSteps = Math.max(1, Math.ceil(len / 4.6));
+      const swStepTarget = poly.isInterDistrict ? 8.5 : 4.6;
+      const swSteps = Math.max(1, Math.ceil(len / swStepTarget));
       const stepL = len / swSteps;
-      for (let side of [-1, 1]) {
+      for (const side of [-1, 1]) {
         for (let s = 0; s < swSteps; s++) {
           const d0 = s * stepL;
           const d1 = d0 + stepL;
@@ -261,30 +280,28 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
           if (canPlaceSidewalkPoint(cmx, cmz, -0.05)) {
             pushOrientedCurbPiece(
               curbGeos,
-              bx0 + nx * side * curbOff,
-              bz0 + nz * side * curbOff,
-              bx1 + nx * side * curbOff,
-              bz1 + nz * side * curbOff,
+              bx0 + nx * side * curbOff, bz0 + nz * side * curbOff,
+              bx1 + nx * side * curbOff, bz1 + nz * side * curbOff,
               curbH
             );
           }
 
           for (let band = 0; band < 2; band++) {
-            const rIn = poly.halfWidth + band * (sw * 0.5);
-            const rOut = rIn + sw * 0.5;
+            const rIn = poly.halfWidth + band * (polySw * 0.5);
+            const rOut = rIn + polySw * 0.5;
             const rMid = (rIn + rOut) * 0.5;
-            const minClr = band === 0 ? -0.06 : 3.6;
+            const minClr = band === 0 ? -0.06 : 3.2;
             const p0x = bx0 + nx * side * rIn, p0z = bz0 + nz * side * rIn;
             const p1x = bx1 + nx * side * rIn, p1z = bz1 + nz * side * rIn;
             const p2x = bx1 + nx * side * rOut, p2z = bz1 + nz * side * rOut;
             const p3x = bx0 + nx * side * rOut, p3z = bz0 + nz * side * rOut;
             const pmx = bxm + nx * side * rMid, pmz = bzm + nz * side * rMid;
             if (
-              canPlaceSidewalkPoint(pmx, pmz, minClr + 1.2) &&
+              canPlaceSidewalkPoint(pmx, pmz, minClr + 1.0) &&
               canPlaceSidewalkPoint(p0x, p0z, minClr) &&
               canPlaceSidewalkPoint(p1x, p1z, minClr) &&
-              canPlaceSidewalkPoint(p2x, p2z, minClr + 2.0) &&
-              canPlaceSidewalkPoint(p3x, p3z, minClr + 2.0)
+              canPlaceSidewalkPoint(p2x, p2z, minClr + 1.6) &&
+              canPlaceSidewalkPoint(p3x, p3z, minClr + 1.6)
             ) {
               pushPrismQuad(sidewalkGeos, p0x, p0z, p1x, p1z, p2x, p2z, p3x, p3z, curbH + 0.002, 0.34);
             }
@@ -293,7 +310,6 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
       }
     }
 
-    // Fechamento em leque das calçadas no lado convexo dos cotovelos internos
     for (let vi = 1; vi < pts.length - 1; vi++) {
       const [px, pz] = pts[vi - 1];
       const [vx, vz] = pts[vi];
@@ -306,22 +322,21 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
       if (Math.abs(diff) < 0.06) continue;
       const side = diff > 0 ? -1 : 1;
       const baseN0 = a0 + (side > 0 ? Math.PI * 0.5 : -Math.PI * 0.5);
-      const fanSteps = Math.max(2, Math.ceil((Math.abs(diff) * (poly.halfWidth + sw)) / 4.2));
+      const fanSteps = Math.max(2, Math.ceil((Math.abs(diff) * (poly.halfWidth + polySw)) / 4.2));
       for (let fs = 0; fs < fanSteps; fs++) {
         const t0 = baseN0 + (diff * fs) / fanSteps;
         const t1 = baseN0 + (diff * (fs + 1)) / fanSteps;
         const tm = (t0 + t1) * 0.5;
-        const s0 = Math.sin(t0), c0 = Math.cos(t0);
-        const s1 = Math.sin(t1), c1 = Math.cos(t1);
+        const s0 = Math.sin(t0), c0 = Math.cos(t0), s1 = Math.sin(t1), c1 = Math.cos(t1);
         const curbR = poly.halfWidth + 0.175;
         if (canPlaceSidewalkPoint(vx + Math.sin(tm) * curbR, vz + Math.cos(tm) * curbR, -0.05)) {
           pushOrientedCurbPiece(curbGeos, vx + s0 * curbR, vz + c0 * curbR, vx + s1 * curbR, vz + c1 * curbR, curbH);
         }
         for (let band = 0; band < 2; band++) {
-          const rIn = poly.halfWidth + band * (sw * 0.5);
-          const rOut = rIn + sw * 0.5;
+          const rIn = poly.halfWidth + band * (polySw * 0.5);
+          const rOut = rIn + polySw * 0.5;
           const rMid = (rIn + rOut) * 0.5;
-          if (canPlaceSidewalkPoint(vx + Math.sin(tm) * rMid, vz + Math.cos(tm) * rMid, band === 0 ? 1.2 : 4.8)) {
+          if (canPlaceSidewalkPoint(vx + Math.sin(tm) * rMid, vz + Math.cos(tm) * rMid, band === 0 ? 1.2 : 4.2)) {
             pushPrismQuad(
               sidewalkGeos,
               vx + s0 * rIn, vz + c0 * rIn,
@@ -337,12 +352,25 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
     }
   }
 
-  // 2) As 4 Rotatórias Circulares Monumentais (Anel Asfáltico, Calçada Externa e Ilha Paisagística)
+  // 2) Concordâncias de Esquina Chanfradas/Curvas (Bellmouth Fillets) + Praças Triangulares ("Gore Islands")
+  buildOrganicIntersectionsAndPlazas(world, net, {
+    asphaltGeos,
+    sidewalkGeos,
+    curbGeos,
+    islandGraniteGeos,
+    islandTurfGeos,
+    monumentGoldGeos,
+    whiteGeos,
+    canPlaceSidewalkPoint
+  });
+
+  // 3) As 4 Rotatórias Circulares Monumentais
   for (let i = 0; i < net.roundabouts.length; i++) {
     const rb = net.roundabouts[i];
     world.mapOrganicRoads.push({
       kind: 'roundabout',
       id: rb.id,
+      tier: rb.tier || 'collector',
       cx: rb.cx,
       cz: rb.cz,
       innerR: rb.innerR,
@@ -354,91 +382,50 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
     const tileCount = Math.max(12, Math.round((Math.PI * 2 * rMid) / 9.0));
     for (let k = 0; k < tileCount; k++) {
       const ang = (k / tileCount) * Math.PI * 2;
-      world.mapRoads.push({
-        x: rb.cx + Math.cos(ang) * rMid,
-        z: rb.cz + Math.sin(ang) * rMid,
-        w: 10,
-        d: 10,
-        isMain: false,
-        isOrganicTile: true
-      });
+      world.mapRoads.push({ x: rb.cx + Math.cos(ang) * rMid, z: rb.cz + Math.sin(ang) * rMid, w: 10, d: 10, isMain: false, isOrganicTile: true });
     }
 
     const ringGeo = new THREE.RingGeometry(rb.innerR - 0.25, rb.outerR + 0.25, 48, 3);
     ringGeo.rotateX(-Math.PI / 2);
     ringGeo.translate(rb.cx, 0, rb.cz);
     const rPos = ringGeo.attributes.position;
-    for (let v = 0; v < rPos.count; v++) {
-      rPos.setY(v, getUrbanCityReliefY(rPos.getX(v), rPos.getZ(v)) + 0.032);
-    }
+    for (let v = 0; v < rPos.count; v++) rPos.setY(v, getUrbanCityReliefY(rPos.getX(v), rPos.getZ(v)) + 0.032);
     ringGeo.computeVertexNormals();
     asphaltGeos.push(ringGeo);
 
-    // Pintura divisória circular tracejada entre as 2 faixas da rotatória
     for (let k = 0; k < 28; k++) {
       const ang = (k / 28) * Math.PI * 2;
-      const dx = rb.cx + Math.cos(ang) * rMid;
-      const dz = rb.cz + Math.sin(ang) * rMid;
-      const dy = getUrbanCityReliefY(dx, dz) + 0.058;
+      const dx = rb.cx + Math.cos(ang) * rMid, dz = rb.cz + Math.sin(ang) * rMid;
       const dg = new THREE.BoxGeometry(0.32, 0.045, 3.2);
       dg.rotateY(-ang);
-      dg.translate(dx, dy, dz);
+      dg.translate(dx, getUrbanCityReliefY(dx, dz) + 0.058, dz);
       whiteGeos.push(dg);
     }
 
-    // Calçada circular externa (10m) recortando automaticamente os raios asfálticos
     const ringSectors = 56;
     for (let s = 0; s < ringSectors; s++) {
-      const a0 = (s / ringSectors) * Math.PI * 2;
-      const a1 = ((s + 1) / ringSectors) * Math.PI * 2;
-      const am = (a0 + a1) * 0.5;
-      const c0 = Math.cos(a0), s0 = Math.sin(a0);
-      const c1 = Math.cos(a1), s1 = Math.sin(a1);
-      const cm = Math.cos(am), sm = Math.sin(am);
-
+      const a0 = (s / ringSectors) * Math.PI * 2, a1 = ((s + 1) / ringSectors) * Math.PI * 2, am = (a0 + a1) * 0.5;
+      const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1), cm = Math.cos(am), sm = Math.sin(am);
       const outerCurbR = rb.outerR + 0.175;
       if (canPlaceSidewalkPoint(rb.cx + cm * outerCurbR, rb.cz + sm * outerCurbR, -0.05)) {
-        pushOrientedCurbPiece(
-          curbGeos,
-          rb.cx + c0 * outerCurbR, rb.cz + s0 * outerCurbR,
-          rb.cx + c1 * outerCurbR, rb.cz + s1 * outerCurbR,
-          curbH
-        );
+        pushOrientedCurbPiece(curbGeos, rb.cx + c0 * outerCurbR, rb.cz + s0 * outerCurbR, rb.cx + c1 * outerCurbR, rb.cz + s1 * outerCurbR, curbH);
       }
       for (let band = 0; band < 2; band++) {
-        const rIn = rb.outerR + band * (rb.sidewalk * 0.5);
-        const rOut = rIn + rb.sidewalk * 0.5;
-        const rBandMid = (rIn + rOut) * 0.5;
+        const rIn = rb.outerR + band * (rb.sidewalk * 0.5), rOut = rIn + rb.sidewalk * 0.5, rBandMid = (rIn + rOut) * 0.5;
         if (
           canPlaceSidewalkPoint(rb.cx + cm * rBandMid, rb.cz + sm * rBandMid, band === 0 ? 1.2 : 4.8) &&
           canPlaceSidewalkPoint(rb.cx + c0 * rOut, rb.cz + s0 * rOut, band === 0 ? 1.5 : 5.2) &&
           canPlaceSidewalkPoint(rb.cx + c1 * rOut, rb.cz + s1 * rOut, band === 0 ? 1.5 : 5.2)
         ) {
-          pushPrismQuad(
-            sidewalkGeos,
-            rb.cx + c0 * rIn, rb.cz + s0 * rIn,
-            rb.cx + c1 * rIn, rb.cz + s1 * rIn,
-            rb.cx + c1 * rOut, rb.cz + s1 * rOut,
-            rb.cx + c0 * rOut, rb.cz + s0 * rOut,
-            curbH + 0.002,
-            0.34
-          );
+          pushPrismQuad(sidewalkGeos, rb.cx + c0 * rIn, rb.cz + s0 * rIn, rb.cx + c1 * rIn, rb.cz + s1 * rIn, rb.cx + c1 * rOut, rb.cz + s1 * rOut, rb.cx + c0 * rOut, rb.cz + s0 * rOut, curbH + 0.002, 0.34);
         }
       }
     }
 
-    // Ilha Central Paisagística (+0.26m) + 3 árvores + obelisco/fonte + colisor cilíndrico
     const groundY = getUrbanCityReliefY(rb.cx, rb.cz);
     for (let s = 0; s < 36; s++) {
-      const a0 = (s / 36) * Math.PI * 2;
-      const a1 = ((s + 1) / 36) * Math.PI * 2;
-      const ir = rb.innerR - 0.18;
-      pushOrientedCurbPiece(
-        curbGeos,
-        rb.cx + Math.cos(a0) * ir, rb.cz + Math.sin(a0) * ir,
-        rb.cx + Math.cos(a1) * ir, rb.cz + Math.sin(a1) * ir,
-        0.26
-      );
+      const a0 = (s / 36) * Math.PI * 2, a1 = ((s + 1) / 36) * Math.PI * 2, ir = rb.innerR - 0.18;
+      pushOrientedCurbPiece(curbGeos, rb.cx + Math.cos(a0) * ir, rb.cz + Math.sin(a0) * ir, rb.cx + Math.cos(a1) * ir, rb.cz + Math.sin(a1) * ir, 0.26);
     }
 
     const baseDisc = new THREE.CylinderGeometry(rb.innerR - 0.16, rb.innerR, 0.68, 32);
@@ -485,68 +472,16 @@ export function buildOrganicDowntownRoadsAndRoundabouts(world, sharedBuckets = n
   }
 
   const chunkOpt = { receiveShadow: true, castShadow: false, chunkSize: ws(512) };
-  addChunkedArrayToScene(
-    world.scene,
-    asphaltGeos,
-    new THREE.MeshStandardMaterial({
-      color: 0x111622,
-      roughness: 0.72,
-      metalness: 0.08,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
-    }),
-    chunkOpt
-  );
-  addChunkedArrayToScene(
-    world.scene,
-    sidewalkGeos,
-    new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.66, metalness: 0.05 }),
-    chunkOpt
-  );
-  addChunkedArrayToScene(
-    world.scene,
-    curbGeos,
-    getLegoMaterial(0x94a3b8, { roughness: 0.52, clearcoat: 0.12 }),
-    chunkOpt
-  );
-  addChunkedArrayToScene(
-    world.scene,
-    islandGraniteGeos,
-    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.58, metalness: 0.1 }),
-    { receiveShadow: true, castShadow: true, chunkSize: ws(512) }
-  );
-  addChunkedArrayToScene(
-    world.scene,
-    islandTurfGeos,
-    new THREE.MeshStandardMaterial({ color: 0x1b3b28, roughness: 0.74, metalness: 0.04 }),
-    chunkOpt
-  );
-  addChunkedArrayToScene(
-    world.scene,
-    monumentGoldGeos,
-    new THREE.MeshStandardMaterial({ color: 0xd4a017, roughness: 0.28, metalness: 0.72 }),
-    { receiveShadow: true, castShadow: true, chunkSize: ws(512) }
-  );
-  addChunkedArrayToScene(
-    world.scene,
-    monumentGlowGeos,
-    new THREE.MeshBasicMaterial({ color: 0x38bdf8 }),
-    { receiveShadow: false, castShadow: false, chunkSize: ws(512) }
-  );
+  addChunkedArrayToScene(world.scene, asphaltGeos, new THREE.MeshStandardMaterial({ color: 0x111622, roughness: 0.72, metalness: 0.08, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), chunkOpt);
+  addChunkedArrayToScene(world.scene, sidewalkGeos, new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.66, metalness: 0.05 }), chunkOpt);
+  addChunkedArrayToScene(world.scene, curbGeos, getLegoMaterial(0x94a3b8, { roughness: 0.52, clearcoat: 0.12 }), chunkOpt);
+  addChunkedArrayToScene(world.scene, islandGraniteGeos, new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.58, metalness: 0.1 }), { receiveShadow: true, castShadow: true, chunkSize: ws(512) });
+  addChunkedArrayToScene(world.scene, islandTurfGeos, new THREE.MeshStandardMaterial({ color: 0x1b3b28, roughness: 0.74, metalness: 0.04 }), chunkOpt);
+  addChunkedArrayToScene(world.scene, monumentGoldGeos, new THREE.MeshStandardMaterial({ color: 0xd4a017, roughness: 0.28, metalness: 0.72 }), { receiveShadow: true, castShadow: true, chunkSize: ws(512) });
+  addChunkedArrayToScene(world.scene, monumentGlowGeos, new THREE.MeshBasicMaterial({ color: 0x38bdf8 }), { receiveShadow: false, castShadow: false, chunkSize: ws(512) });
 
   if (!sharedBuckets) {
-    addChunkedArrayToScene(
-      world.scene,
-      yellowGeos,
-      new THREE.MeshBasicMaterial({ color: 0xfacc15, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }),
-      { receiveShadow: false }
-    );
-    addChunkedArrayToScene(
-      world.scene,
-      whiteGeos,
-      new THREE.MeshBasicMaterial({ color: 0xf8fafc, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }),
-      { receiveShadow: false }
-    );
+    addChunkedArrayToScene(world.scene, yellowGeos, new THREE.MeshBasicMaterial({ color: 0xfacc15, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), { receiveShadow: false });
+    addChunkedArrayToScene(world.scene, whiteGeos, new THREE.MeshBasicMaterial({ color: 0xf8fafc, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), { receiveShadow: false });
   }
 }

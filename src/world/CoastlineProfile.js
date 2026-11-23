@@ -58,20 +58,66 @@ export const HORIZON_MOUNTAINS = Array.from({ length: 28 }, (_, i) => {
   };
 });
 
+function _isCoastAnchorPoint(x, z) {
+  const dx = fromWs(x);
+  const dz = fromWs(z);
+  if (Math.abs(dx - 538) <= 2.5 || Math.abs(dx - 582) <= 2.5) return true;
+  if (dz >= 1030 && dz <= 1058) {
+    if (
+      (dx >= -55 && dx <= 318) ||
+      Math.abs(dx + 384) <= 66 ||
+      Math.abs(dx + 120) <= 66 ||
+      Math.abs(dx - 252) <= 66 ||
+      Math.abs(dx + 1380) <= 118
+    ) {
+      return true;
+    }
+  }
+  if (Math.abs(dx - 1630) <= 3 && dz >= 122 && dz <= 732) return true;
+  if (Math.abs(dx - 1375) <= 72 && ((dz >= 728 && dz <= 750) || (dz >= 1105 && dz <= 1165))) return true;
+  if (dx >= 948 && dx <= 958 && Math.abs(dz - 1550) <= 70) return true;
+  return false;
+}
+
+/**
+ * Suavização determinística de cantos (Chaikin) preservando segmentos retos do rio,
+ * bocas dos canais da Praia Sul, Marina Oeste, Mega Píer, doca Leste e Ponte da Prisão.
+ */
+export function smoothCoastPolygonChaikin(pts, iterations = 2) {
+  if (!Array.isArray(pts) || pts.length < 3 || iterations <= 0) return pts;
+  let current = pts.map(([x, z]) => [x, z]);
+  for (let iter = 0; iter < iterations; iter++) {
+    const next = [];
+    const n = current.length;
+    for (let i = 0; i < n; i++) {
+      const prev = current[(i - 1 + n) % n];
+      const curr = current[i];
+      const foll = current[(i + 1) % n];
+      if (_isCoastAnchorPoint(curr[0], curr[1])) {
+        next.push([curr[0], curr[1]]);
+      } else {
+        next.push([curr[0] * 0.75 + prev[0] * 0.25, curr[1] * 0.75 + prev[1] * 0.25]);
+        next.push([curr[0] * 0.75 + foll[0] * 0.25, curr[1] * 0.75 + foll[1] * 0.25]);
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
 /**
  * Traço supercontinental da Metade Oeste/Norte/Sudoeste da Pangeia (`x <= ws(538)`):
  * - Preserva intactos a calha do Rio Urbano, Baía Sul, canais e Marina Oeste.
  */
 function _buildMainWestPolygon() {
-  const pts = [];
+  const pts = [
+    [538, -2420],
+    [538, 1044]
+  ];
 
-  // 1. Margem Oeste do Rio Urbano / Fjord Boreal (Norte -> Sul em x = 538)
-  pts.push([538, -2420]);
-  pts.push([538, 1044]);
-
-  // 2. Orla Urbana da Praia Sul (+510 -> -1540), mantendo canais & Marina Oeste em mar aberto
+  // Orla Urbana da Praia Sul (+510 -> -1540), mantendo canais, Mega Píer & Marina Oeste em mar aberto
   for (let x = 510; x >= -1540; x -= 65) {
-    const inCentralBay = x >= -48 && x <= 310;
+    const inCentralBay = x >= -48 && x <= 316;
     const nearCanal =
       Math.abs(x + 384) < 55 ||
       Math.abs(x + 120) < 55 ||
@@ -79,83 +125,35 @@ function _buildMainWestPolygon() {
       Math.abs(x - 220) < 58;
     const nearMarinaBay = Math.abs(x + 1380) < 115;
     let bulge = 10 + Math.max(0, Math.sin(x * 0.0072 + 1.4)) * 46 + Math.max(0, Math.cos(x * 0.016)) * 20;
-    if (inCentralBay || nearCanal || nearMarinaBay) {
-      bulge = 0;
-    }
-    const baseSouth = 1044;
-    pts.push([Math.round(x), Math.round(baseSouth + bulge)]);
+    if (inCentralBay || nearCanal || nearMarinaBay) bulge = 0;
+    pts.push([Math.round(x), Math.round(1044 + bulge)]);
   }
 
-  // 3. Península Sudoeste (Chifre das Dunas / Costa do Pôr do Sol)
-  pts.push([-1575, 1140]);
-  pts.push([-1640, 1460]);
-  pts.push([-1820, 1790]);
-  pts.push([-2080, 2140]);
-  pts.push([-2360, 2390]);
-  pts.push([-2660, 2460]);
-  pts.push([-2940, 2340]);
-  pts.push([-3160, 2120]);
-  pts.push([-3310, 1820]);
-  pts.push([-3240, 1460]);
-  pts.push([-3040, 1180]);
-  pts.push([-3140, 910]);
-  pts.push([-2920, 620]);
+  // Península Sudoeste, Grande Baía Oeste, Cabo Radar Noroeste & Costa Boreal Norte
+  pts.push(
+    [-1575, 1140], [-1640, 1460], [-1820, 1790], [-2080, 2140], [-2360, 2390],
+    [-2660, 2460], [-2940, 2340], [-3160, 2120], [-3310, 1820], [-3240, 1460],
+    [-3040, 1180], [-3140, 910], [-2920, 620], [-2660, 340], [-2560, 60],
+    [-2640, -240], [-2880, -520], [-3180, -760], [-3360, -1040], [-3320, -1380],
+    [-3140, -1660], [-2860, -1910], [-2540, -2140], [-2260, -2360], [-1920, -2220],
+    [-1620, -2580], [-1280, -2860], [-890, -2760], [-560, -2480], [-240, -2310],
+    [40, -2560], [310, -2690], [470, -2540]
+  );
 
-  // 4. Grande Baía Oeste & Cabo Noroeste (Radar)
-  pts.push([-2660, 340]);
-  pts.push([-2560, 60]);
-  pts.push([-2640, -240]);
-  pts.push([-2880, -520]);
-  pts.push([-3180, -760]);
-  pts.push([-3360, -1040]);
-  pts.push([-3320, -1380]);
-  pts.push([-3140, -1660]);
-  pts.push([-2860, -1910]);
-
-  // 5. Costa Boreal Norte da Pangeia
-  pts.push([-2540, -2140]);
-  pts.push([-2260, -2360]);
-  pts.push([-1920, -2220]);
-  pts.push([-1620, -2580]);
-  pts.push([-1280, -2860]);
-  pts.push([-890, -2760]);
-  pts.push([-560, -2480]);
-  pts.push([-240, -2310]);
-  pts.push([40, -2560]);
-  pts.push([310, -2690]);
-  pts.push([470, -2540]);
-
-  return pts.map(([px, pz]) => [ws(px), ws(pz)]);
+  return smoothCoastPolygonChaikin(pts.map(([px, pz]) => [ws(px), ws(pz)]), 2);
 }
 
 /**
  * Chifre Nordeste da Pangeia (Leste do Rio x >= ws(582))
  */
 function _buildEastPeninsulaPolygon() {
-  const pts = [];
-
-  pts.push([582, 742]);
-  pts.push([582, -2420]);
-
-  pts.push([820, -2580]);
-  pts.push([1180, -2460]);
-  pts.push([1560, -2640]);
-  pts.push([1980, -2560]);
-  pts.push([2420, -2380]);
-  pts.push([2840, -2140]);
-  pts.push([3180, -1820]);
-  pts.push([3340, -1420]);
-  pts.push([3280, -1040]);
-  pts.push([3080, -680]);
-  pts.push([2760, -440]);
-  pts.push([2420, -260]);
-  pts.push([2080, -180]);
-  pts.push([1780, -40]);
-  pts.push([1658, 95]);
-
-  pts.push([1630, 130]);
-  pts.push([1630, 725]);
-  pts.push([1662, 748]);
+  const pts = [
+    [582, 742], [582, -2420],
+    [820, -2580], [1180, -2460], [1560, -2640], [1980, -2560], [2420, -2380],
+    [2840, -2140], [3180, -1820], [3340, -1420], [3280, -1040], [3080, -680],
+    [2760, -440], [2420, -260], [2080, -180], [1780, -40], [1658, 95],
+    [1630, 130], [1630, 725], [1662, 748]
+  ];
 
   for (let x = 1580; x >= 620; x -= 65) {
     const nearBridge = Math.abs(x - 1375) < 70;
@@ -165,7 +163,7 @@ function _buildEastPeninsulaPolygon() {
     pts.push([Math.round(x), Math.round(736 + cove)]);
   }
 
-  return pts.map(([px, pz]) => [ws(px), ws(pz)]);
+  return smoothCoastPolygonChaikin(pts.map(([px, pz]) => [ws(px), ws(pz)]), 2);
 }
 
 function _buildPrisonIslandPolygon() {
@@ -178,24 +176,19 @@ function _buildPrisonIslandPolygon() {
     const cos = Math.cos(th);
     const sin = Math.sin(th);
     const norm = Math.pow(Math.pow(Math.abs(cos), 3.4) + Math.pow(Math.abs(sin), 3.4), 1 / 3.4);
-    const baseRx = 525 / Math.max(0.55, norm);
-    const baseRz = 525 / Math.max(0.55, norm);
+    const baseR = 525 / Math.max(0.55, norm);
     const noise =
       22 +
       Math.max(0, Math.sin(th * 7 + 0.4)) * 78 +
       Math.max(0, Math.cos(th * 11 - 0.8)) * 46 +
       Math.sin(th * 17) * 18;
-    let x = cx + cos * (baseRx + noise);
-    let z = cz + sin * (baseRz + noise * 0.94);
-    if (Math.abs(x - 1375) < 68 && z < 1160) {
-      z = Math.max(z, 1116);
-    }
-    if (x < 955 && Math.abs(z - 1550) < 65) {
-      x = Math.max(x, 952);
-    }
-    pts.push([ws(Math.round(x)), ws(Math.round(z))]);
+    let x = cx + cos * (baseR + noise);
+    let z = cz + sin * (baseR + noise * 0.94);
+    if (Math.abs(x - 1375) < 68 && z < 1160) z = Math.max(z, 1116);
+    if (x < 955 && Math.abs(z - 1550) < 65) x = Math.max(x, 952);
+    pts.push([ws(x), ws(z)]);
   }
-  return pts;
+  return smoothCoastPolygonChaikin(pts, 1);
 }
 
 export const MAIN_WEST_POLYGON = _buildMainWestPolygon();
@@ -226,80 +219,37 @@ const _OCEAN_SHORE_SEGMENTS = [
   ..._extractOceanShoreSegments(PRISON_ISLAND_POLYGON, null)
 ];
 
+const _COAST_GRID_CELL = ws(320);
+const _COAST_SEGMENT_GRID = new Map();
+for (let i = 0; i < _OCEAN_SHORE_SEGMENTS.length; i++) {
+  const s = _OCEAN_SHORE_SEGMENTS[i];
+  const gx0 = Math.floor(Math.min(s.ax, s.bx) / _COAST_GRID_CELL);
+  const gx1 = Math.floor(Math.max(s.ax, s.bx) / _COAST_GRID_CELL);
+  const gz0 = Math.floor(Math.min(s.az, s.bz) / _COAST_GRID_CELL);
+  const gz1 = Math.floor(Math.max(s.az, s.bz) / _COAST_GRID_CELL);
+  for (let gx = gx0; gx <= gx1; gx++) {
+    for (let gz = gz0; gz <= gz1; gz++) {
+      const key = `${gx},${gz}`;
+      let list = _COAST_SEGMENT_GRID.get(key);
+      if (!list) {
+        list = [];
+        _COAST_SEGMENT_GRID.set(key, list);
+      }
+      list.push(s);
+    }
+  }
+}
+
 const _HWY_WIDTH = IS_SCALED_WORLD ? ROAD.secondaryWidth : 24;
 
 export const PANGAEA_HIGHWAYS = [
-  {
-    id: 'hwy_boreal_spine',
-    label: 'RODOVIA BOREAL NORTE',
-    width: _HWY_WIDTH,
-    points: [
-      [-1215, -1300],
-      [-1215, -2150],
-      [-1215, -2640]
-    ].map(([px, pz]) => [ws(px), ws(pz)])
-  },
-  {
-    id: 'hwy_boreal_fjord_belt',
-    label: 'TRANSVERSAL DO FIORDE BOREAL',
-    width: _HWY_WIDTH,
-    points: [
-      [-2460, -2150],
-      [-1215, -2150],
-      [964, -2150],
-      [2180, -2150],
-      [2680, -1720]
-    ].map(([px, pz]) => [ws(px), ws(pz)])
-  },
-  {
-    id: 'hwy_pcc_north_ext',
-    label: 'VIA EXPRESSA INDUSTRIAL NORTE',
-    width: _HWY_WIDTH,
-    points: [
-      [964, -1305],
-      [964, -2150]
-    ].map(([px, pz]) => [ws(px), ws(pz)])
-  },
-  {
-    id: 'hwy_tethys_windfarm',
-    label: 'RODOVIA PARQUE EÓLICO DE TÉTIS',
-    width: _HWY_WIDTH,
-    points: [
-      [1612, -908],
-      [2680, -908],
-      [2680, -1720]
-    ].map(([px, pz]) => [ws(px), ws(pz)])
-  },
-  {
-    id: 'hwy_nw_radar',
-    label: 'RODOVIA CABO NOROESTE (RADAR)',
-    width: _HWY_WIDTH,
-    points: [
-      [-1790, -1285],
-      [-2460, -1285],
-      [-3040, -1285]
-    ].map(([px, pz]) => [ws(px), ws(pz)])
-  },
-  {
-    id: 'hwy_west_coast_arc',
-    label: 'ESTRADA COSTEIRA DO PÔR DO SOL',
-    width: _HWY_WIDTH,
-    points: [
-      [-2460, -2150],
-      [-2460, -1285],
-      [-2460, 710],
-      [-2460, 2120]
-    ].map(([px, pz]) => [ws(px), ws(pz)])
-  },
-  {
-    id: 'hwy_sw_dunes_feeder',
-    label: 'PROLONGAMENTO BEIRA-MAR & DUNAS',
-    width: _HWY_WIDTH,
-    points: [
-      [-1810, 710],
-      [-2920, 710]
-    ].map(([px, pz]) => [ws(px), ws(pz)])
-  }
+  { id: 'hwy_boreal_spine', label: 'RODOVIA BOREAL NORTE', width: _HWY_WIDTH, points: [[-1215, -1300], [-1215, -2150], [-1215, -2640]].map(([px, pz]) => [ws(px), ws(pz)]) },
+  { id: 'hwy_boreal_fjord_belt', label: 'TRANSVERSAL DO FIORDE BOREAL', width: _HWY_WIDTH, points: [[-2460, -2150], [-1215, -2150], [964, -2150], [2180, -2150], [2680, -1720]].map(([px, pz]) => [ws(px), ws(pz)]) },
+  { id: 'hwy_pcc_north_ext', label: 'VIA EXPRESSA INDUSTRIAL NORTE', width: _HWY_WIDTH, points: [[964, -1305], [964, -2150]].map(([px, pz]) => [ws(px), ws(pz)]) },
+  { id: 'hwy_tethys_windfarm', label: 'RODOVIA PARQUE EÓLICO DE TÉTIS', width: _HWY_WIDTH, points: [[1612, -908], [2680, -908], [2680, -1720]].map(([px, pz]) => [ws(px), ws(pz)]) },
+  { id: 'hwy_nw_radar', label: 'RODOVIA CABO NOROESTE (RADAR)', width: _HWY_WIDTH, points: [[-1790, -1285], [-2460, -1285], [-3040, -1285]].map(([px, pz]) => [ws(px), ws(pz)]) },
+  { id: 'hwy_west_coast_arc', label: 'ESTRADA COSTEIRA DO PÔR DO SOL', width: _HWY_WIDTH, points: [[-2460, -2150], [-2460, -1285], [-2460, 710], [-2460, 2120]].map(([px, pz]) => [ws(px), ws(pz)]) },
+  { id: 'hwy_sw_dunes_feeder', label: 'PROLONGAMENTO BEIRA-MAR & DUNAS', width: _HWY_WIDTH, points: [[-1810, 710], [-2920, 710]].map(([px, pz]) => [ws(px), ws(pz)]) }
 ];
 
 export const PANGAEA_OUTPOST_LANDMARKS = [
@@ -349,15 +299,20 @@ export function pointInPolygon(x, z, poly) {
 
 export function getIsletSampleAt(x, z) {
   for (const isl of ARCHIPELAGO_ISLETS) {
-    const nx = Math.abs(x - isl.x) / isl.rx;
-    const nz = Math.abs(z - isl.z) / isl.rz;
-    const maxN = Math.max(nx, nz);
-    if (maxN > 0.925) continue;
-    const midH = Math.max(2.2, isl.peakY * 0.52);
-    let height = 0.3;
-    if (maxN <= 0.36) height = isl.peakY;
-    else if (maxN <= 0.675) height = midH;
-    return { islet: isl, height, distRatio: maxN / 0.925 };
+    const dx = x - isl.x;
+    const dz = z - isl.z;
+    if (Math.abs(dx) > isl.rx * 1.22 || Math.abs(dz) > isl.rz * 1.22) continue;
+    const ux = dx / isl.rx;
+    const uz = dz / isl.rz;
+    const ellipR = Math.hypot(ux, uz);
+    const ang = Math.atan2(uz, ux);
+    const perturb = 1 + 0.12 * Math.sin(ang * 3 + isl.seed) + 0.07 * Math.cos(ang * 5 - isl.seed);
+    const maxR = 0.95 * perturb;
+    if (ellipR > maxR) continue;
+    const distRatio = ellipR / maxR;
+    const dome = 1 - cosineStep01(distRatio);
+    const height = 0.18 + (isl.peakY - 0.18) * dome;
+    return { islet: isl, height, distRatio };
   }
   return null;
 }
@@ -388,10 +343,32 @@ export function isPointOnOrganicLand(x, z) {
 }
 
 /**
- * Distância real (m) até o segmento de costa oceânica externa mais próximo.
+ * Distância real (m) até o segmento de costa oceânica externa mais próximo (com grid espacial O(1)).
  */
-export function getDistanceToCoastAt(x, z) {
+export function getDistanceToCoastAt(x, z, maxSearchDist = Infinity) {
   let minDistSq = Infinity;
+  const cx = Math.floor(x / _COAST_GRID_CELL);
+  const cz = Math.floor(z / _COAST_GRID_CELL);
+  for (let gx = cx - 1; gx <= cx + 1; gx++) {
+    for (let gz = cz - 1; gz <= cz + 1; gz++) {
+      const list = _COAST_SEGMENT_GRID.get(`${gx},${gz}`);
+      if (!list) continue;
+      for (let i = 0; i < list.length; i++) {
+        const s = list[i];
+        const tRaw = ((x - s.ax) * s.dx + (z - s.az) * s.dz) / s.lenSq;
+        const t = tRaw <= 0 ? 0 : tRaw >= 1 ? 1 : tRaw;
+        const px = s.ax + t * s.dx;
+        const pz = s.az + t * s.dz;
+        const dSq = (x - px) * (x - px) + (z - pz) * (z - pz);
+        if (dSq < minDistSq) minDistSq = dSq;
+      }
+    }
+  }
+  const cellLimitSq = _COAST_GRID_CELL * _COAST_GRID_CELL;
+  if (minDistSq <= cellLimitSq) return Math.sqrt(minDistSq);
+  if (maxSearchDist <= _COAST_GRID_CELL) {
+    return minDistSq < Infinity ? Math.sqrt(minDistSq) : maxSearchDist + 1;
+  }
   for (let i = 0; i < _OCEAN_SHORE_SEGMENTS.length; i++) {
     const s = _OCEAN_SHORE_SEGMENTS[i];
     const tRaw = ((x - s.ax) * s.dx + (z - s.az) * s.dz) / s.lenSq;
@@ -464,7 +441,7 @@ export function getPangaeaElevationAt(x, z) {
     (x >= ws(578) && x <= ws(3400) && z >= ws(-2720) && z <= ws(845) && pointInPolygon(x, z, EAST_PENINSULA_POLYGON)) ||
     (x >= ws(780) && x <= ws(2320) && z >= ws(1010) && z <= ws(2320) && pointInPolygon(x, z, PRISON_ISLAND_POLYGON));
 
-  const coastDist = getDistanceToCoastAt(x, z);
+  const coastDist = getDistanceToCoastAt(x, z, 64);
   if (!insideMainOrEast) {
     if (coastDist > 26) return -0.6;
     const tOut = smoothstep01(coastDist / 26);

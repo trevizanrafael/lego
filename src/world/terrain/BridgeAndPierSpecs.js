@@ -122,18 +122,18 @@ export function createSubdividedTerrainSectorGeo(minX, maxX, minZ, maxZ, cellSiz
 
   // Otimização 60 FPS em mundo escalado: tiles 100% planos usam malha leve 2x2!
   if (IS_SCALED_WORLD && (segX > 2 || segZ > 2)) {
-    let minH = Infinity;
-    let maxH = -Infinity;
+    let minSampleH = Infinity;
+    let maxSampleH = -Infinity;
     for (let ix = 0; ix < 5; ix++) {
       const sx = minX + w * (ix * 0.25);
       for (let iz = 0; iz < 5; iz++) {
         const sz = minZ + d * (iz * 0.25);
         const h = getUrbanCityReliefY(sx, sz);
-        if (h < minH) minH = h;
-        if (h > maxH) maxH = h;
+        if (h < minSampleH) minSampleH = h;
+        if (h > maxSampleH) maxSampleH = h;
       }
     }
-    if (maxH - minH < 0.004) {
+    if (maxSampleH - minSampleH < 0.004) {
       segX = 2;
       segZ = 2;
     }
@@ -144,12 +144,36 @@ export function createSubdividedTerrainSectorGeo(minX, maxX, minZ, maxZ, cellSiz
   geo.translate((minX + maxX) * 0.5, 0, (minZ + maxZ) * 0.5);
 
   const pos = geo.attributes.position;
+  let minH = Infinity;
+  let maxH = -Infinity;
   for (let i = 0; i < pos.count; i++) {
     const vx = pos.getX(i);
     const vz = pos.getZ(i);
-    pos.setY(i, getUrbanCityReliefY(vx, vz));
+    const hy = getUrbanCityReliefY(vx, vz);
+    pos.setY(i, hy);
+    if (hy < minH) minH = hy;
+    if (hy > maxH) maxH = hy;
   }
-  geo.computeVertexNormals();
+
+  // Normais analíticas contínuas por diferenças centrais (zero emendas entre chunks!)
+  const normAttr = geo.attributes.normal;
+  if (maxH - minH >= 0.004) {
+    const eps = 2.0;
+    const twoEps = 2 * eps;
+    for (let i = 0; i < pos.count; i++) {
+      const vx = pos.getX(i);
+      const vz = pos.getZ(i);
+      const nx = getUrbanCityReliefY(vx - eps, vz) - getUrbanCityReliefY(vx + eps, vz);
+      const nz = getUrbanCityReliefY(vx, vz - eps) - getUrbanCityReliefY(vx, vz + eps);
+      const invLen = 1 / Math.hypot(nx, twoEps, nz);
+      normAttr.setXYZ(i, nx * invLen, twoEps * invLen, nz * invLen);
+    }
+  } else {
+    for (let i = 0; i < pos.count; i++) {
+      normAttr.setXYZ(i, 0, 1, 0);
+    }
+  }
+  normAttr.needsUpdate = true;
   return geo;
 }
 
@@ -196,4 +220,136 @@ export function addChunkedArrayToScene(scene, geos, mat, opts = {}) {
     scene.add(mesh);
   }
   geos.length = 0;
+}
+
+function _cosineStep01(t) {
+  const c = t <= 0 ? 0 : t >= 1 ? 1 : t;
+  return 0.5 * (1 - Math.cos(Math.PI * c));
+}
+
+function _createRadialRingsGeo(segs, apex, ringCount, evalRingVertex, withColor = false) {
+  const vCount = 1 + segs * ringCount;
+  const positions = new Float32Array(vCount * 3);
+  const uvs = new Float32Array(vCount * 2);
+  const colors = withColor ? new Float32Array(vCount * 3) : null;
+  const indices = [];
+
+  positions[0] = apex.x;
+  positions[1] = apex.y;
+  positions[2] = apex.z;
+  uvs[0] = 0.5;
+  uvs[1] = 0.5;
+  if (colors && apex.color) {
+    colors[0] = apex.color.r;
+    colors[1] = apex.color.g;
+    colors[2] = apex.color.b;
+  }
+
+  const tmp = { x: 0, y: 0, z: 0, u: 0.5, v: 0.5, color: null };
+  for (let rIdx = 0; rIdx < ringCount; rIdx++) {
+    for (let s = 0; s < segs; s++) {
+      evalRingVertex(rIdx, s, (s / segs) * Math.PI * 2, tmp);
+      const vi = 1 + rIdx * segs + s;
+      positions[vi * 3] = tmp.x;
+      positions[vi * 3 + 1] = tmp.y;
+      positions[vi * 3 + 2] = tmp.z;
+      uvs[vi * 2] = tmp.u;
+      uvs[vi * 2 + 1] = tmp.v;
+      if (colors && tmp.color) {
+        colors[vi * 3] = tmp.color.r;
+        colors[vi * 3 + 1] = tmp.color.g;
+        colors[vi * 3 + 2] = tmp.color.b;
+      }
+    }
+  }
+
+  for (let s = 0; s < segs; s++) indices.push(0, 1 + ((s + 1) % segs), 1 + s);
+  for (let rIdx = 0; rIdx < ringCount - 1; rIdx++) {
+    const bIn = 1 + rIdx * segs;
+    const bOut = 1 + (rIdx + 1) * segs;
+    for (let s = 0; s < segs; s++) {
+      const sNext = (s + 1) % segs;
+      indices.push(bIn + s, bIn + sNext, bOut + s, bOut + s, bIn + sNext, bOut + sNext);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  if (colors) geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+export function createSmoothIsletDomeGeo(isl, palette) {
+  const ringRatios = [0.34, 0.68, 1.0, 1.22];
+  const cTop = isl.biome === 'rock' ? palette.cRock : isl.biome === 'forest' ? palette.cForest : palette.cSandDry;
+  const cMid = new THREE.Color().copy(palette.cSandDry).lerp(cTop, 0.52);
+  const cShore = new THREE.Color().copy(palette.cSandWet).lerp(palette.cSandDry, 0.35);
+  const cols = [cTop, cMid, cShore, palette.cDeepShoal];
+
+  return _createRadialRingsGeo(
+    16,
+    { x: isl.x, y: isl.peakY, z: isl.z, color: cTop },
+    ringRatios.length,
+    (rIdx, _s, ang, out) => {
+      const ratio = ringRatios[rIdx];
+      const ux = Math.cos(ang);
+      const uz = Math.sin(ang);
+      const perturb = 1 + 0.12 * Math.sin(ang * 3 + isl.seed) + 0.07 * Math.cos(ang * 5 - isl.seed);
+      const scaleR = 0.95 * perturb * ratio;
+      out.x = isl.x + ux * isl.rx * scaleR;
+      out.z = isl.z + uz * isl.rz * scaleR;
+      out.y = ratio <= 1.0 ? 0.18 + (isl.peakY - 0.18) * (1 - _cosineStep01(ratio)) : -0.62;
+      out.u = 0.5 + ux * ratio * 0.4;
+      out.v = 0.5 + uz * ratio * 0.4;
+      out.color = cols[rIdx];
+    },
+    true
+  );
+}
+
+export function pushSculptedHorizonMountainGeos(horizonGeos, mt, idx) {
+  const az = Math.atan2(mt.z, mt.x);
+  const tx = -Math.sin(az);
+  const tz = Math.cos(az);
+
+  const pushMassif = (cx, cz, radius, height, skew, phase) => {
+    const rings = [
+      { rScale: 0.28, y: height * 0.72, shift: skew * radius * 0.26 },
+      { rScale: 0.66, y: height * 0.3, shift: skew * radius * 0.14 },
+      { rScale: 1.06, y: -6.0, shift: 0 }
+    ];
+    const apexShift = skew * radius * 0.34;
+    horizonGeos.push(
+      _createRadialRingsGeo(
+        12,
+        { x: cx + tx * apexShift, y: height, z: cz + tz * apexShift },
+        rings.length,
+        (rIdx, _s, ang, out) => {
+          const rg = rings[rIdx];
+          const mod = 1.0 + 0.2 * Math.cos(ang * 2 - phase) + 0.11 * Math.sin(ang * 3 + phase * 1.3);
+          const rad = radius * rg.rScale * mod;
+          out.x = cx + tx * rg.shift + Math.cos(ang) * rad;
+          out.y = rg.y;
+          out.z = cz + tz * rg.shift + Math.sin(ang) * rad;
+          out.u = 0.5 + Math.cos(ang) * rg.rScale * 0.45;
+          out.v = 0.5 + Math.sin(ang) * rg.rScale * 0.45;
+        },
+        false
+      )
+    );
+  };
+
+  pushMassif(mt.x, mt.z, mt.radius, mt.height, mt.ridgeSkew, idx * 0.9 + 0.4);
+  const spurDir = mt.ridgeSkew >= 0 ? -1 : 1;
+  pushMassif(
+    mt.x + tx * mt.radius * 0.52 * spurDir,
+    mt.z + tz * mt.radius * 0.52 * spurDir,
+    mt.radius * 0.62,
+    mt.height * 0.66,
+    -mt.ridgeSkew * 0.6,
+    idx * 1.4 + 2.1
+  );
 }

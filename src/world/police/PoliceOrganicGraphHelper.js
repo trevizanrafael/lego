@@ -2,9 +2,9 @@ import { IS_SCALED_WORLD, ROAD } from '../core/WorldLayoutScale.js';
 
 /**
  * PoliceOrganicGraphHelper.js
- * Ingestão das vias orgânicas (`world.mapOrganicRoads`: boulevards diagonais, curvas em S,
- * alamedas sinuosas do subúrbio, rotatórias e cul-de-sacs) no grafo viário A* da Polícia
- * e contenção de coordenadas ao asfalto (`clampPointToRoadAsphalt`).
+ * Ingestão das vias orgânicas unificadas (`world.mapOrganicRoads`: boulevards diagonais,
+ * conectores inter-distritais, curvas em S, alamedas do subúrbio, rotatórias e cul-de-sacs)
+ * no grafo viário A* da Polícia, garantindo componente conexo único e `clampPointToRoadAsphalt`.
  */
 
 export function addBidirectionalEdge(graph, nodeA, nodeB, isBridge = false, roadWidth = ROAD.mainWidth, flags = null) {
@@ -29,6 +29,7 @@ export function addBidirectionalEdge(graph, nodeA, nodeB, isBridge = false, road
     dirZ: dz * inv,
     isBridge,
     roadWidth,
+    tier: flags?.tier || (roadWidth >= 28 ? 'arterial' : roadWidth >= 22 ? 'collector' : 'local'),
     isOrganic: Boolean(flags?.isOrganic),
     isRoundaboutRing: Boolean(flags?.isRoundaboutRing)
   };
@@ -52,7 +53,7 @@ function splitSegmentAtNode(graph, seg, jNode, canConnect) {
   if (!seg || !jNode || jNode === seg.a || jNode === seg.b) return;
   const okA = canConnect(seg.a, jNode, seg.isBridge);
   const okB = canConnect(jNode, seg.b, seg.isBridge);
-  const flags = { isOrganic: seg.isOrganic, isRoundaboutRing: seg.isRoundaboutRing };
+  const flags = { isOrganic: seg.isOrganic, isRoundaboutRing: seg.isRoundaboutRing, tier: seg.tier };
   if (okA && okB) removeSegmentEdge(graph, seg);
   if (okA) addBidirectionalEdge(graph, seg.a, jNode, seg.isBridge, seg.roadWidth, flags);
   if (okB) addBidirectionalEdge(graph, jNode, seg.b, seg.isBridge, seg.roadWidth, flags);
@@ -70,9 +71,11 @@ export function snapOrSplitOntoExistingSegment(
 ) {
   if (!polyNode) return null;
   let bestSeg = null;
-  let bestDistSq = 22.0 * 22.0;
+  // Cobre `halfMainRoad (17m) + sidewalk (10m) + drivewayApron (5..10m)` = até 38m!
+  let bestDistSq = 38.0 * 38.0;
   let bestJx = 0;
   let bestJz = 0;
+  let bestT = 0;
 
   for (let i = 0; i < graph.segments.length; i++) {
     const seg = graph.segments[i];
@@ -92,13 +95,28 @@ export function snapOrSplitOntoExistingSegment(
       bestSeg = seg;
       bestJx = qx;
       bestJz = qz;
+      bestT = t;
     }
   }
 
   if (bestSeg) {
+    // Suaviza entroncamento angulado caso haja desnível lateral (ex.: borda Oeste do Platô do Subúrbio)
+    if (polyNode.y !== undefined && bestSeg.a.y !== undefined && bestSeg.b.y !== undefined) {
+      const estY = bestSeg.a.y + (bestSeg.b.y - bestSeg.a.y) * bestT;
+      const dY = Math.abs(estY - polyNode.y);
+      const perpDist = Math.sqrt(bestDistSq);
+      if (dY > 1.2 && perpDist > 1e-3 && dY / perpDist > 0.105 && bestSeg.length > 40) {
+        const reqLen = dY / 0.095;
+        const alongShift = Math.sqrt(Math.max(0, reqLen * reqLen - bestDistSq)) / bestSeg.length;
+        const tShift = bestT + alongShift <= 0.96 ? bestT + alongShift : Math.max(0.04, bestT - alongShift);
+        bestJx = bestSeg.a.x + (bestSeg.b.x - bestSeg.a.x) * tShift;
+        bestJz = bestSeg.a.z + (bestSeg.b.z - bestSeg.a.z) * tShift;
+      }
+    }
+
     let jNode = null;
-    if (Math.hypot(bestJx - bestSeg.a.x, bestJz - bestSeg.a.z) <= 2.5) jNode = bestSeg.a;
-    else if (Math.hypot(bestJx - bestSeg.b.x, bestJz - bestSeg.b.z) <= 2.5) jNode = bestSeg.b;
+    if (Math.hypot(bestJx - bestSeg.a.x, bestJz - bestSeg.a.z) <= 4.5) jNode = bestSeg.a;
+    else if (Math.hypot(bestJx - bestSeg.b.x, bestJz - bestSeg.b.z) <= 4.5) jNode = bestSeg.b;
     else {
       jNode = registerNode(bestJx, bestJz, 'organic_junction', bestSeg.isBridge, bestSeg.roadWidth);
       if (jNode && jNode !== bestSeg.a && jNode !== bestSeg.b) {
@@ -112,7 +130,7 @@ export function snapOrSplitOntoExistingSegment(
   }
 
   let bestNode = null;
-  let bestNodeDistSq = 24.0 * 24.0;
+  let bestNodeDistSq = 40.0 * 40.0;
   for (let i = 0; i < graph.nodes.length; i++) {
     const n = graph.nodes[i];
     if (n === polyNode || (excludedNodeSet && excludedNodeSet.has(n))) continue;
@@ -127,6 +145,84 @@ export function snapOrSplitOntoExistingSegment(
     return bestNode;
   }
   return null;
+}
+
+function bridgeIsolatedOrganicComponents(graph, registerNode, canConnect) {
+  for (let pass = 0; pass < 6; pass++) {
+    const activeNodes = graph.nodes.filter((n) => n.neighbors.length > 0);
+    if (activeNodes.length === 0) return;
+
+    const compByIdx = new Int32Array(graph.nodes.length).fill(-1);
+    const components = [];
+    for (let i = 0; i < activeNodes.length; i++) {
+      const root = activeNodes[i];
+      if (compByIdx[root.index] !== -1) continue;
+      const cid = components.length;
+      const list = [root];
+      compByIdx[root.index] = cid;
+      for (let q = 0; q < list.length; q++) {
+        const cur = list[q];
+        for (let k = 0; k < cur.neighbors.length; k++) {
+          const nb = cur.neighbors[k].node;
+          if (compByIdx[nb.index] === -1) {
+            compByIdx[nb.index] = cid;
+            list.push(nb);
+          }
+        }
+      }
+      components.push(list);
+    }
+    if (components.length <= 1) break;
+
+    let mainCid = 0;
+    for (let c = 1; c < components.length; c++) {
+      if (components[c].length > components[mainCid].length) mainCid = c;
+    }
+    const mainSegs = graph.segments.filter((s) => !s.isBridge && compByIdx[s.a.index] === mainCid);
+    let bridgedAny = false;
+
+    for (let c = 0; c < components.length; c++) {
+      if (c === mainCid) continue;
+      const subNodes = components[c];
+      let bestU = null, bestSeg = null, bestJx = 0, bestJz = 0, bestSq = 160.0 * 160.0;
+
+      for (let i = 0; i < subNodes.length; i++) {
+        const u = subNodes[i];
+        for (let s = 0; s < mainSegs.length; s++) {
+          const seg = mainSegs[s];
+          const vx = seg.b.x - seg.a.x, vz = seg.b.z - seg.a.z;
+          const lenSq = vx * vx + vz * vz;
+          if (lenSq <= 1e-6) continue;
+          const t = Math.max(0, Math.min(1, ((u.x - seg.a.x) * vx + (u.z - seg.a.z) * vz) / lenSq));
+          const qx = seg.a.x + vx * t, qz = seg.a.z + vz * t;
+          const dSq = (u.x - qx) * (u.x - qx) + (u.z - qz) * (u.z - qz);
+          if (dSq < bestSq) {
+            bestSq = dSq;
+            bestU = u;
+            bestSeg = seg;
+            bestJx = qx;
+            bestJz = qz;
+          }
+        }
+      }
+      if (bestU && bestSeg) {
+        let jNode = null;
+        if (Math.hypot(bestJx - bestSeg.a.x, bestJz - bestSeg.a.z) <= 4.5) jNode = bestSeg.a;
+        else if (Math.hypot(bestJx - bestSeg.b.x, bestJz - bestSeg.b.z) <= 4.5) jNode = bestSeg.b;
+        else {
+          jNode = registerNode(bestJx, bestJz, 'organic_bridge_link', false, bestSeg.roadWidth);
+          if (jNode && jNode !== bestSeg.a && jNode !== bestSeg.b) {
+            splitSegmentAtNode(graph, bestSeg, jNode, canConnect);
+          }
+        }
+        if (jNode && jNode !== bestU) {
+          addBidirectionalEdge(graph, bestU, jNode, false, Math.min(bestU.roadWidth || 18, bestSeg.roadWidth || 26), { isOrganic: true, tier: 'local' });
+          bridgedAny = true;
+        }
+      }
+    }
+    if (!bridgedAny) break;
+  }
 }
 
 export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, canConnect) {
@@ -153,16 +249,12 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
       const nA = ringNodes[k];
       const nB = ringNodes[(k + 1) % ringNodes.length];
       if (canConnect(nA, nB, false)) {
-        addBidirectionalEdge(graph, nA, nB, false, ringWidth, { isOrganic: true, isRoundaboutRing: true });
+        addBidirectionalEdge(graph, nA, nB, false, ringWidth, { isOrganic: true, isRoundaboutRing: true, tier: item.tier || 'collector' });
       }
     }
     graph.roundabouts.push({
       id: item.id || null,
-      cx,
-      cz,
-      innerR,
-      outerR,
-      rMid,
+      cx, cz, innerR, outerR, rMid,
       sidewalk: Number(item.sidewalk) || swDefault,
       roadWidth: ringWidth,
       ringNodes
@@ -181,6 +273,7 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
     const width = Number(poly.width) || ROAD.secondaryWidth;
     const halfWidth = width * 0.5;
     const sidewalk = Number(poly.sidewalk) || swDefault;
+    const tier = poly.tier || (poly.isMain ? 'arterial' : 'collector');
     const pad = halfWidth + sidewalk + 1.0;
     const chain = [];
     const origVertices = [];
@@ -194,20 +287,10 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
       if (lenSq < 0.25) continue;
       const len = Math.sqrt(lenSq);
       graph.organicSegments.push({
-        x1,
-        z1,
-        x2,
-        z2,
-        width,
-        halfWidth,
-        sidewalk,
-        vx,
-        vz,
+        x1, z1, x2, z2, width, halfWidth, sidewalk, tier, vx, vz,
         invLenSq: 1 / lenSq,
-        minX: Math.min(x1, x2) - pad,
-        maxX: Math.max(x1, x2) + pad,
-        minZ: Math.min(z1, z2) - pad,
-        maxZ: Math.max(z1, z2) + pad
+        minX: Math.min(x1, x2) - pad, maxX: Math.max(x1, x2) + pad,
+        minZ: Math.min(z1, z2) - pad, maxZ: Math.max(z1, z2) + pad
       });
       const subSteps = len > 95 ? Math.ceil(len / 85) : 1;
       for (let s = i === 0 ? 0 : 1; s <= subSteps; s++) {
@@ -218,21 +301,16 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
         if (!nd) continue;
         if (chain.length === 0 || chain[chain.length - 1] !== nd) chain.push(nd);
         if (s === 0 || s === subSteps) {
-          origVertices.push({
-            px,
-            pz,
-            node: nd,
-            isEnd: (i === 0 && s === 0) || (i === pts.length - 2 && s === subSteps)
-          });
+          origVertices.push({ px, pz, node: nd, isEnd: (i === 0 && s === 0) || (i === pts.length - 2 && s === subSteps) });
         }
       }
     }
     for (let m = 0; m < chain.length - 1; m++) {
       if (canConnect(chain[m], chain[m + 1], false)) {
-        addBidirectionalEdge(graph, chain[m], chain[m + 1], false, width, { isOrganic: true });
+        addBidirectionalEdge(graph, chain[m], chain[m + 1], false, width, { isOrganic: true, tier });
       }
     }
-    if (chain.length > 0) polyRecords.push({ width, nodeSet: new Set(chain), origVertices });
+    if (chain.length > 0) polyRecords.push({ width, tier, nodeSet: new Set(chain), origVertices });
   }
 
   for (let r = 0; r < polyRecords.length; r++) {
@@ -244,7 +322,7 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
         for (let rbIdx = 0; rbIdx < graph.roundabouts.length; rbIdx++) {
           const rb = graph.roundabouts[rbIdx];
           const dr = Math.hypot(px - rb.cx, pz - rb.cz);
-          if (Math.abs(dr - rb.rMid) <= 22.0 && dr >= rb.innerR * 0.6 && rb.ringNodes.length > 0) {
+          if (Math.abs(dr - rb.rMid) <= 24.0 && dr >= rb.innerR * 0.6 && rb.ringNodes.length > 0) {
             let nearRing = rb.ringNodes[0];
             let nearRingSq = Infinity;
             for (let k = 0; k < rb.ringNodes.length; k++) {
@@ -256,7 +334,7 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
               }
             }
             if (nearRing && nearRing !== node && canConnect(node, nearRing, false)) {
-              addBidirectionalEdge(graph, node, nearRing, false, Math.min(rec.width, rb.roadWidth), { isOrganic: true });
+              addBidirectionalEdge(graph, node, nearRing, false, Math.min(rec.width, rb.roadWidth), { isOrganic: true, tier: rec.tier });
               attachedToRing = true;
             }
           }
@@ -268,38 +346,28 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
     }
   }
 
-  // Cruzamentos interiores diretos entre segmentos orgânicos e cartesianos sem vértice explícito
+  // Cruzamentos interiores diretos (orgânico x cartesiano e orgânico x orgânico)
   const orgEdges = graph.segments.filter((s) => s.isOrganic && !s.isRoundaboutRing);
   for (let i = 0; i < orgEdges.length; i++) {
     const sO = orgEdges[i];
     if (!graph.segments.includes(sO)) continue;
-    const ox1 = sO.a.x;
-    const oz1 = sO.a.z;
-    const odx = sO.b.x - ox1;
-    const odz = sO.b.z - oz1;
-    const oMinX = Math.min(ox1, sO.b.x);
-    const oMaxX = Math.max(ox1, sO.b.x);
-    const oMinZ = Math.min(oz1, sO.b.z);
-    const oMaxZ = Math.max(oz1, sO.b.z);
+    const ox1 = sO.a.x, oz1 = sO.a.z, odx = sO.b.x - ox1, odz = sO.b.z - oz1;
+    const oMinX = Math.min(ox1, sO.b.x), oMaxX = Math.max(ox1, sO.b.x);
+    const oMinZ = Math.min(oz1, sO.b.z), oMaxZ = Math.max(oz1, sO.b.z);
     for (let j = graph.segments.length - 1; j >= 0; j--) {
       const sC = graph.segments[j];
-      if (!sC || sC.isOrganic || sC.isBridge) continue;
+      if (!sC || sC === sO || sC.isBridge || sC.isRoundaboutRing) continue;
       if (sC.a === sO.a || sC.a === sO.b || sC.b === sO.a || sC.b === sO.b) continue;
-      const cx1 = sC.a.x;
-      const cz1 = sC.a.z;
-      const cdx = sC.b.x - cx1;
-      const cdz = sC.b.z - cz1;
+      const cx1 = sC.a.x, cz1 = sC.a.z, cdx = sC.b.x - cx1, cdz = sC.b.z - cz1;
       if (Math.max(cx1, sC.b.x) < oMinX || Math.min(cx1, sC.b.x) > oMaxX) continue;
       if (Math.max(cz1, sC.b.z) < oMinZ || Math.min(cz1, sC.b.z) > oMaxZ) continue;
       const denom = odx * cdz - odz * cdx;
       if (Math.abs(denom) < 1e-6) continue;
-      const rx = cx1 - ox1;
-      const rz = cz1 - oz1;
+      const rx = cx1 - ox1, rz = cz1 - oz1;
       const t = (rx * cdz - rz * cdx) / denom;
       const u = (rx * odz - rz * odx) / denom;
-      if (t > 0.02 && t < 0.98 && u > 0.02 && u < 0.98) {
-        const ix = ox1 + odx * t;
-        const iz = oz1 + odz * t;
+      if (t > 0.04 && t < 0.96 && u > 0.04 && u < 0.96) {
+        const ix = ox1 + odx * t, iz = oz1 + odz * t;
         const jNode = registerNode(ix, iz, 'organic_crossing', false, Math.max(sO.roadWidth, sC.roadWidth));
         if (jNode) {
           splitSegmentAtNode(graph, sC, jNode, canConnect);
@@ -309,6 +377,8 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
       }
     }
   }
+
+  bridgeIsolatedOrganicComponents(graph, registerNode, canConnect);
 }
 
 export function clampPointToRoadAsphalt(graph, x, z, curbMargin = 2.0) {
@@ -335,27 +405,16 @@ export function clampPointToRoadAsphalt(graph, x, z, curbMargin = 2.0) {
       if (pen < bestRbPen && dr > 1e-4) {
         const rTgt = Math.max(rb.innerR + 2.0, rb.outerR - curbMargin);
         bestRbPen = pen;
-        bestRbClamp = {
-          x: rb.cx + ((x - rb.cx) / dr) * rTgt,
-          z: rb.cz + ((z - rb.cz) / dr) * rTgt,
-          clamped: true,
-          roadWidth: rw
-        };
+        bestRbClamp = { x: rb.cx + ((x - rb.cx) / dr) * rTgt, z: rb.cz + ((z - rb.cz) / dr) * rTgt, clamped: true, roadWidth: rw };
       }
     } else if (dr < rb.innerR + curbMargin && dr >= Math.max(0.5, rb.innerR - 6.0)) {
       const pen = rb.innerR + curbMargin - dr;
       if (pen < bestRbPen) {
         const rTgt = Math.min(rb.outerR - 2.0, rb.innerR + curbMargin);
         bestRbPen = pen;
-        bestRbClamp =
-          dr > 1e-4
-            ? {
-                x: rb.cx + ((x - rb.cx) / dr) * rTgt,
-                z: rb.cz + ((z - rb.cz) / dr) * rTgt,
-                clamped: true,
-                roadWidth: rw
-              }
-            : { x: rb.cx + rTgt, z: rb.cz, clamped: true, roadWidth: rw };
+        bestRbClamp = dr > 1e-4
+          ? { x: rb.cx + ((x - rb.cx) / dr) * rTgt, z: rb.cz + ((z - rb.cz) / dr) * rTgt, clamped: true, roadWidth: rw }
+          : { x: rb.cx + rTgt, z: rb.cz, clamped: true, roadWidth: rw };
       }
     }
   }
@@ -368,83 +427,55 @@ export function clampPointToRoadAsphalt(graph, x, z, curbMargin = 2.0) {
     const vx = s.vx !== undefined ? s.vx : s.x2 - s.x1;
     const vz = s.vz !== undefined ? s.vz : s.z2 - s.z1;
     const invLenSq = s.invLenSq !== undefined ? s.invLenSq : 1 / Math.max(1e-6, vx * vx + vz * vz);
-    let t = ((x - s.x1) * vx + (z - s.z1) * vz) * invLenSq;
-    if (t < 0) t = 0;
-    else if (t > 1) t = 1;
-    const qx = s.x1 + vx * t;
-    const qz = s.z1 + vz * t;
-    const dx = x - qx;
-    const dz = z - qz;
-    const dist = Math.hypot(dx, dz);
+    const t = Math.max(0, Math.min(1, ((x - s.x1) * vx + (z - s.z1) * vz) * invLenSq));
+    const qx = s.x1 + vx * t, qz = s.z1 + vz * t;
+    const dx = x - qx, dz = z - qz, dist = Math.hypot(dx, dz);
     const halfW = s.halfWidth !== undefined ? s.halfWidth : (s.width || ROAD.secondaryWidth) * 0.5;
     const maxLat = Math.max(2.0, halfW - curbMargin);
-    if (dist <= maxLat) {
-      return { x, z, clamped: false, roadWidth: s.width || ROAD.secondaryWidth };
-    }
+    if (dist <= maxLat) return { x, z, clamped: false, roadWidth: s.width || ROAD.secondaryWidth };
     const sw = s.sidewalk || sidewalkW;
     if (dist <= halfW + sw && dist < bestOrgDist && dist > 1e-4) {
       bestOrgDist = dist;
-      bestOrgClamp = {
-        x: qx + (dx / dist) * maxLat,
-        z: qz + (dz / dist) * maxLat,
-        clamped: true,
-        roadWidth: s.width || ROAD.secondaryWidth
-      };
+      bestOrgClamp = { x: qx + (dx / dist) * maxLat, z: qz + (dz / dist) * maxLat, clamped: true, roadWidth: s.width || ROAD.secondaryWidth };
     }
   }
 
-  let nearX = null;
-  let bestDx = Infinity;
+  let nearX = null, bestDx = Infinity;
   for (let i = 0; i < xCols.length; i++) {
     const c = xCols[i];
     if (z < c.min - 14 || z > c.max + 14) continue;
     const dx = Math.abs(x - c.coord);
-    if (dx <= c.width * 0.5 + sidewalkW + 0.5 && dx < bestDx) {
-      bestDx = dx;
-      nearX = c;
-    }
+    if (dx <= c.width * 0.5 + sidewalkW + 0.5 && dx < bestDx) { bestDx = dx; nearX = c; }
   }
 
-  let nearZ = null;
-  let bestDz = Infinity;
+  let nearZ = null, bestDz = Infinity;
   for (let i = 0; i < zCols.length; i++) {
     const c = zCols[i];
     if (x < c.min - 14 || x > c.max + 14) continue;
     const dz = Math.abs(z - c.coord);
-    if (dz <= c.width * 0.5 + sidewalkW + 0.5 && dz < bestDz) {
-      bestDz = dz;
-      nearZ = c;
-    }
+    if (dz <= c.width * 0.5 + sidewalkW + 0.5 && dz < bestDz) { bestDz = dz; nearZ = c; }
   }
 
   if (nearX && nearZ && bestDx <= nearX.width * 0.5 + 1.5 && bestDz <= nearZ.width * 0.5 + 1.5) {
     return { x, z, clamped: false, roadWidth: Math.max(nearX.width, nearZ.width) };
   }
-  if (nearX && bestDx <= Math.max(2.0, nearX.width * 0.5 - curbMargin)) {
-    return { x, z, clamped: false, roadWidth: nearX.width };
-  }
-  if (nearZ && bestDz <= Math.max(2.0, nearZ.width * 0.5 - curbMargin)) {
-    return { x, z, clamped: false, roadWidth: nearZ.width };
-  }
+  if (nearX && bestDx <= Math.max(2.0, nearX.width * 0.5 - curbMargin)) return { x, z, clamped: false, roadWidth: nearX.width };
+  if (nearZ && bestDz <= Math.max(2.0, nearZ.width * 0.5 - curbMargin)) return { x, z, clamped: false, roadWidth: nearZ.width };
 
   if (bestRbClamp) return bestRbClamp;
   if (bestOrgClamp) return bestOrgClamp;
 
   if (nearX && (!nearZ || bestDz > nearZ.width * 0.5)) {
     const maxLat = Math.max(2.0, nearX.width * 0.5 - curbMargin);
-    if (bestDx > maxLat) {
-      return { x: nearX.coord + (x >= nearX.coord ? maxLat : -maxLat), z, clamped: true, roadWidth: nearX.width };
-    }
-    return { x, z, clamped: false, roadWidth: nearX.width };
+    return bestDx > maxLat
+      ? { x: nearX.coord + (x >= nearX.coord ? maxLat : -maxLat), z, clamped: true, roadWidth: nearX.width }
+      : { x, z, clamped: false, roadWidth: nearX.width };
   }
-
   if (nearZ && (!nearX || bestDx > nearX.width * 0.5)) {
     const maxLat = Math.max(2.0, nearZ.width * 0.5 - curbMargin);
-    if (bestDz > maxLat) {
-      return { x, z: nearZ.coord + (z >= nearZ.coord ? maxLat : -maxLat), clamped: true, roadWidth: nearZ.width };
-    }
-    return { x, z, clamped: false, roadWidth: nearZ.width };
+    return bestDz > maxLat
+      ? { x, z: nearZ.coord + (z >= nearZ.coord ? maxLat : -maxLat), clamped: true, roadWidth: nearZ.width }
+      : { x, z, clamped: false, roadWidth: nearZ.width };
   }
-
   return { x, z, clamped: false, roadWidth: ROAD.mainWidth };
 }
