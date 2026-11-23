@@ -9,6 +9,7 @@ import {
 } from './east-port/PccCitadelAndYardsBuilder.js';
 import { buildAllExpandedPCCIndustrialAndCorporateBlocks } from './east-port/IndustrialDistrictAndPccBuilder.js';
 import { buildMetropolitanPortAndDocks } from './east-port/PortAresBaseBuilder.js';
+import { buildIndustrialToPortFreightRailSpur } from './east-port/IndustrialRailSpurBuilder.js';
 
 /**
  * 6 & 7. IMPÉRIO INDUSTRIAL & CORPORATIVO BLINDADO 100% DO PCC + PORTO METROPOLITANO
@@ -50,6 +51,10 @@ export function buildEastCanalIndustrialAndPort(world) {
     hasElectromagneticCrane: true,
     hasHydraulicPress: true,
     hasFleetConvoyYard: true,
+    hasFreightRailSpur: false,
+    hasCanalServiceRoad: false,
+    heavyIndustrialShedsCount: 0,
+    totalInfillLotsCount: 0,
     entryBarricadesCount: 0
   };
 
@@ -86,8 +91,13 @@ export function buildEastCanalIndustrialAndPort(world) {
   // 6. PORTO DE CARGAS & CAIS MARÍTIMO (CAIS PESADO, LABIRINTO DE CONTÊINERES, PORTAINERS, DOCAS E NAVIOS)
   buildMetropolitanPortAndDocks(world, batcher);
 
+  // 6.5 RAMAL FERROVIÁRIO DE CARGA INDUSTRIAL -> CAIS LESTE DO PORTO (100% BATCHEADO EM VERTEX COLORS)
+  buildIndustrialToPortFreightRailSpur(world, batcher);
+
   // Finaliza toda a malha estática do Império Blindado do PCC + Porto de Cargas em poucos Draw Calls!
-  batcher.finalize(world.scene);
+  const flushedMeshes = batcher.finalize(world.scene);
+  world.industrialPCCData.batchedStaticMeshesCount = flushedMeshes;
+  if (world.eastPortData) world.eastPortData.batchedStaticMeshesCount = flushedMeshes;
 
   // 7. Infraestrutura Oficial dos 2 Territórios Leste/Sudeste: PCC (Industrial/Cidadela) e A.R.E.S. (Porto Blindado)!
   buildTerritoryInfrastructureForZone(world, 'pcc');

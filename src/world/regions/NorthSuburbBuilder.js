@@ -1,8 +1,8 @@
 /**
  * Fachada fina da Região Norte — Bairro Residencial / Subúrbio.
- * Delega os lotes residenciais (4/6/8 casas com grama, telhados inclinados, quintais e cercas)
- * para `./north-suburb/SuburbHousesAndLotsBuilder.js` e os quarteirões especiais (Praça, Quadra,
- * Pizzaria/Diner e Posto de Gasolina com 6 bombas explosivas) para
+ * Delega os lotes residenciais compactos e alamedas orgânicas para `./north-suburb/SuburbHousesAndLotsBuilder.js`
+ * e os quarteirões especiais + faixas comerciais de esquina (Posto com 6 bombas explosivas, Pizzaria/Diner,
+ * Praça/Quadra de Basquete, Padaria, Farmácia, Barbearia e Mercadinho) para
  * `./north-suburb/SuburbPlazaPizzeriaAndGasBuilder.js`.
  */
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
@@ -16,11 +16,12 @@ import {
 import {
   buildExplosiveGasStationBlock,
   buildSuburbCommercialPizzeriaBlock,
-  buildSuburbParkAndBasketballBlock
+  buildSuburbParkAndBasketballBlock,
+  buildSuburbNeighborhoodCornerStrip
 } from './north-suburb/SuburbPlazaPizzeriaAndGasBuilder.js';
 
 /**
- * 4. NORTE — BAIRRO RESIDENCIAL / SUBÚRBIO (LOTES DE GRAMA, 5 ESTILOS DE CASAS, QUINTAIS E 3 QUARTEIRÕES ESPECIAIS)
+ * 4. NORTE — BAIRRO RESIDENCIAL / SUBÚRBIO (PARCELAS RESIDENCIAIS DENSAS, 5 ESTILOS DE CASAS, COMÉRCIO LOCAL & 3 MARCOS)
  */
 export function buildNorthSuburbAndGasStation(world) {
   const batcher = new SuburbBatcher();
@@ -30,7 +31,8 @@ export function buildNorthSuburbAndGasStation(world) {
     buildScaledNorthSuburbGrid(world, batcher, {
       buildExplosiveGasStationBlock,
       buildSuburbCommercialPizzeriaBlock,
-      buildSuburbParkAndBasketballBlock
+      buildSuburbParkAndBasketballBlock,
+      buildSuburbNeighborhoodCornerStrip
     });
     batcher.flush(world.scene);
     return;
@@ -42,9 +44,8 @@ export function buildNorthSuburbAndGasStation(world) {
   let blockCounter = 0;
   for (let rIdx = 0; rIdx < suburbBlockRowsZ.length; rIdx++) {
     const bz = suburbBlockRowsZ[rIdx];
-    const isSouthBorderRow = rIdx === 0; // bz = -580 (Fronteira Sul do Subúrbio com o Centro)
+    const isSouthBorderRow = rIdx === 0;
 
-    // Registra a rua residencial estreita (10m) que corta os quarteirões ao meio no mapa
     world.mapRoads.push({ x: -53.5, z: bz, w: 1179, d: 10, isMain: false });
 
     for (let cIdx = 0; cIdx < suburbBlockColsX.length; cIdx++) {
@@ -52,7 +53,6 @@ export function buildNorthSuburbAndGasStation(world) {
       const bw = Math.abs(bx) === 60 ? 110 : 122;
       const bd = 122;
 
-      // Os 3 Quarteirões Especiais Obrigatórios na faixa central do Subúrbio (bz = -712):
       if (bz === -712 && bx === 186) {
         buildExplosiveGasStationBlock(world, batcher, bx, bz, bw, bd);
         continue;
@@ -65,13 +65,11 @@ export function buildNorthSuburbAndGasStation(world) {
         buildSuburbParkAndBasketballBlock(world, batcher, bx, bz, bw, bd);
         continue;
       }
-      // Na última fileira costeira Norte (bz = -1240), inclui Parques Arborizados em bx = -186 e bx = 318
       if (bz === -1240 && (bx === -186 || bx === 318)) {
         buildSuburbParkAndBasketballBlock(world, batcher, bx, bz, bw, 134);
         continue;
       }
 
-      // Divide cada célula de 122m em 2 Quarteirões Residenciais Compactos separados por rua de 10m
       blockCounter++;
       const isNorthCoastRow = bz === -1240;
       const northSubD = isNorthCoastRow ? 68 : 56;
@@ -81,7 +79,6 @@ export function buildNorthSuburbAndGasStation(world) {
     }
   }
 
-  // Parque Linear & Alameda Arborizada na Borda Extrema Norte (Z = -1315, no Platô Costeiro Elevado)
   const northPromenadeY = world.getTerrainHeightAt ? world.getTerrainHeightAt(0, -1315) : 0;
   world._addCityBlockSidewalk(-53.5, -1315, 1179, 10, LEGO_COLORS.sidewalk, northPromenadeY);
   batcher.addBox('lawn_green', 1173, 0.1, 8, -53.5, northPromenadeY + 0.28, -1315);
@@ -91,9 +88,6 @@ export function buildNorthSuburbAndGasStation(world) {
     world._addLegoTree(tx, ty, -1315, 1.05);
   }
 
-  // Townhouses elegantes nos cantos da faixa de transição (Z = -448)
   buildTransitionTownhouseAccents(world, batcher);
-
-  // Mescla todas as geometrias estáticas do Subúrbio em poucos Draw Calls e instancia as Árvores Floridas!
   batcher.flush(world.scene);
 }

@@ -5,6 +5,7 @@ import { IS_SCALED_WORLD, ws, fromWs } from '../../core/WorldLayoutScale.js';
 const HILL_MIN_DESIGN_Z = -1825;
 const HILL_MAX_DESIGN_Z = 680;
 const HILL_Z_BANDS = 5;
+export const FAVELA_LOD1_DISTANCE = 650;
 
 const _UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const _BOX_POS = _UNIT_BOX.attributes.position.array;
@@ -13,10 +14,41 @@ const _BOX_UV = _UNIT_BOX.attributes.uv.array;
 const _BOX_IDX = _UNIT_BOX.index.array;
 _UNIT_BOX.dispose();
 
-let _cachedWallAtlasTex = null;
-let _cachedWallAtlasMat = null;
-let _cachedSolidVcMat = null;
-let _cachedBasicVcMat = null;
+// Faces BoxGeometry(1,1,1): 0:+X, 1:-X, 2:+Y(topo), 3:-Y(fundo omitido em faceMode=1), 4:+Z, 5:-Z
+const _FIVE_FACE_VERTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 22, 23];
+const _FIVE_FACE_IDX = [0, 2, 1, 2, 3, 1, 4, 6, 5, 6, 7, 5, 8, 10, 9, 10, 11, 9, 12, 14, 13, 14, 15, 13, 16, 18, 17, 18, 19, 17];
+const _Z_FACE_VERTS = [16, 17, 18, 19, 20, 21, 22, 23];
+const _Z_FACE_IDX = [0, 2, 1, 2, 3, 1, 4, 6, 5, 6, 7, 5];
+
+// Template unitário de caixa d'água hexagonal sem tampa inferior (30 vértices, 16 triângulos vs 64!)
+const _HEX_UNIT = (() => {
+  const segs = 6, pos = new Float32Array(90), norm = new Float32Array(90), topMask = new Uint8Array(30);
+  const idx = new Uint16Array([
+    0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7, 8, 9, 10, 10, 9, 11,
+    12, 13, 14, 14, 13, 15, 16, 17, 18, 18, 17, 19, 20, 21, 22, 22, 21, 23,
+    24, 26, 25, 24, 27, 26, 24, 28, 27, 24, 29, 28
+  ]);
+  let v = 0;
+  for (let s = 0; s < segs; s++) {
+    const a0 = (s / segs) * Math.PI * 2, a1 = ((s + 1) / segs) * Math.PI * 2;
+    const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
+    const nx = Math.cos((a0 + a1) * 0.5), nz = Math.sin((a0 + a1) * 0.5);
+    for (const [rx, ry, rz, isTop] of [[c0, 0.5, s0, 1], [c1, 0.5, s1, 1], [c0, -0.5, s0, 0], [c1, -0.5, s1, 0]]) {
+      pos[v * 3] = rx; pos[v * 3 + 1] = ry; pos[v * 3 + 2] = rz;
+      norm[v * 3] = nx; norm[v * 3 + 1] = 0; norm[v * 3 + 2] = nz;
+      topMask[v++] = isTop;
+    }
+  }
+  for (let s = 0; s < segs; s++) {
+    const a = (s / segs) * Math.PI * 2;
+    pos[v * 3] = Math.cos(a); pos[v * 3 + 1] = 0.5; pos[v * 3 + 2] = Math.sin(a);
+    norm[v * 3] = 0; norm[v * 3 + 1] = 1; norm[v * 3 + 2] = 0;
+    topMask[v++] = 1;
+  }
+  return { pos, norm, topMask, idx };
+})();
+
+let _cachedWallAtlasTex = null, _cachedWallAtlasMat = null, _cachedSolidVcMat = null, _cachedBasicVcMat = null;
 
 export function getFavelaEastBorderDesignX(dz) {
   if (dz >= -490 && dz <= 400) return -528;
@@ -34,53 +66,32 @@ export function getFavelaEastBorderX(z) {
 }
 
 export function getFavelaElevation(x, z) {
-  const ux = fromWs(x);
-  const uz = fromWs(z);
-  const zNorth = -1820;
-  const zSouth = 675;
+  const ux = fromWs(x), uz = fromWs(z), zNorth = -1820, zSouth = 675;
   if (uz <= zNorth || uz >= zSouth) return 0;
-
-  const xEast = getFavelaEastBorderDesignX(uz);
-  const xWest = -1012;
+  const xEast = getFavelaEastBorderDesignX(uz), xWest = -1012;
   if (ux >= xEast || ux <= xWest) return 0;
 
-  const u = (xEast - ux) / (xEast - xWest);
-  const peakU = 0.70;
+  const u = (xEast - ux) / (xEast - xWest), peakU = 0.70;
   const profileX = u <= peakU
     ? 0.5 * (1 - Math.cos(Math.PI * (u / peakU)))
     : 0.5 * (1 + Math.cos(Math.PI * ((u - peakU) / (1 - peakU))));
 
   let profileZ = 1.0;
-  const rampLenZ = 145;
-  if (uz < zNorth + rampLenZ) {
-    profileZ = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp((uz - zNorth) / rampLenZ, 0, 1)));
-  } else if (uz > zSouth - rampLenZ) {
-    profileZ = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp((zSouth - uz) / rampLenZ, 0, 1)));
-  }
+  if (uz < zNorth + 145) profileZ = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp((uz - zNorth) / 145, 0, 1)));
+  else if (uz > zSouth - 145) profileZ = 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp((zSouth - uz) / 145, 0, 1)));
 
   const summitBoost = Math.exp(-Math.pow((uz + 240) / 280, 2)) * 5.5;
   const ridgeWave = Math.sin(uz * 0.0085) * 2.2 + Math.cos(ux * 0.015 + uz * 0.006) * 1.2;
   let h = Math.max(0, (38.5 + summitBoost + ridgeWave * profileX) * profileX * profileZ);
 
   const dSoccer = Math.hypot((ux + 605) / 34, (uz - 195) / 46);
-  if (dSoccer < 1.35) {
-    const w = dSoccer <= 0.78 ? 1.0 : 0.5 * (1 + Math.cos(Math.PI * ((dSoccer - 0.78) / 0.57)));
-    h = THREE.MathUtils.lerp(h, 11.5, w);
-  }
+  if (dSoccer < 1.35) h = THREE.MathUtils.lerp(h, 11.5, dSoccer <= 0.78 ? 1 : 0.5 * (1 + Math.cos(Math.PI * ((dSoccer - 0.78) / 0.57))));
   const dBaile = Math.hypot((ux + 715) / 36, (uz + 135) / 42);
-  if (dBaile < 1.35) {
-    const w = dBaile <= 0.78 ? 1.0 : 0.5 * (1 + Math.cos(Math.PI * ((dBaile - 0.78) / 0.57)));
-    h = THREE.MathUtils.lerp(h, 25.0, w);
-  }
+  if (dBaile < 1.35) h = THREE.MathUtils.lerp(h, 25.0, dBaile <= 0.78 ? 1 : 0.5 * (1 + Math.cos(Math.PI * ((dBaile - 0.78) / 0.57))));
   const dSummit = Math.hypot((ux + 865) / 42, (uz + 240) / 56);
-  if (dSummit < 1.35) {
-    const w = dSummit <= 0.8 ? 1.0 : 0.5 * (1 + Math.cos(Math.PI * ((dSummit - 0.8) / 0.55)));
-    h = THREE.MathUtils.lerp(h, 42.5, w);
-  }
+  if (dSummit < 1.35) h = THREE.MathUtils.lerp(h, 42.5, dSummit <= 0.8 ? 1 : 0.5 * (1 + Math.cos(Math.PI * ((dSummit - 0.8) / 0.55))));
 
-  const absZ = Math.abs(z);
-  const flatHalfZ = IS_SCALED_WORLD ? 22.0 : 14.5;
-  const rampHalfSpan = IS_SCALED_WORLD ? 24.0 : 15.5;
+  const absZ = Math.abs(z), flatHalfZ = IS_SCALED_WORLD ? 22.0 : 14.5, rampHalfSpan = IS_SCALED_WORLD ? 24.0 : 15.5;
   if (absZ < flatHalfZ + rampHalfSpan) {
     if (absZ <= flatHalfZ) return 0;
     h *= 0.5 * (1 - Math.cos(Math.PI * THREE.MathUtils.clamp((absZ - flatHalfZ) / rampHalfSpan, 0, 1)));
@@ -91,20 +102,13 @@ export function getFavelaElevation(x, z) {
 }
 
 export const WINDING_LADEIRAS = [
-  { zStart: -1680, amp1: 20, freq1: 0.015, amp2: -12, freq2: 0.009, hasStairs: true },
-  { zStart: -1520, amp1: -22, freq1: 0.016, amp2: 14, freq2: 0.008, hasStairs: false },
-  { zStart: -1360, amp1: 24, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true },
-  { zStart: -1190, amp1: 22, freq1: 0.015, amp2: -14, freq2: 0.009, hasStairs: true },
-  { zStart: -1030, amp1: -25, freq1: 0.016, amp2: 15, freq2: 0.008, hasStairs: false },
-  { zStart: -840, amp1: 26, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true },
-  { zStart: -640, amp1: 24, freq1: 0.016, amp2: -14, freq2: 0.009, hasStairs: true },
-  { zStart: -382, amp1: -28, freq1: 0.015, amp2: 18, freq2: 0.008, hasStairs: false },
-  { zStart: -250, amp1: 22, freq1: 0.017, amp2: -12, freq2: 0.010, hasStairs: true },
-  { zStart: -117, amp1: -24, freq1: 0.014, amp2: -16, freq2: 0.008, hasStairs: false },
-  { zStart: 36, amp1: 28, freq1: 0.015, amp2: 14, freq2: 0.009, hasStairs: true },
-  { zStart: 134, amp1: -22, freq1: 0.016, amp2: 15, freq2: 0.009, hasStairs: false },
-  { zStart: 380, amp1: 26, freq1: 0.015, amp2: -16, freq2: 0.008, hasStairs: true },
-  { zStart: 540, amp1: -24, freq1: 0.016, amp2: 12, freq2: 0.010, hasStairs: true }
+  { zStart: -1680, amp1: 20, freq1: 0.015, amp2: -12, freq2: 0.009, hasStairs: true }, { zStart: -1520, amp1: -22, freq1: 0.016, amp2: 14, freq2: 0.008, hasStairs: false },
+  { zStart: -1360, amp1: 24, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true }, { zStart: -1190, amp1: 22, freq1: 0.015, amp2: -14, freq2: 0.009, hasStairs: true },
+  { zStart: -1030, amp1: -25, freq1: 0.016, amp2: 15, freq2: 0.008, hasStairs: false }, { zStart: -840, amp1: 26, freq1: 0.015, amp2: -12, freq2: 0.010, hasStairs: true },
+  { zStart: -640, amp1: 24, freq1: 0.016, amp2: -14, freq2: 0.009, hasStairs: true }, { zStart: -382, amp1: -28, freq1: 0.015, amp2: 18, freq2: 0.008, hasStairs: false },
+  { zStart: -250, amp1: 22, freq1: 0.017, amp2: -12, freq2: 0.010, hasStairs: true }, { zStart: -117, amp1: -24, freq1: 0.014, amp2: -16, freq2: 0.008, hasStairs: false },
+  { zStart: 36, amp1: 28, freq1: 0.015, amp2: 14, freq2: 0.009, hasStairs: true }, { zStart: 134, amp1: -22, freq1: 0.016, amp2: 15, freq2: 0.009, hasStairs: false },
+  { zStart: 380, amp1: 26, freq1: 0.015, amp2: -16, freq2: 0.008, hasStairs: true }, { zStart: 540, amp1: -24, freq1: 0.016, amp2: 12, freq2: 0.010, hasStairs: true }
 ];
 
 export function getLadeiraZAtX(ladeira, x) {
@@ -120,67 +124,48 @@ function hash2i(a, b) {
 }
 
 function sampleBrickPixel(lx, ly) {
-  const row = Math.floor(ly / 24);
-  const inRowY = ly - row * 24;
+  const row = Math.floor(ly / 24), inRowY = ly - row * 24;
   const bx = lx + (row & 1) * 21 + Math.floor((hash2i(row, 91) - 0.5) * 4);
-  const col = Math.floor(bx / 42);
-  const inBrickX = bx - col * 42;
-  const n = hash2i(lx, ly);
+  const col = Math.floor(bx / 42), inBrickX = bx - col * 42, n = hash2i(lx, ly);
   const mortarJitter = (hash2i(lx >> 1, row) - 0.5) * 1.8;
-  if (inRowY < 3.3 + mortarJitter || inBrickX < 3.0 + mortarJitter * 0.7) {
-    const m = 82 + Math.floor((n - 0.5) * 24);
-    return [m, m + 3, m + 7];
+  if (inRowY < 3.2 + mortarJitter || inBrickX < 2.9 + mortarJitter * 0.7) {
+    const m = 80 + Math.floor((n - 0.5) * 22);
+    return [m, m + 3, m + 6];
   }
-  const brickHash = hash2i(col + 17, row + 53);
-  const flute = Math.sin((inBrickX / 42) * Math.PI * 8) * 9;
-  const scorch = brickHash > 0.84 ? -22 : brickHash < 0.2 ? 14 : 0;
-  const hole = brickHash > 0.91 && inRowY > 7 && inRowY < 18 && inBrickX % 10 < 4 ? -48 : 0;
+  const brickHash = hash2i(col + 17, row + 53), flute = Math.sin((inBrickX / 42) * Math.PI * 8) * 9;
+  const scorch = brickHash > 0.84 ? -20 : brickHash < 0.22 ? 16 : 0;
+  const hole = brickHash > 0.91 && inRowY > 7 && inRowY < 18 && inBrickX % 10 < 4 ? -46 : 0;
   return [
-    THREE.MathUtils.clamp(164 + scorch + flute + hole + (n - 0.5) * 22, 42, 208),
-    THREE.MathUtils.clamp(64 + scorch * 0.45 + flute * 0.4 + hole * 0.5 + (n - 0.5) * 14, 20, 102),
-    THREE.MathUtils.clamp(32 + scorch * 0.25 + hole * 0.3 + (n - 0.5) * 10, 12, 58)
+    THREE.MathUtils.clamp(174 + scorch + flute + hole + (n - 0.5) * 22, 46, 218),
+    THREE.MathUtils.clamp(72 + scorch * 0.45 + flute * 0.4 + hole * 0.5 + (n - 0.5) * 14, 22, 110),
+    THREE.MathUtils.clamp(35 + scorch * 0.25 + hole * 0.3 + (n - 0.5) * 10, 12, 62)
   ];
 }
 
 export function createFavelaWallAtlasTexture() {
   if (_cachedWallAtlasTex) return _cachedWallAtlasTex;
-  const size = 512;
-  const data = new Uint8Array(size * size * 4);
+  const size = 512, data = new Uint8Array(size * size * 4);
   for (let py = 0; py < size; py++) {
-    const tileY = py >= 256 ? 1 : 0;
-    const ly = py & 255;
-    const dampBase = ly < 34 ? 1 - ((34 - ly) / 34) * 0.36 : 1.0;
+    const tileY = py >= 256 ? 1 : 0, ly = py & 255;
+    const dampBase = ly < 32 ? 1 - ((32 - ly) / 32) * 0.34 : 1.0;
     for (let px = 0; px < size; px++) {
-      const tileId = tileY * 2 + (px >= 256 ? 1 : 0);
-      const lx = px & 255;
-      const grit = (hash2i(px, py) - 0.5) * 20;
-      const coarse = Math.sin(lx * 0.075 + Math.cos(ly * 0.06) * 2.2) * 12;
+      const tileId = tileY * 2 + (px >= 256 ? 1 : 0), lx = px & 255;
+      const grit = (hash2i(px, py) - 0.5) * 20, coarse = Math.sin(lx * 0.075 + Math.cos(ly * 0.06) * 2.2) * 12;
       let r = 128, g = 128, b = 128;
-
-      if (tileId === 0) {
-        [r, g, b] = sampleBrickPixel(lx, ly);
-      } else if (tileId === 1) {
+      if (tileId === 0) [r, g, b] = sampleBrickPixel(lx, ly);
+      else if (tileId === 1) {
         const mask = (lx * 0.65 + (255 - ly) * 0.55) / 255 + Math.sin(lx * 0.055) * 0.14 + (hash2i(lx >> 2, ly >> 2) - 0.5) * 0.24;
-        if (mask > 0.58) {
-          const pl = 104 + coarse * 0.8 + grit;
-          r = pl - 3; g = pl; b = pl + 6;
-        } else {
-          [r, g, b] = sampleBrickPixel(lx, ly);
-        }
+        if (mask > 0.56) { const pl = 108 + coarse * 0.8 + grit; r = pl - 3; g = pl; b = pl + 6; }
+        else [r, g, b] = sampleBrickPixel(lx, ly);
       } else if (tileId === 2) {
         const trowel = Math.sin(Math.hypot(lx - 128, (ly % 84) - 42) * 0.24) * 9;
         const crack = Math.abs(lx - (92 + Math.sin(ly * 0.045) * 26)) < 1.2 && ly > 50 && ly < 210 ? -36 : 0;
-        const base = 152 + coarse + trowel + grit * 1.15 + crack;
+        const base = 154 + coarse + trowel + grit * 1.15 + crack;
         r = base - 4; g = base; b = base + 7;
       } else {
         const peel = Math.sin(lx * 0.048 + 1.3) * 0.3 + Math.cos(ly * 0.052 - 0.7) * 0.3 + (hash2i(lx >> 3, ly >> 3) - 0.5) * 0.55;
-        if (peel > 0.28) {
-          const rawCem = 132 + grit;
-          r = rawCem - 3; g = rawCem; b = rawCem + 5;
-        } else {
-          const paint = 216 + coarse * 0.5 + grit * 0.7;
-          r = paint; g = paint - 2; b = paint - 5;
-        }
+        if (peel > 0.28) { const rawCem = 134 + grit; r = rawCem - 3; g = rawCem; b = rawCem + 5; }
+        else { const paint = 218 + coarse * 0.5 + grit * 0.7; r = paint; g = paint - 2; b = paint - 5; }
       }
       const idx = (py * size + px) * 4;
       data[idx] = THREE.MathUtils.clamp(Math.round(r * dampBase), 0, 255);
@@ -191,60 +176,52 @@ export function createFavelaWallAtlasTexture() {
   }
   const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.wrapS = THREE.ClampToEdgeWrapping;
-  tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.generateMipmaps = true;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.anisotropy = 8;
-  tex.needsUpdate = true;
+  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 8; tex.needsUpdate = true;
   _cachedWallAtlasTex = markAsSharedAsset(tex);
   return _cachedWallAtlasTex;
 }
 
 function getSharedFavelaBatchMaterials() {
-  if (!_cachedWallAtlasMat) {
-    _cachedWallAtlasMat = markAsSharedAsset(new THREE.MeshStandardMaterial({
-      color: 0xffffff, map: createFavelaWallAtlasTexture(), vertexColors: true, roughness: 0.85, metalness: 0.03
-    }));
-  }
-  if (!_cachedSolidVcMat) {
-    _cachedSolidVcMat = markAsSharedAsset(new THREE.MeshStandardMaterial({
-      color: 0xffffff, vertexColors: true, roughness: 0.78, metalness: 0.12
-    }));
-  }
-  if (!_cachedBasicVcMat) {
-    _cachedBasicVcMat = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }));
-  }
+  if (!_cachedWallAtlasMat) _cachedWallAtlasMat = markAsSharedAsset(new THREE.MeshStandardMaterial({ color: 0xffffff, map: createFavelaWallAtlasTexture(), vertexColors: true, roughness: 0.84, metalness: 0.03 }));
+  if (!_cachedSolidVcMat) _cachedSolidVcMat = markAsSharedAsset(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.76, metalness: 0.14 }));
+  if (!_cachedBasicVcMat) _cachedBasicVcMat = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }));
   return { wallMat: _cachedWallAtlasMat, solidMat: _cachedSolidVcMat, basicMat: _cachedBasicVcMat };
 }
 
 const SOLID_COLOR_HEX = {
-  retaining_concrete: 0x383e49, alley_cement: 0x3b4049, hill_bush: 0x1a2e1e, brick_groove: 0x3d180c,
-  cement_raw: 0x565d69, cement_slab: 0x5c6472, zinc_roof: 0x56606e, rebar_iron: 0x262322,
-  cv_red: 0x991b1b, cv_dark_red: 0x5c1414, cv_black: 0x0b0d12, cv_white: 0xa2aab6,
-  favela_blue_faded: 0x2b5876, favela_yellow_faded: 0x9c6b21, water_tank_blue: 0x0f6082,
-  water_tank_lid: 0x0a445e, window_dark: 0x0f141c, sandbag_tan: 0x78716c, wood_pole: 0x433b35,
-  varzea_dirt: 0x543822, varzea_grass: 0x1a3822, fence_mesh: 0x4b5563, pool_water: 0x0e6b84
+  retaining_concrete: 0x3a404c, alley_cement: 0x333842, hill_bush: 0x1a2e1e, brick_groove: 0x3d180c,
+  cement_raw: 0x58606d, cement_slab: 0x636c7b, zinc_roof: 0x5e6978, rebar_iron: 0x262322,
+  cv_red: 0x991b1b, cv_dark_red: 0x5c1414, cv_black: 0x0b0d12, cv_white: 0xa6afbc,
+  favela_blue_faded: 0x2b5876, favela_yellow_faded: 0xa47122, water_tank_blue: 0x0e698f,
+  water_tank_lid: 0x0a4661, window_dark: 0x0f141c, sandbag_tan: 0x78716c, wood_pole: 0x433b35,
+  varzea_dirt: 0x543822, varzea_grass: 0x1a3822, fence_mesh: 0x4b5563, pool_water: 0x0e6b84, wire_black: 0x07090d
 };
 
-const BASIC_COLOR_HEX = { wire_black: 0x07090d, neon_red: 0xe11d48, neon_gold: 0xd99b16, neon_cyan: 0x06b6d4 };
+const NEON_BASIC_HEX = { neon_red: 0xe11d48, neon_gold: 0xd99b16, neon_cyan: 0x06b6d4 };
+const WIN_TINT_HEX = { window_lit: 0xffd178, window_orange: 0xf97316, window_tv_blue: 0x7dd3fc };
+const BULB_TINT_HEX = { favela_bulb_warm: 0xfde68a, floodlight_panel: 0xe0f2fe };
 
-function getZBand(z, bandsCount) {
+function getZBand(z) {
   const minZ = ws(HILL_MIN_DESIGN_Z), maxZ = ws(HILL_MAX_DESIGN_Z);
-  return Math.max(0, Math.min(bandsCount - 1, Math.floor(((z - minZ) / Math.max(1, maxZ - minZ)) * bandsCount)));
+  return Math.max(0, Math.min(HILL_Z_BANDS - 1, Math.floor(((z - minZ) / Math.max(1, maxZ - minZ)) * HILL_Z_BANDS)));
 }
 
-function buildChunkGeometryFromBoxes(boxes, cylinders, includeUvs, includeColors) {
-  let totalVerts = boxes.length * 24, totalIdx = boxes.length * 36;
+function buildChunkGeometryFromBoxes(boxes, cylinders, includeUvs, includeColors, fixedOrigin = null) {
+  let totalVerts = 0, totalIdx = 0;
+  for (let b = 0; b < boxes.length; b++) {
+    const m = boxes[b].faceMode;
+    totalVerts += m === 2 ? 8 : m === 1 ? 20 : 24;
+    totalIdx += m === 2 ? 12 : m === 1 ? 30 : 36;
+  }
   for (let i = 0; i < cylinders.length; i++) {
     totalVerts += cylinders[i].pos.length / 3;
     totalIdx += cylinders[i].idx.length;
   }
   if (totalVerts === 0) return null;
 
-  const positions = new Float32Array(totalVerts * 3);
-  const normals = new Float32Array(totalVerts * 3);
+  const positions = new Float32Array(totalVerts * 3), normals = new Float32Array(totalVerts * 3);
   const uvs = includeUvs ? new Float32Array(totalVerts * 2) : null;
   const colors = includeColors ? new Float32Array(totalVerts * 3) : null;
   const indices = new Uint32Array(totalIdx);
@@ -254,7 +231,7 @@ function buildChunkGeometryFromBoxes(boxes, cylinders, includeUvs, includeColors
   const tmpCol = new THREE.Color();
 
   for (let b = 0; b < boxes.length; b++) {
-    const { w, h, d, x, y, z, rotX, rotY, rotZ, hex, tileId } = boxes[b];
+    const { w, h, d, x, y, z, rotX, rotY, rotZ, hex, tileId, faceMode } = boxes[b];
     const cosY = rotY ? Math.cos(rotY) : 1, sinY = rotY ? Math.sin(rotY) : 0;
     const cosX = rotX ? Math.cos(rotX) : 1, sinX = rotX ? Math.sin(rotX) : 0;
     const cosZ = rotZ ? Math.cos(rotZ) : 1, sinZ = rotZ ? Math.sin(rotZ) : 0;
@@ -268,9 +245,12 @@ function buildChunkGeometryFromBoxes(boxes, cylinders, includeUvs, includeColors
       du = 0.5 - pad * 2; dv = 0.5 - pad * 2;
     }
 
-    const pBase = vOff * 3, uvBase = vOff * 2;
-    for (let k = 0; k < 24; k++) {
-      const k3 = k * 3;
+    const vList = faceMode === 2 ? _Z_FACE_VERTS : faceMode === 1 ? _FIVE_FACE_VERTS : null;
+    const iList = faceMode === 2 ? _Z_FACE_IDX : faceMode === 1 ? _FIVE_FACE_IDX : _BOX_IDX;
+    const vCount = vList ? vList.length : 24;
+
+    for (let vi = 0; vi < vCount; vi++) {
+      const k = vList ? vList[vi] : vi, k3 = k * 3;
       let px = _BOX_POS[k3] * w, py = _BOX_POS[k3 + 1] * h, pz = _BOX_POS[k3 + 2] * d;
       let nx = _BOX_NORM[k3], ny = _BOX_NORM[k3 + 1], nz = _BOX_NORM[k3 + 2];
       if (rotX) {
@@ -281,22 +261,21 @@ function buildChunkGeometryFromBoxes(boxes, cylinders, includeUvs, includeColors
         const x2 = px * cosZ - py * sinZ, y2 = px * sinZ + py * cosZ; px = x2; py = y2;
         const nx2 = nx * cosZ - ny * sinZ, ny2 = nx * sinZ + ny * cosZ; nx = nx2; ny = ny2;
       }
-      const wx = x + px * cosY + pz * sinY, wy = y + py, wz = z - px * sinY + pz * cosY;
-      positions[pBase + k3] = wx; positions[pBase + k3 + 1] = wy; positions[pBase + k3 + 2] = wz;
-      normals[pBase + k3] = nx * cosY + nz * sinY; normals[pBase + k3 + 1] = ny; normals[pBase + k3 + 2] = -nx * sinY + nz * cosY;
+      const wx = x + px * cosY + pz * sinY, wy = y + py, wz = z - px * sinY + pz * cosY, dst3 = (vOff + vi) * 3;
+      positions[dst3] = wx; positions[dst3 + 1] = wy; positions[dst3 + 2] = wz;
+      normals[dst3] = nx * cosY + nz * sinY; normals[dst3 + 1] = ny; normals[dst3 + 2] = -nx * sinY + nz * cosY;
       if (wx < minX) minX = wx; if (wx > maxX) maxX = wx;
       if (wy < minY) minY = wy; if (wy > maxY) maxY = wy;
       if (wz < minZ) minZ = wz; if (wz > maxZ) maxZ = wz;
-
       if (uvs) {
-        const k2 = k * 2, isCap = tileId >= 0 && k >= 8 && k < 16;
-        uvs[uvBase + k2] = isCap ? 0.04 + _BOX_UV[k2] * 0.42 : u0 + _BOX_UV[k2] * du;
-        uvs[uvBase + k2 + 1] = isCap ? 0.54 + _BOX_UV[k2 + 1] * 0.42 : v0 + _BOX_UV[k2 + 1] * dv;
+        const k2 = k * 2, dst2 = (vOff + vi) * 2, isCap = tileId >= 0 && k >= 8 && k < 16;
+        uvs[dst2] = isCap ? 0.04 + _BOX_UV[k2] * 0.42 : u0 + _BOX_UV[k2] * du;
+        uvs[dst2 + 1] = isCap ? 0.54 + _BOX_UV[k2 + 1] * 0.42 : v0 + _BOX_UV[k2 + 1] * dv;
       }
-      if (colors) { colors[pBase + k3] = cr; colors[pBase + k3 + 1] = cg; colors[pBase + k3 + 2] = cb; }
+      if (colors) { colors[dst3] = cr; colors[dst3 + 1] = cg; colors[dst3 + 2] = cb; }
     }
-    for (let j = 0; j < 36; j++) indices[iOff + j] = _BOX_IDX[j] + vOff;
-    vOff += 24; iOff += 36;
+    for (let j = 0; j < iList.length; j++) indices[iOff + j] = iList[j] + vOff;
+    vOff += vCount; iOff += iList.length;
   }
 
   for (let c = 0; c < cylinders.length; c++) {
@@ -319,7 +298,9 @@ function buildChunkGeometryFromBoxes(boxes, cylinders, includeUvs, includeColors
     vOff += cVerts; iOff += cyl.idx.length;
   }
 
-  const cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5, cz = (minZ + maxZ) * 0.5;
+  const cx = fixedOrigin ? fixedOrigin.cx : (minX + maxX) * 0.5;
+  const cy = fixedOrigin ? fixedOrigin.cy : (minY + maxY) * 0.5;
+  const cz = fixedOrigin ? fixedOrigin.cz : (minZ + maxZ) * 0.5;
   for (let i = 0; i < positions.length; i += 3) { positions[i] -= cx; positions[i + 1] -= cy; positions[i + 2] -= cz; }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -329,112 +310,166 @@ function buildChunkGeometryFromBoxes(boxes, cylinders, includeUvs, includeColors
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
-  return { geo, cx, cy, cz };
+  return { geo, cx, cy, cz, triangles: Math.floor(totalIdx / 3) };
 }
 
 export class FavelaBatcher {
   constructor() {
     this.materials = new Map();
-    this.wallBands = Array.from({ length: 5 }, () => []);
-    this.solidBands = Array.from({ length: 5 }, () => ({ boxes: [], cylinders: [] }));
-    this.basicBands = Array.from({ length: 3 }, () => []);
-    this.emissiveBuckets = new Map();
-    for (const [key, color, emissive, emissiveIntensity] of [
-      ['window_lit', 0x78350f, 0xf59e0b, 0.0],
-      ['window_orange', 0x5c220e, 0xd97706, 0.0],
-      ['window_tv_blue', 0x0a344f, 0x7dd3fc, 0.0],
-      ['favela_bulb_warm', 0xfde68a, 0xf59e0b, 0.25],
-      ['floodlight_panel', 0xe2e8f0, 0xbae6fd, 0.2]
-    ]) {
-      this.materials.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.22, metalness: 0.05, emissive, emissiveIntensity }));
-      this.emissiveBuckets.set(key, []);
-    }
+    this.bands = Array.from({ length: HILL_Z_BANDS }, () => ({ wallL0: [], wallL1: [], solidL0: [], solidL1: [], cylL0: [], cylL1: [] }));
+    this.neonBoxes = [];
+    this.winBoxes = [];
+    this.bulbBoxes = [];
+    this.winMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.22, metalness: 0.05, emissive: 0xf59e0b, emissiveIntensity: 0.0 });
+    this.bulbMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.2, metalness: 0.05, emissive: 0xfbbf24, emissiveIntensity: 0.25 });
+    for (const k of ['window_lit', 'window_orange', 'window_tv_blue']) this.materials.set(k, this.winMat);
+    for (const k of ['favela_bulb_warm', 'floodlight_panel']) this.materials.set(k, this.bulbMat);
   }
 
-  addWallBox(tileId, tintHex, w, h, d, x, y, z, rotY = 0) {
-    this.wallBands[getZBand(z, 5)].push({ w, h, d, x, y, z, rotX: 0, rotY, rotZ: 0, hex: tintHex, tileId });
+  addWallBox(tileId, tintHex, w, h, d, x, y, z, rotY = 0, lodMode = 'both', skipBottom = true) {
+    const band = this.bands[getZBand(z)];
+    const rec = { w, h, d, x, y, z, rotX: 0, rotY, rotZ: 0, hex: tintHex, tileId, faceMode: skipBottom ? 1 : 0 };
+    if (lodMode !== 'l1') band.wallL0.push(rec);
+    if (lodMode !== 'l0') band.wallL1.push(rec);
   }
 
-  addSlopedBox(key, w, h, d, x, y, z, rotX = 0, rotZ = 0, rotY = 0, tintHex = null) {
-    if (this.emissiveBuckets.has(key)) {
-      this.emissiveBuckets.get(key).push({ w, h, d, x, y, z, rotX, rotY, rotZ, hex: 0xffffff, tileId: -1 });
+  addSlopedBox(key, w, h, d, x, y, z, rotX = 0, rotZ = 0, rotY = 0, tintHex = null, lodMode = 'auto', skipBottom = false) {
+    if (WIN_TINT_HEX[key] !== undefined) {
+      this.winBoxes.push({ w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? WIN_TINT_HEX[key], tileId: -1, faceMode: d <= 0.22 ? 2 : 1 });
       return;
     }
-    if (BASIC_COLOR_HEX[key] !== undefined) {
-      this.basicBands[getZBand(z, 3)].push({ w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? BASIC_COLOR_HEX[key], tileId: -1 });
+    if (BULB_TINT_HEX[key] !== undefined) {
+      this.bulbBoxes.push({ w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? BULB_TINT_HEX[key], tileId: -1, faceMode: 1 });
+      return;
+    }
+    if (NEON_BASIC_HEX[key] !== undefined) {
+      this.neonBoxes.push({ w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? NEON_BASIC_HEX[key], tileId: -1, faceMode: 1 });
       return;
     }
     if ((key === 'brick_baiano' || key === 'brick_baiano_light') && h >= 1.1 && !rotX && !rotZ) {
-      this.addWallBox(0, key === 'brick_baiano_light' ? 0xffffff : 0xead8cc, w, h, d, x, y, z, rotY);
+      this.addWallBox(0, key === 'brick_baiano_light' ? 0xffffff : 0xead8cc, w, h, d, x, y, z, rotY, lodMode, skipBottom);
       return;
     }
     if (key === 'cement_raw' && h >= 1.1 && !rotX && !rotZ) {
-      this.addWallBox(2, 0x767d88, w, h, d, x, y, z, rotY);
+      this.addWallBox(2, 0x767d88, w, h, d, x, y, z, rotY, lodMode, skipBottom);
       return;
     }
-    this.solidBands[getZBand(z, 5)].boxes.push({
-      w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? SOLID_COLOR_HEX[key] ?? 0x4b5563, tileId: -1
-    });
+    const mode = lodMode === 'auto' ? (key === 'wire_black' || w < 0.95 || d < 0.95 || (h < 0.26 && w * d < 18) ? 'l0' : 'both') : lodMode;
+    const faceMode = skipBottom || key === 'retaining_concrete' || key === 'alley_cement' ? 1 : 0;
+    const rec = { w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? SOLID_COLOR_HEX[key] ?? 0x4b5563, tileId: -1, faceMode };
+    const band = this.bands[getZBand(z)];
+    if (mode !== 'l1') band.solidL0.push(rec);
+    if (mode !== 'l0') band.solidL1.push(rec);
   }
 
-  addBox(key, w, h, d, x, y, z, rotY = 0, tintHex = null) {
-    this.addSlopedBox(key, w, h, d, x, y, z, 0, 0, rotY, tintHex);
+  addBox(key, w, h, d, x, y, z, rotY = 0, tintHex = null, lodMode = 'auto', skipBottom = false) {
+    this.addSlopedBox(key, w, h, d, x, y, z, 0, 0, rotY, tintHex, lodMode, skipBottom);
   }
 
-  addSegmentSlab(key, x1, y1, z1, x2, y2, z2, width, thickness, overlap = 0.35, tintHex = null) {
+  addSegmentSlab(key, x1, y1, z1, x2, y2, z2, width, thickness, overlap = 0.35, tintHex = null, lodMode = 'auto') {
     const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, horiz = Math.hypot(dx, dz);
     if (horiz < 0.05) return;
     this.addSlopedBox(
       key, width, thickness, Math.hypot(horiz, dy) + overlap,
       (x1 + x2) * 0.5, (y1 + y2) * 0.5, (z1 + z2) * 0.5,
-      -Math.atan2(dy, horiz), 0, Math.atan2(dx, dz), tintHex
+      -Math.atan2(dy, horiz), 0, Math.atan2(dx, dz), tintHex, lodMode, key === 'alley_cement' || key === 'retaining_concrete'
     );
   }
 
-  addCylinder(key, rTop, rBot, h, x, y, z, segs = 10) {
-    const g = new THREE.CylinderGeometry(rTop, rBot, h, segs);
-    g.translate(x, y, z);
-    this.solidBands[getZBand(z, 5)].cylinders.push({
-      pos: g.attributes.position.array, norm: g.attributes.normal.array, idx: g.index.array, hex: SOLID_COLOR_HEX[key] ?? 0x4b5563
-    });
+  addCylinder(key, rTop, rBot, h, x, y, z, segs = 6, lodMode = 'auto') {
+    const mode = lodMode === 'auto' ? (rTop < 2.5 ? 'l0' : 'both') : lodMode;
+    const hex = SOLID_COLOR_HEX[key] ?? 0x4b5563;
+    let cyl;
+    if (segs <= 6) {
+      const pos = new Float32Array(90);
+      for (let i = 0; i < 30; i++) {
+        const r = _HEX_UNIT.topMask[i] ? rTop : rBot, i3 = i * 3;
+        pos[i3] = x + _HEX_UNIT.pos[i3] * r;
+        pos[i3 + 1] = y + _HEX_UNIT.pos[i3 + 1] * h;
+        pos[i3 + 2] = z + _HEX_UNIT.pos[i3 + 2] * r;
+      }
+      cyl = { pos, norm: _HEX_UNIT.norm, idx: _HEX_UNIT.idx, hex };
+    } else {
+      const g = new THREE.CylinderGeometry(rTop, rBot, h, segs);
+      g.translate(x, y, z);
+      cyl = { pos: g.attributes.position.array, norm: g.attributes.normal.array, idx: g.index.array, hex };
+    }
+    const band = this.bands[getZBand(z)];
+    if (mode !== 'l1') band.cylL0.push(cyl);
+    if (mode !== 'l0') band.cylL1.push(cyl);
   }
 
   flush(scene) {
     const { wallMat, solidMat, basicMat } = getSharedFavelaBatchMaterials();
-    const emitMesh = (built, mat, castShadow, receiveShadow) => {
+    const minZ = ws(HILL_MIN_DESIGN_Z), maxZ = ws(HILL_MAX_DESIGN_Z), bandSpanZ = (maxZ - minZ) / HILL_Z_BANDS;
+    const makeLodMesh = (built, mat, castShadow, levelIdx) => {
+      if (!built) return null;
+      const mesh = new THREE.Mesh(built.geo, mat);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = true;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      mesh.userData = { isFavelaMesh: true, isFavelaLodLevel: levelIdx, skipStaticMerge: true };
+      return mesh;
+    };
+
+    for (let b = 0; b < HILL_Z_BANDS; b++) {
+      const band = this.bands[b];
+      if (!band.wallL0.length && !band.solidL0.length && !band.cylL0.length) continue;
+      const builtW0 = buildChunkGeometryFromBoxes(band.wallL0, [], true, true, null);
+      const origin = builtW0 ? { cx: builtW0.cx, cy: builtW0.cy, cz: builtW0.cz } : { cx: ws(-760), cy: 18, cz: minZ + (b + 0.5) * bandSpanZ };
+      const builtS0 = buildChunkGeometryFromBoxes(band.solidL0, band.cylL0, false, true, origin);
+      const builtW1 = buildChunkGeometryFromBoxes(band.wallL1, [], true, true, origin);
+      const builtS1 = buildChunkGeometryFromBoxes(band.solidL1, band.cylL1, false, true, origin);
+
+      const level0 = new THREE.Group(), level1 = new THREE.Group();
+      for (const m of [makeLodMesh(builtW0, wallMat, true, 0), makeLodMesh(builtS0, solidMat, true, 0)]) if (m) level0.add(m);
+      for (const m of [makeLodMesh(builtW1, wallMat, false, 1), makeLodMesh(builtS1, solidMat, false, 1)]) if (m) level1.add(m);
+
+      const lod = new THREE.LOD();
+      lod.name = `FavelaBandLOD_${b}`;
+      lod.position.set(origin.cx, origin.cy, origin.cz);
+      lod.addLevel(level0, 0);
+      lod.addLevel(level1, FAVELA_LOD1_DISTANCE);
+      level0.visible = true;
+      level1.visible = false;
+      lod.userData = {
+        isFavelaLod: true, bandIndex: b, skipStaticMerge: true,
+        l0Triangles: (builtW0?.triangles || 0) + (builtS0?.triangles || 0),
+        l1Triangles: (builtW1?.triangles || 0) + (builtS1?.triangles || 0)
+      };
+      scene.add(lod);
+      band.wallL0.length = 0; band.wallL1.length = 0; band.solidL0.length = 0; band.solidL1.length = 0; band.cylL0.length = 0; band.cylL1.length = 0;
+    }
+
+    const emitGlobal = (boxes, mat) => {
+      if (!boxes.length) return;
+      const built = buildChunkGeometryFromBoxes(boxes, [], false, true, null);
+      boxes.length = 0;
       if (!built) return;
       const mesh = new THREE.Mesh(built.geo, mat);
       mesh.position.set(built.cx, built.cy, built.cz);
-      mesh.castShadow = castShadow;
-      mesh.receiveShadow = receiveShadow;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
-      mesh.userData.isFavelaMesh = true;
-      mesh.userData.skipStaticMerge = true;
+      mesh.userData = { isFavelaMesh: true, skipStaticMerge: true };
       scene.add(mesh);
     };
-    for (let b = 0; b < 5; b++) { emitMesh(buildChunkGeometryFromBoxes(this.wallBands[b], [], true, true), wallMat, true, true); this.wallBands[b].length = 0; }
-    for (let b = 0; b < 5; b++) {
-      const sb = this.solidBands[b];
-      emitMesh(buildChunkGeometryFromBoxes(sb.boxes, sb.cylinders, false, true), solidMat, true, true);
-      sb.boxes.length = 0; sb.cylinders.length = 0;
-    }
-    for (let b = 0; b < 3; b++) { emitMesh(buildChunkGeometryFromBoxes(this.basicBands[b], [], false, true), basicMat, false, false); this.basicBands[b].length = 0; }
-    for (const [key, list] of this.emissiveBuckets.entries()) {
-      if (list.length > 0) { emitMesh(buildChunkGeometryFromBoxes(list, [], false, false), this.materials.get(key), false, false); list.length = 0; }
-    }
+    emitGlobal(this.neonBoxes, basicMat);
+    emitGlobal(this.winBoxes, this.winMat);
+    emitGlobal(this.bulbBoxes, this.bulbMat);
   }
 }
 
 export function buildContinuousSmoothHillMesh(world) {
   const minX = ws(-1016), maxX = ws(-524), minZ = ws(HILL_MIN_DESIGN_Z), maxZ = ws(HILL_MAX_DESIGN_Z);
   const width = maxX - minX, centerX = (minX + maxX) * 0.5, bandSpanZ = (maxZ - minZ) / HILL_Z_BANDS;
-  const segsX = IS_SCALED_WORLD ? 148 : 84, segsZPerBand = IS_SCALED_WORLD ? 112 : 64;
-  const hillMat = markAsSharedAsset(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.03 }));
-  const cStreetBorder = new THREE.Color(0x252a33), cAlleyConcrete = new THREE.Color(0x353941);
-  const cPackedEarth = new THREE.Color(0x3d3832), cScrubCapim = new THREE.Color(0x1b2c1d), cWetGranite = new THREE.Color(0x2b3038);
-  const tmpColor = new THREE.Color();
-  const nEps = 2.5;
+  const segsX = IS_SCALED_WORLD ? 96 : 64, segsZPerBand = IS_SCALED_WORLD ? 76 : 48;
+  const hillMat = markAsSharedAsset(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.03 }));
+  const cStreetBorder = new THREE.Color(0x232831), cAlleyConcrete = new THREE.Color(0x2f343d);
+  const cPackedEarth = new THREE.Color(0x36342f), cScrubCapim = new THREE.Color(0x1a2b1d), cWetGranite = new THREE.Color(0x282d36);
+  const tmpColor = new THREE.Color(), nEps = 2.5;
 
   for (let b = 0; b < HILL_Z_BANDS; b++) {
     const bandMidZ = minZ + (b + 0.5) * bandSpanZ;
@@ -446,9 +481,7 @@ export function buildContinuousSmoothHillMesh(world) {
     for (let i = 0; i < posAttr.count; i++) {
       const vx = centerX + posAttr.getX(i);
       let lz = posAttr.getZ(i), vz = bandMidZ + lz;
-      if (IS_SCALED_WORLD && Math.abs(vz) > 12.0 && Math.abs(vz) < 22.0) {
-        vz = Math.sign(vz) * 20.5; lz = vz - bandMidZ; posAttr.setZ(i, lz);
-      }
+      if (IS_SCALED_WORLD && Math.abs(vz) > 12.0 && Math.abs(vz) < 22.0) { vz = Math.sign(vz) * 20.5; lz = vz - bandMidZ; posAttr.setZ(i, lz); }
       const vy = getFavelaElevation(vx, vz);
       if (vy <= 0.02) {
         posAttr.setY(i, -0.06);
@@ -457,17 +490,13 @@ export function buildContinuousSmoothHillMesh(world) {
       } else {
         posAttr.setY(i, vy);
         const nx = getFavelaElevation(vx - nEps, vz) - getFavelaElevation(vx + nEps, vz);
-        const ny = 2 * nEps;
-        const nz = getFavelaElevation(vx, vz - nEps) - getFavelaElevation(vx, vz + nEps);
-        const nLen = Math.hypot(nx, ny, nz) || 1;
+        const ny = 2 * nEps, nz = getFavelaElevation(vx, vz - nEps) - getFavelaElevation(vx, vz + nEps), nLen = Math.hypot(nx, ny, nz) || 1;
         normAttr.setXYZ(i, nx / nLen, ny / nLen, nz / nLen);
-
         const slope = Math.hypot(nx, nz) / ny, ux = fromWs(vx), uz = fromWs(vz);
-        const patchNoise = 0.5 + 0.5 * Math.sin(ux * 0.065 + Math.cos(uz * 0.048) * 1.9);
-        const isOuterWest = ux < -930 || uz < -1450 || uz > 540;
+        const patchNoise = 0.5 + 0.5 * Math.sin(ux * 0.085 + Math.cos(uz * 0.062) * 2.1);
         if (vy < 3.2) tmpColor.copy(cStreetBorder).lerp(cAlleyConcrete, vy / 3.2);
-        else if (slope > 0.21 || (isOuterWest && patchNoise > 0.42)) tmpColor.copy(cScrubCapim).lerp(cWetGranite, THREE.MathUtils.clamp((slope - 0.16) * 3.2, 0.2, 0.78));
-        else tmpColor.copy(cAlleyConcrete).lerp(cPackedEarth, patchNoise * 0.58);
+        else if (slope > 0.22 || ((ux < -935 || uz < -1480 || uz > 550) && patchNoise > 0.38)) tmpColor.copy(cScrubCapim).lerp(cWetGranite, THREE.MathUtils.clamp((slope - 0.16) * 3.2, 0.2, 0.78));
+        else tmpColor.copy(cAlleyConcrete).lerp(cPackedEarth, patchNoise * 0.52);
         colors[i * 3] = tmpColor.r; colors[i * 3 + 1] = tmpColor.g; colors[i * 3 + 2] = tmpColor.b;
       }
     }
@@ -482,9 +511,7 @@ export function buildContinuousSmoothHillMesh(world) {
     bandMesh.castShadow = false;
     bandMesh.matrixAutoUpdate = false;
     bandMesh.updateMatrix();
-    bandMesh.userData.isFavelaMesh = true;
-    bandMesh.userData.isFavelaHillChunk = true;
-    bandMesh.userData.skipStaticMerge = true;
+    bandMesh.userData = { isFavelaMesh: true, isFavelaHillChunk: true, skipStaticMerge: true };
     world.scene.add(bandMesh);
   }
 

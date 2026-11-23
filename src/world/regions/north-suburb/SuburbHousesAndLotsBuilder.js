@@ -40,11 +40,7 @@ export function addSuburbTerrainLawnSlab(world, batcher, minX, maxX, minZ, maxZ,
   const cx = (minX + maxX) * 0.5;
   const cz = (minZ + maxZ) * 0.5;
   const tAt = (px, pz) => (world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : 0);
-  const yNW = tAt(minX, minZ);
-  const yNE = tAt(maxX, minZ);
-  const ySW = tAt(minX, maxZ);
-  const ySE = tAt(maxX, maxZ);
-  const yC = tAt(cx, cz);
+  const yNW = tAt(minX, minZ), yNE = tAt(maxX, minZ), ySW = tAt(minX, maxZ), ySE = tAt(maxX, maxZ), yC = tAt(cx, cz);
 
   if (Math.max(yNW, yNE, ySW, ySE, yC) - Math.min(yNW, yNE, ySW, ySE, yC) < 0.03) {
     batcher.addBox('lawn_green', w, 0.06, d, cx, yC + yLift, cz);
@@ -58,27 +54,23 @@ export function addSuburbTerrainLawnSlab(world, batcher, minX, maxX, minZ, maxZ,
   geo.translate(cx, 0, cz);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
-    const vx = pos.getX(i);
-    const vz = pos.getZ(i);
-    pos.setY(i, tAt(vx, vz) + yLift);
+    pos.setY(i, tAt(pos.getX(i), pos.getZ(i)) + yLift);
   }
   geo.computeVertexNormals();
   batcher.addCustomGeo('lawn_green', geo);
 }
 
 /**
- * Em `WORLD_SCALE > 1`: constrói uma fileira de lotes residenciais em tamanho `1x` (`lotW` ~38..52m,
- * `lotD` ~32m) ancorada exatamente na borda interna da calçada de 10m (`frontEdgeZ`), sem invadir
- * calçadas nem ruas de 34m/26m!
+ * Em `WORLD_SCALE > 1`: constrói uma fileira densa de parcelas residenciais vizinhas (`lotW` ~15.5..19.2m,
+ * `lotD` ~28..32m -> `16 a 21` casas lado a lado por face de super-quadra) ancorada na borda interna da calçada de 10m!
  */
 export function buildScaledSuburbStreetFrontRow(world, batcher, cfg) {
   const {
     minX,
     maxX,
     frontEdgeZ,
-    lotD = 32,
+    lotD = 30,
     facingDirZ = 1,
-    lotsCount = 6,
     seed = 1,
     isSouthBorderRow = false,
     isNorthCoastRow = false,
@@ -87,9 +79,11 @@ export function buildScaledSuburbStreetFrontRow(world, batcher, cfg) {
 
   const spanW = maxX - minX;
   if (spanW < 28) return;
-  const safeCount = Math.max(2, Math.min(lotsCount, Math.floor(spanW / 32)));
+  const targetLotW = isNorthCoastRow ? 18.8 : isSouthBorderRow ? 17.6 : 16.8 + ((Math.abs(seed) % 3) * 0.75);
+  const safeCount = Math.max(2, Math.round(spanW / targetLotW));
   const lotW = spanW / safeCount;
   const lotCenterZ = frontEdgeZ - facingDirZ * (lotD * 0.5);
+  const tAt = (px, pz) => (world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : 0);
 
   world.suburbBlocks.push({
     x: (minX + maxX) * 0.5,
@@ -99,13 +93,16 @@ export function buildScaledSuburbStreetFrontRow(world, batcher, cfg) {
     innerW: spanW,
     innerD: lotD,
     totalLots: recordLots,
+    actualParcelsCount: safeCount,
+    parcelWidth: lotW,
     isSouthBorderRow
   });
 
+  let lastTreeX = -Infinity;
   for (let i = 0; i < safeCount; i++) {
     const lotX = minX + (i + 0.5) * lotW;
-    const lotSeed = seed * 17 + i * 5 + Math.floor(Math.random() * 100);
-    let styleKey = HOUSE_STYLE_KEYS[Math.floor(Math.random() * 4)];
+    const lotSeed = seed * 17 + i * 5 + ((seed + i * 11) % 37);
+    let styleKey = HOUSE_STYLE_KEYS[(Math.abs(lotSeed) + i) % 4];
     if (isSouthBorderRow) {
       styleKey = 'townhouses';
     } else if (isNorthCoastRow) {
@@ -123,21 +120,36 @@ export function buildScaledSuburbStreetFrontRow(world, batcher, cfg) {
       lotD,
       facingDirZ,
       styleKey,
-      seed: lotSeed
+      seed: lotSeed,
+      skipBreakableProps: i % 6 !== 0
     });
+
+    // Arborização regular de calçada na divisa entre lotes (~22–26m, fora do asfalto e fora das garagens!)
+    if (i > 0) {
+      const borderX = minX + i * lotW;
+      if (borderX - lastTreeX >= 22.5) {
+        const treeZ = frontEdgeZ - facingDirZ * 0.95;
+        const treeY = tAt(borderX, treeZ) + 0.06;
+        if ((i + seed) % 3 === 0) {
+          batcher.addFloweringTree(borderX, treeY, treeZ, 1.04, (i + seed) % 2 === 0 ? 'pink' : 'yellow');
+        } else {
+          world._addLegoTree(borderX, treeY, treeZ, 1.02);
+        }
+        lastTreeX = borderX;
+      }
+    }
   }
 
-  for (const lx of [minX + 3.0, maxX - 3.0]) {
+  for (const lx of [minX + 2.2, maxX - 2.2]) {
     const lz = frontEdgeZ - facingDirZ * 0.9;
-    const lampBaseY = (world.getTerrainHeightAt ? world.getTerrainHeightAt(lx, lz) : 0) + 0.06;
+    const lampBaseY = tAt(lx, lz) + 0.06;
     batcher.addBox('charcoal_metal', 0.24, 3.6, 0.24, lx, lampBaseY + 1.8, lz);
     batcher.addBox('window_warm', 0.52, 0.48, 0.52, lx, lampBaseY + 3.7, lz);
   }
 }
 
 /**
- * Constrói um Quarteirão Residencial com Borda de Calçada, Interior 100% Grama Verde Viva
- * e Divisão Simétrica em 4, 6 ou 8 Lotes com cercas, garagens (driveways), caminhos e quintais detalhados.
+ * Constrói um Quarteirão Residencial em `WORLD_SCALE === 1` (mantido 100% intacto).
  */
 export function buildResidentialSuburbBlock(
   world,
@@ -181,39 +193,22 @@ export function buildResidentialSuburbBlock(
 
   for (let i = 0; i < lotsPerRow; i++) {
     const lotX = bx - innerW * 0.5 + (i + 0.5) * lotW;
-
     const southSeed = seed * 13 + i * 3 + Math.floor(Math.random() * 100);
     let southStyle = HOUSE_STYLE_KEYS[Math.floor(Math.random() * 4)];
-    if (isSouthBorderRow) {
-      southStyle = 'townhouses';
-    } else if (lotsPerRow === 2 && i === 0 && seed <= 4) {
-      southStyle = 'suburb_mansion_pool';
-    }
+    if (isSouthBorderRow) southStyle = 'townhouses';
+    else if (lotsPerRow === 2 && i === 0 && seed <= 4) southStyle = 'suburb_mansion_pool';
+
     buildDetailedHouse(world, batcher, {
-      x: lotX,
-      z: bz + lotD * 0.5,
-      lotW,
-      lotD,
-      facingDirZ: 1,
-      styleKey: southStyle,
-      seed: southSeed
+      x: lotX, z: bz + lotD * 0.5, lotW, lotD, facingDirZ: 1, styleKey: southStyle, seed: southSeed
     });
 
     const northSeed = seed * 17 + i * 5 + Math.floor(Math.random() * 100);
     let northStyle = HOUSE_STYLE_KEYS[Math.floor(Math.random() * 4)];
-    if (isNorthCoastRow) {
-      northStyle = i === 0 ? 'suburb_mansion_pool' : 'modern_wood_chalet';
-    } else if (lotsPerRow === 3 && i === 1 && seed <= 6) {
-      northStyle = 'modern_wood_chalet';
-    }
+    if (isNorthCoastRow) northStyle = i === 0 ? 'suburb_mansion_pool' : 'modern_wood_chalet';
+    else if (lotsPerRow === 3 && i === 1 && seed <= 6) northStyle = 'modern_wood_chalet';
+
     buildDetailedHouse(world, batcher, {
-      x: lotX,
-      z: bz - lotD * 0.5,
-      lotW,
-      lotD,
-      facingDirZ: -1,
-      styleKey: northStyle,
-      seed: northSeed
+      x: lotX, z: bz - lotD * 0.5, lotW, lotD, facingDirZ: -1, styleKey: northStyle, seed: northSeed
     });
   }
 
@@ -227,32 +222,32 @@ export function buildResidentialSuburbBlock(
 }
 
 /**
- * Adiciona Townhouses de 3 andares nas extremidades Leste/Oeste da faixa de transição (Z = -448)
+ * Townhouses de 3 andares na faixa de transição em `1x` (Z = -448)
  */
 export function buildTransitionTownhouseAccents(world, batcher) {
   for (const tx of [-582]) {
-    const bw = 104;
-    const bd = 96;
+    const bw = 104, bd = 96;
     const transTY = world.getTerrainHeightAt ? world.getTerrainHeightAt(tx, -448) : 0;
     world._addCityBlockSidewalk(tx, -448, bw, bd, LEGO_COLORS.sidewalk);
     batcher.addBox('lawn_green', bw - 10, 0.08, bd - 10, tx, transTY + 0.28, -448);
 
-    buildDetailedHouse(world, batcher, { x: tx - 22, z: -428, lotW: 44, lotD: 42, facingDirZ: 1, styleKey: 'townhouses', seed: tx < 0 ? 101 : 202 });
-    buildDetailedHouse(world, batcher, { x: tx + 22, z: -428, lotW: 44, lotD: 42, facingDirZ: 1, styleKey: 'townhouses', seed: tx < 0 ? 103 : 204 });
-    buildDetailedHouse(world, batcher, { x: tx - 22, z: -468, lotW: 44, lotD: 42, facingDirZ: -1, styleKey: 'american_two_story', seed: tx < 0 ? 105 : 206 });
-    buildDetailedHouse(world, batcher, { x: tx + 22, z: -468, lotW: 44, lotD: 42, facingDirZ: -1, styleKey: 'suburb_mansion_pool', seed: tx < 0 ? 107 : 208 });
+    buildDetailedHouse(world, batcher, { x: tx - 22, z: -428, lotW: 44, lotD: 42, facingDirZ: 1, styleKey: 'townhouses', seed: 101 });
+    buildDetailedHouse(world, batcher, { x: tx + 22, z: -428, lotW: 44, lotD: 42, facingDirZ: 1, styleKey: 'townhouses', seed: 103 });
+    buildDetailedHouse(world, batcher, { x: tx - 22, z: -468, lotW: 44, lotD: 42, facingDirZ: -1, styleKey: 'american_two_story', seed: 105 });
+    buildDetailedHouse(world, batcher, { x: tx + 22, z: -468, lotW: 44, lotD: 42, facingDirZ: -1, styleKey: 'suburb_mansion_pool', seed: 107 });
   }
 }
 
 /**
- * Orquestra toda a malha residencial, os 3 quarteirões especiais e as alamedas sinuosas / *cul-de-sacs*
- * do Subúrbio Norte em `WORLD_SCALE > 1`.
+ * Orquestra toda a malha residencial densa, o corredor comercial de bairro, os 3 quarteirões especiais
+ * e as alamedas sinuosas / *cul-de-sacs* do Subúrbio Norte em `WORLD_SCALE > 1`.
  */
 export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
   const {
     buildExplosiveGasStationBlock,
     buildSuburbCommercialPizzeriaBlock,
-    buildSuburbParkAndBasketballBlock
+    buildSuburbParkAndBasketballBlock,
+    buildSuburbNeighborhoodCornerStrip
   } = specialBuilders;
   const sw = ROAD.sidewalk;
   let blockCounter = 0;
@@ -298,15 +293,20 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
           facingDirZ: -1,
           frontSidewalkInnerZ: innerMinZ
         });
+        if (buildSuburbNeighborhoodCornerStrip) {
+          buildSuburbNeighborhoodCornerStrip(world, batcher, {
+            minX: innerMinX + 3.0, maxX: gx - 65, frontEdgeZ: innerMinZ, depth: 42, facingDirZ: -1, variant: 2
+          });
+        }
         blockCounter++;
         buildScaledSuburbStreetFrontRow(world, batcher, {
-          minX: innerMinX + 2.5, maxX: innerMaxX - 2.5, frontEdgeZ: safeSouthZ, lotD: 32,
-          facingDirZ: 1, lotsCount: 6, seed: blockCounter * 2, recordLots: 6
+          minX: innerMinX + 1.5, maxX: innerMaxX - 1.5, frontEdgeZ: safeSouthZ, lotD: 30,
+          facingDirZ: 1, seed: blockCounter * 2, recordLots: 6
         });
         buildSpecialBlockOrganicPocket(world, batcher, {
-          id: 'gas_south', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 0, southLotD: 32,
-          specialKeepout: { minX: gx - 82, maxX: gx + 82, minZ: gz - 82, maxZ: gz + 82 },
-          entrySide: 'west', pocketZ: safeSouthZ - 112, seed: 301
+          id: 'gas_south', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 46, southLotD: 30,
+          specialKeepout: { minX: gx - 78, maxX: innerMaxX, minZ: innerMinZ, maxZ: gz + 76 },
+          entrySide: 'west', pocketZ: safeSouthZ - 108, seed: 301
         });
         continue;
       }
@@ -314,15 +314,20 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
       if (rIdx === 1 && designMidX === 60) {
         const px = innerMaxX - 55, pz = safeSouthZ - 56;
         buildSuburbCommercialPizzeriaBlock(world, batcher, px, pz, 110, 122, { skipSidewalkSlab: true });
+        if (buildSuburbNeighborhoodCornerStrip) {
+          buildSuburbNeighborhoodCornerStrip(world, batcher, {
+            minX: innerMinX + 3.0, maxX: px - 59, frontEdgeZ: safeSouthZ, depth: 42, facingDirZ: 1, variant: 0
+          });
+        }
         blockCounter++;
         buildScaledSuburbStreetFrontRow(world, batcher, {
-          minX: innerMinX + 2.5, maxX: innerMaxX - 2.5, frontEdgeZ: innerMinZ, lotD: 32,
-          facingDirZ: -1, lotsCount: 6, seed: blockCounter * 2, recordLots: 4
+          minX: innerMinX + 1.5, maxX: innerMaxX - 1.5, frontEdgeZ: innerMinZ, lotD: 30,
+          facingDirZ: -1, seed: blockCounter * 2, recordLots: 4
         });
         buildSpecialBlockOrganicPocket(world, batcher, {
-          id: 'pizzeria_north', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 32, southLotD: 0,
-          specialKeepout: { minX: px - 75, maxX: px + 75, minZ: pz - 81, maxZ: pz + 81 },
-          entrySide: 'west', pocketZ: innerMinZ + 112, seed: 331
+          id: 'pizzeria_north', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 30, southLotD: 46,
+          specialKeepout: { minX: px - 70, maxX: innerMaxX, minZ: pz - 76, maxZ: safeSouthZ },
+          entrySide: 'west', pocketZ: innerMinZ + 108, seed: 331
         });
         continue;
       }
@@ -330,15 +335,20 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
       if (rIdx === 1 && designMidX === -60) {
         const bx = innerMaxX - 55, bz = safeSouthZ - 56;
         buildSuburbParkAndBasketballBlock(world, batcher, bx, bz, 110, 122, { skipSidewalkSlab: true });
+        if (buildSuburbNeighborhoodCornerStrip) {
+          buildSuburbNeighborhoodCornerStrip(world, batcher, {
+            minX: innerMinX + 3.0, maxX: bx - 59, frontEdgeZ: safeSouthZ, depth: 42, facingDirZ: 1, variant: 1
+          });
+        }
         blockCounter++;
         buildScaledSuburbStreetFrontRow(world, batcher, {
-          minX: innerMinX + 2.5, maxX: innerMaxX - 2.5, frontEdgeZ: innerMinZ, lotD: 32,
-          facingDirZ: -1, lotsCount: 6, seed: blockCounter * 2, recordLots: 8
+          minX: innerMinX + 1.5, maxX: innerMaxX - 1.5, frontEdgeZ: innerMinZ, lotD: 30,
+          facingDirZ: -1, seed: blockCounter * 2, recordLots: 8
         });
         buildSpecialBlockOrganicPocket(world, batcher, {
-          id: 'bball_north', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 32, southLotD: 0,
-          specialKeepout: { minX: bx - 75, maxX: bx + 75, minZ: bz - 81, maxZ: bz + 81 },
-          entrySide: 'west', pocketZ: innerMinZ + 112, seed: 367
+          id: 'bball_north', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 30, southLotD: 46,
+          specialKeepout: { minX: bx - 70, maxX: innerMaxX, minZ: bz - 76, maxZ: safeSouthZ },
+          entrySide: 'west', pocketZ: innerMinZ + 108, seed: 367
         });
         continue;
       }
@@ -348,48 +358,45 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
         buildSuburbParkAndBasketballBlock(world, batcher, cellCX, pkZ, 122, 124, { skipSidewalkSlab: true });
         blockCounter++;
         buildScaledSuburbStreetFrontRow(world, batcher, {
-          minX: innerMinX + 2.5, maxX: innerMaxX - 2.5, frontEdgeZ: innerMinZ, lotD: 34,
-          facingDirZ: -1, lotsCount: 6, seed: blockCounter * 2, isNorthCoastRow: true, recordLots: 6
+          minX: innerMinX + 1.5, maxX: innerMaxX - 1.5, frontEdgeZ: innerMinZ, lotD: 32,
+          facingDirZ: -1, seed: blockCounter * 2, isNorthCoastRow: true, recordLots: 6
         });
         buildSpecialBlockOrganicPocket(world, batcher, {
-          id: `coast_${designMidX}`, innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 34, southLotD: 0,
+          id: `coast_${designMidX}`, innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 32, southLotD: 0,
           specialKeepout: { minX: cellCX - 81, maxX: cellCX + 81, minZ: pkZ - 82, maxZ: pkZ + 82 },
-          entrySide: designMidX < 0 ? 'west' : 'east', pocketZ: innerMinZ + 122, seed: designMidX < 0 ? 401 : 439
+          entrySide: designMidX < 0 ? 'west' : 'east', pocketZ: innerMinZ + 120, seed: designMidX < 0 ? 401 : 439
         });
         continue;
       }
 
       blockCounter++;
-      const lotsCount = isSouthBorderRow || isNorthCoastRow ? 6 : blockCounter % 3 === 0 ? 8 : 7;
       const recSouth = blockCounter % 3 === 0 ? 8 : blockCounter % 2 === 0 ? 6 : 4;
       const recNorth = (blockCounter + 1) % 3 === 0 ? 8 : (blockCounter + 1) % 2 === 0 ? 6 : 4;
-      const northLotD = isNorthCoastRow ? 34 : 32;
+      const northLotD = isNorthCoastRow ? 32 : 30;
 
       buildScaledSuburbStreetFrontRow(world, batcher, {
-        minX: innerMinX + 2.5, maxX: innerMaxX - 2.5, frontEdgeZ: safeSouthZ, lotD: 32,
-        facingDirZ: 1, lotsCount, seed: blockCounter * 2 - 1, isSouthBorderRow, recordLots: recSouth
+        minX: innerMinX + 1.5, maxX: innerMaxX - 1.5, frontEdgeZ: safeSouthZ, lotD: 30,
+        facingDirZ: 1, seed: blockCounter * 2 - 1, isSouthBorderRow, recordLots: recSouth
       });
 
       buildScaledSuburbStreetFrontRow(world, batcher, {
-        minX: innerMinX + 2.5, maxX: innerMaxX - 2.5, frontEdgeZ: innerMinZ, lotD: northLotD,
-        facingDirZ: -1, lotsCount, seed: blockCounter * 2, isNorthCoastRow, recordLots: recNorth
+        minX: innerMinX + 1.5, maxX: innerMaxX - 1.5, frontEdgeZ: innerMinZ, lotD: northLotD,
+        facingDirZ: -1, seed: blockCounter * 2, isNorthCoastRow, recordLots: recNorth
       });
 
       buildSuburbSuperBlockOrganicInterior(world, batcher, {
-        rIdx, cIdx, innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD, southLotD: 32
+        rIdx, cIdx, innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD, southLotD: 30
       });
     }
   }
 
   const promZ = ws(-1315);
-  const promMinX = ws(-642);
-  const promMaxX = ws(518);
-  const promW = promMaxX - promMinX;
-  const promCX = (promMinX + promMaxX) * 0.5;
+  const promMinX = ws(-642), promMaxX = ws(518);
+  const promW = promMaxX - promMinX, promCX = (promMinX + promMaxX) * 0.5;
   world._addCityBlockSidewalk(promCX, promZ, promW, 10, LEGO_COLORS.sidewalk);
   addSuburbTerrainLawnSlab(world, batcher, promMinX + 3, promMaxX - 3, promZ - 4, promZ + 4, 0.30);
   world.mapBlocks.push({ x: promCX, z: promZ, w: promW - 6, d: 8, color: '#22c55e' });
-  for (let tx = promMinX + 16; tx <= promMaxX - 16; tx += 36) {
+  for (let tx = promMinX + 16; tx <= promMaxX - 16; tx += 26) {
     const ty = (world.getTerrainHeightAt ? world.getTerrainHeightAt(tx, promZ) : 0) + 0.32;
     world._addLegoTree(tx, ty, promZ, 1.05);
   }

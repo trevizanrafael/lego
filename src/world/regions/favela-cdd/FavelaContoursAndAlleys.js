@@ -31,12 +31,23 @@ function indexSegment(grid, seg) {
   }
 }
 
+/**
+ * Curva de nível suave e orgânica (|dx/dz| <= 0.82) para manter espaçamento perpendicular
+ * uniforme (~19–22 m) entre fitas vizinhas sem esmagar nem abrir faixas cinzas vazias.
+ */
 export function evalContourRibbonX(xRef, z) {
-  return xRef + 43.0 * Math.sin(0.0265 * z + xRef * 0.0017) + 20.0 * Math.sin(0.052 * z - xRef * 0.0022 + 1.15);
+  return (
+    xRef +
+    28.0 * Math.sin(0.0145 * z + xRef * 0.0009) +
+    13.5 * Math.sin(0.031 * z - xRef * 0.0013 + 1.15)
+  );
 }
 
 export function evalContourRibbonDxDz(xRef, z) {
-  return 43.0 * 0.0265 * Math.cos(0.0265 * z + xRef * 0.0017) + 20.0 * 0.052 * Math.cos(0.052 * z - xRef * 0.0022 + 1.15);
+  return (
+    28.0 * 0.0145 * Math.cos(0.0145 * z + xRef * 0.0009) +
+    13.5 * 0.031 * Math.cos(0.031 * z - xRef * 0.0013 + 1.15)
+  );
 }
 
 function sampleCatmullPolyline(ctrlPts, stepLen = 24) {
@@ -58,27 +69,27 @@ function sampleCatmullPolyline(ctrlPts, stepLen = 24) {
 function createFavelaKeepouts() {
   const soccer = wsP(-605, 195), baile = wsP(-715, -135), summit = wsP(-865, -240);
   const rects = [
-    { id: 'express_canyon', minX: ws(-1020), maxX: ws(-510), minZ: -38, maxZ: 38, isLandmark: false },
-    { id: 'cdd_soccer', minX: soccer.x - 36, maxX: soccer.x + 34, minZ: soccer.z - 44, maxZ: soccer.z + 44, isLandmark: true },
-    { id: 'cdd_baile', minX: baile.x - 34, maxX: ws(-702) + 18, minZ: baile.z - 38, maxZ: baile.z + 38, isLandmark: true },
-    { id: 'cdd_summit', minX: summit.x - 34, maxX: summit.x + 34, minZ: summit.z - 64, maxZ: summit.z + 40, isLandmark: true }
+    { id: 'express_canyon', minX: ws(-1020), maxX: ws(-510), minZ: -39, maxZ: 39, isLandmark: false },
+    { id: 'cdd_soccer', minX: soccer.x - 35, maxX: soccer.x + 33, minZ: soccer.z - 43, maxZ: soccer.z + 43, isLandmark: true },
+    { id: 'cdd_baile', minX: baile.x - 33, maxX: ws(-702) + 17, minZ: baile.z - 37, maxZ: baile.z + 37, isLandmark: true },
+    { id: 'cdd_summit', minX: summit.x - 33, maxX: summit.x + 33, minZ: summit.z - 63, maxZ: summit.z + 39, isLandmark: true }
   ];
   const circles = [];
   for (const b of [
     wsP(-524, -382), wsP(-524, -250), wsP(-524, -117), wsP(-524, 36),
     wsP(-524, 134), wsP(-524, 380), wsP(-654, -640), wsP(-654, 540)
   ]) {
-    circles.push({ x: b.x, z: b.z, r: 16.5, isLandmark: true });
+    circles.push({ x: b.x, z: b.z, r: 16.0, isLandmark: true });
   }
   const cvZone = TERRITORY_ZONES?.cv;
   if (cvZone) {
-    for (const g of cvZone.gates || []) circles.push({ x: g.x, z: g.z, r: 19.0, isLandmark: true });
+    for (const g of cvZone.gates || []) circles.push({ x: g.x, z: g.z, r: 18.5, isLandmark: true });
     for (const gar of cvZone.garages || []) {
-      rects.push({ id: gar.id, minX: gar.x - 14.5, maxX: gar.x + 14.5, minZ: gar.z - 11.5, maxZ: gar.z + 11.5, isLandmark: true });
+      rects.push({ id: gar.id, minX: gar.x - 14.0, maxX: gar.x + 14.0, minZ: gar.z - 11.0, maxZ: gar.z + 11.0, isLandmark: true });
     }
-    for (const op of cvZone.outposts || []) circles.push({ x: op.x, z: op.z, r: 11.5, isLandmark: true });
-    if (cvZone.bossCourtyard) circles.push({ x: cvZone.bossCourtyard.x, z: cvZone.bossCourtyard.z, r: 13.0, isLandmark: true });
-    if (cvZone.alliedBossSpawn) circles.push({ x: cvZone.alliedBossSpawn.x, z: cvZone.alliedBossSpawn.z, r: 10.5, isLandmark: true });
+    for (const op of cvZone.outposts || []) circles.push({ x: op.x, z: op.z, r: 11.2, isLandmark: true });
+    if (cvZone.bossCourtyard) circles.push({ x: cvZone.bossCourtyard.x, z: cvZone.bossCourtyard.z, r: 12.5, isLandmark: true });
+    if (cvZone.alliedBossSpawn) circles.push({ x: cvZone.alliedBossSpawn.x, z: cvZone.alliedBossSpawn.z, r: 10.0, isLandmark: true });
   }
   return { rects, circles };
 }
@@ -94,22 +105,22 @@ function isPointInsideMajorKeepout(px, pz, keepouts, margin = 0) {
 function addUtilityPoleAndGatoWires(world, batcher, px, py, pz, roadAngle, halfSpan, seed) {
   const side = seed % 2 === 0 ? 1 : -1;
   const nx = Math.cos(roadAngle) * side, nz = -Math.sin(roadAngle) * side;
-  const poleX = px + nx * (halfSpan + 0.45), poleZ = pz + nz * (halfSpan + 0.45);
+  const poleX = px + nx * (halfSpan + 0.42), poleZ = pz + nz * (halfSpan + 0.42);
   const poleY = getFavelaElevation(poleX, poleZ);
   if (poleY < 0.35 || Math.abs(poleZ) < 36) return;
 
   const tiltX = ((seed % 5) - 2) * 0.022, tiltZ = (((seed * 3) % 5) - 2) * 0.022;
-  batcher.addSlopedBox('retaining_concrete', 0.28, 6.4, 0.28, poleX, poleY + 3.0, poleZ, tiltX, tiltZ, roadAngle);
-  batcher.addBox('rebar_iron', 0.95, 0.14, 0.14, poleX, poleY + 5.85, poleZ, roadAngle);
+  batcher.addSlopedBox('retaining_concrete', 0.26, 6.3, 0.26, poleX, poleY + 2.95, poleZ, tiltX, tiltZ, roadAngle, null, 'l0', true);
+  batcher.addBox('rebar_iron', 0.9, 0.13, 0.13, poleX, poleY + 5.8, poleZ, roadAngle, null, 'l0');
 
-  const bulbX = px + nx * (halfSpan - 0.65), bulbZ = pz + nz * (halfSpan - 0.65);
-  batcher.addSegmentSlab('rebar_iron', poleX, poleY + 5.7, poleZ, bulbX, poleY + 5.55, bulbZ, 0.1, 0.1, 0.05);
-  batcher.addBox('favela_bulb_warm', 0.34, 0.26, 0.34, bulbX, poleY + 5.42, bulbZ);
+  const bulbX = px + nx * (halfSpan - 0.6), bulbZ = pz + nz * (halfSpan - 0.6);
+  batcher.addBox('favela_bulb_warm', 0.34, 0.24, 0.34, bulbX, poleY + 5.42, bulbZ);
 
-  const oppX = px - nx * (halfSpan + 1.6), oppZ = pz - nz * (halfSpan + 1.6);
-  batcher.addSegmentSlab('wire_black', poleX, poleY + 5.82, poleZ, oppX, poleY + 5.45, oppZ, 0.07, 0.07, 0.1);
-  batcher.addSegmentSlab('wire_black', poleX, poleY + 5.55, poleZ, oppX + nz * 4.2, poleY + 5.15, oppZ - nx * 4.2, 0.06, 0.06, 0.1);
-
+  const oppX = px - nx * (halfSpan + 1.5), oppZ = pz - nz * (halfSpan + 1.5);
+  batcher.addSegmentSlab('wire_black', poleX, poleY + 5.78, poleZ, oppX, poleY + 5.42, oppZ, 0.06, 0.06, 0.08, null, 'l0');
+  if (seed % 2 === 0) {
+    batcher.addSegmentSlab('wire_black', poleX, poleY + 5.5, poleZ, oppX + nz * 4.0, poleY + 5.1, oppZ - nx * 4.0, 0.05, 0.05, 0.08, null, 'l0');
+  }
   if (seed % 3 === 0) {
     world.nightLampRegistry?.push({ x: bulbX, y: poleY + 5.35, z: bulbZ, groundY: py + 0.1, warm: true, coneH: 5.2, coneR: 4.2 });
   }
@@ -121,7 +132,7 @@ export function buildFavelaOrganicCirculation(world, batcher) {
   const allSegments = [], ladeiras = [], contourRibbons = [], escadoes = [];
   let qidCounter = 0;
 
-  // 1. LADEIRAS SERPENTEANTES DIRIGÍVEIS (inclinação longitudinal estritamente <= 11% em todos os segmentos!)
+  // 1. LADEIRAS SERPENTEANTES DIRIGÍVEIS (inclinação longitudinal <= 11%)
   const ladeiraSpecs = [
     {
       id: 'favela_ladeira_baile_summit',
@@ -168,17 +179,17 @@ export function buildFavelaOrganicCirculation(world, batcher) {
 
       const midX = (x1 + x2) * 0.5, midZ = (z1 + z2) * 0.5, midY = (y1 + y2) * 0.5;
       if (midY > 0.08 && !isPointInsideMajorKeepout(midX, midZ, keepouts, -2)) {
-        batcher.addSegmentSlab('alley_cement', x1, y1 - 0.36, z1, x2, y2 - 0.36, z2, spec.width, 0.92, 0.7);
+        batcher.addSegmentSlab('alley_cement', x1, y1 - 0.36, z1, x2, y2 - 0.36, z2, spec.width, 0.92, 0.7, null, 'both');
         const ang = Math.atan2(x2 - x1, z2 - z1), nx = Math.cos(ang), nz = -Math.sin(ang);
         const curbKey = (i + li) % 3 === 0 ? 'cv_red' : (i + li) % 3 === 1 ? 'cv_white' : 'retaining_concrete';
         for (const s of [-1, 1]) {
           const off = s * (spec.width * 0.5 - 0.22);
-          batcher.addSegmentSlab(curbKey, x1 + nx * off, y1 + 0.09, z1 + nz * off, x2 + nx * off, y2 + 0.09, z2 + nz * off, 0.38, 0.24, 0.35);
+          batcher.addSegmentSlab(curbKey, x1 + nx * off, y1 + 0.09, z1 + nz * off, x2 + nx * off, y2 + 0.09, z2 + nz * off, 0.36, 0.22, 0.32, null, 'l0');
         }
         if (i % 3 === 1) addUtilityPoleAndGatoWires(world, batcher, midX, midY, midZ, ang, spec.width * 0.5, li * 97 + i);
       }
 
-      const segRec = { kind: 'ladeira', ribbonId: -1, x1, z1, x2, z2, halfW: spec.width * 0.5, clearance: spec.width * 0.5 + 1.35, _qid: 0 };
+      const segRec = { kind: 'ladeira', ribbonId: -1, x1, z1, x2, z2, halfW: spec.width * 0.5, clearance: spec.width * 0.5 + 1.15, _qid: 0 };
       allSegments.push(segRec);
       indexSegment(segGrid, segRec);
     }
@@ -187,20 +198,21 @@ export function buildFavelaOrganicCirculation(world, batcher) {
     world.mapOrganicRoads.push({ kind: 'polyline', id: spec.id, tier: 'local', district: 'favela_cdd', points: pts, width: spec.width, sidewalk: 1.4, isMain: false });
   }
 
-  // 2. BECOS EM CURVA DE NÍVEL PAVIMENTADOS (Core CDD + Extensões Norte/Sul)
+  // 2. BECOS EM CURVA DE NÍVEL COMPACTOS (~21m no Core CDD = 2 fileiras fundo-com-fundo + beco de 2.8m, ZERO faixas cinzas!)
   const bandRanges = [
-    { zMin: ws(-512), zMax: -42, pitch: 27.5, zStep: 18.0, minXRef: ws(-976), maxXRef: ws(-544), isCore: true },
-    { zMin: 42, zMax: ws(412), pitch: 27.5, zStep: 18.0, minXRef: ws(-976), maxXRef: ws(-544), isCore: true },
-    { zMin: ws(-1745), zMax: ws(-516), pitch: 48.0, zStep: 24.0, minXRef: ws(-968), maxXRef: ws(-674), isCore: false },
-    { zMin: ws(416), zMax: ws(648), pitch: 44.0, zStep: 22.0, minXRef: ws(-968), maxXRef: ws(-674), isCore: false }
+    { zMin: ws(-512), zMax: -43, pitch: 21.2, zStep: 18.0, minXRef: ws(-968), maxXRef: ws(-538), isCore: true, halfTag: 'N' },
+    { zMin: 43, zMax: ws(414), pitch: 21.2, zStep: 18.0, minXRef: ws(-968), maxXRef: ws(-538), isCore: true, halfTag: 'S' },
+    { zMin: ws(-1740), zMax: ws(-516), pitch: 26.5, zStep: 22.0, minXRef: ws(-960), maxXRef: ws(-668), isCore: false, halfTag: 'FN' },
+    { zMin: ws(418), zMax: ws(650), pitch: 25.0, zStep: 20.0, minXRef: ws(-960), maxXRef: ws(-668), isCore: false, halfTag: 'FS' }
   ];
 
   let ribbonIdSeq = 0;
   for (let br = 0; br < bandRanges.length; br++) {
     const band = bandRanges[br];
+    let localOrder = 0;
     for (let xRef = band.maxXRef; xRef >= band.minXRef; xRef -= band.pitch) {
       const rId = ++ribbonIdSeq;
-      const becoW = 2.6 + (rId % 3) * 0.3;
+      const becoW = 2.6 + (rId % 3) * 0.25;
       const samples = [];
       for (let z = band.zMin; z <= band.zMax; z += band.zStep) {
         const x = evalContourRibbonX(xRef, z);
@@ -215,21 +227,24 @@ export function buildFavelaOrganicCirculation(world, batcher) {
         const a = samples[i], b = samples[i + 1];
         if (Math.abs(b.z - a.z) > band.zStep * 1.6) continue;
         const midX = (a.x + b.x) * 0.5, midZ = (a.z + b.z) * 0.5;
-        if (isPointInsideMajorKeepout(midX, midZ, keepouts, 2.0)) continue;
+        if (isPointInsideMajorKeepout(midX, midZ, keepouts, 1.8)) continue;
 
-        batcher.addSegmentSlab('alley_cement', a.x, a.y - 0.34, a.z, b.x, b.y - 0.34, b.z, becoW, 0.82, 0.55);
-        if ((i + rId) % 9 === 0) {
+        batcher.addSegmentSlab('alley_cement', a.x, a.y - 0.34, a.z, b.x, b.y - 0.34, b.z, becoW, 0.82, 0.55, null, 'both');
+        if ((i + rId) % 11 === 0) {
           addUtilityPoleAndGatoWires(world, batcher, midX, (a.y + b.y) * 0.5, midZ, Math.atan2(b.x - a.x, b.z - a.z), becoW * 0.5, rId * 31 + i);
         }
-        const segRec = { kind: 'beco', ribbonId: rId, x1: a.x, z1: a.z, x2: b.x, z2: b.z, halfW: becoW * 0.5, clearance: becoW * 0.5 + 0.32, _qid: 0 };
+        const segRec = { kind: 'beco', ribbonId: rId, x1: a.x, z1: a.z, x2: b.x, z2: b.z, halfW: becoW * 0.5, clearance: becoW * 0.5 + 0.2, _qid: 0 };
         allSegments.push(segRec);
         indexSegment(segGrid, segRec);
       }
-      contourRibbons.push({ id: rId, xRef, becoW, isCore: band.isCore, zMin: band.zMin, zMax: band.zMax });
+      contourRibbons.push({
+        id: rId, xRef, becoW, pitch: band.pitch, isCore: band.isCore, halfTag: band.halfTag,
+        localOrder: localOrder++, zMin: band.zMin, zMax: band.zMax
+      });
     }
   }
 
-  // 3. ESCADÕES OBLÍQUOS COM DEGRAUS REAIS, CORRIMÃO DE FERRO E FIAÇÃO AÉREA
+  // 3. ESCADÕES OBLÍQUOS COM DEGRAUS REAIS (L0), RAMPA ESTRUTURAL (L0+L1) E FIAÇÃO AÉREA
   const stairAnchorZs = [
     ws(-1560), ws(-1320), ws(-1080), ws(-860), ws(-660),
     ws(-465), ws(-395), ws(-315), ws(-235), ws(-175), ws(-95), ws(-48),
@@ -250,24 +265,24 @@ export function buildFavelaOrganicCirculation(world, batcher) {
       const z1 = zBase + driftDir * k * 3.8 + Math.sin(k * 0.45 + si) * 4.5;
       const z2 = zBase + driftDir * (k + 1) * 3.8 + Math.sin((k + 1) * 0.45 + si) * 4.5;
       const midX = (x1 + x2) * 0.5, midZ = (z1 + z2) * 0.5;
-      if (Math.abs(midZ) < 40 || isPointInsideMajorKeepout(midX, midZ, keepouts, 3.0)) continue;
+      if (Math.abs(midZ) < 40 || isPointInsideMajorKeepout(midX, midZ, keepouts, 2.6)) continue;
       const y1 = getFavelaElevation(x1, z1), y2 = getFavelaElevation(x2, z2);
       if (y1 < 0.45 || y2 < 0.45) continue;
 
-      batcher.addSegmentSlab('retaining_concrete', x1, y1 - 0.45, z1, x2, y2 - 0.45, z2, stairW + 0.35, 1.0, 0.35);
+      batcher.addSegmentSlab('retaining_concrete', x1, y1 - 0.44, z1, x2, y2 - 0.44, z2, stairW + 0.35, 0.98, 0.35, null, 'both');
       const ang = Math.atan2(x2 - x1, z2 - z1), nx = Math.cos(ang), nz = -Math.sin(ang);
-      for (let t = 0; t < 5; t++) {
-        const u = (t + 0.5) / 5;
-        batcher.addBox((si + k + t) % 5 === 0 ? 'cv_red' : 'cement_slab', stairW - 0.3, 0.24, (stepLen / 5) * 0.92, x1 + (x2 - x1) * u, y1 + (y2 - y1) * u + 0.08, z1 + (z2 - z1) * u, ang);
+      for (let t = 0; t < 4; t++) {
+        const u = (t + 0.5) / 4;
+        batcher.addBox((si + k + t) % 5 === 0 ? 'cv_red' : 'cement_slab', stairW - 0.28, 0.22, (stepLen / 4) * 0.92, x1 + (x2 - x1) * u, y1 + (y2 - y1) * u + 0.08, z1 + (z2 - z1) * u, ang, null, 'l0', true);
       }
       for (const s of [-1, 1]) {
         const off = s * (stairW * 0.5 - 0.14);
-        batcher.addSegmentSlab((si + k) % 4 === 0 ? 'cv_white' : 'retaining_concrete', x1 + nx * off, y1 + 0.32, z1 + nz * off, x2 + nx * off, y2 + 0.32, z2 + nz * off, 0.22, 0.52, 0.2);
+        batcher.addSegmentSlab((si + k) % 4 === 0 ? 'cv_white' : 'retaining_concrete', x1 + nx * off, y1 + 0.3, z1 + nz * off, x2 + nx * off, y2 + 0.3, z2 + nz * off, 0.2, 0.5, 0.2, null, 'l0');
       }
-      batcher.addSegmentSlab('rebar_iron', x1, y1 + 0.92, z1, x2, y2 + 0.92, z2, 0.08, 0.08, 0.15);
-      if (k % 4 === 2) addUtilityPoleAndGatoWires(world, batcher, midX, (y1 + y2) * 0.5, midZ, ang, stairW * 0.5, si * 53 + k);
+      batcher.addSegmentSlab('rebar_iron', x1, y1 + 0.9, z1, x2, y2 + 0.9, z2, 0.08, 0.08, 0.14, null, 'l0');
+      if (k % 5 === 2) addUtilityPoleAndGatoWires(world, batcher, midX, (y1 + y2) * 0.5, midZ, ang, stairW * 0.5, si * 53 + k);
 
-      const segRec = { kind: 'escadao', ribbonId: -2, x1, z1, x2, z2, halfW: stairW * 0.5, clearance: stairW * 0.5 + 0.85, _qid: 0 };
+      const segRec = { kind: 'escadao', ribbonId: -2, x1, z1, x2, z2, halfW: stairW * 0.5, clearance: stairW * 0.5 + 0.65, _qid: 0 };
       allSegments.push(segRec);
       indexSegment(segGrid, segRec);
       builtSegs++;
@@ -280,7 +295,7 @@ export function buildFavelaOrganicCirculation(world, batcher) {
     isObbClearForParcel(obb, ownRibbonId = -999) {
       for (let i = 0; i < keepouts.rects.length; i++) {
         const r = keepouts.rects[i];
-        if (obbIntersectsRect2D(obb, r.minX, r.maxX, r.minZ, r.maxZ, 1.2)) return false;
+        if (obbIntersectsRect2D(obb, r.minX, r.maxX, r.minZ, r.maxZ, 1.0)) return false;
       }
       for (let i = 0; i < keepouts.circles.length; i++) {
         const c = keepouts.circles[i];
@@ -299,7 +314,7 @@ export function buildFavelaOrganicCirculation(world, batcher) {
             const seg = list[i];
             if (seg._qid === qid) continue;
             seg._qid = qid;
-            const minClr = seg.ribbonId === ownRibbonId ? seg.halfW + 0.12 : seg.clearance;
+            const minClr = seg.ribbonId === ownRibbonId ? seg.halfW + 0.08 : seg.clearance;
             if (!obbClearOfSegment2D(obb, seg.x1, seg.z1, seg.x2, seg.z2, minClr)) return false;
           }
         }

@@ -288,12 +288,21 @@ function _PopulatePCCC4FactoryAndLogisticsBlock(world, batcher, blk, idx) {
   const w1H = h;
   const w2H = h - 6;
 
-  // 1) Megagalpão Oeste (H = 44..48m) com Telhado Dente-de-Serra e Frisos Azul-Neon
+  // 1) Megagalpão Oeste (H = 44..48m) com Telhado Dente-de-Serra, Claraboias e Docas de Aço a cada 9m
   batcher.addBox('matte_black', w1W, w1H, whD, w1X, 0.28 + w1H * 0.5, whZ);
   batcher.addBox('pcc_navy', w1W + 1.0, 3.0, whD + 1.0, w1X, 0.28 + w1H - 2.4, whZ);
   batcher.addBox('pcc_neon_blue', w1W + 1.4, 0.5, whD + 1.4, w1X, 0.28 + w1H - 4.2, whZ);
   for (let t = -1; t <= 1; t++) {
-    batcher.addBox('pcc_navy', w1W - 2, 4.0, whD * 0.28, w1X, 0.28 + w1H + 1.8, whZ + t * (whD * 0.3), 0.32, 0, 0);
+    const rz = whZ + t * (whD * 0.3);
+    batcher.addBox('pcc_navy', w1W - 2, 4.0, whD * 0.28, w1X, 0.28 + w1H + 1.8, rz, 0.32, 0, 0);
+    batcher.addBox('dark_steel', w1W - 4, 2.2, 0.6, w1X, 0.28 + w1H + 1.9, rz - whD * 0.13);
+  }
+  const dockFaceZ = whZ + whD * 0.5;
+  batcher.addBox('armor_slate', w1W - 2, 1.15, 3.6, w1X, 0.85, dockFaceZ + 1.8);
+  for (let dx = -w1W * 0.5 + 6.5; dx <= w1W * 0.5 - 6.5; dx += 9.0) {
+    batcher.addBox('brushed_silver', 5.2, 5.4, 0.45, w1X + dx, 1.4 + 2.7, dockFaceZ + 0.2);
+    batcher.addBox('forklift_yellow', 0.48, 1.35, 0.65, w1X + dx - 2.85, 1.9, dockFaceZ + 0.42);
+    batcher.addBox('forklift_yellow', 0.48, 1.35, 0.65, w1X + dx + 2.85, 1.9, dockFaceZ + 0.42);
   }
   world.addCollider(w1X, whZ, w1W, whD, 0.28 + w1H + 4.0, 0.28);
 

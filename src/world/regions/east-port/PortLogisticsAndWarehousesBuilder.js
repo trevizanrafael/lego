@@ -3,6 +3,24 @@ import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
 import { addCorrugatedContainerStack } from './EastPortBatcherAndMaterials.js';
 import { addPortCargoSemiTruck } from './CargoShipsAndDocksBuilder.js';
 
+function _addSegmentedBoxX(batcher, key, totalW, h, d, cx, y, z, maxSeg = 520) {
+  if (totalW <= maxSeg) {
+    batcher.addBox(key, totalW, h, d, cx, y, z);
+    return;
+  }
+  const n = Math.ceil(totalW / maxSeg), sw = totalW / n, x0 = cx - totalW * 0.5;
+  for (let i = 0; i < n; i++) batcher.addBox(key, sw + 0.05, h, d, x0 + (i + 0.5) * sw, y, z);
+}
+
+function _addSegmentedBoxZ(batcher, key, w, h, totalD, x, y, cz, maxSeg = 520) {
+  if (totalD <= maxSeg) {
+    batcher.addBox(key, w, h, totalD, x, y, cz);
+    return;
+  }
+  const n = Math.ceil(totalD / maxSeg), sd = totalD / n, z0 = cz - totalD * 0.5;
+  for (let i = 0; i < n; i++) batcher.addBox(key, w, h, sd + 0.05, x, y, z0 + (i + 0.5) * sd);
+}
+
 /**
  * 1. Constrói as Avenidas Logísticas Asfaltadas, 4 Rotatórias de Caminhões, 10 Pátios de Carga Demarcados,
  * Cercas de Tela Metálica, 6 Portarias de Doca, Bordas Zebradas, Cabeços, Defensas e 16 Torres Altas de Refletores (48m)
@@ -22,29 +40,22 @@ export function buildPortLogisticsRoadNetworkAndQuay(world, batcher) {
   ];
 
   for (const sec of sectors) {
-    const sx = ws(sec.x);
-    const sz = ws(sec.z);
-    const sw = ws(sec.w);
-    const sd = ws(sec.d);
-    batcher.addBox(sec.mat, sw, 0.28, sd, sx, 0.14, sz);
+    const sx = ws(sec.x), sz = ws(sec.z), sw = ws(sec.w), sd = ws(sec.d);
+    _addSegmentedBoxZ(batcher, sec.mat, sw, 0.28, sd, sx, 0.14, sz, 600);
     world.mapBlocks.push({ x: sx, z: sz, w: sw, d: sd, color: sec.mapColor });
-    batcher.addBox('forklift_yellow', sw - 4, 0.04, 0.65, sx, 0.29, sz - sd * 0.5 + 2.5);
-    batcher.addBox('forklift_yellow', sw - 4, 0.04, 0.65, sx, 0.29, sz + sd * 0.5 - 2.5);
-    batcher.addBox('tactical_white', 0.65, 0.04, sd - 4, sx - sw * 0.5 + 2.5, 0.29, sz);
-    batcher.addBox('tactical_white', 0.65, 0.04, sd - 4, sx + sw * 0.5 - 2.5, 0.29, sz);
+    _addSegmentedBoxX(batcher, 'forklift_yellow', sw - 4, 0.04, 0.65, sx, 0.29, sz - sd * 0.5 + 2.5, 600);
+    _addSegmentedBoxX(batcher, 'forklift_yellow', sw - 4, 0.04, 0.65, sx, 0.29, sz + sd * 0.5 - 2.5, 600);
+    _addSegmentedBoxZ(batcher, 'tactical_white', 0.65, 0.04, sd - 4, sx - sw * 0.5 + 2.5, 0.29, sz, 600);
+    _addSegmentedBoxZ(batcher, 'tactical_white', 0.65, 0.04, sd - 4, sx + sw * 0.5 - 2.5, 0.29, sz, 600);
   }
 
-  // Avenidas Logísticas Asfaltadas Leste-Oeste e Norte-Sul (larguras ×1: 28m / 34m na avenida da Ponte da Prisão)
+  // Avenidas Logísticas Asfaltadas Leste-Oeste e Norte-Sul (fatiadas p/ culling preciso em chunks de 920m)
   const ewAvenuesZ = [134, 335, 535, 708].map(ws);
-  const roadW = ws(1010);
-  const roadCX = ws(1100);
-  const arrowStartX = ws(660);
-  const arrowEndX = ws(1520);
-  const arrowStepX = ws(95);
+  const roadW = ws(1010), roadCX = ws(1100), arrowStartX = ws(660), arrowEndX = ws(1520), arrowStepX = ws(95);
   for (const az of ewAvenuesZ) {
-    batcher.addBox('matte_black', roadW, 0.3, 28.0, roadCX, 0.15, az);
-    batcher.addBox('forklift_yellow', roadW - 16, 0.05, 0.45, roadCX, 0.31, az - 0.55);
-    batcher.addBox('forklift_yellow', roadW - 16, 0.05, 0.45, roadCX, 0.31, az + 0.55);
+    _addSegmentedBoxX(batcher, 'matte_black', roadW, 0.3, 28.0, roadCX, 0.15, az, 520);
+    _addSegmentedBoxX(batcher, 'forklift_yellow', roadW - 16, 0.05, 0.45, roadCX, 0.31, az - 0.55, 520);
+    _addSegmentedBoxX(batcher, 'forklift_yellow', roadW - 16, 0.05, 0.45, roadCX, 0.31, az + 0.55, 520);
     world.mapRoads.push({ x: roadCX, z: az, w: roadW, d: 28, isMain: true });
 
     for (let sx = arrowStartX; sx <= arrowEndX; sx += arrowStepX) {
@@ -56,18 +67,15 @@ export function buildPortLogisticsRoadNetworkAndQuay(world, batcher) {
   }
 
   const nsAvenuesX = [600, 825, 1158, 1375, 1545].map(ws);
-  const bridgeAveX = ws(1375);
-  const nsBaseD = ws(610);
-  const nsLineD = ws(600);
-  const nsBaseZ = ws(425.0);
+  const bridgeAveX = ws(1375), nsBaseD = ws(610), nsLineD = ws(600), nsBaseZ = ws(425.0);
   for (const ax of nsAvenuesX) {
     const isBridgeAve = ax === bridgeAveX;
     const w = isBridgeAve ? 34.0 : 28.0;
     const roadD = IS_SCALED_WORLD && isBridgeAve ? nsBaseD + 14.0 : nsBaseD;
     const roadZ = IS_SCALED_WORLD && isBridgeAve ? nsBaseZ + 7.0 : nsBaseZ;
-    batcher.addBox('matte_black', w, 0.3, roadD, ax, 0.15, roadZ);
-    batcher.addBox('forklift_yellow', 0.45, 0.05, nsLineD, ax - 0.55, 0.31, nsBaseZ);
-    batcher.addBox('forklift_yellow', 0.45, 0.05, nsLineD, ax + 0.55, 0.31, nsBaseZ);
+    _addSegmentedBoxZ(batcher, 'matte_black', w, 0.3, roadD, ax, 0.15, roadZ, 520);
+    _addSegmentedBoxZ(batcher, 'forklift_yellow', 0.45, 0.05, nsLineD, ax - 0.55, 0.31, nsBaseZ, 520);
+    _addSegmentedBoxZ(batcher, 'forklift_yellow', 0.45, 0.05, nsLineD, ax + 0.55, 0.31, nsBaseZ, 520);
     world.mapRoads.push({ x: ax, z: roadZ, w, d: roadD, isMain: true });
   }
 
@@ -107,16 +115,13 @@ export function buildPortLogisticsRoadNetworkAndQuay(world, batcher) {
   // Parede vertical maciça do Cais à Beira-Mar Leste (X = ws(1619.2)) e Sul (Z = ws(734.2))
   const eastQuayX = ws(1619.2);
   const southQuayZ = ws(734.2);
-  batcher.addBox('gunmetal_concrete', 3.4, 2.6, ws(620), eastQuayX, -0.35, ws(425));
+  _addSegmentedBoxZ(batcher, 'gunmetal_concrete', 3.4, 2.6, ws(620), eastQuayX, -0.35, ws(425), 480);
   if (!IS_SCALED_WORLD) {
     batcher.addBox('gunmetal_concrete', 1020, 2.6, 3.4, 1110, -0.35, 734.2);
   } else {
-    const qMinX = ws(600);
-    const qMaxX = ws(1620);
-    const gapMinX = bridgeAveX - 24.0;
-    const gapMaxX = bridgeAveX + 24.0;
-    batcher.addBox('gunmetal_concrete', gapMinX - qMinX, 2.6, 3.4, (qMinX + gapMinX) * 0.5, -0.35, southQuayZ);
-    batcher.addBox('gunmetal_concrete', qMaxX - gapMaxX, 2.6, 3.4, (gapMaxX + qMaxX) * 0.5, -0.35, southQuayZ);
+    const qMinX = ws(600), qMaxX = ws(1620), gapMinX = bridgeAveX - 24.0, gapMaxX = bridgeAveX + 24.0;
+    _addSegmentedBoxX(batcher, 'gunmetal_concrete', gapMinX - qMinX, 2.6, 3.4, (qMinX + gapMinX) * 0.5, -0.35, southQuayZ, 480);
+    _addSegmentedBoxX(batcher, 'gunmetal_concrete', qMaxX - gapMaxX, 2.6, 3.4, (gapMaxX + qMaxX) * 0.5, -0.35, southQuayZ, 480);
   }
 
   // Faixas Zebradas Amarelas e Pretas de Segurança (props ×1, passo escalado para 60 FPS!)
@@ -211,10 +216,14 @@ export function buildEightPortWarehousesFuelTerminalAndHarborTower(world, batche
     world.addCollider(cx, cz, w, d, 0.28 + h + 6.0, 0.28);
 
     if (d >= 90) {
+      batcher.addBox('armor_slate', 3.4, 1.12, d - 6.0, cx + w * 0.5 + 1.7, 0.84, cz);
+      for (let dz = cz - d * 0.5 + 12; dz <= cz + d * 0.5 - 12; dz += 9.0) {
+        batcher.addBox('brushed_silver', 0.45, 5.4, 5.2, cx + w * 0.5 + 0.25, 1.4 + 2.7, dz);
+        batcher.addBox('forklift_yellow', 0.6, 1.3, 0.46, cx + w * 0.5 + 0.42, 1.85, dz - 2.85);
+        batcher.addBox('forklift_yellow', 0.6, 1.3, 0.46, cx + w * 0.5 + 0.42, 1.85, dz + 2.85);
+      }
       for (let b = -1.5; b <= 1.5; b += 1.0) {
         const dz = cz + b * 22;
-        batcher.addBox('matte_black', 1.8, 11.0, 14.0, cx + w * 0.5 + 0.3, 0.28 + 5.5, dz);
-        batcher.addBox('brushed_silver', 2.0, 2.8, 13.8, cx + w * 0.5 + 0.5, 0.28 + 9.8, dz);
         batcher.addBox('pallet_wood', 3.4, 2.6, 3.4, cx - w * 0.5 - 2.8, 1.58, dz);
       }
     }
