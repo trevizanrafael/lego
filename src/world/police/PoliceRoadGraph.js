@@ -9,12 +9,18 @@ import {
   SECONDARY_STREETS_Z as URBAN_SECONDARY_STREETS_Z,
   INDUSTRIAL_STREETS_X
 } from '../core/WorldLayoutScale.js';
+import {
+  addBidirectionalEdge,
+  snapOrSplitOntoExistingSegment,
+  ingestOrganicRoadsIntoGraph,
+  clampPointToRoadAsphalt
+} from './PoliceOrganicGraphHelper.js';
+
+export { snapOrSplitOntoExistingSegment, clampPointToRoadAsphalt };
 
 /**
  * PoliceRoadGraph.js
- * Grafo viário leve em cache das avenidas/ruas da metrópole + busca de caminho A* (60 FPS).
- * Preserva 100% de paridade em `1x` e expande em `3x` para cobrir Centro, Subúrbio Norte,
- * Praia Sul, Distrito Industrial, Porto Leste, Rodovia do Aeroporto Oeste e Ponte da Prisão.
+ * Grafo viário leve em cache das avenidas/ruas + vias orgânicas da metrópole e busca A* (60 FPS).
  */
 
 const LEGACY_NS_AVENUES_X = Object.freeze([-516, -384, -252, -120, 0, 120, 252, 384, 612]);
@@ -72,23 +78,6 @@ function isSegmentBlocked(sys, ax, az, bx, bz) {
   return typeof sys?._isSegmentBlockedByBuilding === 'function'
     ? Boolean(sys._isSegmentBlockedByBuilding(ax, az, bx, bz))
     : false;
-}
-
-function addBidirectionalEdge(graph, nodeA, nodeB, isBridge = false, roadWidth = ROAD.mainWidth) {
-  if (!nodeA || !nodeB || nodeA === nodeB) return;
-  for (let i = 0; i < nodeA.neighbors.length; i++) {
-    if (nodeA.neighbors[i].node === nodeB) return;
-  }
-  const dx = nodeB.x - nodeA.x;
-  const dz = nodeB.z - nodeA.z;
-  const cost = Math.hypot(dx, dz);
-  if (cost < 1e-3) return;
-  const inv = 1 / cost;
-  nodeA.neighbors.push({ node: nodeB, cost, dirX: dx * inv, dirZ: dz * inv, roadWidth });
-  nodeB.neighbors.push({ node: nodeA, cost, dirX: -dx * inv, dirZ: -dz * inv, roadWidth });
-  if (roadWidth > (nodeA.roadWidth || 0)) nodeA.roadWidth = roadWidth;
-  if (roadWidth > (nodeB.roadWidth || 0)) nodeB.roadWidth = roadWidth;
-  graph.segments.push({ a: nodeA, b: nodeB, length: cost, dirX: dx * inv, dirZ: dz * inv, isBridge, roadWidth });
 }
 
 function buildSpawnSamples(world, nodes, segments) {
@@ -160,6 +149,8 @@ function buildScaledPoliceRoadGraph(sys) {
     spawnSamples: [],
     xCorridors,
     zCorridors,
+    organicSegments: [],
+    roundabouts: [],
     _gScore: null,
     _fScore: null,
     _cameFrom: null,
@@ -221,7 +212,6 @@ function buildScaledPoliceRoadGraph(sys) {
     PORT_LOGISTICS_AVENUES_X
   ]);
 
-  // 1. Avenidas Principais Norte-Sul (34m) e Ruas Secundárias Norte-Sul (26m)
   for (const ax of URBAN_MAIN_AVENUES_X) {
     connectLineX(ax, ws(-1300), ws(710), allUrbanZ, ROAD.mainWidth, 'main_avenue');
   }
@@ -239,7 +229,6 @@ function buildScaledPoliceRoadGraph(sys) {
     connectLineX(ix, ws(-1300), ws(134), allUrbanZ, ROAD.secondaryWidth, 'industrial_street');
   }
 
-  // 2. Avenidas Principais Leste-Oeste (34m) e Ruas Secundárias Leste-Oeste (26m)
   for (const az of URBAN_MAIN_AVENUES_Z) {
     const xMax = az <= ws(134) ? ws(1545) : ws(600);
     connectLineZ(az, ws(-516), xMax, allUrbanAndIndX, ROAD.mainWidth, 'main_avenue');
@@ -249,7 +238,6 @@ function buildScaledPoliceRoadGraph(sys) {
     connectLineZ(sz, ws(-648), xMax, allUrbanAndIndX, ROAD.secondaryWidth, 'secondary_street');
   }
 
-  // 3. Malha Logística do Porto Leste (28m / 34m na avenida da Ponte da Prisão)
   const portZStops = uniqueSortedNumbers([PORT_LOGISTICS_AVENUES_Z, [ws(402)]]);
   for (const pz of PORT_LOGISTICS_AVENUES_Z) {
     const w = Math.abs(pz - ws(134)) < 0.5 ? ROAD.mainWidth : PORT_ROAD_WIDTH;
@@ -260,14 +248,12 @@ function buildScaledPoliceRoadGraph(sys) {
     connectLineX(px, ws(134), ws(708), portZStops, w, 'port_avenue');
   }
 
-  // 4. Rodovia Expressa Oeste & Aeroporto (Z = 0, X = ws(-1100)..ws(-516), 34m) + Acessos Paralelos
   const westHwyXStops = [-1100, -1085, -1036, -860, -690, -516].map(ws);
   connectLineZ(0, ws(-1100), ws(-516), westHwyXStops, ROAD.mainWidth, 'airport_highway');
   connectLineZ(ws(-117), ws(-1085), ws(-516), [-1085, -860, -690, -516].map(ws), ROAD.mainWidth, 'airport_access');
   connectLineZ(ws(134), ws(-1085), ws(-516), [-1085, -860, -690, -516].map(ws), ROAD.mainWidth, 'airport_access');
   connectLineX(ws(-1085), ws(-280), ws(280), [ws(-280), ws(-117), 0, ws(134), ws(280)], ROAD.secondaryWidth, 'airport_blvd');
 
-  // 5. Grande Ponte Blindada Sudeste para a Ilha da Prisão (X = ws(1375), Z = ws(708)..ws(1400), 34m)
   const prisonBridgeZ = [ws(708), ws(734), ws(1122), ws(1260), ws(1400)];
   const pNodes = prisonBridgeZ.map((z, idx) =>
     registerNode(PRISON_BRIDGE_X, z, idx >= 2 ? 'prison_island' : 'bridge_junction', idx === 1 || idx === 2, ROAD.mainWidth)
@@ -278,6 +264,9 @@ function buildScaledPoliceRoadGraph(sys) {
       addBidirectionalEdge(graph, pNodes[k], pNodes[k + 1], overWaterSpan, ROAD.mainWidth);
     }
   }
+
+  const organicRoads = Array.isArray(world?.mapOrganicRoads) ? world.mapOrganicRoads : [];
+  ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, canConnect);
 
   return finalizeGraphBuffers(world, graph);
 }
@@ -320,6 +309,8 @@ export function buildPoliceRoadGraph(sys) {
     spawnSamples: [],
     xCorridors: [],
     zCorridors: [],
+    organicSegments: [],
+    roundabouts: [],
     _gScore: null,
     _fScore: null,
     _cameFrom: null,
@@ -366,12 +357,14 @@ export function ensurePoliceRoadGraph(sys) {
   const world = sys.world || null;
   const buildings = world?.mapBuildings || null;
   const bLen = Array.isArray(buildings) ? buildings.length : 0;
+  const orgLen = Array.isArray(world?.mapOrganicRoads) ? world.mapOrganicRoads.length : 0;
 
   if (
     sys._roadGraph &&
     sys._roadGraphWorldRef === world &&
     sys._roadGraphBuildingsRef === buildings &&
-    sys._roadGraphBuildingsLen === bLen
+    sys._roadGraphBuildingsLen === bLen &&
+    sys._roadGraphOrganicLen === orgLen
   ) {
     return sys._roadGraph;
   }
@@ -381,6 +374,7 @@ export function ensurePoliceRoadGraph(sys) {
   sys._roadGraphWorldRef = world;
   sys._roadGraphBuildingsRef = buildings;
   sys._roadGraphBuildingsLen = bLen;
+  sys._roadGraphOrganicLen = orgLen;
   return graph;
 }
 
@@ -398,66 +392,6 @@ export function findNearestRoadNode(graph, x, z, filterFn = null) {
     }
   }
   return best;
-}
-
-/**
- * Em `3x`, restringe alvos/posições que caíram sobre a calçada de 10m de volta à faixa asfaltada
- * `±(roadWidth * 0.5 - curbMargin)` quando fora de cruzamentos. No-op em `1x`.
- */
-export function clampPointToRoadAsphalt(graph, x, z, curbMargin = 2.0) {
-  if (!IS_SCALED_WORLD || !graph) return { x, z, clamped: false, roadWidth: ROAD.mainWidth };
-  const xCols = graph.xCorridors || [];
-  const zCols = graph.zCorridors || [];
-  const sidewalkW = ROAD.sidewalk || 10;
-
-  let nearX = null;
-  let bestDx = Infinity;
-  for (let i = 0; i < xCols.length; i++) {
-    const c = xCols[i];
-    if (z < c.min - 14 || z > c.max + 14) continue;
-    const dx = Math.abs(x - c.coord);
-    if (dx <= c.width * 0.5 + sidewalkW + 0.5 && dx < bestDx) {
-      bestDx = dx;
-      nearX = c;
-    }
-  }
-
-  let nearZ = null;
-  let bestDz = Infinity;
-  for (let i = 0; i < zCols.length; i++) {
-    const c = zCols[i];
-    if (x < c.min - 14 || x > c.max + 14) continue;
-    const dz = Math.abs(z - c.coord);
-    if (dz <= c.width * 0.5 + sidewalkW + 0.5 && dz < bestDz) {
-      bestDz = dz;
-      nearZ = c;
-    }
-  }
-
-  // Cruzamento real entre duas vias: asfalto aberto nos dois eixos
-  if (nearX && nearZ && bestDx <= nearX.width * 0.5 + 1.5 && bestDz <= nearZ.width * 0.5 + 1.5) {
-    return { x, z, clamped: false, roadWidth: Math.max(nearX.width, nearZ.width) };
-  }
-
-  if (nearX && (!nearZ || bestDz > nearZ.width * 0.5)) {
-    const maxLat = Math.max(2.0, nearX.width * 0.5 - curbMargin);
-    if (bestDx > maxLat) {
-      const clampedX = nearX.coord + (x >= nearX.coord ? maxLat : -maxLat);
-      return { x: clampedX, z, clamped: true, roadWidth: nearX.width };
-    }
-    return { x, z, clamped: false, roadWidth: nearX.width };
-  }
-
-  if (nearZ && (!nearX || bestDx > nearX.width * 0.5)) {
-    const maxLat = Math.max(2.0, nearZ.width * 0.5 - curbMargin);
-    if (bestDz > maxLat) {
-      const clampedZ = nearZ.coord + (z >= nearZ.coord ? maxLat : -maxLat);
-      return { x, z: clampedZ, clamped: true, roadWidth: nearZ.width };
-    }
-    return { x, z, clamped: false, roadWidth: nearZ.width };
-  }
-
-  return { x, z, clamped: false, roadWidth: ROAD.mainWidth };
 }
 
 export function findRoadPathAStar(graph, startX, startZ, goalX, goalZ) {

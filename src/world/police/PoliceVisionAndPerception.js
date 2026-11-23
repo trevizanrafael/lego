@@ -1,4 +1,5 @@
 import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
+import { createObb2D, obbClearOfSegment2D } from '../buildings/LotGeometry2D.js';
 import { VISION_CONES, VISION_PRECOMPUTED } from './PursuitTuning.js';
 
 /**
@@ -346,9 +347,13 @@ export const policeVisionAndPerceptionMethods = {
     for (let i = 0; i < buildings.length; i++) {
       const b = buildings[i];
       if ((b.height || 10) < 3.2) continue;
+      const rotY = b.rotY || 0;
+      const obb = Math.abs(rotY) > 1e-3 ? createObb2D(b.x, b.z, b.w, b.d, rotY) : null;
       const hw = b.w * 0.5;
       const hd = b.d * 0.5;
-      const entry = { minX: b.x - hw, maxX: b.x + hw, minZ: b.z - hd, maxZ: b.z + hd, _losQid: 0 };
+      const entry = obb
+        ? { minX: obb.minX, maxX: obb.maxX, minZ: obb.minZ, maxZ: obb.maxZ, obb, _losQid: 0 }
+        : { minX: b.x - hw, maxX: b.x + hw, minZ: b.z - hd, maxZ: b.z + hd, obb: null, _losQid: 0 };
       const gx0 = Math.floor(entry.minX / cs);
       const gx1 = Math.floor(entry.maxX / cs);
       const gz0 = Math.floor(entry.minZ / cs);
@@ -389,7 +394,11 @@ export const policeVisionAndPerceptionMethods = {
           if (b._losQid === qid) continue;
           b._losQid = qid;
           if (b.maxX < minSegX || b.minX > maxSegX || b.maxZ < minSegZ || b.minZ > maxSegZ) continue;
-          if (segmentIntersectsRect2D(ax, az, bx, bz, b.minX, b.maxX, b.minZ, b.maxZ)) return true;
+          if (b.obb) {
+            if (!obbClearOfSegment2D(b.obb, ax, az, bx, bz, 0.05)) return true;
+          } else if (segmentIntersectsRect2D(ax, az, bx, bz, b.minX, b.maxX, b.minZ, b.maxZ)) {
+            return true;
+          }
         }
       }
     }
