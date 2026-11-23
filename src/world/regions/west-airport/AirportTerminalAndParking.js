@@ -1,110 +1,242 @@
 import * as THREE from 'three';
-import {
-  LEGO_COLORS,
-  getLegoMaterial,
-  createLegoBrick
-} from '../../../materials/LegoMaterials.js';
-import {
-  makeFastBox,
-  flushSpatialChunkedBuckets
-} from '../../BuildingGenerator.js';
+import { LEGO_COLORS, markAsSharedAsset } from '../../../materials/LegoMaterials.js';
+import { makeFastBox, mergeColoredGeometries } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
 import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
+import {
+  getSharedPeripheryStandardVcMaterial,
+  getSharedPeripheryBasicVcMaterial
+} from '../../terrain/NaturalPeripheryBuilder.js';
 
+const WEST_AIRPORT_LOD_DIST = 340;
+
+const WEST_SECTOR_ORIGINS = [
+  { key: 'airfield_south', originX: ws(-1360), originZ: 0 },
+  { key: 'north_mil', originX: ws(-1420), originZ: ws(-980) }
+];
+
+const WEST_PALETTE = {
+  steel_silver: { color: new THREE.Color(LEGO_COLORS.silver), basic: false },
+  steel_dark: { color: new THREE.Color(0x334155), basic: false },
+  charcoal: { color: new THREE.Color(0x1e293b), basic: false },
+  asphalt_dark: { color: new THREE.Color(0x0f172a), basic: false },
+  apron_concrete: { color: new THREE.Color(0x2a323f), basic: false },
+  airfield_turf: { color: new THREE.Color(0x1f3622), basic: false },
+  airfield_verge: { color: new THREE.Color(0x284028), basic: false },
+  ditch_channel: { color: new THREE.Color(0x111722), basic: false },
+  coastal_rock: { color: new THREE.Color(0x363e4a), basic: false },
+  coastal_scrub: { color: new THREE.Color(0x2c4724), basic: false },
+  concrete_wall: { color: new THREE.Color(0x94a3b8), basic: false },
+  terminal_floor: { color: new THREE.Color(0xdbe3ee), basic: false },
+  white_clean: { color: new THREE.Color(0xe2e8f0), basic: false },
+  aviation_red: { color: new THREE.Color(0xc82424), basic: false },
+  aviation_blue: { color: new THREE.Color(0x0369a1), basic: false },
+  sky_blue: { color: new THREE.Color(0x0284c7), basic: false },
+  highway_green: { color: new THREE.Color(0x15803d), basic: false },
+  military_olive: { color: new THREE.Color(0x3f6212), basic: false },
+  military_dark: { color: new THREE.Color(0x1a2e05), basic: false },
+  camo_tan: { color: new THREE.Color(0xa16207), basic: false },
+  gold_trim: { color: new THREE.Color(LEGO_COLORS.gold), basic: false },
+  orange_windsock: { color: new THREE.Color(0xea580c), basic: false },
+  glass_mirror: { color: new THREE.Color(0x0c4a6e), basic: false },
+  glass_cockpit: { color: new THREE.Color(0x0369a1), basic: false },
+  mark_white: { color: new THREE.Color(0xf1f5f9), basic: true },
+  mark_yellow: { color: new THREE.Color(0xfacc15), basic: true },
+  light_green: { color: new THREE.Color(0x22c55e), basic: true },
+  light_red: { color: new THREE.Color(0xef4444), basic: true },
+  light_warm: { color: new THREE.Color(0xfef08a), basic: true },
+  light_cyan: { color: new THREE.Color(0x00f0ff), basic: true }
+};
+
+const WEST_SHADOW_KEYS = new Set([
+  'white_clean',
+  'aviation_red',
+  'aviation_blue',
+  'military_olive',
+  'military_dark',
+  'concrete_wall'
+]);
+
+let _radarMergedGeo = null;
+
+function getSharedAtcRadarGeo() {
+  if (!_radarMergedGeo) {
+    _radarMergedGeo = markAsSharedAsset(
+      mergeColoredGeometries([
+        { geo: makeFastBox(17.0, 4.0, 2.4, 0, 0, 0), color: new THREE.Color(LEGO_COLORS.yellow) },
+        { geo: makeFastBox(2.2, 2.0, 6.2, 0, 0, 2.6), color: new THREE.Color(LEGO_COLORS.silver) }
+      ])
+    );
+  }
+  return _radarMergedGeo;
+}
+
+/**
+ * Batcher Vertex-Color 2-Níveis `THREE.LOD` (`340 m`) do Aeroporto & Base Militar Oeste:
+ * - Zero `MeshPhysicalMaterial` (usa 1 `MeshStandardMaterial` + 1 `MeshBasicMaterial` compartilhados).
+ * - Nível 0 (0..340m): todas as estruturas, detalhes, marcações de pista, balizas e carros estacionados.
+ * - Nível 1 (>=340m): apenas macroestruturas (`Math.max(w, h, d) >= 3.5`), `castShadow = false`.
+ */
 export function createWestBatcher() {
-  const legoPlastic = (color, opts = {}) =>
-    new THREE.MeshPhysicalMaterial({
-      color,
-      roughness: opts.roughness ?? 0.25,
-      metalness: opts.metalness ?? 0.04,
-      clearcoat: opts.clearcoat ?? 0.4,
-      clearcoatRoughness: opts.clearcoatRoughness ?? 0.15,
-      reflectivity: 0.72,
-      ...(opts.emissive !== undefined ? { emissive: opts.emissive, emissiveIntensity: opts.emissiveIntensity ?? 0.2 } : {})
-    });
-  const palette = {
-    steel_silver: legoPlastic(LEGO_COLORS.silver, { metalness: 0.45, roughness: 0.25, clearcoat: 0.35 }),
-    steel_dark: legoPlastic(0x334155, { roughness: 0.35, metalness: 0.35, clearcoat: 0.28 }),
-    charcoal: legoPlastic(0x1e293b, { roughness: 0.42, clearcoat: 0.18 }),
-    asphalt_dark: new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.68 }),
-    concrete_wall: new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.45 }),
-    terminal_floor: legoPlastic(0xf1f5f9, { roughness: 0.22, metalness: 0.08, clearcoat: 0.55 }),
-    white_clean: legoPlastic(0xf8fafc, { roughness: 0.22 }),
-    aviation_red: legoPlastic(0xdc2626, { roughness: 0.24 }),
-    aviation_blue: legoPlastic(0x0284c7, { roughness: 0.22 }),
-    sky_blue: legoPlastic(0x38bdf8, { roughness: 0.24 }),
-    highway_green: legoPlastic(0x15803d, { roughness: 0.28 }),
-    military_olive: legoPlastic(0x3f6212, { roughness: 0.34, clearcoat: 0.28 }),
-    military_dark: legoPlastic(0x1a2e05, { roughness: 0.38, clearcoat: 0.22 }),
-    camo_tan: legoPlastic(0xa16207, { roughness: 0.36, clearcoat: 0.24 }),
-    gold_trim: legoPlastic(LEGO_COLORS.gold, { metalness: 0.5, roughness: 0.22, clearcoat: 0.48 }),
-    orange_windsock: legoPlastic(0xf97316, { roughness: 0.28 }),
-    glass_mirror: legoPlastic(0x0ea5e9, {
-      roughness: 0.1,
-      metalness: 0.42,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.06,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.18
-    }),
-    glass_cockpit: legoPlastic(0x38bdf8, {
-      roughness: 0.1,
-      metalness: 0.32,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.06,
-      emissive: 0x0369a1,
-      emissiveIntensity: 0.22
-    }),
-    mark_white: new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -3
-    }),
-    mark_yellow: new THREE.MeshBasicMaterial({
-      color: 0xfacc15,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -3
-    }),
-    light_green: new THREE.MeshBasicMaterial({ color: 0x22c55e }),
-    light_red: new THREE.MeshBasicMaterial({ color: 0xef4444 }),
-    light_warm: new THREE.MeshBasicMaterial({ color: 0xfef08a }),
-    light_cyan: new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+  const chunks = new Map();
+  const basicEntries = [];
+  const basicOriginX = ws(-1380);
+  const basicOriginZ = ws(-240);
+
+  const getChunk = (_wx, wz) => {
+    const sec = wz < ws(-610) ? WEST_SECTOR_ORIGINS[1] : WEST_SECTOR_ORIGINS[0];
+    let ch = chunks.get(sec.key);
+    if (!ch) {
+      ch = {
+        key: sec.key,
+        originX: sec.originX,
+        originZ: sec.originZ,
+        l0Pbr: [],
+        l1Pbr: [],
+        hasShadowCaster: false
+      };
+      chunks.set(sec.key, ch);
+    }
+    return ch;
   };
 
-  const shadowCasterKeys = new Set([
-    'white_clean',
-    'aviation_red',
-    'aviation_blue',
-    'military_olive',
-    'military_dark',
-    'concrete_wall'
-  ]);
-
-  const buckets = new Map();
-  for (const k of Object.keys(palette)) {
-    buckets.set(k, []);
-  }
+  const pushBoxTile = (spec, key, w, h, d, x, y, z, isMacroL1) => {
+    if (spec.basic) {
+      basicEntries.push({
+        geo: makeFastBox(w, h, d, x - basicOriginX, y, z - basicOriginZ),
+        color: spec.color
+      });
+      return;
+    }
+    const ch = getChunk(x, z);
+    const fast = makeFastBox(w, h, d, x - ch.originX, y, z - ch.originZ);
+    ch.l0Pbr.push({ geo: fast, color: spec.color });
+    if (WEST_SHADOW_KEYS.has(key) && h >= 2.2) {
+      ch.hasShadowCaster = true;
+    }
+    if (isMacroL1) {
+      ch.l1Pbr.push({ geo: fast, color: spec.color });
+    }
+  };
 
   return {
     addBox(key, w, h, d, x, y, z) {
-      buckets.get(key).push(makeFastBox(w, h, d, x, y, z));
+      const spec = WEST_PALETTE[key];
+      if (!spec) return;
+      const isMacroL1 = !spec.basic && Math.max(w, h, d) >= 3.5 && h >= 0.08 && Math.min(w, d) >= 0.4;
+      pushBoxTile(spec, key, w, h, d, x, y, z, isMacroL1);
     },
+
+    addCylinder(key, rTop, rBottom, h, x, y, z, segs = 8) {
+      const spec = WEST_PALETTE[key];
+      if (!spec) return;
+      if (spec.basic) {
+        const gb = new THREE.CylinderGeometry(rTop, rBottom, h, segs);
+        gb.translate(x - basicOriginX, y, z - basicOriginZ);
+        basicEntries.push({ geo: gb, color: spec.color });
+        return;
+      }
+      const ch = getChunk(x, z);
+      const lx = x - ch.originX;
+      const lz = z - ch.originZ;
+      const g = new THREE.CylinderGeometry(rTop, rBottom, h, segs);
+      g.translate(lx, y, lz);
+      ch.l0Pbr.push({ geo: g, color: spec.color });
+      const span = Math.max(rTop * 2, rBottom * 2, h);
+      if (span >= 3.5) {
+        const dEst = Math.max(rTop, rBottom) * 1.85;
+        ch.l1Pbr.push({ geo: makeFastBox(dEst, h, dEst, lx, y, lz), color: spec.color });
+      }
+    },
+
     flush(scene) {
-      flushSpatialChunkedBuckets(scene, buckets, palette, {
-        chunkSize: IS_SCALED_WORLD ? 1536 : 768,
-        castShadowFn: (key) => shadowCasterKeys.has(key),
-        receiveShadowFn: () => true
-      });
+      const stdMat = getSharedPeripheryStandardVcMaterial();
+      const basicMat = getSharedPeripheryBasicVcMaterial();
+
+      for (const ch of chunks.values()) {
+        if (ch.l0Pbr.length === 0) continue;
+
+        const lod = new THREE.LOD();
+        lod.name = `WestAirportLOD_${ch.key}`;
+        lod.position.set(ch.originX, 0, ch.originZ);
+        lod.userData = { isWestAirportLod: true, chunkKey: ch.key, skipStaticMerge: true };
+
+        const level0 = new THREE.Group();
+        const g0 = mergeColoredGeometries(ch.l0Pbr);
+        g0.computeBoundingBox();
+        g0.computeBoundingSphere();
+        const m0 = new THREE.Mesh(g0, stdMat);
+        m0.castShadow = ch.hasShadowCaster;
+        m0.receiveShadow = true;
+        m0.matrixAutoUpdate = false;
+        m0.updateMatrix();
+        m0.userData.skipStaticMerge = true;
+        level0.add(m0);
+
+        const level1 = new THREE.Group();
+        if (ch.l1Pbr.length > 0) {
+          const g1 = mergeColoredGeometries(ch.l1Pbr);
+          g1.computeBoundingBox();
+          g1.computeBoundingSphere();
+          const m1 = new THREE.Mesh(g1, stdMat);
+          m1.castShadow = false;
+          m1.receiveShadow = true;
+          m1.matrixAutoUpdate = false;
+          m1.updateMatrix();
+          m1.userData.skipStaticMerge = true;
+          level1.add(m1);
+        }
+
+        lod.addLevel(level0, 0);
+        lod.addLevel(level1, WEST_AIRPORT_LOD_DIST);
+        level0.visible = true;
+        level1.visible = false;
+        scene.add(lod);
+      }
+
+      if (basicEntries.length > 0) {
+        const gb = mergeColoredGeometries(basicEntries);
+        gb.computeBoundingBox();
+        gb.computeBoundingSphere();
+        const mb = new THREE.Mesh(gb, basicMat);
+        mb.name = 'WestAirportBasicMarkings';
+        mb.position.set(basicOriginX, 0, basicOriginZ);
+        mb.castShadow = false;
+        mb.receiveShadow = false;
+        mb.matrixAutoUpdate = false;
+        mb.updateMatrix();
+        scene.add(mb);
+      }
+
+      chunks.clear();
+      basicEntries.length = 0;
     }
   };
+}
+
+/**
+ * Cria um pátio aeronáutico/militar justo (tarmac + borda de grama aparada + colisor em `groundY = 0.28`)
+ * substituindo os antigos lajões retangulares de 2.4km x 4km.
+ */
+export function addTightAirportApronPad(world, batcher, cx, cz, w, d, groundY, opts = {}) {
+  const matKey = opts.matKey || 'apron_concrete';
+  const turfBorder = opts.turfBorder ?? 14;
+  if (turfBorder > 0) {
+    batcher.addBox('airfield_turf', w + turfBorder * 2, 0.24, d + turfBorder * 2, cx, 0.02, cz);
+  }
+  batcher.addBox(matKey, w, groundY + 0.32, d, cx, (groundY - 0.32) * 0.5, cz);
+  world.addCollider(cx, cz, w, d, groundY, -1.8);
+  if (opts.mapColor) {
+    world.mapBlocks.push({ x: cx, z: cz, w, d, color: opts.mapColor });
+  }
 }
 
 function addExpressHighwayStripX(world, batcher, groundY, xEast, xWest, z, roadW, isMain = true) {
   const len = xEast - xWest;
   if (len <= 1) return;
   const cx = (xEast + xWest) * 0.5;
+  batcher.addBox('airfield_verge', len + 8, 0.24, roadW + 14, cx, 0.02, z);
+  batcher.addBox('apron_concrete', len + 2, groundY + 0.28, roadW + 6, cx, (groundY - 0.28) * 0.5, z);
   batcher.addBox('asphalt_dark', len, 0.08, roadW, cx, groundY + 0.04, z);
   batcher.addBox('mark_yellow', len - 4, 0.04, 0.35, cx, groundY + 0.095, z - 0.45);
   batcher.addBox('mark_yellow', len - 4, 0.04, 0.35, cx, groundY + 0.095, z + 0.45);
@@ -112,15 +244,21 @@ function addExpressHighwayStripX(world, batcher, groundY, xEast, xWest, z, roadW
     batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, z - roadW * 0.25);
     batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, z + roadW * 0.25);
   }
+  world.addCollider(cx, z, len + 4, roadW + 8, groundY, -1.5);
   world.mapRoads.push({ x: cx, z, w: len, d: roadW, isMain });
 }
 
 /**
- * 1. RODOVIA EXPRESSA + PERÍMETRO DE SEGURANÇA + GRANDE ESTACIONAMENTO COM CATRACAS/CANCELAS!
+ * 1. RODOVIA EXPRESSA + PERÍMETRO DE SEGURANÇA + PÁTIO JUSTO DO TERMINAL & ESTACIONAMENTO
  */
 export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
   if (!IS_SCALED_WORLD) {
-    // Pórtico de Acesso ao Aeroporto e Base Militar posicionado na entrada do perímetro Oeste (sem cortar a Favela!)
+    // Pátio justo do Terminal + Estacionamento + Guaritas em 1x (226m x 1030m)
+    addTightAirportApronPad(world, batcher, -1126, 0, 228, 1030, groundY, {
+      matKey: 'apron_concrete',
+      mapColor: '#262f3d'
+    });
+
     const gantries = [
       { x: -1018, z: -117, text: 'AEROPORTO / BASE MILITAR ' },
       { x: -1018, z: 0, text: 'MEGA TERMINAL & ESTACIONAMENTO ' },
@@ -135,7 +273,6 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
       addHighwayGreenSign(world, g.x, 11.2, g.z, 28.0, 4.2, g.text);
     }
 
-    // Perímetro de Segurança em X = -1020 (Z = -650 a +650) com 5 Entradas de Catraca/Cancela!
     const fenceX = -1020;
     const isGateZ = (z) =>
       Math.abs(z + 340) < 18 ||
@@ -177,20 +314,55 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
   }
 
   // ============================================================================
-  // ESCALA 3x: RODOVIA OESTE (ws(-1010) -> TERMINAL ws(-1145)), LIVRE SOB O VIADUTO 03!
+  // ESCALA 3x: PÁTIO JUSTO DO TERMINAL + FORECOURT + ESTACIONAMENTO (ZERO LAJÃO!)
   // ============================================================================
   const termX = ws(-1145);
-  const termDropoffX = termX + 71;   // Via de embarque/desembarque colada à fachada Leste do Terminal
-  const parkCenterX = termX + 127;   // Grande Estacionamento na frente do Mega Terminal (dimensões 1x!)
-  const forecourtBlvdX = termX + 180; // Boulevard Norte-Sul interligando Terminal, Estacionamento, Hangares e Ala Militar Norte
-  const boothX = ws(-1052);          // Guaritas/Catracas a Oeste do pouso do Viaduto 03 (ws(-1036)) e a Leste do spawn (ws(-1060))
-  const fenceX = ws(-1048);          // Perímetro de segurança 36m a Oeste da rampa do Viaduto 03
-  const gantryX = ws(-1044);         // Pórticos rodoviários livres da rampa do Viaduto 03
-
-  // 1) Rodovia Expressa Oeste Principal ao longo de Z = 0 (width = ROAD.mainWidth):
-  //    Registra continuamente de ws(-1010) até a porta do Terminal; o asfalto novo começa no pé da rampa do Viaduto 03 (ws(-1036))!
+  const termDropoffX = termX + 71;
+  const parkCenterX = termX + 127;
+  const forecourtBlvdX = termX + 180;
+  const boothX = ws(-1052);
+  const fenceX = ws(-1048);
+  const gantryX = ws(-1044);
   const hwyEastX = ws(-1010);
   const viaductFootX = ws(-1036);
+
+  // 1) Pátio de concreto aeronáutico justo sob Terminal, Pontes de Embarque, Forecourt e Estacionamento
+  const apronMinX = termX - 96;
+  const apronMaxX = forecourtBlvdX + 26;
+  addTightAirportApronPad(
+    world,
+    batcher,
+    (apronMinX + apronMaxX) * 0.5,
+    0,
+    apronMaxX - apronMinX,
+    1040,
+    groundY,
+    { matKey: 'apron_concrete', turfBorder: 18, mapColor: '#262f3d' }
+  );
+
+  // 2) Praças de Pedágio / Guaritas justas nos 5 portões (incluindo spawn aeroporto_oeste em ws(-1060), 0)
+  const gateCentersZ = [ws(-340), ws(-117), 0, ws(134), ws(340)];
+  for (const gz of gateCentersZ) {
+    const padEast = Math.abs(gz) <= ws(140) ? viaductFootX + 8 : boothX + 22;
+    const padWest = Math.abs(gz) <= 360 ? apronMaxX - 4 : forecourtBlvdX - 16;
+    if (padEast > padWest) {
+      addTightAirportApronPad(
+        world,
+        batcher,
+        (padEast + padWest) * 0.5,
+        gz,
+        padEast - padWest,
+        74,
+        groundY,
+        { matKey: 'apron_concrete', turfBorder: 10 }
+      );
+    }
+  }
+
+  // Sapata estreita sob o muro perimetral de segurança
+  batcher.addBox('apron_concrete', 6.5, groundY + 0.25, ws(1290), fenceX, (groundY - 0.25) * 0.5, 0);
+
+  // 3) Rodovia Expressa Oeste Principal em Z = 0
   world.mapRoads.push({
     x: (hwyEastX + termDropoffX) * 0.5,
     z: 0,
@@ -198,6 +370,7 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
     d: ROAD.mainWidth,
     isMain: true
   });
+  world.addCollider((hwyEastX + termDropoffX) * 0.5, 0, hwyEastX - termDropoffX, ROAD.mainWidth + 12, groundY, -1.5);
   batcher.addBox(
     'asphalt_dark',
     viaductFootX - termDropoffX,
@@ -207,30 +380,14 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
     groundY + 0.04,
     0
   );
-  batcher.addBox(
-    'mark_yellow',
-    viaductFootX - termDropoffX - 6,
-    0.04,
-    0.35,
-    (viaductFootX + termDropoffX) * 0.5,
-    groundY + 0.095,
-    -0.45
-  );
-  batcher.addBox(
-    'mark_yellow',
-    viaductFootX - termDropoffX - 6,
-    0.04,
-    0.35,
-    (viaductFootX + termDropoffX) * 0.5,
-    groundY + 0.095,
-    0.45
-  );
+  batcher.addBox('mark_yellow', viaductFootX - termDropoffX - 6, 0.04, 0.35, (viaductFootX + termDropoffX) * 0.5, groundY + 0.095, -0.45);
+  batcher.addBox('mark_yellow', viaductFootX - termDropoffX - 6, 0.04, 0.35, (viaductFootX + termDropoffX) * 0.5, groundY + 0.095, 0.45);
   for (let dx = termDropoffX + 14; dx <= viaductFootX - 10; dx += 20) {
     batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, -ROAD.mainWidth * 0.25);
     batcher.addBox('mark_white', 7.5, 0.04, 0.25, dx, groundY + 0.095, ROAD.mainWidth * 0.25);
   }
 
-  // 2) Avenidas Paralelas de Acesso (Z = ws(-117) e Z = ws(134)) + Via Frontal de Embarque + Boulevard Perimetral N-S
+  // 4) Avenidas Paralelas de Acesso + Via Frontal de Embarque + Boulevard N-S com base própria
   for (const accZ of [ws(-117), ws(134)]) {
     addExpressHighwayStripX(world, batcher, groundY, hwyEastX, termDropoffX, accZ, ROAD.mainWidth, true);
   }
@@ -238,21 +395,22 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
     addExpressHighwayStripX(world, batcher, groundY, forecourtBlvdX, termDropoffX, portalZ, ROAD.secondaryWidth, false);
   }
 
-  // Via Frontal de Embarque/Desembarque ao longo dos 960m do Mega Terminal
   batcher.addBox('asphalt_dark', ROAD.secondaryWidth, 0.08, 960, termDropoffX, groundY + 0.04, 0);
   batcher.addBox('mark_yellow', 0.45, 0.04, 948, termDropoffX, groundY + 0.095, 0);
   world.mapRoads.push({ x: termDropoffX, z: 0, w: ROAD.secondaryWidth, d: 960, isMain: false });
 
-  // Boulevard Norte-Sul do Complexo Oeste interligando Ala Militar Norte (ws(-1285)) até Taxiway Sul (ws(560))
   const blvdNorthZ = ws(-1285);
   const blvdSouthZ = ws(560);
   const blvdLenZ = blvdSouthZ - blvdNorthZ;
   const blvdMidZ = (blvdNorthZ + blvdSouthZ) * 0.5;
+  batcher.addBox('airfield_verge', ROAD.secondaryWidth + 16, 0.24, blvdLenZ + 8, forecourtBlvdX, 0.02, blvdMidZ);
+  batcher.addBox('apron_concrete', ROAD.secondaryWidth + 6, groundY + 0.28, blvdLenZ + 4, forecourtBlvdX, (groundY - 0.28) * 0.5, blvdMidZ);
   batcher.addBox('asphalt_dark', ROAD.secondaryWidth, 0.08, blvdLenZ, forecourtBlvdX, groundY + 0.04, blvdMidZ);
   batcher.addBox('mark_yellow', 0.45, 0.04, blvdLenZ - 12, forecourtBlvdX, groundY + 0.095, blvdMidZ);
+  world.addCollider(forecourtBlvdX, blvdMidZ, ROAD.secondaryWidth + 8, blvdLenZ + 4, groundY, -1.5);
   world.mapRoads.push({ x: forecourtBlvdX, z: blvdMidZ, w: ROAD.secondaryWidth, d: blvdLenZ, isMain: true });
 
-  // 3) 3 Pórticos Rodoviários de Entrada (dimensões 1x, pilares fora da pista de 34m!)
+  // 5) 3 Pórticos Rodoviários de Entrada
   const halfPillarSpan = ROAD.mainWidth * 0.5 + 1.8;
   const gantries = [
     { x: gantryX, z: ws(-117), text: 'AEROPORTO / BASE MILITAR ' },
@@ -268,8 +426,7 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
     addHighwayGreenSign(world, g.x, 11.2, g.z, 28.0, 4.2, g.text);
   }
 
-  // 4) Perímetro de Segurança (dimensões 1x de muro/grade) com portões largos para as vias
-  const gateCentersZ = [ws(-340), ws(-117), 0, ws(134), ws(340)];
+  // 6) Perímetro de Segurança + 5 Conjuntos de Guaritas / Catracas / Cancelas
   const isGateZ = (z) => gateCentersZ.some((gz) => Math.abs(z - gz) < 25);
   for (let fz = ws(-640); fz <= ws(640); fz += 20) {
     if (isGateZ(fz)) continue;
@@ -280,9 +437,8 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
     world.addCollider(fenceX, fz, 1.4, 19.8, groundY + 4.3, groundY);
   }
 
-  // 5) 5 Conjuntos de Guaritas / Catracas / Cancelas (dimensões 100% 1x, livres da faixa de rolamento!)
-  const boothSideOff = ROAD.mainWidth * 0.5 + 3.5; // 20.5m
-  const turnstileSideOff = ROAD.mainWidth * 0.5 + 0.6; // 17.6m
+  const boothSideOff = ROAD.mainWidth * 0.5 + 3.5;
+  const turnstileSideOff = ROAD.mainWidth * 0.5 + 0.6;
   for (const gz of gateCentersZ) {
     batcher.addBox('aviation_blue', 4.2, 1.6, boothSideOff * 2 + 3.0, boothX, groundY + 7.8, gz);
     for (const side of [-1, 1]) {
@@ -301,7 +457,7 @@ export function buildExpresswaySecurityAndParkingLot(world, batcher, groundY) {
   }
   addHighwayGreenSign(world, boothX + 2, groundY + 9.2, 0, 34.0, 3.8, 'ESTACIONAMENTO & EMBARQUE ');
 
-  // 6) Grande Estacionamento 1x (58m x 920m) na frente do Mega Terminal, com eixo central Z = -35..+35 aberto!
+  // 7) Grande Estacionamento 1x (58m x 920m) na frente do Mega Terminal
   batcher.addBox('asphalt_dark', 58, 0.08, 920, parkCenterX, groundY + 0.04, 0);
   world.mapBlocks.push({ x: parkCenterX, z: 0, w: 66, d: 920, color: '#1e293b' });
   buildParkingSectors(world, batcher, groundY, [parkCenterX + 20, parkCenterX - 14]);
@@ -357,31 +513,26 @@ function addParkedAirportCar(batcher, x, yBase, z, colorKey) {
 
 /**
  * 2. MEGA TERMINAL INTERNACIONAL LEGO DE 960m DE EXTENSÃO (X = ws(-1145), Z = -480 a +480)
- * - Cobre a frente do Aeroporto voltada para a cidade, mantendo dimensões 100% 1x (92m x 960m x 30m)!
- * - 100% ENTRÁVEL por 5 Portais Frontais e 5 Portais Traseiros!
  */
 export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
   const termX = ws(-1145);
   const termZ = 0;
-  const termW = 92;   // 1x estrito!
-  const termD = 960;  // 1x estrito!
-  const wallH = 30.0; // 30m de pé-direito livre interno (1x estrito)!
+  const termW = 92;
+  const termD = 960;
+  const wallH = 30.0;
   const floorY = groundY + 0.18;
 
-  // 1. Piso Interno Polido do Mega Terminal (92m x 960m!) + Faixas Guia Azuis de Embarque
   batcher.addBox('terminal_floor', termW, 0.18, termD, termX, groundY + 0.09, termZ);
   batcher.addBox('aviation_blue', 8.0, 0.04, termD - 16, termX, floorY + 0.02, termZ);
   for (const doorZ of [-340, -170, 0, 170, 340]) {
     batcher.addBox('aviation_blue', termW - 4, 0.04, 10.0, termX, floorY + 0.025, doorZ);
   }
 
-  // 2. Paredes Norte (Z = -478.5) e Sul (Z = +478.5) fechando as extremidades do Mega Terminal
   batcher.addBox('white_clean', termW, wallH, 3.0, termX, floorY + wallH * 0.5, -478.5);
   batcher.addBox('white_clean', termW, wallH, 3.0, termX, floorY + wallH * 0.5, 478.5);
   world.addCollider(termX, -478.5, termW, 3.0, floorY + wallH, floorY);
   world.addCollider(termX, 478.5, termW, 3.0, floorY + wallH, floorY);
 
-  // 3. Fachadas Leste e Oeste divididas em 6 blocos deixando 5 PORTAIS DE 28m DE LARGURA TOTALMENTE ABERTOS!
   const wallSegmentsZ = [
     [-477, -354],
     [-326, -184],
@@ -401,7 +552,6 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     }
   }
 
-  // Vergas/Lintéis Superiores acima dos 5 Portais Abertos (de Y = 18m a Y = 30m -> 18m livres para entrar!)
   for (const doorZ of [-340, -170, 0, 170, 340]) {
     for (const wallX of [termX + termW * 0.5 - 1.5, termX - termW * 0.5 + 1.5]) {
       batcher.addBox('aviation_blue', 3.4, 12.0, 28.0, wallX, floorY + 24.0, doorZ);
@@ -409,7 +559,6 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     }
   }
 
-  // 4. Cobertura Metálica Branca Aerodinâmica de 968m + Pares de Pilares em "V" na Fachada Frontal!
   batcher.addBox('white_clean', termW + 20, 2.8, termD + 8, termX + 3.0, floorY + wallH + 1.4, termZ);
   batcher.addBox('aviation_blue', termW + 22, 0.9, termD + 10, termX + 3.0, floorY + wallH + 3.2, termZ);
   world.addCollider(termX + 3.0, termZ, termW + 20, termD + 8, floorY + wallH + 3.6, floorY + wallH - 0.2);
@@ -424,22 +573,17 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     batcher.addBox('steel_dark', 2.4, 1.2, 6.8, vPillarX, floorY + 0.6, pz);
   }
 
-  // 3 Letreiros Gigantes no Topo do Mega Terminal
   addHighwayGreenSign(world, termX + 48, floorY + wallH + 6.5, 0, 96.0, 6.8, 'TERMINAL INTERNACIONAL LEGO ');
   addHighwayGreenSign(world, termX + 48, floorY + wallH + 5.8, -280, 64.0, 5.2, 'EMBARQUE DOMÉSTICO & CARGAS ');
   addHighwayGreenSign(world, termX + 48, floorY + wallH + 5.8, 280, 64.0, 5.2, 'ALA AÉREA & COMANDO MILITAR ');
 
-  // 8 Pontes de Embarque Telescópicas ("Jetways") saindo da parte traseira do Terminal
   for (const jz of [-415, -255, -115, -45, 45, 115, 255, 415]) {
     batcher.addBox('steel_silver', 22.0, 4.2, 4.6, termX - termW * 0.5 - 11.0, floorY + 11.5, jz);
     batcher.addBox('glass_cockpit', 20.0, 2.2, 4.8, termX - termW * 0.5 - 11.0, floorY + 11.8, jz);
   }
 
-  // ============================================================================
-  // 5. DECORAÇÃO INTERNA DO MEGA TERMINAL (ANCORADA EM termX!)
-  // ============================================================================
-  const checkInX = termX + 23; // -1122 em 1x
-  const flightBoardX = termX + 20; // -1125 em 1x
+  const checkInX = termX + 23;
+  const flightBoardX = termX + 20;
   const checkInZonesZ = [-415, -255, -85, 85, 255, 415];
   for (const cz of checkInZonesZ) {
     batcher.addBox('white_clean', 3.6, 1.4, 36.0, checkInX, floorY + 0.7, cz);
@@ -455,7 +599,6 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     world.addCollider(checkInX, cz, 3.8, 36.4, floorY + 2.6, floorY);
   }
 
-  // B) 4 Esteiras Rolantes de Bagagem (Carrosséis de Malas)
   for (const bz of [-380, -120, 120, 380]) {
     batcher.addBox('steel_silver', 9.5, 0.75, 24.0, termX, floorY + 0.38, bz);
     batcher.addBox('charcoal', 7.5, 0.82, 22.0, termX, floorY + 0.42, bz);
@@ -466,7 +609,6 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     world.addCollider(termX, bz, 9.5, 24.0, floorY + 1.4, floorY);
   }
 
-  // C) Fileiras de Poltronas Azuis de Espera nos Portões de Embarque
   for (const sz of [-255, -85, 85, 255]) {
     for (let rxOff = -29; rxOff <= -15; rxOff += 4.5) {
       const rx = termX + rxOff;
@@ -477,7 +619,6 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
     }
   }
 
-  // D) Colunas Internas e Lustres Modernos no teto de 30m do Terminal
   for (let cz = -420; cz <= 420; cz += 60) {
     for (const cx of [termX + 17, termX - 17]) {
       batcher.addBox('white_clean', 2.4, wallH, 2.4, cx, floorY + wallH * 0.5, cz);
@@ -498,13 +639,20 @@ export function buildColossalEnterableAirportTerminal(world, batcher, groundY) {
 }
 
 /**
- * 4A. AS 3 TORRES DE CONTROLE GIGANTES BRANCAS E VERMELHAS (124m!) RENTES À PISTA PRINCIPAL (X = ws(-1582))
+ * 4A. AS 3 TORRES DE CONTROLE GIGANTES (124m) COM PÁTIOS DE SERVIÇO JUSTOS RENTES À PISTA 09/27
  */
 export function buildThreeRunwayAtcTowers(world, batcher, groundY) {
   const atcX = ws(-1582);
+  const rwyX = ws(-1660);
   const atcPositionsZ = [-360, 0, 360].map(ws);
   for (let i = 0; i < atcPositionsZ.length; i++) {
-    buildSingleGiantAtcTower(world, batcher, atcX, groundY, atcPositionsZ[i], i + 1);
+    const az = atcPositionsZ[i];
+    addTightAirportApronPad(world, batcher, (atcX + rwyX) * 0.5 + 14, az, Math.abs(atcX - rwyX) + 46, 56, groundY, {
+      matKey: 'apron_concrete',
+      turfBorder: 12,
+      mapColor: '#334155'
+    });
+    buildSingleGiantAtcTower(world, batcher, atcX, groundY, az, i + 1);
   }
 }
 
@@ -530,24 +678,9 @@ function buildSingleGiantAtcTower(world, batcher, atcX, groundY, atcZ, towerInde
   batcher.addBox('white_clean', 0.5, 1.3, 26.4, atcX - 13.0, deckY + 2.4, atcZ);
   batcher.addBox('white_clean', 0.5, 1.3, 26.4, atcX + 13.0, deckY + 2.4, atcZ);
 
-  const cabCore = new THREE.Mesh(
-    new THREE.CylinderGeometry(11.2, 9.2, 10.5, 8),
-    new THREE.MeshPhysicalMaterial({
-      color: 0x38bdf8,
-      roughness: 0.06,
-      metalness: 0.18,
-      clearcoat: 0.95,
-      transparent: true,
-      opacity: 0.76
-    })
-  );
-  cabCore.position.set(atcX, deckY + 7.0, atcZ);
-  const cabRoof = new THREE.Mesh(
-    new THREE.CylinderGeometry(12.0, 11.6, 2.2, 8),
-    getLegoMaterial(LEGO_COLORS.white)
-  );
-  cabRoof.position.set(atcX, deckY + 13.2, atcZ);
-  world.scene.add(cabCore, cabRoof);
+  // Cabine panorâmica octogonal e teto 100% integrados ao Batcher Vertex-Color (zero MeshPhysicalMaterial!)
+  batcher.addCylinder('glass_cockpit', 11.2, 9.2, 10.5, atcX, deckY + 7.0, atcZ, 8);
+  batcher.addCylinder('white_clean', 12.0, 11.6, 2.2, atcX, deckY + 13.2, atcZ, 8);
 
   const topRoofY = deckY + 14.3;
   batcher.addBox('aviation_red', 5.0, 4.8, 5.0, atcX, topRoofY + 2.4, atcZ);
@@ -556,10 +689,7 @@ function buildSingleGiantAtcTower(world, batcher, atcX, groundY, atcZ, towerInde
 
   const radarGroup = new THREE.Group();
   radarGroup.position.set(atcX, topRoofY + 6.4, atcZ);
-  const radarDish = createLegoBrick(17.0, 4.0, 2.4, LEGO_COLORS.yellow, { studStep: 1.5 });
-  const radarFeed = createLegoBrick(2.2, 2.0, 6.2, LEGO_COLORS.silver);
-  radarFeed.position.z = 2.6;
-  radarGroup.add(radarDish, radarFeed);
+  radarGroup.add(new THREE.Mesh(getSharedAtcRadarGeo(), getSharedPeripheryStandardVcMaterial()));
   world.scene.add(radarGroup);
   world.rotatingElements.push({ mesh: radarGroup, axis: 'y', speed: 1.9 + towerIndex * 0.25 });
 

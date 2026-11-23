@@ -1,40 +1,40 @@
 /**
  * ============================================================================
- * REGIÃO 3 (SUL) — ORLA COSTEIRA, CANAIS DE SANTOS, MEGA PÍER & RODA-GIGANTE
+ * REGIÃO 3 (SUL) — BAÍA CURVA, CALÇADÃO EM ONDAS PORTUGUESAS & MEGA PÍER
  * ============================================================================
  *
  * Fachada fina de orquestração da Orla Sul (`SouthBeachBuilder.js`).
- * Toda a geometria, materiais PBR/emissivos e sistemas de LOD estão divididos
+ * Toda a geometria, batching Vertex-Color + LOD e marcos costeiros vivem
  * nos submódulos especializados dentro de `./south-beach/`:
  *
  * 1. `BeachBatcherAndConstants.js`:
- *    - Constantes costeiras (`SANTOS_CANALS_X`, `CANAL_WIDTH`, paletas tropicais
- *      e de guarda-sóis), `SouthBeachBatcher` com chunking espacial (768m) e
- *      helpers compartilhados de coqueiros LEGO curvos e letreiros neon.
+ *    - Curva analítica suave da baía (`getSouthBeachBayOffsetZ`), constantes
+ *      dos 3 Canais de Santos (`SANTOS_CANALS_X`), `SouthBeachBatcher` unificado
+ *      em 2 materiais Vertex-Color compartilhados + chunks `THREE.LOD` de 2 níveis
+ *      (`720m`, `L0 = 0m` / `L1 = 280m`) e helpers de coqueiros curvos e neon.
  *
- * 2. `BeachfrontSkyscrapersBuilder.js`:
- *    - Os 8 super-arranha-céus exclusivos da orla (232m a 296m) + torres da
- *      Quadra Mar e Orla Oeste com 3 níveis de LOD (`BeachTowerBuilder`),
- *      texturas diurnas/noturnas com mipmaps, varandas limpas sem Z-fighting,
- *      térreo comercial e registro em `world.southBeachEmissiveMats`.
+ * 2. `BeachfrontSkyscrapersBuilder.js` + `CoastalOrganicBlocksFiller.js`:
+ *    - 8 super-arranha-céus frontais exclusivos (`232m–296m`) com recuo orgânico
+ *      acompanhando a baía, escalonamento gradual (`45–110m` na 2ª quadra e
+ *      `16–38m` nas travessas costeiras com cafés/surf shops) e 3 níveis de LOD.
  *
  * 3. `BoardwalkCanalsAndSandBuilder.js`:
- *    - Os 3 Canais estilo Santos com pontes e passarelas, Avenida Beira-Mar e
- *      calçadão em ondas portuguesas, 4 praias de areia dourada, guarda-sóis,
- *      salva-vidas, quadras de vôlei, castelos quebráveis e Costão Sudoeste
- *      (Farol de 67m + Dunas de Areia com Coqueiros).
+ *    - 3 Canais estilo Santos, calçadão curvo contínuo em ondas de pedras
+ *      portuguesas, ciclovia vermelha, mureta da orla, chuveirinhos/pérgolas,
+ *      faixa curva de areia dourada/úmida/espuma, salva-vidas, vôlei, 16 castelos
+ *      quebráveis e Costão Sudoeste (Farol de 67m + Dunas).
  *
  * 4. `MegaPierAndMarinaBuilder.js`:
- *    - Os 8 quiosques da orla, Mega Píer Parque Atlântico (540m mar adentro),
- *      Restaurante 2 andares, Arcade Neon, barraquinhas, Carrossel giratório,
- *      Torre Big Drop (58m), Roda-Gigante colossal (16 cabines) e Marinas
- *      Leste e Oeste.
+ *    - Quiosques acompanhando a curva do calçadão, Mega Píer Parque Atlântico
+ *      (`540m`), Carrossel, Big Drop (`58m`), Roda-Gigante (`16` cabines) e
+ *      Marinas Leste e Oeste sem malhas plásticas avulsas.
  * ============================================================================
  */
 
 import {
   DESIGN_SANTOS_CANALS_X,
   SANTOS_CANALS_X,
+  getSouthBeachBayOffsetZ,
   SouthBeachBatcher
 } from './south-beach/BeachBatcherAndConstants.js';
 import {
@@ -53,11 +53,11 @@ import {
   buildWestMarina
 } from './south-beach/MegaPierAndMarinaBuilder.js';
 
-export { DESIGN_SANTOS_CANALS_X, SANTOS_CANALS_X };
+export { DESIGN_SANTOS_CANALS_X, SANTOS_CANALS_X, getSouthBeachBayOffsetZ };
 
 /**
- * Constrói toda a Região Sul (Orla de Arranha-Céus em 3 níveis de LOD, 3 Canais
- * estilo Santos, Calçadão, Quiosques, Areia Dourada, Mega Píer de 540m com
+ * Constrói toda a Região Sul (Baía Curva, Arranha-Céus Escalonados, 3 Canais
+ * de Santos, Calçadão Português, Areia Dourada, Mega Píer de 540m com
  * Roda-Gigante Colossal, Costão/Farol Sudoeste e Marinas Leste/Oeste).
  */
 export function buildSouthBeachAndFerrisWheel(world) {
@@ -67,6 +67,7 @@ export function buildSouthBeachAndFerrisWheel(world) {
   world.beachSandcastles = [];
   world.santosCanals = [];
   world.southBeachHotelLODs = [];
+  world.southBeachBatchLODs = [];
   world.southBeachEmissiveMats = [];
 
   buildCoastalHotelBlocks(world, batcher);
@@ -79,5 +80,5 @@ export function buildSouthBeachAndFerrisWheel(world) {
   buildWestMarina(world, batcher);
 
   registerBeachEmissiveMaterials(world);
-  batcher.flush(world.scene);
+  world.southBeachBatchLODs = batcher.flush(world.scene);
 }

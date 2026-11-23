@@ -1,16 +1,16 @@
 /**
  * CoastalOrganicBlocksFiller.js
- * Boulevards Costeiros Curvos em "S", Diagonais de Resort, 2 Rotatórias Tropicais com Coqueiros,
- * Praças de Piscina e Adensamento Arquitetônico Gradual da Orla Sul (`WORLD_SCALE = 3`).
+ * Boulevards Costeiros Curvos em "S", Travessas da Praia, 2 Rotatórias Tropicais com Coqueiros,
+ * Praças de Piscina, Térreos de Cafés/Surf Shops e Escalonamento Arquitetônico Gradual (`WORLD_SCALE = 3`).
  */
 
 import * as THREE from 'three';
-import { getLegoMaterial } from '../../../materials/LegoMaterials.js';
+import { markAsSharedAsset } from '../../../materials/LegoMaterials.js';
 import { buildDetailedBuilding } from '../../buildings/DetailedBuildingBuilder.js';
 import { buildFlatironWedgeBuilding } from '../../buildings/FlatironWedgeBuilder.js';
 import {
   createObb2D, obbInsideBounds2D, obbIntersectsObb2D,
-  obbIntersectsRect2D, obbClearOfSegment2D, obbClearOfCircle2D
+  obbIntersectsRect2D, obbClearOfSegment2D, obbClearOfCircle2D, localToWorldXZ
 } from '../../buildings/LotGeometry2D.js';
 import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 import { getUrbanCityReliefY } from '../../terrain/UrbanReliefFunctions.js';
@@ -22,14 +22,19 @@ import { UMBRELLA_KEYS, addCurvedLegoPalmTree } from './BeachBatcherAndConstants
 
 const COASTAL_COLS_DESIGN = Object.freeze([-648, -516, -384, -252, -120, 0, 120, 252, 384, 516]);
 const COASTAL_ROWS_DESIGN = Object.freeze([402, 556, 710]);
-const COASTAL_STYLES = Object.freeze([
-  'cyan_modern', 'sapphire_glass', 'white_concrete', 'emerald_steel', 'silver_corporate'
-]);
+const COASTAL_STYLES = Object.freeze(['cyan_modern', 'sapphire_glass', 'white_concrete', 'emerald_steel', 'silver_corporate']);
 const STATIC_COASTAL_KEEPOUTS = Object.freeze([
   { id: 'metro_m04_corridor', minX: -418, maxX: -330, minZ: 1668, maxZ: 2130 },
   { id: 'viaduct_02_panoramic', minX: 724, maxX: 788, minZ: 1190, maxZ: 1580 },
   { id: 'cdd_south_toe', minX: -1944, maxX: -1548, minZ: 1206, maxZ: 1326 }
 ]);
+
+const SHARED_ASPHALT_MAT = markAsSharedAsset(new THREE.MeshStandardMaterial({ color: 0x121926, roughness: 0.68, metalness: 0.08, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+const SHARED_SIDEWALK_MAT = markAsSharedAsset(new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.58, metalness: 0.05 }));
+const SHARED_CURB_MAT = markAsSharedAsset(new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.46, metalness: 0.06 }));
+const SHARED_ISLAND_STONE_MAT = markAsSharedAsset(new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.52 }));
+const SHARED_ISLAND_TURF_MAT = markAsSharedAsset(new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7 }));
+const SHARED_PAINT_MAT = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0x38bdf8, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }));
 
 function hash01(seed, salt = 0) {
   let h = Math.imul((seed | 0) ^ Math.imul(salt | 0, 0x9e3779b1), 0x85ebca6b) >>> 0;
@@ -45,10 +50,8 @@ function getCoastalSuperBlockBounds(colIdx, rowIdx) {
   const hwZ = (dz) => (dz === 556 ? ROAD.secondaryWidth : ROAD.mainWidth) * 0.5;
   return {
     colIdx, rowIdx,
-    minX: ws(dx0) + hwX(dx0),
-    maxX: Math.min(ws(dx1) - hwX(dx1), ws(516) - 28),
-    minZ: ws(dz0) + hwZ(dz0),
-    maxZ: Math.min(ws(dz1) - hwZ(dz1), ws(710) - 28)
+    minX: ws(dx0) + hwX(dx0), maxX: Math.min(ws(dx1) - hwX(dx1), ws(516) - 28),
+    minZ: ws(dz0) + hwZ(dz0), maxZ: Math.min(ws(dz1) - hwZ(dz1), ws(710) - 28)
   };
 }
 
@@ -69,7 +72,6 @@ function buildCoastalOrganicNetworkSpec() {
     { kind: 'roundabout', id: 'rb_coastal_east', cx: 558, cz: 1838, innerR: 13, outerR: 34, sidewalk: sw }
   ];
   const rawPolys = [
-    // Faixa Norte da Crista Costeira (Z = 1223..1655, 9 super-quadras)
     ['coast_r0_c0_crescent', [[-1931, 1468], [-1760, 1424], [-1632, 1492], [-1632, 1655]], 24, false],
     ['coast_r0_c1_scurve', sampleSCurve(-1535, 1380, -1169, 1380, 44), 26, true],
     ['coast_r0_c1_diag', [[-1350, 1223], [-1350, 1380], [-1236, 1655]], 22, false],
@@ -87,35 +89,44 @@ function buildCoastalOrganicNetworkSpec() {
     ['coast_r0_c7_spur_n', [[982, 1223], [958, 1396]], 22, false],
     ['coast_r0_c8_scurve', [[1169, 1414], [1346, 1376], [1236, 1655]], 24, true],
     ['coast_r0_c8_spur_n', [[1346, 1223], [1346, 1376]], 22, false],
-    // Faixa Sul "Atrás da Orla" (Z = 1681..2102, 9 super-quadras + 2 Rotatórias Tropicais)
     ['coast_r1_c0_scurve', sampleSCurve(-1931, 1848, -1561, 1854, 38), 24, true],
     ['coast_r1_c0_spur_n', [[-1746, 1681], [-1746, 1851]], 22, false],
+    ['travessa_praia_c0w', [[-1872, 1850], [-1864, 2076]], 16, false],
+    ['travessa_praia_c0e', [[-1624, 1852], [-1632, 2076]], 16, false],
     ['coast_r1_c1_scurve', sampleSCurve(-1535, 1854, -1169, 1838, -42), 26, true],
     ['coast_r1_c1_diag', [[-1242, 1681], [-1352, 1846], [-1462, 2076]], 22, false],
+    ['travessa_praia_c1e', [[-1232, 1842], [-1226, 2076]], 16, false],
     ['coast_rbw_w', [[-1135, 1838], [-985, 1838]], 26, true],
     ['coast_rbw_e', [[-923, 1838], [-773, 1842]], 26, true],
     ['coast_rbw_nw', [[-1062, 1681], [-974, 1814]], 22, false],
     ['coast_rbw_ne', [[-846, 1681], [-934, 1814]], 22, false],
     ['coast_rbw_sw', [[-976, 1860], [-1066, 2076]], 22, false],
+    ['travessa_praia_c2e', [[-838, 1840], [-832, 2076]], 16, false],
     ['coast_r1_c3_crescent', [[-739, 1842], [-578, 1828], [-468, 1681]], 26, true],
     ['coast_r1_c3_flank', [[-578, 1828], [-668, 2076]], 22, false],
     ['coast_r1_c4_crescent', [[-266, 1681], [-182, 1842], [-17, 1848]], 26, true],
     ['coast_r1_c4_flank', [[-182, 1842], [-76, 2076]], 22, false],
+    ['travessa_praia_c4w', [[-284, 1838], [-288, 2076]], 16, false],
     ['coast_r1_c5_scurve', sampleSCurve(17, 1848, 343, 1838, 40), 26, true],
     ['coast_r1_c5_diag', [[82, 1681], [180, 1843], [284, 2076]], 22, false],
+    ['travessa_praia_c5w', [[74, 1844], [68, 2076]], 16, false],
     ['coast_rbe_w', [[377, 1838], [527, 1838]], 26, true],
     ['coast_rbe_e', [[589, 1838], [739, 1842]], 26, true],
     ['coast_rbe_nw', [[450, 1681], [538, 1814]], 22, false],
     ['coast_rbe_ne', [[666, 1681], [578, 1814]], 22, false],
     ['coast_rbe_se', [[580, 1860], [668, 2076]], 22, false],
+    ['travessa_praia_c6w', [[446, 1838], [440, 2076]], 16, false],
     ['coast_r1_c7_scurve', sampleSCurve(773, 1842, 1135, 1852, -42), 26, true],
     ['coast_r1_c7_diag', [[850, 1681], [954, 1847], [1066, 2076]], 22, false],
+    ['travessa_praia_c7w', [[838, 1845], [834, 2076]], 16, false],
     ['coast_r1_c8_crescent', [[1169, 1852], [1348, 1824], [1454, 1681]], 26, true],
-    ['coast_r1_c8_flank', [[1348, 1824], [1238, 2076]], 22, false]
+    ['coast_r1_c8_flank', [[1348, 1824], [1238, 2076]], 22, false],
+    ['travessa_praia_c8e', [[1460, 1828], [1464, 2076]], 16, false]
   ];
 
   const polylines = rawPolys.map(([id, points, width, isMain]) => ({
-    kind: 'polyline', id, points, width, halfWidth: width * 0.5, sidewalk: sw, isMain
+    kind: 'polyline', id, points, width, halfWidth: width * 0.5,
+    sidewalk: id.startsWith('travessa_') ? 6.0 : sw, isMain, isTravessa: id.startsWith('travessa_')
   }));
   const segments = [];
   for (const poly of polylines) {
@@ -126,7 +137,8 @@ function buildCoastalOrganicNetworkSpec() {
       const pad = poly.halfWidth + poly.sidewalk;
       segments.push({
         polyId: poly.id, x1, z1, x2, z2, len,
-        width: poly.width, halfWidth: poly.halfWidth, sidewalk: poly.sidewalk, isMain: poly.isMain,
+        width: poly.width, halfWidth: poly.halfWidth, sidewalk: poly.sidewalk,
+        isMain: poly.isMain, isTravessa: poly.isTravessa,
         minX: Math.min(x1, x2) - pad, maxX: Math.max(x1, x2) + pad,
         minZ: Math.min(z1, z2) - pad, maxZ: Math.max(z1, z2) + pad
       });
@@ -173,11 +185,15 @@ function buildCoastalRibbonGeo(pts, halfWidth, yOff = 0.168) {
   return geo;
 }
 
-function isInsideStrictBlockTileCore(tx, tz, allBlockBounds) {
+function isInsideStrictBlockTileCore(tx, tz, allBlockBounds, existingBuildings) {
   for (const k of STATIC_COASTAL_KEEPOUTS) {
     if (tx >= k.minX - 6 && tx <= k.maxX + 6 && tz >= k.minZ - 6 && tz <= k.maxZ + 6) return false;
   }
-  const pad = ROAD.sidewalk + 14 + 5; // >= 14m para dentro das calçadas perimetrais (centro >= 29m da guia)
+  for (let i = 0; i < existingBuildings.length; i++) {
+    const b = existingBuildings[i];
+    if (Math.abs(tx - b.x) < b.w * 0.5 + 8.0 && Math.abs(tz - b.z) < b.d * 0.5 + 8.0) return false;
+  }
+  const pad = ROAD.sidewalk + 19;
   return allBlockBounds.some((b) => tx >= b.minX + pad && tx <= b.maxX - pad && tz >= b.minZ + pad && tz <= b.maxZ - pad);
 }
 
@@ -200,14 +216,14 @@ function minDistToOtherCoastalAsphalt(px, pz, segments, roundabouts) {
 function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBounds) {
   if (!world.mapOrganicRoads) world.mapOrganicRoads = [];
   if (!world.mapRoads) world.mapRoads = [];
+  const existingBuildings = (world.mapBuildings || []).slice();
   const asphaltGeos = [], sidewalkGeos = [], curbGeos = [], paintGeos = [], islandStoneGeos = [], islandTurfGeos = [];
   const swTop = 0.225, curbTop = 0.228;
   const canPlaceSw = (px, pz, clr) =>
-    !isPointInCartesianGridAsphalt(px, pz, 0.5) &&
-    minDistToOtherCoastalAsphalt(px, pz, net.segments, net.roundabouts) >= clr;
+    !isPointInCartesianGridAsphalt(px, pz, 0.5) && minDistToOtherCoastalAsphalt(px, pz, net.segments, net.roundabouts) >= clr;
 
   for (const poly of net.polylines) {
-    world.mapOrganicRoads.push({ kind: 'polyline', id: poly.id, points: poly.points, width: poly.width, sidewalk: poly.sidewalk, isMain: poly.isMain });
+    world.mapOrganicRoads.push({ kind: 'polyline', id: poly.id, points: poly.points, width: poly.width, sidewalk: poly.sidewalk, isMain: poly.isMain, isTravessa: poly.isTravessa });
     const rGeo = buildCoastalRibbonGeo(poly.points, poly.halfWidth, 0.168);
     if (rGeo) asphaltGeos.push(rGeo);
 
@@ -231,7 +247,7 @@ function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBoun
       const tileSteps = Math.max(1, Math.round(len / 9.5));
       for (let ts = 0; ts <= tileSteps; ts++) {
         const tx = x1 + dx * (ts / tileSteps), tz = z1 + dz * (ts / tileSteps);
-        if (isInsideStrictBlockTileCore(tx, tz, allBlockBounds)) {
+        if (isInsideStrictBlockTileCore(tx, tz, allBlockBounds, existingBuildings)) {
           world.mapRoads.push({ x: tx, z: tz, w: 10, d: 10, isMain: false, isOrganicTile: true });
         }
       }
@@ -246,6 +262,7 @@ function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBoun
         paintGeos.push(dg);
       }
 
+      const swWidth = poly.isTravessa ? 5.8 : 7.5;
       const swSteps = Math.max(1, Math.ceil(len / 6.0)), stepL = len / swSteps;
       for (const side of [-1, 1]) {
         for (let s = 0; s < swSteps; s++) {
@@ -255,7 +272,7 @@ function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBoun
           if (canPlaceSw(bxm + nx * side * curbOff, bzm + nz * side * curbOff, -0.08)) {
             pushOrientedCurbPiece(curbGeos, bx0 + nx * side * curbOff, bz0 + nz * side * curbOff, bx1 + nx * side * curbOff, bz1 + nz * side * curbOff, curbTop);
           }
-          const rIn = poly.halfWidth, rOut = poly.halfWidth + 7.5, rMid = (rIn + rOut) * 0.5;
+          const rIn = poly.halfWidth, rOut = poly.halfWidth + swWidth, rMid = (rIn + rOut) * 0.5;
           if (canPlaceSw(bxm + nx * side * rMid, bzm + nz * side * rMid, 1.5) && canPlaceSw(bx0 + nx * side * rOut, bz0 + nz * side * rOut, 2.5) && canPlaceSw(bx1 + nx * side * rOut, bz1 + nz * side * rOut, 2.5)) {
             pushPrismQuad(sidewalkGeos, bx0 + nx * side * rIn, bz0 + nz * side * rIn, bx1 + nx * side * rIn, bz1 + nz * side * rIn, bx1 + nx * side * rOut, bz1 + nz * side * rOut, bx0 + nx * side * rOut, bz0 + nz * side * rOut, swTop, 0.34);
           }
@@ -265,9 +282,9 @@ function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBoun
       if (len >= 52) {
         for (let pDist = 24; pDist <= len - 24; pDist += 46) {
           for (const side of [-1, 1]) {
-            const px = x1 + ux * pDist + nx * side * (poly.halfWidth + 4.4);
-            const pz = z1 + uz * pDist + nz * side * (poly.halfWidth + 4.4);
-            if (isInsideStrictBlockTileCore(px, pz, allBlockBounds) && canPlaceSw(px, pz, 3.2)) {
+            const px = x1 + ux * pDist + nx * side * (poly.halfWidth + 4.2);
+            const pz = z1 + uz * pDist + nz * side * (poly.halfWidth + 4.2);
+            if (isInsideStrictBlockTileCore(px, pz, allBlockBounds, existingBuildings) && canPlaceSw(px, pz, 3.2)) {
               addCurvedLegoPalmTree(batcher, px, getUrbanCityReliefY(px, pz) + swTop, pz, nx * side * 0.18, 0.78, 0.98);
             }
           }
@@ -282,7 +299,7 @@ function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBoun
     for (let k = 0; k < 16; k++) {
       const ang = (k / 16) * Math.PI * 2;
       const tx = rb.cx + Math.cos(ang) * rMid, tz = rb.cz + Math.sin(ang) * rMid;
-      if (isInsideStrictBlockTileCore(tx, tz, allBlockBounds)) {
+      if (isInsideStrictBlockTileCore(tx, tz, allBlockBounds, existingBuildings)) {
         world.mapRoads.push({ x: tx, z: tz, w: 10, d: 10, isMain: false, isOrganicTile: true });
       }
     }
@@ -310,16 +327,16 @@ function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBoun
 
     const gY = getUrbanCityReliefY(rb.cx, rb.cz);
     const baseDisc = new THREE.CylinderGeometry(rb.innerR, rb.innerR + 0.2, 1.4, 28);
-    baseDisc.translate(rb.cx, gY + 0.38 - 0.7, rb.cz);
+    baseDisc.translate(rb.cx, gY - 0.32, rb.cz);
     islandStoneGeos.push(baseDisc);
     const turfDisc = new THREE.CylinderGeometry(rb.innerR - 1.4, rb.innerR - 1.3, 0.18, 24);
     turfDisc.translate(rb.cx, gY + 0.42, rb.cz);
     islandTurfGeos.push(turfDisc);
 
-    batcher.addBox('stone_white', 8.4, 1.1, 8.4, rb.cx, gY + 0.75, rb.cz);
-    batcher.addBox('pool_water', 7.0, 0.36, 7.0, rb.cx, gY + 1.22, rb.cz);
-    batcher.addBox('neon_cyan', 2.2, 3.4, 2.2, rb.cx, gY + 2.4, rb.cz);
-    batcher.addBox('trim_white', 3.8, 0.45, 3.8, rb.cx, gY + 3.2, rb.cz);
+    batcher.addBox('stone_white', 8.4, 1.1, 8.4, rb.cx, gY + 0.75, rb.cz, false);
+    batcher.addBox('pool_water', 7.0, 0.36, 7.0, rb.cx, gY + 1.22, rb.cz, false);
+    batcher.addBox('neon_cyan', 2.2, 3.4, 2.2, rb.cx, gY + 2.4, rb.cz, false);
+    batcher.addBox('trim_white', 3.8, 0.45, 3.8, rb.cx, gY + 3.2, rb.cz, true);
     for (let t = 0; t < 4; t++) {
       const ta = 0.4 + t * Math.PI * 0.5;
       addCurvedLegoPalmTree(batcher, rb.cx + Math.cos(ta) * 7.6, gY + 0.48, rb.cz + Math.sin(ta) * 7.6, Math.cos(ta) * 0.26, Math.sin(ta) * 0.26, 1.12);
@@ -328,38 +345,58 @@ function renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBoun
   }
 
   const chunkOpt = { receiveShadow: true, castShadow: false, chunkSize: ws(512) };
-  addChunkedArrayToScene(world.scene, asphaltGeos, new THREE.MeshStandardMaterial({ color: 0x121926, roughness: 0.68, metalness: 0.08, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), chunkOpt);
-  addChunkedArrayToScene(world.scene, sidewalkGeos, new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.58, metalness: 0.05 }), chunkOpt);
-  addChunkedArrayToScene(world.scene, curbGeos, getLegoMaterial(0xcbd5e1, { roughness: 0.46, clearcoat: 0.14 }), chunkOpt);
-  addChunkedArrayToScene(world.scene, islandStoneGeos, new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.52 }), chunkOpt);
-  addChunkedArrayToScene(world.scene, islandTurfGeos, new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7 }), chunkOpt);
-  addChunkedArrayToScene(world.scene, paintGeos, new THREE.MeshBasicMaterial({ color: 0x38bdf8, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }), { receiveShadow: false, castShadow: false, chunkSize: ws(512) });
+  addChunkedArrayToScene(world.scene, asphaltGeos, SHARED_ASPHALT_MAT, chunkOpt);
+  addChunkedArrayToScene(world.scene, sidewalkGeos, SHARED_SIDEWALK_MAT, chunkOpt);
+  addChunkedArrayToScene(world.scene, curbGeos, SHARED_CURB_MAT, chunkOpt);
+  addChunkedArrayToScene(world.scene, islandStoneGeos, SHARED_ISLAND_STONE_MAT, chunkOpt);
+  addChunkedArrayToScene(world.scene, islandTurfGeos, SHARED_ISLAND_TURF_MAT, chunkOpt);
+  addChunkedArrayToScene(world.scene, paintGeos, SHARED_PAINT_MAT, { receiveShadow: false, castShadow: false, chunkSize: ws(512) });
 }
 
-function computeCoastalSkylineHeight(wx, wz, seed) {
-  const jitter = 0.88 + hash01(seed, Math.round(wx * 5 - wz * 3)) * 0.24;
-  const edgeFade = 1 - 0.1 * THREE.MathUtils.clamp((Math.abs(wx) - 1150) / 700, 0, 1);
+function computeCoastalSkylineHeight(wx, wz, seed, isTravessaFront = false) {
+  const r = hash01(seed, Math.round(wx * 5 - wz * 3));
+  const edgeFade = 1 - 0.12 * THREE.MathUtils.clamp((Math.abs(wx) - 1150) / 700, 0, 1);
+  if (isTravessaFront) return Math.round((18 + r * 19.5) * 10) / 10;
   if (wz >= 1668) {
+    if (r < 0.42) return Math.round((20 + hash01(seed, 9) * 18) * 10) / 10;
     const tBeach = THREE.MathUtils.clamp((wz - 1681) / 380, 0, 1);
-    return Math.round(THREE.MathUtils.clamp((104 + tBeach * 38) * edgeFade * jitter, 95, 152) * 10) / 10;
+    return Math.round(THREE.MathUtils.clamp((52 + tBeach * 48) * edgeFade * (0.88 + r * 0.22), 45, 108) * 10) / 10;
   }
+  if (r < 0.68) return Math.round((16 + hash01(seed, 13) * 21.5) * 10) / 10;
   const tRidge = THREE.MathUtils.clamp((wz - 1223) / 425, 0, 1);
-  return Math.round(THREE.MathUtils.clamp((56 + tRidge * 30) * edgeFade * jitter, 52, 92) * 10) / 10;
+  return Math.round(THREE.MathUtils.clamp((46 + tRidge * 26) * edgeFade, 45, 74) * 10) / 10;
+}
+
+function addActiveSurfShopAndCafeFrontage(batcher, world, cx, cz, w, d, rotY, seed) {
+  const yBase = (world.getTerrainHeightAt ? world.getTerrainHeightAt(cx, cz) : getUrbanCityReliefY(cx, cz)) + 0.22;
+  const uColA = UMBRELLA_KEYS[Math.abs(seed) % UMBRELLA_KEYS.length];
+  const uColB = UMBRELLA_KEYS[(Math.abs(seed) + 3) % UMBRELLA_KEYS.length];
+  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+
+  const pAwning = localToWorldXZ(cx, cz, 0, d * 0.5 + 0.9, cosY, sinY);
+  batcher.addBox(uColA, Math.min(10, w * 0.52), 0.42, 1.8, pAwning.x, yBase + 3.6, pAwning.z, true);
+  for (const sx of [-1, 1]) {
+    const pBoard = localToWorldXZ(cx, cz, sx * (w * 0.26), d * 0.5 + 0.55, cosY, sinY);
+    batcher.addBox(sx < 0 ? uColA : uColB, 0.48, 2.35, 0.16, pBoard.x, yBase + 1.18, pBoard.z, true);
+    const pTable = localToWorldXZ(cx, cz, sx * (w * 0.16), d * 0.5 + 1.35, cosY, sinY);
+    batcher.addBox('trim_white', 1.1, 0.72, 1.1, pTable.x, yBase + 0.36, pTable.z, true);
+    batcher.addBox(sx < 0 ? uColB : uColA, 2.1, 0.3, 2.1, pTable.x, yBase + 2.05, pTable.z, true);
+  }
 }
 
 function buildCoastalResortPoolPlaza(world, batcher, px, pz, seed) {
   const yBase = (world.getTerrainHeightAt ? world.getTerrainHeightAt(px, pz) : getUrbanCityReliefY(px, pz)) + 0.04;
-  batcher.addBox('stone_white', 18.0, 2.2, 16.0, px, yBase - 0.9, pz);
-  batcher.addBox('wood_deck', 15.2, 0.22, 13.2, px, yBase + 0.26, pz);
-  batcher.addBox('trim_white', 10.8, 1.9, 6.8, px, yBase - 0.05, pz);
-  batcher.addBox('pool_water', 9.4, 0.32, 5.4, px, yBase + 0.82, pz);
-  batcher.addBox('neon_cyan', 9.6, 0.14, 0.22, px, yBase + 0.92, pz + 2.8);
+  batcher.addBox('stone_white', 18.0, 2.2, 16.0, px, yBase - 0.9, pz, false);
+  batcher.addBox('wood_deck', 15.2, 0.22, 13.2, px, yBase + 0.26, pz, false);
+  batcher.addBox('trim_white', 10.8, 1.9, 6.8, px, yBase - 0.05, pz, false);
+  batcher.addBox('pool_water', 9.4, 0.32, 5.4, px, yBase + 0.82, pz, false);
+  batcher.addBox('neon_cyan', 9.6, 0.14, 0.22, px, yBase + 0.92, pz + 2.8, true);
 
   const uKey = UMBRELLA_KEYS[Math.abs(seed) % UMBRELLA_KEYS.length];
   for (const sx of [-5.8, 5.8]) {
-    batcher.addBox('trim_white', 0.2, 2.8, 0.2, px + sx, yBase + 1.65, pz - 4.2);
-    batcher.addBox(uKey, 3.6, 0.36, 3.6, px + sx, yBase + 3.05, pz - 4.2);
-    batcher.addBox('trim_white', 1.3, 0.32, 2.2, px + sx, yBase + 0.52, pz - 3.6);
+    batcher.addBox('trim_white', 0.2, 2.8, 0.2, px + sx, yBase + 1.65, pz - 4.2, true);
+    batcher.addBox(uKey, 3.6, 0.36, 3.6, px + sx, yBase + 3.05, pz - 4.2, true);
+    batcher.addBox('trim_white', 1.3, 0.32, 2.2, px + sx, yBase + 0.52, pz - 3.6, true);
   }
   for (const [dx, dz, lx, lz] of [[-7.2, -6.2, -0.2, -0.2], [7.2, -6.2, 0.2, -0.2], [-7.2, 6.2, -0.2, 0.25], [7.2, 6.2, 0.2, 0.25]]) {
     addCurvedLegoPalmTree(batcher, px + dx, yBase + 0.25, pz + dz, lx, lz, 1.04);
@@ -381,13 +418,11 @@ export function buildCoastalOrganicBlocksAndBoulevards(world, batcher) {
   renderCoastalBoulevardsAndRoundabouts(world, batcher, net, allBlockBounds);
 
   const hotelObbs = (world.southBeachHotels || []).map((h) => createObb2D(h.x, h.z, h.w + 14, h.d + 14, 0));
-  const groundRoads = (world.mapRoads || []).filter(
-    (rd) => !rd.isElevated && !rd.isBridge && rd.z >= 1150 && rd.z <= 2190 && rd.x >= -2020 && rd.x <= 1620
-  );
+  const groundRoads = (world.mapRoads || []).filter((rd) => !rd.isElevated && !rd.isBridge && rd.z >= 1150 && rd.z <= 2190 && rd.x >= -2020 && rd.x <= 1620);
 
-  let buildingsAdded = 0;
+  let buildingsAdded = 0, surfCafeMidrises = 0;
   for (const blk of allBlockBounds) {
-    const inset = ROAD.sidewalk + 2.4;
+    const inset = ROAD.sidewalk + 2.6;
     const inner = {
       minX: blk.minX + inset, maxX: Math.min(blk.maxX - inset, ws(516) - 28),
       minZ: blk.minZ + inset, maxZ: Math.min(blk.maxZ - inset, ws(710) - 28)
@@ -405,8 +440,19 @@ export function buildCoastalOrganicBlocksAndBoulevards(world, batcher) {
       !STATIC_COASTAL_KEEPOUTS.some((k) => obbIntersectsRect2D(obb, k.minX, k.maxX, k.minZ, k.maxZ, 2.0)) &&
       !placedObbs.some((po) => obbIntersectsObb2D(obb, po, 4.0)) &&
       localRbs.every((rb) => obbClearOfCircle2D(obb, rb.cx, rb.cz, rb.outerR + rb.sidewalk + 2.5)) &&
-      localSegs.every((s) => obbClearOfSegment2D(obb, s.x1, s.z1, s.x2, s.z2, s.halfWidth + s.sidewalk + 2.4)) &&
-      !localRoads.some((rd) => obbIntersectsRect2D(obb, rd.x - rd.w * 0.5, rd.x + rd.w * 0.5, rd.z - rd.d * 0.5, rd.z + rd.d * 0.5, 2.2));
+      localSegs.every((s) => obbClearOfSegment2D(obb, s.x1, s.z1, s.x2, s.z2, s.halfWidth + s.sidewalk + 2.6)) &&
+      !localRoads.some((rd) => obbIntersectsRect2D(obb, rd.x - rd.w * 0.5, rd.x + rd.w * 0.5, rd.z - rd.d * 0.5, rd.z + rd.d * 0.5, 2.5));
+
+    const spawnCoastalBuilding = (cx, cz, w, d, rotY, seed, isTravessaFront = false) => {
+      const h = computeCoastalSkylineHeight(cx, cz, seed, isTravessaFront);
+      const archetype = h <= 38.5 ? 'historic_lowrise' : h >= 72 ? 'podium_tower' : 'stepped_art_deco';
+      buildDetailedBuilding(world, cx, cz, w, h, d, COASTAL_STYLES[Math.abs(seed) % COASTAL_STYLES.length], { rotY, seed, archetype });
+      if (h <= 38.5) {
+        addActiveSurfShopAndCafeFrontage(batcher, world, cx, cz, w, d, rotY, seed);
+        surfCafeMidrises++;
+      }
+      buildingsAdded++;
+    };
 
     for (const f of net.flatironCorners) {
       if (f.cx < blk.minX || f.cx > blk.maxX || f.cz < blk.minZ || f.cz > blk.maxZ) continue;
@@ -418,7 +464,7 @@ export function buildCoastalOrganicBlocksAndBoulevards(world, batcher) {
           const cx = f.cx + Math.cos(ang) * r, cz = f.cz + Math.sin(ang) * r;
           const obb = createObb2D(cx, cz, f.backWidth, f.length, f.rotY);
           if (!canPlace(obb)) continue;
-          buildFlatironWedgeBuilding(world, { ...f, cx, cz, height: computeCoastalSkylineHeight(cx, cz, baseSeed + 11), seed: baseSeed + 11 });
+          buildFlatironWedgeBuilding(world, { ...f, cx, cz, height: computeCoastalSkylineHeight(cx, cz, baseSeed + 11, false), seed: baseSeed + 11 });
           placedObbs.push(obb);
           buildingsAdded++;
           placed = true;
@@ -437,14 +483,14 @@ export function buildCoastalOrganicBlocksAndBoulevards(world, batcher) {
         const sEnd = seg.len < 72 ? seg.len * 0.5 + 0.1 : seg.len - 24;
         while (sCur <= sEnd) {
           const lSeed = baseSeed * 31 + si * 13 + (side > 0 ? 7 : 3) + Math.round(sCur);
-          const w = 34 + Math.floor(hash01(lSeed, 1) * 12), d = 26 + Math.floor(hash01(lSeed, 2) * 8);
-          const dist = seg.halfWidth + seg.sidewalk + 3.2 + d * 0.5;
+          const w = seg.isTravessa ? 26 + Math.floor(hash01(lSeed, 1) * 8) : 34 + Math.floor(hash01(lSeed, 1) * 12);
+          const d = seg.isTravessa ? 22 + Math.floor(hash01(lSeed, 2) * 6) : 26 + Math.floor(hash01(lSeed, 2) * 8);
+          const dist = seg.halfWidth + seg.sidewalk + 3.4 + d * 0.5;
           const cx = seg.x1 + tx * sCur - tz * side * dist, cz = seg.z1 + tz * sCur + tx * side * dist;
           const obb = createObb2D(cx, cz, w, d, rotY);
           if (canPlace(obb)) {
-            buildDetailedBuilding(world, cx, cz, w, computeCoastalSkylineHeight(cx, cz, lSeed), d, COASTAL_STYLES[Math.abs(lSeed) % COASTAL_STYLES.length], { rotY, seed: lSeed });
+            spawnCoastalBuilding(cx, cz, w, d, rotY, lSeed, seg.isTravessa);
             placedObbs.push(obb);
-            buildingsAdded++;
             sCur += w + 7.5;
           } else {
             sCur += 16.0;
@@ -462,10 +508,8 @@ export function buildCoastalOrganicBlocksAndBoulevards(world, batcher) {
         const cx = rb.cx + Math.cos(ang) * rad, cz = rb.cz + Math.sin(ang) * rad;
         const obb = createObb2D(cx, cz, 28, 24, rotY);
         if (!canPlace(obb)) continue;
-        const lSeed = baseSeed * 41 + k * 9;
-        buildDetailedBuilding(world, cx, cz, 28, computeCoastalSkylineHeight(cx, cz, lSeed), 24, COASTAL_STYLES[k % COASTAL_STYLES.length], { rotY, seed: lSeed });
+        spawnCoastalBuilding(cx, cz, 28, 24, rotY, baseSeed * 41 + k * 9, false);
         placedObbs.push(obb);
-        buildingsAdded++;
       }
     }
 
@@ -480,26 +524,21 @@ export function buildCoastalOrganicBlocksAndBoulevards(world, batcher) {
       }
     }
 
-    const edges = [
-      { axis: 'x', fixed: inner.minZ, sign: 1 },
-      { axis: 'z', fixed: inner.minX, sign: 1 },
-      { axis: 'z', fixed: inner.maxX, sign: -1 }
-    ];
+    const edges = [{ axis: 'x', fixed: inner.minZ, sign: 1 }, { axis: 'z', fixed: inner.minX, sign: 1 }, { axis: 'z', fixed: inner.maxX, sign: -1 }];
     for (let ei = 0; ei < edges.length; ei++) {
       const ed = edges[ei];
       let cur = (ed.axis === 'x' ? inner.minX : inner.minZ) + 22;
       const endC = (ed.axis === 'x' ? inner.maxX : inner.maxZ) - 22;
       while (cur <= endC) {
         const eSeed = baseSeed * 53 + ei * 17 + Math.round(cur);
-        const span = 38 + Math.floor(hash01(eSeed, 3) * 12), depth = 30 + Math.floor(hash01(eSeed, 4) * 8);
+        const span = 36 + Math.floor(hash01(eSeed, 3) * 12), depth = 28 + Math.floor(hash01(eSeed, 4) * 8);
         const w = ed.axis === 'x' ? span : depth, d = ed.axis === 'x' ? depth : span;
         const cx = ed.axis === 'x' ? cur : ed.fixed + ed.sign * (w * 0.5);
         const cz = ed.axis === 'x' ? ed.fixed + ed.sign * (d * 0.5) : cur;
         const obb = createObb2D(cx, cz, w, d, 0);
         if (canPlace(obb)) {
-          buildDetailedBuilding(world, cx, cz, w, computeCoastalSkylineHeight(cx, cz, eSeed), d, COASTAL_STYLES[Math.abs(eSeed) % COASTAL_STYLES.length], { rotY: 0, seed: eSeed });
+          spawnCoastalBuilding(cx, cz, w, d, 0, eSeed, false);
           placedObbs.push(obb);
-          buildingsAdded++;
           cur += span + 8.0;
         } else {
           cur += 15.0;
@@ -515,15 +554,20 @@ export function buildCoastalOrganicBlocksAndBoulevards(world, batcher) {
           const dSq = (gx - (s.x1 + s.x2) * 0.5) ** 2 + (gz - (s.z1 + s.z2) * 0.5) ** 2;
           if (dSq < bestSq) { bestSq = dSq; rotY = Math.atan2(s.x2 - s.x1, s.z2 - s.z1) + Math.PI * 0.5; }
         }
-        const w = 34 + Math.floor(hash01(iSeed, 6) * 12), d = 28 + Math.floor(hash01(iSeed, 7) * 10);
+        const w = 32 + Math.floor(hash01(iSeed, 6) * 12), d = 26 + Math.floor(hash01(iSeed, 7) * 10);
         const obb = createObb2D(gx, gz, w, d, rotY);
         if (!canPlace(obb)) continue;
-        buildDetailedBuilding(world, gx, gz, w, computeCoastalSkylineHeight(gx, gz, iSeed), d, COASTAL_STYLES[Math.abs(iSeed) % COASTAL_STYLES.length], { rotY, seed: iSeed });
+        spawnCoastalBuilding(gx, gz, w, d, rotY, iSeed, false);
         placedObbs.push(obb);
-        buildingsAdded++;
       }
     }
   }
 
-  return { roadsAdded: net.polylines.length + net.roundabouts.length, buildingsAdded };
+  world.coastalUrbanStats = {
+    roadsAdded: net.polylines.length + net.roundabouts.length,
+    travessasCount: net.polylines.filter((p) => p.isTravessa).length,
+    buildingsAdded,
+    surfCafeMidrises
+  };
+  return world.coastalUrbanStats;
 }

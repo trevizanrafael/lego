@@ -1,4 +1,3 @@
-import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { IS_SCALED_WORLD, ws, wsP } from '../core/WorldLayoutScale.js';
 import {
   createWestBatcher,
@@ -9,42 +8,39 @@ import {
 import {
   buildTaxiwayBlocksAnd16RowHangars,
   buildMainRunway0927,
-  buildNorthMilitaryBaseWing
+  buildNorthMilitaryBaseWing,
+  buildAirportNaturalTurfAndDrainage
 } from './west-airport/AirportRunwayAndMilitaryBase.js';
 
 /**
  * 8. REGIÃO OESTE (FACHADA FINA) — AEROPORTO METROPOLITANO & BASE MILITAR TERRESTRE
+ * - Sem placas retangulares gigantes de concreto (pátios/tarmac justos sobre terreno natural da Península Oeste)
  * - 1. Rodovia Expressa + Perímetro com Guaritas + Grande Estacionamento com Catracas/Cancelas na entrada
  * - 2. Mega Terminal Internacional LEGO de 960m (100% Entrável e com Interior Decorado)
  * - 3. Quarteirões das Pistas Menores (Taxiways) com 16 Galpões/Hangares Civis e Militares
- * - 4. 3 Torres de Controle Gigantes (124m) + Pista Principal Runway 09/27 iluminada
- * - 5. Ala Militar Norte da Base (Quartel, Pátio de Tanques, Baterias SAM e Helipontos)
+ * - 4. 3 Torres de Controle Gigantes (124m) + Pista Principal Runway 09/27 com acostamentos e blast pads
+ * - 5. Ala Militar Norte da Base (Quartel, Pátio de Tanques, Baterias SAM e Helipontos) + Gramado/Drenagem
  */
 export function buildWestHighwayAndAirport(world) {
   const groundY = 0.28;
-
-  // Grande Plataforma Continental de Concreto Aeronáutico do Complexo Oeste (X = ws(-1015)..ws(-1825), Z = ws(-660)..ws(+660))
-  world._addCityBlockSidewalk(ws(-1420), 0, ws(810), ws(1320), LEGO_COLORS.concrete);
-  // Expansão Noroeste: Ala Militar Norte da Base (X = ws(-1015)..ws(-1825), Z = ws(-1320)..ws(-660))
-  world._addCityBlockSidewalk(ws(-1420), ws(-990), ws(810), ws(660), LEGO_COLORS.concrete);
-
   const batcher = createWestBatcher();
 
-  // 1. Rodovia Expressa + Perímetro de Segurança + Grande Estacionamento com Catracas/Cancelas na entrada
+  // 1. Rodovia Expressa + Perímetro de Segurança + Pátio Frontal & Estacionamento justo
   buildExpresswaySecurityAndParkingLot(world, batcher, groundY);
 
-  // 2. Mega Terminal Internacional LEGO de 960m (100% Entrável e com Interior Decorado!)
+  // 2. Mega Terminal Internacional LEGO de 960m (100% Entrável e com Interior Decorado)
   buildColossalEnterableAirportTerminal(world, batcher, groundY);
 
-  // 3. Quarteirões das Pistas Menores (Taxiways) lotados com 16 Galpões/Hangares Verdes e Azuis Enfileirados
+  // 3. Quarteirões das Pistas Menores (Taxiways) e Pátios Justos dos 16 Hangares Civis/Militares
   buildTaxiwayBlocksAnd16RowHangars(world, batcher, groundY);
 
-  // 4A & 4B. 3 Torres de Controle Gigantes (124m) Rentes à Pista Principal + Runway 09/27 Iluminada
+  // 4A & 4B. 3 Torres de Controle Gigantes (124m) + Runway 09/27 com Blast Pads e Acostamentos
   buildThreeRunwayAtcTowers(world, batcher, groundY);
   const runwayLength = buildMainRunway0927(world, batcher, groundY);
 
-  // 5. ALA MILITAR NORTE DA BASE (Canto Noroeste: Quartel Militar, Pátio de Tanques, 4 Baterias Antiaéreas, Helipontos e Hangares Extras!)
+  // 5. Ala Militar Norte da Base + Gramados Aeronáuticos, Valas de Drenagem e Costão Natural
   buildNorthMilitaryBaseWing(world, batcher, groundY);
+  buildAirportNaturalTurfAndDrainage(world, batcher, groundY);
 
   batcher.flush(world.scene);
 

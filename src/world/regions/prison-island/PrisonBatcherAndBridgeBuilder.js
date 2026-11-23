@@ -1,7 +1,12 @@
 import * as THREE from 'three';
-import { makeFastBox, flushSpatialChunkedBuckets } from '../../BuildingGenerator.js';
+import { markAsSharedAsset } from '../../../materials/LegoMaterials.js';
+import { makeFastBox, mergeBufferGeometries, mergeColoredGeometries } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
 import { IS_SCALED_WORLD, ws, wsP } from '../../core/WorldLayoutScale.js';
+import {
+  getSharedPeripheryStandardVcMaterial,
+  getSharedPeripheryBasicVcMaterial
+} from '../../terrain/NaturalPeripheryBuilder.js';
 
 export const DESIGN_PRISON_CENTER = Object.freeze({ x: 1375, z: 1540 });
 export const PRISON_COMPOUND_ORIGIN = Object.freeze(wsP(DESIGN_PRISON_CENTER.x, DESIGN_PRISON_CENTER.z));
@@ -13,156 +18,310 @@ export const PRISON_DOCK_ORIGIN = Object.freeze(wsP(DESIGN_PRISON_DOCK.x, DESIGN
 export const PRISON_DOCK_OFFSET_X = PRISON_DOCK_ORIGIN.x - DESIGN_PRISON_DOCK.x;
 export const PRISON_DOCK_OFFSET_Z = PRISON_DOCK_ORIGIN.z - DESIGN_PRISON_DOCK.z;
 
+const PRISON_LOD_DIST = 340;
+
+const PRISON_SECTOR_ORIGINS = [
+  { key: 'bridge_and_dock', originX: ws(1160), originZ: ws(1180) },
+  { key: 'fortress', originX: PRISON_COMPOUND_ORIGIN.x, originZ: PRISON_COMPOUND_ORIGIN.z }
+];
+
+const PRISON_PALETTE = {
+  matte_black: { color: new THREE.Color(0x090a0d), basic: false },
+  bope_black: { color: new THREE.Color(0x111827), basic: false },
+  gunmetal_concrete: { color: new THREE.Color(0x1e293b), basic: false },
+  armor_slate: { color: new THREE.Color(0x334155), basic: false },
+  dark_steel: { color: new THREE.Color(0x0f172a), basic: false },
+  yard_concrete: { color: new THREE.Color(0x3b4656), basic: false },
+  coastal_rock: { color: new THREE.Color(0x18191e), basic: false },
+  island_basalt: { color: new THREE.Color(0x1d2129), basic: false },
+  island_granite: { color: new THREE.Color(0x2c333e), basic: false },
+  island_turf: { color: new THREE.Color(0x213221), basic: false },
+  island_scrub: { color: new THREE.Color(0x2f4325), basic: false },
+  sea_foam: { color: new THREE.Color(0xe2e8f0), basic: true },
+  brushed_silver: { color: new THREE.Color(0xcbd5e1), basic: false },
+  chainlink_mesh: { color: new THREE.Color(0x94a3b8), basic: false },
+  tactical_white: { color: new THREE.Color(0xf8fafc), basic: false },
+  alert_yellow: { color: new THREE.Color(0xfacc15), basic: false },
+  police_blue: { color: new THREE.Color(0x1d4ed8), basic: false },
+  court_blue: { color: new THREE.Color(0x0284c7), basic: false },
+  futsal_green: { color: new THREE.Color(0x15803d), basic: false },
+  prison_orange: { color: new THREE.Color(0xf97316), basic: false },
+  cv_red: { color: new THREE.Color(0xdc2626), basic: false },
+  pcc_navy: { color: new THREE.Color(0x1e3a8a), basic: false },
+  ares_purple: { color: new THREE.Color(0x9333ea), basic: false },
+  laser_cyan: { color: new THREE.Color(0x38bdf8), basic: true },
+  laser_purple: { color: new THREE.Color(0xc084fc), basic: true },
+  lego_skin: { color: new THREE.Color(0xfde047), basic: false },
+  smoked_glass: { color: new THREE.Color(0x0c4a6e), basic: false },
+  searchlight_white: { color: new THREE.Color(0xffffff), basic: true },
+  searchlight_beam: { color: new THREE.Color(0xe0f2fe), beam: true },
+  siren_red: { color: new THREE.Color(0xef4444), basic: true },
+  siren_blue: { color: new THREE.Color(0x38bdf8), basic: true }
+};
+
+const PRISON_SHADOW_KEYS = new Set([
+  'matte_black',
+  'gunmetal_concrete',
+  'armor_slate',
+  'dark_steel',
+  'alert_yellow',
+  'bope_black',
+  'prison_orange'
+]);
+
+let _sharedSearchlightBeamMat = null;
+
+function getSharedPrisonBeamMaterial() {
+  if (!_sharedSearchlightBeamMat) {
+    _sharedSearchlightBeamMat = markAsSharedAsset(
+      new THREE.MeshBasicMaterial({
+        color: 0xe0f2fe,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false
+      })
+    );
+  }
+  return _sharedSearchlightBeamMat;
+}
+
 /**
- * Acumulador de Geometrias 3D da Grande Ponte Blindada Estaiada & Ilha da Prisão de Segurança Máxima (2x Maior):
- * Funde milhares de peças LEGO (Ponte, Torres Estaiadas de 94m com Cabos Corrigidos, 2 Checkpoints do BOPE,
- * 140+ Rochas Costeiras, Doca Naval da Guarda Costeira, Muralhas de 40m, 8 Torres de Vigia de 68m,
- * Cidadela Panóptica Central "A Balsa" de 126m com 4 Passarelas Aéreas e Duplo Heliponto,
- * 6 Pavilhões Penitenciários Altos de 58m-82m com Ala Ômega Laser e 24 Celas Térreas Visíveis,
- * e 4 Setores de Pátio 100% Preenchidos com Passarelas Elevadas de Ronda) em ~24 Draw Calls para manter 60 FPS!
+ * Batcher Vertex-Color 2-Níveis `THREE.LOD` (`340 m`) da Ponte Blindada & Ilha da Prisão:
+ * - Zero `MeshPhysicalMaterial` (1 `MeshStandardMaterial` + 1 `MeshBasicMaterial` + 1 `searchlight_beam`).
+ * - Nível 0 (0..340m): todas as estruturas, cabos, grades, minifigs, marcações e feixes de holofote.
+ * - Nível 1 (>=340m): apenas macroestruturas (`Math.max(w, h, d) >= 3.5`), `castShadow = false`.
  */
 export class PrisonIslandBatcher {
   constructor() {
-    this.buckets = new Map();
-    this.materials = new Map();
-    this.castShadowKeys = new Set([
-      'matte_black',
-      'gunmetal_concrete',
-      'armor_slate',
-      'dark_steel',
-      'alert_yellow',
-      'bope_black',
-      'prison_orange'
-    ]);
-    this._initMaterials();
+    this.chunks = new Map();
+    this.basicEntries = [];
+    this.beamEntries = [];
+    this.auxOriginX = PRISON_COMPOUND_ORIGIN.x;
+    this.auxOriginZ = PRISON_COMPOUND_ORIGIN.z;
   }
 
-  _registerMat(key, colorHex, opts = {}) {
-    this.buckets.set(key, []);
-    if (opts.basic) {
-      this.materials.set(
-        key,
-        new THREE.MeshBasicMaterial({
-          color: colorHex,
-          transparent: opts.transparent ?? false,
-          opacity: opts.opacity ?? 1.0
-        })
-      );
-    } else {
-      const r = opts.roughness ?? 0.36;
-      this.materials.set(
-        key,
-        new THREE.MeshPhysicalMaterial({
-          color: colorHex,
-          roughness: r,
-          metalness: opts.metalness ?? 0.14,
-          clearcoat: r > 0.52 ? 0.0 : 0.36,
-          clearcoatRoughness: 0.16,
-          reflectivity: 0.7,
-          emissive: opts.emissive ? new THREE.Color(opts.emissive) : new THREE.Color(0x000000),
-          emissiveIntensity: opts.emissiveIntensity ?? 0
-        })
-      );
+  _getChunk(wx, wz) {
+    const bridgeEndZ = IS_SCALED_WORLD ? ws(1124) : 1126;
+    const sec =
+      wz < bridgeEndZ || wx < 995 + PRISON_OFFSET_X - 48
+        ? PRISON_SECTOR_ORIGINS[0]
+        : PRISON_SECTOR_ORIGINS[1];
+    let ch = this.chunks.get(sec.key);
+    if (!ch) {
+      ch = {
+        key: sec.key,
+        originX: sec.originX,
+        originZ: sec.originZ,
+        l0Pbr: [],
+        l1Pbr: [],
+        hasShadowCaster: false
+      };
+      this.chunks.set(sec.key, ch);
     }
+    return ch;
   }
 
-  _initMaterials() {
-    this._registerMat('matte_black', 0x090a0d, { roughness: 0.44, metalness: 0.22 });
-    this._registerMat('bope_black', 0x111827, { roughness: 0.34, metalness: 0.28 });
-    this._registerMat('gunmetal_concrete', 0x1e293b, { roughness: 0.56, metalness: 0.12 });
-    this._registerMat('armor_slate', 0x334155, { roughness: 0.48, metalness: 0.18 });
-    this._registerMat('dark_steel', 0x0f172a, { roughness: 0.32, metalness: 0.45 });
-    this._registerMat('yard_concrete', 0x475569, { roughness: 0.62, metalness: 0.06 });
-    this._registerMat('coastal_rock', 0x18181b, { roughness: 0.78, metalness: 0.05 });
-    this._registerMat('sea_foam', 0xe2e8f0, { basic: true });
-    this._registerMat('brushed_silver', 0xcbd5e1, { roughness: 0.26, metalness: 0.52 });
-    this._registerMat('chainlink_mesh', 0x94a3b8, { roughness: 0.35, metalness: 0.48 });
-    this._registerMat('tactical_white', 0xf8fafc, { roughness: 0.25, metalness: 0.08 });
-    this._registerMat('alert_yellow', 0xfacc15, { roughness: 0.28, metalness: 0.12 });
-    this._registerMat('police_blue', 0x1d4ed8, { roughness: 0.26, metalness: 0.18 });
-    this._registerMat('court_blue', 0x0284c7, { roughness: 0.45, metalness: 0.05 });
-    this._registerMat('futsal_green', 0x15803d, { roughness: 0.45, metalness: 0.05 });
-    this._registerMat('prison_orange', 0xf97316, { roughness: 0.26, metalness: 0.05 });
-    this._registerMat('cv_red', 0xdc2626, { roughness: 0.26, metalness: 0.08 });
-    this._registerMat('pcc_navy', 0x1e3a8a, { roughness: 0.28, metalness: 0.15 });
-    this._registerMat('ares_purple', 0x9333ea, {
-      roughness: 0.22,
-      metalness: 0.35,
-      emissive: 0x7e22ce,
-      emissiveIntensity: 0.45
-    });
-    this._registerMat('laser_cyan', 0x38bdf8, { basic: true });
-    this._registerMat('laser_purple', 0xc084fc, { basic: true });
-    this._registerMat('lego_skin', 0xfde047, { roughness: 0.24, metalness: 0.04 });
-    this._registerMat('smoked_glass', 0x0ea5e9, {
-      roughness: 0.14,
-      metalness: 0.38,
-      emissive: 0x0369a1,
-      emissiveIntensity: 0.28
-    });
-    this._registerMat('searchlight_white', 0xffffff, { basic: true });
-    this._registerMat('searchlight_beam', 0xe0f2fe, { basic: true, transparent: true, opacity: 0.22 });
-    this._registerMat('siren_red', 0xef4444, { basic: true });
-    this._registerMat('siren_blue', 0x38bdf8, { basic: true });
+  _pushAxisBox(spec, key, w, h, d, x, y, z, isMacroL1) {
+    if (spec.beam) {
+      this.beamEntries.push(makeFastBox(w, h, d, x - this.auxOriginX, y, z - this.auxOriginZ));
+      return;
+    }
+    if (spec.basic) {
+      this.basicEntries.push({
+        geo: makeFastBox(w, h, d, x - this.auxOriginX, y, z - this.auxOriginZ),
+        color: spec.color
+      });
+      return;
+    }
+    const ch = this._getChunk(x, z);
+    const fast = makeFastBox(w, h, d, x - ch.originX, y, z - ch.originZ);
+    ch.l0Pbr.push({ geo: fast, color: spec.color });
+    if (PRISON_SHADOW_KEYS.has(key) && h >= 2.2) {
+      ch.hasShadowCaster = true;
+    }
+    if (isMacroL1) {
+      ch.l1Pbr.push({ geo: fast, color: spec.color });
+    }
   }
 
   addBox(key, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) {
-    const list = this.buckets.get(key);
-    if (!list) return;
+    const spec = PRISON_PALETTE[key];
+    if (!spec) return;
+    const isMacroL1 =
+      !spec.basic &&
+      !spec.beam &&
+      key !== 'chainlink_mesh' &&
+      Math.max(w, h, d) >= 3.5 &&
+      h >= 0.08 &&
+      Math.min(w, d) >= 0.4;
+
     if (rx === 0 && ry === 0 && rz === 0) {
-      list.push(makeFastBox(w, h, d, x, y, z));
-    } else {
+      this._pushAxisBox(spec, key, w, h, d, x, y, z, isMacroL1);
+      return;
+    }
+
+    if (spec.beam || spec.basic) {
       const g = new THREE.BoxGeometry(w, h, d);
       const m = new THREE.Matrix4();
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz));
-      m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
+      m.compose(new THREE.Vector3(x - this.auxOriginX, y, z - this.auxOriginZ), q, new THREE.Vector3(1, 1, 1));
       g.applyMatrix4(m);
-      list.push(g);
+      if (spec.beam) this.beamEntries.push(g);
+      else this.basicEntries.push({ geo: g, color: spec.color });
+      return;
     }
+
+    const ch = this._getChunk(x, z);
+    const lx = x - ch.originX;
+    const lz = z - ch.originZ;
+    const g = new THREE.BoxGeometry(w, h, d);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz));
+    m.compose(new THREE.Vector3(lx, y, lz), q, new THREE.Vector3(1, 1, 1));
+    g.applyMatrix4(m);
+
+    if (isMacroL1) ch.l1Pbr.push({ geo: g.clone(), color: spec.color });
+    ch.l0Pbr.push({ geo: g, color: spec.color });
+    if (PRISON_SHADOW_KEYS.has(key) && h >= 2.2) ch.hasShadowCaster = true;
   }
 
-  /**
-   * Conecta o ponto (x1, y1, z1) exatamente ao ponto (x2, y2, z2) usando Quaternion.setFromUnitVectors
-   * (Garante alinhamento matemático perfeito nos cabos estaiados da ponte!)
-   */
   addCable(key, thickness, x1, y1, z1, x2, y2, z2) {
-    const list = this.buckets.get(key);
-    if (!list) return;
+    const spec = PRISON_PALETTE[key];
+    if (!spec) return;
     const p1 = new THREE.Vector3(x1, y1, z1);
     const p2 = new THREE.Vector3(x2, y2, z2);
     const diff = new THREE.Vector3().subVectors(p2, p1);
     const len = diff.length();
     if (len < 0.001) return;
     const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-    const q = new THREE.Quaternion().setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      diff.normalize()
-    );
+    if (spec.basic) {
+      const localMid = new THREE.Vector3(mid.x - this.auxOriginX, mid.y, mid.z - this.auxOriginZ);
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), diff.normalize());
+      const g = new THREE.BoxGeometry(thickness, len, thickness);
+      g.applyMatrix4(new THREE.Matrix4().compose(localMid, q, new THREE.Vector3(1, 1, 1)));
+      this.basicEntries.push({ geo: g, color: spec.color });
+      return;
+    }
+    const ch = this._getChunk(mid.x, mid.z);
+    const localMid = new THREE.Vector3(mid.x - ch.originX, mid.y, mid.z - ch.originZ);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), diff.normalize());
     const g = new THREE.BoxGeometry(thickness, len, thickness);
-    const m = new THREE.Matrix4().compose(mid, q, new THREE.Vector3(1, 1, 1));
+    const m = new THREE.Matrix4().compose(localMid, q, new THREE.Vector3(1, 1, 1));
     g.applyMatrix4(m);
-    list.push(g);
+    ch.l0Pbr.push({ geo: g, color: spec.color });
   }
 
   addCylinder(key, rTop, rBottom, h, x, y, z, segs = 10, rx = 0, rz = 0) {
-    const list = this.buckets.get(key);
-    if (!list) return;
+    const spec = PRISON_PALETTE[key];
+    if (!spec) return;
+    if (spec.beam || spec.basic) {
+      const g = new THREE.CylinderGeometry(rTop, rBottom, h, segs);
+      if (rx !== 0 || rz !== 0) {
+        g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, 0, rz)));
+      }
+      g.translate(x - this.auxOriginX, y, z - this.auxOriginZ);
+      if (spec.beam) this.beamEntries.push(g);
+      else this.basicEntries.push({ geo: g, color: spec.color });
+      return;
+    }
+
+    const ch = this._getChunk(x, z);
+    const lx = x - ch.originX;
+    const lz = z - ch.originZ;
     const g = new THREE.CylinderGeometry(rTop, rBottom, h, segs);
     if (rx !== 0 || rz !== 0) {
       const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, 0, rz));
       g.applyMatrix4(m);
     }
-    g.translate(x, y, z);
-    list.push(g);
+    g.translate(lx, y, lz);
+
+    const maxDim = Math.max(rTop * 2, rBottom * 2, h);
+    if (maxDim >= 3.5 && Math.max(rTop, rBottom) >= 1.2) {
+      const dEst = Math.max(rTop, rBottom) * 1.85;
+      ch.l1Pbr.push({ geo: makeFastBox(dEst, h, dEst, lx, y, lz), color: spec.color });
+    }
+    ch.l0Pbr.push({ geo: g, color: spec.color });
+    if (PRISON_SHADOW_KEYS.has(key) && h >= 2.2) ch.hasShadowCaster = true;
   }
 
   flush(scene) {
-    flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
-      chunkSize: 768,
-      castShadowFn: (key) => this.castShadowKeys.has(key),
-      receiveShadowFn: () => true
-    });
-    this.buckets.clear();
+    const stdMat = getSharedPeripheryStandardVcMaterial();
+    const basicMat = getSharedPeripheryBasicVcMaterial();
+    const beamMat = getSharedPrisonBeamMaterial();
+
+    for (const ch of this.chunks.values()) {
+      if (ch.l0Pbr.length === 0) continue;
+
+      const lod = new THREE.LOD();
+      lod.name = `PrisonIslandLOD_${ch.key}`;
+      lod.position.set(ch.originX, 0, ch.originZ);
+      lod.userData = { isPrisonIslandLod: true, chunkKey: ch.key, skipStaticMerge: true };
+
+      const level0 = new THREE.Group();
+      const g0 = mergeColoredGeometries(ch.l0Pbr);
+      g0.computeBoundingBox();
+      g0.computeBoundingSphere();
+      const m0 = new THREE.Mesh(g0, stdMat);
+      m0.castShadow = ch.hasShadowCaster;
+      m0.receiveShadow = true;
+      m0.matrixAutoUpdate = false;
+      m0.updateMatrix();
+      m0.userData.skipStaticMerge = true;
+      level0.add(m0);
+
+      const level1 = new THREE.Group();
+      if (ch.l1Pbr.length > 0) {
+        const g1 = mergeColoredGeometries(ch.l1Pbr);
+        g1.computeBoundingBox();
+        g1.computeBoundingSphere();
+        const m1 = new THREE.Mesh(g1, stdMat);
+        m1.castShadow = false;
+        m1.receiveShadow = true;
+        m1.matrixAutoUpdate = false;
+        m1.updateMatrix();
+        m1.userData.skipStaticMerge = true;
+        level1.add(m1);
+      }
+
+      lod.addLevel(level0, 0);
+      lod.addLevel(level1, PRISON_LOD_DIST);
+      level0.visible = true;
+      level1.visible = false;
+      scene.add(lod);
+    }
+
+    if (this.basicEntries.length > 0) {
+      const gb = mergeColoredGeometries(this.basicEntries);
+      gb.computeBoundingBox();
+      gb.computeBoundingSphere();
+      const mb = new THREE.Mesh(gb, basicMat);
+      mb.name = 'PrisonIslandBasicMarkings';
+      mb.position.set(this.auxOriginX, 0, this.auxOriginZ);
+      mb.castShadow = false;
+      mb.receiveShadow = false;
+      mb.matrixAutoUpdate = false;
+      mb.updateMatrix();
+      scene.add(mb);
+    }
+
+    if (this.beamEntries.length > 0) {
+      const gBeam = mergeBufferGeometries(this.beamEntries);
+      gBeam.computeBoundingBox();
+      gBeam.computeBoundingSphere();
+      const mBeam = new THREE.Mesh(gBeam, beamMat);
+      mBeam.name = 'PrisonIslandSearchlightBeams';
+      mBeam.position.set(this.auxOriginX, 0, this.auxOriginZ);
+      mBeam.castShadow = false;
+      mBeam.receiveShadow = false;
+      mBeam.matrixAutoUpdate = false;
+      mBeam.updateMatrix();
+      mBeam.userData.skipStaticMerge = true;
+      scene.add(mBeam);
+    }
+
+    this.chunks.clear();
+    this.basicEntries.length = 0;
+    this.beamEntries.length = 0;
   }
 }
 
@@ -226,9 +385,6 @@ export function createInitialPrisonIslandData() {
   };
 }
 
-/**
- * Cria placas luminosas táticas no estilo IDV Oficial (Preto Asfalto + Amarelo Alerta / Vermelho Alerta)
- */
 export function addPrisonBannerSign(
   world,
   x,
@@ -261,18 +417,10 @@ export function addPrisonBannerSign(
   world.scene.add(signMesh);
 }
 
-/**
- * Constrói uma Minifigura LEGO 3D articulada estática direto no Batcher (0 Draw Calls extras!):
- * - preset: 'prisoner_orange' | 'prisoner_cv' | 'prisoner_pcc' | 'prisoner_ares' | 'bope_guard' | 'warden_police'
- */
 export function addBatchedLegoPerson(batcher, x, y, z, rotY = 0, preset = 'prisoner_orange', pose = 'stand') {
   const cos = Math.cos(rotY);
   const sin = Math.sin(rotY);
-  const toWorld = (lx, ly, lz) => [
-    x + lx * cos + lz * sin,
-    y + ly,
-    z - lx * sin + lz * cos
-  ];
+  const toWorld = (lx, ly, lz) => [x + lx * cos + lz * sin, y + ly, z - lx * sin + lz * cos];
 
   let torsoKey = 'prison_orange';
   let legsKey = 'prison_orange';
@@ -281,40 +429,24 @@ export function addBatchedLegoPerson(batcher, x, y, z, rotY = 0, preset = 'priso
   let hasBarbell = false;
 
   if (preset === 'prisoner_cv') {
-    torsoKey = 'cv_red';
-    legsKey = 'matte_black';
-    hatKey = 'cv_red';
+    torsoKey = 'cv_red'; legsKey = 'matte_black'; hatKey = 'cv_red';
   } else if (preset === 'prisoner_pcc') {
-    torsoKey = 'pcc_navy';
-    legsKey = 'matte_black';
-    hatKey = 'matte_black';
+    torsoKey = 'pcc_navy'; legsKey = 'matte_black'; hatKey = 'matte_black';
   } else if (preset === 'prisoner_ares') {
-    torsoKey = 'ares_purple';
-    legsKey = 'dark_steel';
-    hatKey = 'brushed_silver';
+    torsoKey = 'ares_purple'; legsKey = 'dark_steel'; hatKey = 'brushed_silver';
   } else if (preset === 'bope_guard') {
-    torsoKey = 'bope_black';
-    legsKey = 'matte_black';
-    hatKey = 'bope_black';
-    hasRifle = true;
+    torsoKey = 'bope_black'; legsKey = 'matte_black'; hatKey = 'bope_black'; hasRifle = true;
   } else if (preset === 'warden_police') {
-    torsoKey = 'police_blue';
-    legsKey = 'matte_black';
-    hatKey = 'tactical_white';
-    hasRifle = true;
+    torsoKey = 'police_blue'; legsKey = 'matte_black'; hatKey = 'tactical_white'; hasRifle = true;
   }
 
-  if (pose === 'bench_press') {
-    hasBarbell = true;
-  }
+  if (pose === 'bench_press') hasBarbell = true;
 
-  // Pernas e quadril LEGO
   const [lx1, ly1, lz1] = toWorld(-0.22, 0.42, 0);
   const [lx2, ly2, lz2] = toWorld(0.22, 0.42, 0);
   batcher.addBox(legsKey, 0.36, 0.84, 0.42, lx1, ly1, lz1, 0, rotY, 0);
   batcher.addBox(legsKey, 0.36, 0.84, 0.42, lx2, ly2, lz2, 0, rotY, 0);
 
-  // Tronco LEGO + Colete/Faixa
   const [tx, ty, tz] = toWorld(0, 1.24, 0);
   batcher.addBox(torsoKey, 0.92, 0.88, 0.48, tx, ty, tz, 0, rotY, 0);
   if (preset === 'bope_guard' || preset === 'warden_police') {
@@ -328,7 +460,6 @@ export function addBatchedLegoPerson(batcher, x, y, z, rotY = 0, preset = 'priso
     batcher.addBox('laser_cyan', 0.56, 0.24, 0.52, sx, sy, sz, 0, rotY, 0);
   }
 
-  // Braços e Mãos Amarelas LEGO
   const armElevation = pose === 'hands_bars' || pose === 'bench_press' ? 0.22 : 0;
   const armForward = pose === 'hands_bars' ? 0.26 : hasRifle ? 0.18 : 0;
   const [ax1, ay1, az1] = toWorld(-0.62, 1.22 + armElevation, armForward);
@@ -341,20 +472,15 @@ export function addBatchedLegoPerson(batcher, x, y, z, rotY = 0, preset = 'priso
   batcher.addBox('lego_skin', 0.24, 0.24, 0.24, hx1, hy1, hz1, 0, rotY, 0);
   batcher.addBox('lego_skin', 0.24, 0.24, 0.24, hx2, hy2, hz2, 0, rotY, 0);
 
-  // Cabeça Cilíndrica LEGO + Pino Superior (Stud)
   const [hdx, hdy, hdz] = toWorld(0, 1.98, 0);
   batcher.addCylinder('lego_skin', 0.34, 0.34, 0.56, hdx, hdy, hdz, 8);
   batcher.addCylinder('lego_skin', 0.18, 0.18, 0.12, hdx, hdy + 0.34, hdz, 8);
-
-  if (hatKey) {
-    batcher.addCylinder(hatKey, 0.38, 0.38, 0.26, hdx, hdy + 0.22, hdz, 8);
-  }
+  if (hatKey) batcher.addCylinder(hatKey, 0.38, 0.38, 0.26, hdx, hdy + 0.22, hdz, 8);
 
   if (hasRifle) {
     const [rx, ry, rz] = toWorld(0.35, 1.15, 0.48);
     batcher.addBox('matte_black', 0.16, 0.24, 1.15, rx, ry, rz, 0, rotY, 0);
   }
-
   if (hasBarbell) {
     const [bx, by, bz] = toWorld(0, 1.65, 0.38);
     batcher.addBox('brushed_silver', 2.2, 0.12, 0.12, bx, by, bz, 0, rotY, 0);
@@ -365,15 +491,6 @@ export function addBatchedLegoPerson(batcher, x, y, z, rotY = 0, preset = 'priso
   }
 }
 
-/**
- * 1. A GRANDE PONTE BLINDADA (X = ws(1375), Z = zStart..zEnd EM LINHA RETA DO PORTO ATÉ A ILHA DA PRISÃO):
- * - Comprimento escala para cruzar o golfo (pilares a cada ~45.5m reais em 3x), preservando largura (46m),
- *   altura das muretas, guaritas do BOPE e cota Y do tabuleiro em escala 1x;
- * - Cabos de aço estaiados corrigidos com `batcher.addCable(...)` descendo do topo das 2 Torres de 94m
- *   diretamente até a mureta do tabuleiro em Y = 2.4m;
- * - Em `WORLD_SCALE > 1`, registra o tabuleiro em `world.elevatedDecks` e constrói a Via Blindada de Acesso
- *   ligando `zEnd` (`ws(1122)`) até o Portão Monumental Norte da fortaleza (passando por `ilha_prisao.spawn`).
- */
 export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
   const bx = ws(1375);
   const zStart = IS_SCALED_WORLD ? ws(734) : 735;
@@ -407,13 +524,11 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
   world.addCollider(bx, bridgeMidZ, deckW, bridgeLen, 0.3, -2.0);
   world.mapRoads.push({ x: bx, z: bridgeMidZ, w: roadW, d: bridgeLen, isMain: true });
 
-  // Pintura Real de 4 Faixas: Linhas Brancas Tracejadas
   for (let zz = zStart + 10; zz <= zEnd - 10; zz += 14) {
     batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx - 8.5, 0.31, zz);
     batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx + 8.5, 0.31, zz);
   }
 
-  // Guard-Rails Metálicos Pesados + Passarelas Laterais + Muretas Laterais de Concreto Armado (1x!)
   for (const side of [-1, 1]) {
     const grX = bx + side * 17.6;
     const walkX = bx + side * 20.2;
@@ -429,7 +544,6 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
     world.addCollider(wallX, bridgeMidZ, 1.8, bridgeLen, 2.7, 0.28);
   }
 
-  // Pares de Pilares Maciços de Concreto (~45.5m de espaçamento real em 3x; lista original exata em 1x)
   let pillarZList = [768, 814, 860, 906, 954, 1000, 1046, 1092];
   if (IS_SCALED_WORLD) {
     const innerSpan = bridgeLen - 72;
@@ -453,7 +567,6 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
     }
   }
 
-  // 2 Torres Gigantes de Aço Estaiadas (H = 94m em 1x!) em Cinza-Chumbo e Amarelo-Alerta
   const towerIdx = Math.max(1, Math.round((pillarZList.length - 1) * 0.29));
   const towerZPositions = !IS_SCALED_WORLD
     ? [860, 1000]
@@ -473,14 +586,12 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
       world.addCollider(tx, tz, 9.5, 10.5, towerH + 4, 0);
     }
 
-    // 3 Vigas Transversais Treliçadas Gigantes unindo as 2 colunas acima da pista (Y = 32m, 62m e 90m)
     for (const beamY of [32, 62, 90]) {
       batcher.addBox('dark_steel', 56.0, 4.6, 6.4, bx, beamY, tz);
       batcher.addBox('alert_yellow', 56.6, 0.75, 6.8, bx, beamY - 2.1, tz);
       batcher.addBox('alert_yellow', 56.6, 0.75, 6.8, bx, beamY + 2.1, tz);
     }
 
-    // CABOS DE AÇO GROSSOS ESTAIADOS CORRIGIDOS (Saem do topo da torre em Z=tz, Y=86..71m e descem até o tabuleiro em Z=tz±spanZ, Y=2.4m!)
     const cableSpans = [20, 34, 48, 62, 76];
     for (const side of [-1, 1]) {
       const towerAnchorX = bx + side * 23.2;
@@ -490,8 +601,7 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
           const towerAnchorY = 86 - idx * 3.6;
           const towerAnchorZ = tz + dirZ * 2.5;
           const deckAnchorZ = tz + dirZ * spanZ;
-          const deckAnchorY = 2.4;
-          batcher.addCable('brushed_silver', 0.42, towerAnchorX, towerAnchorY, towerAnchorZ, deckAnchorX, deckAnchorY, deckAnchorZ);
+          batcher.addCable('brushed_silver', 0.42, towerAnchorX, towerAnchorY, towerAnchorZ, deckAnchorX, 2.4, deckAnchorZ);
           batcher.addBox('alert_yellow', 0.95, 1.1, 1.2, deckAnchorX, 2.5, deckAnchorZ);
           world.prisonIslandData.bridgeStayCablesCount++;
         });
@@ -499,39 +609,49 @@ export function buildArmoredCableStayedBridgeAndCheckpoints(world, batcher) {
     }
   }
 
-  // 2 Checkpoints / Bloqueios Policiais Fortificados do BOPE nas duas pontas da Ponte (tamanho 1x!):
   _buildBridgeBopeCheckpoint(world, batcher, bx, IS_SCALED_WORLD ? zStart + 14 : 746, 'CONTROLE PONTE — BOPE (PORTO)', 0);
   _buildBridgeBopeCheckpoint(world, batcher, bx, IS_SCALED_WORLD ? zEnd - 23 : 1102, 'BLOQUEIO PENITENCIÁRIO — BOPE', Math.PI);
 
-  if (IS_SCALED_WORLD && 1125 + PRISON_OFFSET_Z > zEnd + 8) {
-    _buildScaledPrisonApproachRoad(world, batcher, bx, zEnd, 1125 + PRISON_OFFSET_Z, roadW);
+  if (IS_SCALED_WORLD && 1120 + PRISON_OFFSET_Z > zEnd + 8) {
+    _buildArmoredNorthCauseway(world, batcher, bx, zEnd, 1120 + PRISON_OFFSET_Z);
   }
 }
 
-function _buildScaledPrisonApproachRoad(world, batcher, bx, zFrom, zTo, roadW) {
+/**
+ * Causeway Logístico Blindado Norte (26m de largura + guard-rails + balizadores BOPE)
+ * ligando a chegada Sul da Ponte Estaiada (`zEnd = ws(1122)`) ao Portão Monumental Norte (`1120 + oz`).
+ */
+function _buildArmoredNorthCauseway(world, batcher, bx, zFrom, zTo) {
+  const roadW = 26;
   const len = zTo - zFrom;
   const midZ = (zFrom + zTo) * 0.5;
-  const segCount = Math.max(2, Math.round(len / 210));
-  const segLen = len / segCount;
+  const westBranchZ = 1120 + PRISON_OFFSET_Z - 240;
 
-  for (let s = 0; s < segCount; s++) {
-    const sz = zFrom + (s + 0.5) * segLen;
-    batcher.addBox('matte_black', roadW, 0.14, segLen + 0.2, bx, 0.34, sz);
-    batcher.addBox('alert_yellow', 0.45, 0.05, segLen - 0.4, bx - 0.55, 0.42, sz);
-    batcher.addBox('alert_yellow', 0.45, 0.05, segLen - 0.4, bx + 0.55, 0.42, sz);
+  batcher.addBox('island_basalt', roadW + 14, 1.2, len + 4, bx, -0.22, midZ);
+  batcher.addBox('gunmetal_concrete', roadW + 8, 0.36, len + 2, bx, 0.2, midZ);
+  batcher.addBox('matte_black', roadW, 0.14, len, bx, 0.34, midZ);
+  batcher.addBox('alert_yellow', 0.45, 0.05, len - 4, bx - 0.55, 0.42, midZ);
+  batcher.addBox('alert_yellow', 0.45, 0.05, len - 4, bx + 0.55, 0.42, midZ);
+
+  for (let zz = zFrom + 12; zz <= zTo - 12; zz += 14) {
+    batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx - 6.5, 0.42, zz);
+    batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx + 6.5, 0.42, zz);
+  }
+
+  for (let bz = zFrom + 22; bz <= zTo - 18; bz += 26) {
     for (const side of [-1, 1]) {
-      batcher.addBox('armor_slate', 5.2, 0.18, segLen + 0.2, bx + side * (roadW * 0.5 + 2.6), 0.36, sz);
+      if (side === -1 && Math.abs(bz - westBranchZ) < 24) continue;
+      const railX = bx + side * (roadW * 0.5 + 2.2);
+      batcher.addBox('brushed_silver', 0.42, 0.48, 20.0, railX, 0.92, bz);
+      batcher.addBox('bope_black', 0.7, 1.25, 0.7, railX, 0.92, bz - 9.5);
+      batcher.addBox('alert_yellow', 0.76, 0.28, 0.76, railX, 1.48, bz - 9.5);
     }
   }
 
-  for (let zz = zFrom + 12; zz <= zTo - 12; zz += 14) {
-    batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx - 8.5, 0.42, zz);
-    batcher.addBox('tactical_white', 0.35, 0.05, 7.5, bx + 8.5, 0.42, zz);
-  }
-
-  for (let pz = zFrom + 42; pz <= zTo - 32; pz += 52) {
+  for (let pz = zFrom + 42; pz <= zTo - 32; pz += 56) {
     for (const side of [-1, 1]) {
-      const lampX = bx + side * (roadW * 0.5 + 4.6);
+      if (side === -1 && Math.abs(pz - westBranchZ) < 24) continue;
+      const lampX = bx + side * (roadW * 0.5 + 4.4);
       batcher.addCylinder('dark_steel', 0.28, 0.36, 12.0, lampX, 6.3, pz, 8);
       batcher.addBox('dark_steel', 3.4, 0.32, 0.45, lampX - side * 1.4, 12.1, pz);
       batcher.addBox('searchlight_white', 1.6, 0.24, 0.75, lampX - side * 2.4, 11.9, pz);
@@ -540,11 +660,16 @@ function _buildScaledPrisonApproachRoad(world, batcher, bx, zFrom, zTo, roadW) {
   }
 
   world.mapRoads.push({ x: bx, z: midZ, w: roadW, d: len, isMain: true });
+  if (!Array.isArray(world.mapOrganicRoads)) world.mapOrganicRoads = [];
+  world.mapOrganicRoads.push({
+    id: 'prison_causeway_north',
+    label: 'CAUSEWAY BLINDADO NORTE',
+    isMain: true,
+    width: roadW,
+    points: [[bx, zFrom], [bx, zTo]]
+  });
 }
 
-/**
- * Constrói 1 Posto de Bloqueio Fortificado / Guarita do BOPE na Ponte
- */
 function _buildBridgeBopeCheckpoint(world, batcher, cx, cz, signTitle, facingRotY) {
   for (const side of [-1, 1]) {
     const px = cx + side * 19.5;

@@ -262,7 +262,7 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
   }
 
   const polylines = organicRoads
-    .filter((it) => it && (it.kind === 'polyline' || Array.isArray(it.points)))
+    .filter((it) => it && !it.isRural && (it.kind === 'polyline' || Array.isArray(it.points)))
     .sort((a, b) => (b.isMain ? 1 : 0) - (a.isMain ? 1 : 0));
 
   const polyRecords = [];
@@ -273,7 +273,7 @@ export function ingestOrganicRoadsIntoGraph(graph, organicRoads, registerNode, c
     const width = Number(poly.width) || ROAD.secondaryWidth;
     const halfWidth = width * 0.5;
     const sidewalk = Number(poly.sidewalk) || swDefault;
-    const tier = poly.tier || (poly.isMain ? 'arterial' : 'collector');
+    const tier = poly.tier || (poly.isMain ? 'arterial' : width <= 16 ? 'local' : 'collector');
     const pad = halfWidth + sidewalk + 1.0;
     const chain = [];
     const origVertices = [];

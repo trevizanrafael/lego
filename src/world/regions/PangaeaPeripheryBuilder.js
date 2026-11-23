@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { LEGO_COLORS, getLegoMaterial } from '../../materials/LegoMaterials.js';
-import { makeFastBox, flushSpatialChunkedBuckets } from '../BuildingGenerator.js';
+import { makeFastBox, mergeColoredGeometries } from '../BuildingGenerator.js';
 import {
   isPointOnOrganicLand,
   getDistanceToCoastAt,
@@ -10,112 +9,91 @@ import {
 import { getFavelaElevation } from './FavelaCDDBuilder.js';
 import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 import { IS_SCALED_WORLD, ws, wsP } from '../core/WorldLayoutScale.js';
+import {
+  buildNaturalPeriphery,
+  getSharedPeripheryStandardVcMaterial,
+  getSharedPeripheryBasicVcMaterial
+} from '../terrain/NaturalPeripheryBuilder.js';
+
+const PERIPHERY_PALETTE = {
+  concrete_pad: { color: new THREE.Color(0x262c38), basic: false },
+  asphalt_tarmac: { color: new THREE.Color(0x11151e), basic: false },
+  steel_dark: { color: new THREE.Color(0x1e2533), basic: false },
+  steel_mid: { color: new THREE.Color(0x3b4659), basic: false },
+  military_olive: { color: new THREE.Color(0x293620), basic: false },
+  military_bunker: { color: new THREE.Color(0x333a32), basic: false },
+  aviation_red: { color: new THREE.Color(0x881b1b), basic: false },
+  aviation_slate: { color: new THREE.Color(0x1e3a5f), basic: false },
+  chalet_brick: { color: new THREE.Color(0x5c2216), basic: false },
+  chalet_wood: { color: new THREE.Color(0x452715), basic: false },
+  chalet_slate: { color: new THREE.Color(0x2e3b4e), basic: false },
+  roof_dark: { color: new THREE.Color(0x161922), basic: false },
+  roof_rust: { color: new THREE.Color(0x4a1d14), basic: false },
+  coastal_stone: { color: new THREE.Color(0x56606e), basic: false },
+  coastal_sandstone: { color: new THREE.Color(0x6b5c49), basic: false },
+  coastal_teal: { color: new THREE.Color(0x163d4a), basic: false },
+  wood_pier: { color: new THREE.Color(0x4a2511), basic: false },
+  pcc_navy: { color: new THREE.Color(0x132342), basic: false },
+  ares_violet: { color: new THREE.Color(0x3b175e), basic: false },
+  container_red: { color: new THREE.Color(0x7f1d1d), basic: false },
+  container_blue: { color: new THREE.Color(0x1e3a5f), basic: false },
+  container_ochre: { color: new THREE.Color(0x855312), basic: false },
+  container_green: { color: new THREE.Color(0x163d28), basic: false },
+  glass_smoked: { color: new THREE.Color(0x080d16), basic: false },
+  win_amber: { color: new THREE.Color(0xd97706), basic: true },
+  win_cyan: { color: new THREE.Color(0x0891b2), basic: true },
+  mark_white: { color: new THREE.Color(0xcbd5e1), basic: true },
+  mark_amber: { color: new THREE.Color(0xd99b16), basic: true },
+  beacon_red: { color: new THREE.Color(0xef4444), basic: true },
+  beacon_green: { color: new THREE.Color(0x22c55e), basic: true }
+};
 
 /**
- * Construtor Modular das Regiões Periféricas e Penínsulas da Pangeia (`PangaeaPeripheryBuilder.js`):
- * Dá continuidade real às construções além dos antigos limites retangulares da ilha:
- *  1) Oeste / Cabo Noroeste: Expansão do Aeroporto & Base Aérea Avançada (Pista 18/36, Taxiways, Hangares, Torre ATC e Baterias SAM)
- *  2) Norte / Platô Boreal: Expansão do Subúrbio Norte, Chalés Serranos, Parada Rodoviária e Vila do Fiorde Boreal
- *  3) Sudoeste / Costa das Dunas: Expansão da Orla Sul, Resorts Costeiros, Quiosques, Pousadas e Vila das Dunas completa
- *  4) Nordeste / Chifre de Tétis: Expansão do Distrito Industrial PCC, Galpões Logísticos, Pátios de Contêineres e Subestações até a Refinaria
- *
- * 100% otimizado em chunks espaciais (origem local por chunk -> zero jitter Float32 e 60 FPS constantes!).
+ * Acumulador Vertex-Color de chunks com origem local (`mesh.position.set(originX, 0, originZ)`)
+ * Zero `MeshPhysicalMaterial` e zero materiais duplicados (usa os 2 materiais compartilhados).
  */
 class PeripheryBatcher {
-  constructor() {
-    this.buckets = new Map();
-    this.materials = new Map();
-    this._initMaterials();
+  constructor(chunkSize = IS_SCALED_WORLD ? ws(1450) : 960) {
+    this.chunkSize = chunkSize;
+    this.chunks = new Map();
   }
 
-  _reg(key, hex, opts = {}) {
-    this.buckets.set(key, []);
-    if (opts.basic) {
-      this.materials.set(
+  _getChunk(wx, wz) {
+    const gx = Math.floor(wx / this.chunkSize);
+    const gz = Math.floor(wz / this.chunkSize);
+    const key = `${gx},${gz}`;
+    let ch = this.chunks.get(key);
+    if (!ch) {
+      ch = {
         key,
-        new THREE.MeshBasicMaterial({
-          color: hex,
-          polygonOffset: Boolean(opts.polygonOffset),
-          polygonOffsetFactor: opts.polygonOffsetFactor ?? 0,
-          polygonOffsetUnits: opts.polygonOffsetUnits ?? 0
-        })
-      );
-      return;
+        originX: (gx + 0.5) * this.chunkSize,
+        originZ: (gz + 0.5) * this.chunkSize,
+        pbrEntries: [],
+        basicEntries: []
+      };
+      this.chunks.set(key, ch);
     }
-    this.materials.set(
-      key,
-      new THREE.MeshStandardMaterial({
-        color: hex,
-        roughness: opts.roughness ?? 0.62,
-        metalness: opts.metalness ?? 0.14,
-        emissive: opts.emissive ? new THREE.Color(opts.emissive) : new THREE.Color(0x000000),
-        emissiveIntensity: opts.emissiveIntensity ?? 0,
-        polygonOffset: Boolean(opts.polygonOffset),
-        polygonOffsetFactor: opts.polygonOffsetFactor ?? 0,
-        polygonOffsetUnits: opts.polygonOffsetUnits ?? 0
-      })
-    );
-  }
-
-  _initMaterials() {
-    this._reg('concrete_pad', 0x262c38, { roughness: 0.78, metalness: 0.06 });
-    this._reg('asphalt_tarmac', 0x11151e, { roughness: 0.68, metalness: 0.1 });
-    this._reg('steel_dark', 0x1e2533, { roughness: 0.46, metalness: 0.42 });
-    this._reg('steel_mid', 0x3b4659, { roughness: 0.48, metalness: 0.36 });
-    this._reg('military_olive', 0x293620, { roughness: 0.64, metalness: 0.18 });
-    this._reg('military_bunker', 0x333a32, { roughness: 0.74, metalness: 0.12 });
-    this._reg('aviation_red', 0x881b1b, { roughness: 0.5, metalness: 0.16 });
-    this._reg('aviation_slate', 0x1e3a5f, { roughness: 0.48, metalness: 0.24 });
-    this._reg('chalet_brick', 0x5c2216, { roughness: 0.68, metalness: 0.06 });
-    this._reg('chalet_wood', 0x452715, { roughness: 0.66, metalness: 0.06 });
-    this._reg('chalet_slate', 0x2e3b4e, { roughness: 0.62, metalness: 0.1 });
-    this._reg('roof_dark', 0x161922, { roughness: 0.68, metalness: 0.14 });
-    this._reg('roof_rust', 0x4a1d14, { roughness: 0.66, metalness: 0.18 });
-    this._reg('coastal_stone', 0x56606e, { roughness: 0.58, metalness: 0.1 });
-    this._reg('coastal_sandstone', 0x6b5c49, { roughness: 0.64, metalness: 0.06 });
-    this._reg('coastal_teal', 0x163d4a, { roughness: 0.48, metalness: 0.22 });
-    this._reg('wood_pier', 0x4a2511, { roughness: 0.68, metalness: 0.05 });
-    this._reg('pcc_navy', 0x132342, { roughness: 0.5, metalness: 0.28 });
-    this._reg('ares_violet', 0x3b175e, { roughness: 0.44, metalness: 0.34 });
-    this._reg('container_red', 0x7f1d1d, { roughness: 0.54, metalness: 0.28 });
-    this._reg('container_blue', 0x1e3a5f, { roughness: 0.54, metalness: 0.28 });
-    this._reg('container_ochre', 0x855312, { roughness: 0.54, metalness: 0.28 });
-    this._reg('container_green', 0x163d28, { roughness: 0.54, metalness: 0.28 });
-    this._reg('glass_smoked', 0x080d16, { roughness: 0.14, metalness: 0.55 });
-    this._reg('win_amber', 0xd97706, {
-      roughness: 0.22,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.65
-    });
-    this._reg('win_cyan', 0x0891b2, {
-      roughness: 0.2,
-      emissive: 0x0891b2,
-      emissiveIntensity: 0.58
-    });
-    this._reg('mark_white', 0xcbd5e1, {
-      basic: true,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -2
-    });
-    this._reg('mark_amber', 0xd99b16, {
-      basic: true,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -2
-    });
-    this._reg('beacon_red', 0xef4444, { basic: true });
-    this._reg('beacon_green', 0x22c55e, { basic: true });
+    return ch;
   }
 
   addBox(key, w, h, d, x, y, z) {
-    const arr = this.buckets.get(key);
-    if (arr) arr.push(makeFastBox(w, h, d, x, y, z));
+    const spec = PERIPHERY_PALETTE[key];
+    if (!spec) return;
+    const ch = this._getChunk(x, z);
+    const entry = {
+      geo: makeFastBox(w, h, d, x - ch.originX, y, z - ch.originZ),
+      color: spec.color
+    };
+    if (spec.basic) ch.basicEntries.push(entry);
+    else ch.pbrEntries.push(entry);
   }
 
   addPitchedRoof(key, w, h, d, x, yBase, z, ridgeAlongX = true) {
-    const arr = this.buckets.get(key);
-    if (!arr) return;
+    const spec = PERIPHERY_PALETTE[key];
+    if (!spec) return;
+    const ch = this._getChunk(x, z);
+    const lx = x - ch.originX;
+    const lz = z - ch.originZ;
     const base = new THREE.BoxGeometry(1, 1, 1);
     const pos = base.attributes.position;
     const topW = ridgeAlongX ? Math.max(0.5, w * 0.92) : 0.22;
@@ -127,15 +105,17 @@ class PeripheryBatcher {
       const isTop = sy > 0;
       pos.setXYZ(
         i,
-        x + sx * (isTop ? topW : w + 1.2),
+        lx + sx * (isTop ? topW : w + 1.2),
         yBase + (sy + 0.5) * h,
-        z + sz * (isTop ? topD : d + 1.2)
+        lz + sz * (isTop ? topD : d + 1.2)
       );
     }
     const geo = base.toNonIndexed();
     base.dispose();
     geo.computeVertexNormals();
-    arr.push(geo);
+    const entry = { geo, color: spec.color };
+    if (spec.basic) ch.basicEntries.push(entry);
+    else ch.pbrEntries.push(entry);
   }
 
   addFoundation(w, d, x, ySurf, z, depth = 6.5) {
@@ -143,29 +123,44 @@ class PeripheryBatcher {
   }
 
   flush(scene) {
-    const shadowSet = new Set([
-      'steel_dark',
-      'steel_mid',
-      'military_olive',
-      'military_bunker',
-      'chalet_brick',
-      'chalet_wood',
-      'chalet_slate',
-      'roof_dark',
-      'roof_rust',
-      'coastal_stone',
-      'coastal_sandstone',
-      'coastal_teal',
-      'pcc_navy',
-      'ares_violet',
-      'container_red',
-      'container_blue'
-    ]);
-    flushSpatialChunkedBuckets(scene, this.buckets, this.materials, {
-      chunkSize: 640,
-      castShadowFn: (k) => shadowSet.has(k),
-      receiveShadowFn: (_k, mat) => !mat.isMeshBasicMaterial
-    });
+    const stdMat = getSharedPeripheryStandardVcMaterial();
+    const basicMat = getSharedPeripheryBasicVcMaterial();
+
+    for (const ch of this.chunks.values()) {
+      if (ch.pbrEntries.length > 0) {
+        const merged = mergeColoredGeometries(ch.pbrEntries);
+        merged.computeBoundingBox();
+        merged.computeBoundingSphere();
+        const mesh = new THREE.Mesh(merged, stdMat);
+        mesh.name = `PeripheryChunkPBR_${ch.key}`;
+        mesh.position.set(ch.originX, 0, ch.originZ);
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        mesh.matrixAutoUpdate = false;
+        mesh.updateMatrix();
+        if (merged.attributes.position.count > 40000) {
+          mesh.userData.skipStaticMerge = true;
+        }
+        scene.add(mesh);
+      }
+      if (ch.basicEntries.length > 0) {
+        const mergedBasic = mergeColoredGeometries(ch.basicEntries);
+        mergedBasic.computeBoundingBox();
+        mergedBasic.computeBoundingSphere();
+        const basicMesh = new THREE.Mesh(mergedBasic, basicMat);
+        basicMesh.name = `PeripheryChunkBasic_${ch.key}`;
+        basicMesh.position.set(ch.originX, 0, ch.originZ);
+        basicMesh.castShadow = false;
+        basicMesh.receiveShadow = false;
+        basicMesh.matrixAutoUpdate = false;
+        basicMesh.updateMatrix();
+        if (mergedBasic.attributes.position.count > 40000) {
+          basicMesh.userData.skipStaticMerge = true;
+        }
+        scene.add(basicMesh);
+      }
+    }
+    this.chunks.clear();
   }
 }
 
@@ -174,7 +169,6 @@ function isSafePeripheryBuildSpot(x, z, marginCoast = 46, marginHwy = 26) {
   if (getDistanceToCoastAt(x, z) < marginCoast) return false;
   if (getHighwayDistanceAt(x, z) < marginHwy) return false;
   if (getFavelaElevation(x, z) > 0.15) return false;
-  // Protege marcos/spawns oficiais das rodovias
   const protectedPts = [
     [-1215, -2420],
     [-1265, -2420],
@@ -197,14 +191,12 @@ export function buildPangaeaPeripheryExtensions(world) {
 
   // ==========================================================================
   // 1. PONTA OESTE & CABO NOROESTE — CONTINUAÇÃO DO AEROPORTO & BASE AÉREA
-  //    Conecta a Pista 09/27 até o Cabo Radar e Baía Oeste (estruturas em tamanho 1x!)
   // ==========================================================================
   {
     const rwyAnchor = wsP(-2190, -660);
     const rwyX = rwyAnchor.x;
     const rwyCenterZ = rwyAnchor.z;
 
-    // 1.1 Taxiways de Concreto (largura 26m 1x!) ligando o Aeroporto Oeste até a Pista Auxiliar 18/36
     const taxiZs = IS_SCALED_WORLD ? [rwyCenterZ - 200, rwyCenterZ + 240] : [-860, -420];
     const taxiStartX = ws(-1845);
     const taxiEndX = ws(-2160);
@@ -221,7 +213,6 @@ export function buildPangaeaPeripheryExtensions(world) {
       world.mapRoads.push({ x: taxiMidX, z: tz, w: taxiSpanW, d: 24, isMain: false });
     }
 
-    // 1.2 Pista Tática Avançada Oeste (Runway 18/36 em tamanho 1x: 60m x 840m!)
     for (let rz = rwyCenterZ - 400; rz <= rwyCenterZ + 400; rz += 40) {
       if (!isPointOnOrganicLand(rwyX, rz)) continue;
       const ry = getPangaeaElevationAt(rwyX, rz);
@@ -253,7 +244,6 @@ export function buildPangaeaPeripheryExtensions(world) {
       });
     }
 
-    // 1.3 Hangares Militares Avançados & Galpões Aeronáuticos ao longo do Oeste (dimensões 1x!)
     const westHangars = [
       { x: -1975, z: -1120, w: 54, d: 42, h: 16, mil: true, label: 'HANGAR ESQUADRÃO OESTE' },
       { x: -1975, z: -985, w: 54, d: 42, h: 16, mil: true, label: null },
@@ -289,7 +279,6 @@ export function buildPangaeaPeripheryExtensions(world) {
       peripheryCount++;
     }
 
-    // 1.4 Torre de Controle Avançada Oeste (74m 1x!) + Bunkers SAM Costeiros até a Ponta do Cabo
     const atcPos = wsP(-2095, -660);
     const atcX = atcPos.x;
     const atcZ = atcPos.z;
@@ -355,7 +344,6 @@ export function buildPangaeaPeripheryExtensions(world) {
     const chaletRoofs = ['roof_dark', 'roof_rust'];
     let cSeed = 1;
 
-    // 2.1 Bairros de Chalés & Sobrados ao longo da Rodovia Boreal Norte e Transversal (dimensões 1x!)
     const borealRows = [];
     for (let z = -1440; z >= -2520; z -= 145) {
       borealRows.push([-1310, z], [-1120, z], [-940, z], [-520, z], [-220, z], [120, z], [380, z]);
@@ -396,7 +384,6 @@ export function buildPangaeaPeripheryExtensions(world) {
       peripheryCount++;
     }
 
-    // 2.2 Parada Rodoviária & Posto Boreal (dimensões 1x!)
     const restPos = wsP(-1135, -1760);
     if (isSafePeripheryBuildSpot(restPos.x, restPos.z, 50, 30)) {
       const px = restPos.x;
@@ -426,7 +413,6 @@ export function buildPangaeaPeripheryExtensions(world) {
   // 3. PONTA SUDOESTE — CONTINUAÇÃO DA ORLA SUL, RESORTS & VILA DAS DUNAS
   // ==========================================================================
   {
-    // 3.1 Resorts Costeiros & Hotéis Sombrios ao longo do prolongamento Beira-Mar e Costa Sudoeste (dimensões 1x!)
     const swResorts = [
       { x: -1980, z: 635, w: 38, d: 30, h: 48, label: 'HOTEL MIRANTE DO SOL' },
       { x: -2220, z: 635, w: 34, d: 28, h: 42, label: null },
@@ -460,7 +446,6 @@ export function buildPangaeaPeripheryExtensions(world) {
       peripheryCount++;
     }
 
-    // 3.2 Casas de Praia, Quiosques & Bangalôs espalhados pela Península Sudoeste (dimensões 1x!)
     const duneVillageSpots = [
       [-1960, 820], [-2160, 840], [-2340, 1180], [-2590, 1060],
       [-2340, 1390], [-2610, 1520], [-2340, 1780], [-2640, 2040],
@@ -491,7 +476,6 @@ export function buildPangaeaPeripheryExtensions(world) {
   // ==========================================================================
   {
     const indWarehouses = [
-      // Eixo Norte PCC
       { x: 760, z: -1520, w: 56, d: 38, h: 16, fac: 'pcc', label: 'GALPÃO LOGÍSTICO NORTE (PCC)' },
       { x: 1140, z: -1520, w: 58, d: 40, h: 17, fac: 'pcc', label: null },
       { x: 760, z: -1820, w: 52, d: 38, h: 15, fac: 'pcc', label: null },
@@ -500,7 +484,6 @@ export function buildPangaeaPeripheryExtensions(world) {
       { x: 1420, z: -2020, w: 54, d: 38, h: 16, fac: 'ind', label: null },
       { x: 1780, z: -2020, w: 58, d: 40, h: 17, fac: 'ares', label: 'USINA CIBERNÉTICA A.R.E.S.' },
       { x: 2040, z: -2280, w: 52, d: 38, h: 16, fac: 'ares', label: null },
-      // Eixo Leste Rumo ao Parque Eólico & Refinaria de Tétis
       { x: 1820, z: -1060, w: 60, d: 42, h: 18, fac: 'pcc', label: 'TERMINAL DE CARGAS TÉTIS' },
       { x: 1820, z: -740, w: 56, d: 40, h: 16, fac: 'ind', label: null },
       { x: 2120, z: -1060, w: 58, d: 40, h: 17, fac: 'ind', label: null },
@@ -532,7 +515,6 @@ export function buildPangaeaPeripheryExtensions(world) {
         wp.z
       );
 
-      // Chaminé industrial + Pilha de contêineres anexa ao pátio do galpão (offset 1x rígido!)
       b.addBox('steel_dark', 2.8, wh.h + 11.0, 2.8, wp.x - wh.w * 0.36, wy + (wh.h + 11.0) * 0.5, wp.z - wh.d * 0.32);
       b.addBox('beacon_red', 1.1, 1.1, 1.1, wp.x - wh.w * 0.36, wy + wh.h + 11.5, wp.z - wh.d * 0.32);
 
@@ -559,7 +541,6 @@ export function buildPangaeaPeripheryExtensions(world) {
       peripheryCount++;
     }
 
-    // Placa Tática na entrada da Pista Auxiliar 18/36 Oeste (dimensões 1x!)
     const signPos = wsP(-2140, -1245);
     const rwySignY = getPangaeaElevationAt(signPos.x, signPos.z);
     world.scene.add(
@@ -580,4 +561,7 @@ export function buildPangaeaPeripheryExtensions(world) {
 
   b.flush(world.scene);
   world.pangaeaPeripheryData = { structuresBuilt: peripheryCount };
+
+  // Constrói Serra com Mata Atlântica, Restinga/Mangue e Estradinhas Rurais da Pangeia
+  buildNaturalPeriphery(world);
 }
