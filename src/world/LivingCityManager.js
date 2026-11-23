@@ -173,15 +173,31 @@ export class LivingCityManager {
       this._updateDynamicCrowdRing(playerPos);
     }
 
+    if (!this._perfTimings) {
+      this._perfTimings = { livingCity: 0, factionWar: 0, police: 0 };
+    }
+    const tCit0 = performance.now();
     this._updateUrbanTraffic(dt, playerPos, controller);
     this.corpseManager?.update(dt, playerPos, controller);
     this._updatePedestrians(dt, playerPos, controller);
     this._updateCivilianSkyHelicopter(dt);
+    const tCit1 = performance.now();
+    this._perfTimings.livingCity = tCit1 - tCit0;
+
     if (this.factionWar) {
+      const tFac0 = performance.now();
       this.factionWar.update(dt, playerPos, controller);
+      this._perfTimings.factionWar = performance.now() - tFac0;
+    } else {
+      this._perfTimings.factionWar = 0;
     }
+
     if (this.wantedSystem) {
+      const tPol0 = performance.now();
       this.wantedSystem.update(dt, playerPos, controller);
+      this._perfTimings.police = performance.now() - tPol0;
+    } else {
+      this._perfTimings.police = 0;
     }
   }
 }

@@ -134,6 +134,10 @@ export class TestBlockWorld {
   }
 
   update(dt, playerPos = null, controller = null) {
+    const tWorld0 = performance.now();
+    if (!this._perfTimings) {
+      this._perfTimings = { atmosphere: 0, worldTotal: 0 };
+    }
     if (this.metroSystem) {
       this.metroSystem.update(dt, playerPos);
       // Herói sentado no vagão acompanha o trem no mesmo quadro (sem atraso de 1 frame).
@@ -166,8 +170,11 @@ export class TestBlockWorld {
     }
 
     if (this.atmosphere) {
+      const tAtm0 = performance.now();
       this.atmosphere.update(dt, playerPos, controller);
+      this._perfTimings.atmosphere = performance.now() - tAtm0;
     } else if (playerPos && this.sunLight) {
+      this._perfTimings.atmosphere = 0;
       if (playerPos.distanceToSquared(this._lastSunUpdatePos) > 9.0) {
         this._lastSunUpdatePos.copy(playerPos);
         this.sunLight.position.set(playerPos.x + 120, playerPos.y + 200, playerPos.z + 100);
@@ -188,6 +195,7 @@ export class TestBlockWorld {
         }
       }
     }
+    this._perfTimings.worldTotal = performance.now() - tWorld0;
   }
 }
 

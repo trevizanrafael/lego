@@ -9,6 +9,7 @@ import { LegoHud } from './ui/LegoHud.js';
 import { GraphicsPipeline } from './graphics/GraphicsPipeline.js';
 import { prewarmAllRuntimeShaders } from './graphics/ShaderWarmupRig.js';
 import { HitchProfiler } from './debug/HitchProfiler.js';
+import { PerfOverlay, auditSceneGraph } from './debug/PerfOverlay.js';
 import { getStaticMinimapCache } from './ui/minimap/MinimapTerrainAndRoadsPainter.js';
 import { CollisionDebugOverlay, isCollisionDebugAllowed } from './world/collision/CollisionDebugOverlay.js';
 import { WORLD_SCALE } from './world/core/WorldLayoutScale.js';
@@ -222,6 +223,15 @@ class LegoCityGame {
     );
     this.graphicsPipeline.setKillEffectEnabled?.(this.hud?.settings?.killEffect !== false);
     this.hitchProfiler = new HitchProfiler(this.renderer);
+    this.perfOverlay = new PerfOverlay(this.renderer);
+    if (typeof window !== 'undefined') {
+      window.__legoPerf = {
+        overlay: this.perfOverlay,
+        auditScene: () => auditSceneGraph(this.scene, this.camera),
+        resetWindow: () => this.perfOverlay?.resetWindow(),
+        getWindowStats: () => this.perfOverlay?.getWindowStats()
+      };
+    }
     this.controller.onToggleFullMap = () => {
       this.hitchProfiler?.markAction('toggle_full_map');
       this.hud.toggleFullMap(this.world, this.controller);
@@ -417,6 +427,7 @@ class LegoCityGame {
 
   _animate(now) {
     requestAnimationFrame(this._animate);
+    if (this._benchPaused) return;
 
     const rawDt = (now - this.lastTime) * 0.001;
     this.lastTime = now;
@@ -448,15 +459,30 @@ class LegoCityGame {
     const dt = baseDt * timeScale;
 
     if (dt > 0) {
+      const tCtl0 = performance.now();
       this.controller.update(dt);
+      const tCtl1 = performance.now();
       const pos = this.controller.position;
       if (!this._camFwd) this._camFwd = { x: 0, z: -1 };
       this._camFwd.x = -Math.sin(this.controller.yaw || 0);
       this._camFwd.z = -Math.cos(this.controller.yaw || 0);
       this.destructibles.update(dt, pos, this._camFwd);
+      const tDest1 = performance.now();
       this.world.update(dt, pos, this.controller);
       this.collisionDebugOverlay?.update(dt, this.world, pos, this.controller);
+      if (this.perfOverlay) {
+        const lcPerf = this.world?.livingCity?._perfTimings;
+        const wPerf = this.world?._perfTimings;
+        this.perfOverlay.cur.controller = tCtl1 - tCtl0;
+        this.perfOverlay.cur.destructibles = tDest1 - tCtl1;
+        this.perfOverlay.cur.livingCity = lcPerf?.livingCity || 0;
+        this.perfOverlay.cur.factionWar = lcPerf?.factionWar || 0;
+        this.perfOverlay.cur.police = lcPerf?.police || 0;
+        this.perfOverlay.cur.atmosphere = wPerf?.atmosphere || 0;
+        this.perfOverlay.cur.worldTotal = wPerf?.worldTotal || 0;
+      }
     }
+    const tHud0 = performance.now();
     this.hud.update(baseDt, this.camera);
 
     const pos = this.controller.position;
@@ -475,6 +501,7 @@ class LegoCityGame {
         this._lastMapHover = this.hud.hoveredRegionId;
         this.hud.renderFullMap(this.world, pos, this.controller.facingAngle, this.controller);
       }
+      this.perfOverlay?.updateDom(baseDt, false);
       this.hitchProfiler?.recordFrame(rawDt * 1000, this.renderer, now);
       return;
     }
@@ -482,8 +509,19 @@ class LegoCityGame {
     const currentRegion = this.world.getRegionAt(pos.x, pos.y, pos.z);
     const speed = this.controller.getHorizontalSpeed();
     this.hud.updateMinimap(pos, this.controller.facingAngle, this.controller.yaw, currentRegion, this.world, speed, baseDt);
+    const tHud1 = performance.now();
+    if (this.perfOverlay) {
+      this.perfOverlay.cur.hud = tHud1 - tHud0;
+      this.perfOverlay.beginRenderFrame();
+    }
 
+    const tRnd0 = performance.now();
     this._renderScene(baseDt);
+    const tRnd1 = performance.now();
+    if (this.perfOverlay) {
+      this.perfOverlay.endRenderFrame(tRnd1 - tRnd0, rawDt * 1000);
+      this.perfOverlay.updateDom(baseDt, true);
+    }
     this.hitchProfiler?.recordFrame(rawDt * 1000, this.renderer, now);
   }
 }
