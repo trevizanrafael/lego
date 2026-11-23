@@ -5,7 +5,12 @@ import { IS_SCALED_WORLD, ws, fromWs } from '../../core/WorldLayoutScale.js';
 const HILL_MIN_DESIGN_Z = -1825;
 const HILL_MAX_DESIGN_Z = 680;
 const HILL_Z_BANDS = 5;
-export const FAVELA_LOD1_DISTANCE = 650;
+export const FAVELA_LOD1_DISTANCE = 260;
+
+const L1_SKIP_SOLID_KEYS = new Set([
+  'alley_cement', 'rebar_iron', 'water_tank_blue', 'water_tank_lid',
+  'wood_pole', 'wire_black', 'brick_groove', 'fence_mesh', 'hill_bush'
+]);
 
 const _UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const _BOX_POS = _UNIT_BOX.attributes.position.array;
@@ -204,6 +209,13 @@ const WIN_TINT_HEX = { window_lit: 0xffd178, window_orange: 0xf97316, window_tv_
 const BULB_TINT_HEX = { favela_bulb_warm: 0xfde68a, floodlight_panel: 0xe0f2fe };
 
 function getZBand(z) {
+  if (IS_SCALED_WORLD) {
+    if (z < -1540) return 0;
+    if (z < -700) return 1;
+    if (z < 0) return 2;
+    if (z < 860) return 3;
+    return 4;
+  }
   const minZ = ws(HILL_MIN_DESIGN_Z), maxZ = ws(HILL_MAX_DESIGN_Z);
   return Math.max(0, Math.min(HILL_Z_BANDS - 1, Math.floor(((z - minZ) / Math.max(1, maxZ - minZ)) * HILL_Z_BANDS)));
 }
@@ -327,15 +339,16 @@ export class FavelaBatcher {
   }
 
   addWallBox(tileId, tintHex, w, h, d, x, y, z, rotY = 0, lodMode = 'both', skipBottom = true) {
+    if (w < 0.16 && d < 0.16 && h < 0.16) return;
     const band = this.bands[getZBand(z)];
     const rec = { w, h, d, x, y, z, rotX: 0, rotY, rotZ: 0, hex: tintHex, tileId, faceMode: skipBottom ? 1 : 0 };
     if (lodMode !== 'l1') band.wallL0.push(rec);
-    if (lodMode !== 'l0') band.wallL1.push(rec);
+    if (lodMode === 'l1' || (lodMode !== 'l0' && Math.max(w, d) >= 3.2 && h >= 1.8)) band.wallL1.push(rec);
   }
 
   addSlopedBox(key, w, h, d, x, y, z, rotX = 0, rotZ = 0, rotY = 0, tintHex = null, lodMode = 'auto', skipBottom = false) {
     if (WIN_TINT_HEX[key] !== undefined) {
-      this.winBoxes.push({ w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? WIN_TINT_HEX[key], tileId: -1, faceMode: d <= 0.22 ? 2 : 1 });
+      this.winBoxes.push({ w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? WIN_TINT_HEX[key], tileId: -1, faceMode: Math.min(w, d) <= 0.24 ? 2 : 1 });
       return;
     }
     if (BULB_TINT_HEX[key] !== undefined) {
@@ -347,19 +360,31 @@ export class FavelaBatcher {
       return;
     }
     if ((key === 'brick_baiano' || key === 'brick_baiano_light') && h >= 1.1 && !rotX && !rotZ) {
-      this.addWallBox(0, key === 'brick_baiano_light' ? 0xffffff : 0xead8cc, w, h, d, x, y, z, rotY, lodMode, skipBottom);
+      this.addWallBox(0, key === 'brick_baiano_light' ? 0xffffff : 0xead8cc, w, h, d, x, y, z, rotY, lodMode, true);
       return;
     }
     if (key === 'cement_raw' && h >= 1.1 && !rotX && !rotZ) {
-      this.addWallBox(2, 0x767d88, w, h, d, x, y, z, rotY, lodMode, skipBottom);
+      this.addWallBox(2, 0x767d88, w, h, d, x, y, z, rotY, lodMode, true);
       return;
     }
-    const mode = lodMode === 'auto' ? (key === 'wire_black' || w < 0.95 || d < 0.95 || (h < 0.26 && w * d < 18) ? 'l0' : 'both') : lodMode;
-    const faceMode = skipBottom || key === 'retaining_concrete' || key === 'alley_cement' ? 1 : 0;
+    if (key !== 'wire_black' && key !== 'rebar_iron' && Math.max(w, h, d) < 0.16) return;
+
+    let allowL1 = false;
+    if (!L1_SKIP_SOLID_KEYS.has(key) && lodMode !== 'l0') {
+      if (lodMode === 'l1') {
+        allowL1 = Math.max(w, d) >= 3.2;
+      } else if (key === 'retaining_concrete') {
+        allowL1 = w >= 8.0 && d >= 8.0 && h >= 2.0;
+      } else {
+        allowL1 = Math.max(w, d) >= 3.2 && Math.min(w, d) >= 1.2 && h >= 1.8;
+      }
+    }
+
+    const faceMode = skipBottom || (Math.abs(rotX) < 0.36 && Math.abs(rotZ) < 0.36) ? 1 : 0;
     const rec = { w, h, d, x, y, z, rotX, rotY, rotZ, hex: tintHex ?? SOLID_COLOR_HEX[key] ?? 0x4b5563, tileId: -1, faceMode };
     const band = this.bands[getZBand(z)];
-    if (mode !== 'l1') band.solidL0.push(rec);
-    if (mode !== 'l0') band.solidL1.push(rec);
+    if (lodMode !== 'l1') band.solidL0.push(rec);
+    if (allowL1) band.solidL1.push(rec);
   }
 
   addBox(key, w, h, d, x, y, z, rotY = 0, tintHex = null, lodMode = 'auto', skipBottom = false) {
@@ -372,12 +397,12 @@ export class FavelaBatcher {
     this.addSlopedBox(
       key, width, thickness, Math.hypot(horiz, dy) + overlap,
       (x1 + x2) * 0.5, (y1 + y2) * 0.5, (z1 + z2) * 0.5,
-      -Math.atan2(dy, horiz), 0, Math.atan2(dx, dz), tintHex, lodMode, key === 'alley_cement' || key === 'retaining_concrete'
+      -Math.atan2(dy, horiz), 0, Math.atan2(dx, dz), tintHex, lodMode, true
     );
   }
 
   addCylinder(key, rTop, rBot, h, x, y, z, segs = 6, lodMode = 'auto') {
-    const mode = lodMode === 'auto' ? (rTop < 2.5 ? 'l0' : 'both') : lodMode;
+    const allowL1 = !L1_SKIP_SOLID_KEYS.has(key) && lodMode !== 'l0' && rTop >= 2.5 && h >= 1.8;
     const hex = SOLID_COLOR_HEX[key] ?? 0x4b5563;
     let cyl;
     if (segs <= 6) {
@@ -395,8 +420,8 @@ export class FavelaBatcher {
       cyl = { pos: g.attributes.position.array, norm: g.attributes.normal.array, idx: g.index.array, hex };
     }
     const band = this.bands[getZBand(z)];
-    if (mode !== 'l1') band.cylL0.push(cyl);
-    if (mode !== 'l0') band.cylL1.push(cyl);
+    if (lodMode !== 'l1') band.cylL0.push(cyl);
+    if (allowL1) band.cylL1.push(cyl);
   }
 
   flush(scene) {
@@ -465,7 +490,7 @@ export class FavelaBatcher {
 export function buildContinuousSmoothHillMesh(world) {
   const minX = ws(-1016), maxX = ws(-524), minZ = ws(HILL_MIN_DESIGN_Z), maxZ = ws(HILL_MAX_DESIGN_Z);
   const width = maxX - minX, centerX = (minX + maxX) * 0.5, bandSpanZ = (maxZ - minZ) / HILL_Z_BANDS;
-  const segsX = IS_SCALED_WORLD ? 96 : 64, segsZPerBand = IS_SCALED_WORLD ? 76 : 48;
+  const segsX = 64, segsZPerBand = IS_SCALED_WORLD ? 52 : 48;
   const hillMat = markAsSharedAsset(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.03 }));
   const cStreetBorder = new THREE.Color(0x232831), cAlleyConcrete = new THREE.Color(0x2f343d);
   const cPackedEarth = new THREE.Color(0x36342f), cScrubCapim = new THREE.Color(0x1a2b1d), cWetGranite = new THREE.Color(0x282d36);

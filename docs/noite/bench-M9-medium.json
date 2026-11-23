@@ -1,0 +1,1799 @@
+{
+  "tag": "M9-medium",
+  "timestamp": "2026-11-23T16:25:52.643Z",
+  "preset": "medium",
+  "loadTimeMs": 57949,
+  "sceneAudit": {
+    "meshes": 2911,
+    "instancedMeshes": 198,
+    "totalInstances": 35092,
+    "shadowCasters": 71,
+    "uniqueMaterials": 189,
+    "physicalMaterials": 10,
+    "standardMaterials": 100,
+    "basicMaterials": 78,
+    "lambertMaterials": 0,
+    "shaderMaterials": 1,
+    "uniqueGeometries": 2084,
+    "totalTriangles": 12763554,
+    "transparentMeshes": 78,
+    "frustumUnculled": 122,
+    "lights": {
+      "directional": 1,
+      "point": 4,
+      "spot": 1,
+      "hemisphere": 1
+    },
+    "cameraFar": 3100,
+    "fogDensity": 0.00082,
+    "fogNear": null,
+    "fogFar": null
+  },
+  "colliders": 58379,
+  "mapBuildings": 13782,
+  "mapOrganicRoads": 491,
+  "pipelineStats": {
+    "preset": "medium",
+    "autoTier": 2,
+    "drsScale": 1,
+    "effectivePixelRatio": 1,
+    "emaMs": 16.67,
+    "useComposer": true,
+    "gtaoEnabled": false,
+    "bloomEnabled": true,
+    "noirGradeEnabled": true,
+    "aaMode": "fxaa",
+    "shadowMapSize": 1536,
+    "dynamicShadows": true,
+    "activeShadowCasters": 34,
+    "cameraFar": 3100,
+    "fogDensity": 0.00082
+  },
+  "pageErrors": [],
+  "points": [
+    {
+      "id": "centro_financeiro",
+      "label": "CENTRO FINANCEIRO",
+      "pos": {
+        "x": 0,
+        "y": 0.5,
+        "z": -276
+      },
+      "perf": {
+        "controller": {
+          "avg": 33,
+          "p90": 129.8,
+          "max": 129.8
+        },
+        "destructibles": {
+          "avg": 14.4,
+          "p90": 56.3,
+          "max": 56.3
+        },
+        "livingCity": {
+          "avg": 67.225,
+          "p90": 141.9,
+          "max": 141.9
+        },
+        "factionWar": {
+          "avg": 0.05,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0.025,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "atmosphere": {
+          "avg": 0.2,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "worldTotal": {
+          "avg": 67.775,
+          "p90": 142.7,
+          "max": 142.7
+        },
+        "hud": {
+          "avg": 2.675,
+          "p90": 9.3,
+          "max": 9.3
+        },
+        "render": {
+          "avg": 252.5,
+          "p90": 445.5,
+          "max": 445.5
+        },
+        "frame": {
+          "avg": 355.95,
+          "p90": 458.9,
+          "max": 458.9
+        },
+        "drawCalls": {
+          "avg": 422.5,
+          "p90": 440,
+          "max": 440
+        },
+        "triangles": {
+          "avg": 1297261,
+          "p90": 1313041,
+          "max": 1313041
+        },
+        "samples": 4,
+        "programs": 88,
+        "geometries": 658,
+        "textures": 58
+      },
+      "cur": {
+        "controller": 129.79999995231628,
+        "destructibles": 0.30000007152557373,
+        "livingCity": 0.7000000476837158,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0.09999990463256836,
+        "worldTotal": 1.0999999046325684,
+        "hud": 0.5,
+        "render": 60,
+        "frame": 191.39999985694885,
+        "drawCalls": 440,
+        "triangles": 1313041,
+        "programs": 88,
+        "geometries": 658,
+        "textures": 58
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "torre_herois",
+      "label": "TORRE DOS HERÓIS",
+      "pos": {
+        "x": -972,
+        "y": 310.85,
+        "z": -504
+      },
+      "perf": {
+        "controller": {
+          "avg": 71.125,
+          "p90": 163.6,
+          "max": 163.6
+        },
+        "destructibles": {
+          "avg": 0.575,
+          "p90": 1.1,
+          "max": 1.1
+        },
+        "livingCity": {
+          "avg": 0.2,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "factionWar": {
+          "avg": 0.05,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 3.55,
+          "p90": 13.6,
+          "max": 13.6
+        },
+        "worldTotal": {
+          "avg": 4.025,
+          "p90": 14.1,
+          "max": 14.1
+        },
+        "hud": {
+          "avg": 1.275,
+          "p90": 1.8,
+          "max": 1.8
+        },
+        "render": {
+          "avg": 477.2,
+          "p90": 1167,
+          "max": 1167
+        },
+        "frame": {
+          "avg": 553.625,
+          "p90": 1192.4,
+          "max": 1192.4
+        },
+        "drawCalls": {
+          "avg": 326,
+          "p90": 343,
+          "max": 343
+        },
+        "triangles": {
+          "avg": 1314083,
+          "p90": 1315191,
+          "max": 1315191
+        },
+        "samples": 4,
+        "programs": 88,
+        "geometries": 676,
+        "textures": 60
+      },
+      "cur": {
+        "controller": 0.7999999523162842,
+        "destructibles": 0.5,
+        "livingCity": 0.19999992847442627,
+        "factionWar": 0.10000002384185791,
+        "police": 0,
+        "atmosphere": 0.10000002384185791,
+        "worldTotal": 0.7000000476837158,
+        "hud": 0.6999999284744263,
+        "render": 11.700000047683716,
+        "frame": 13.899999976158142,
+        "drawCalls": 309,
+        "triangles": 1312975,
+        "programs": 88,
+        "geometries": 676,
+        "textures": 60
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3822.4690103589573,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "parque_central",
+      "label": "PARQUE CENTRAL",
+      "pos": {
+        "x": 0,
+        "y": 0.6,
+        "z": 726
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.9,
+          "p90": 1.7,
+          "max": 1.7
+        },
+        "destructibles": {
+          "avg": 0.475,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "livingCity": {
+          "avg": 0.375,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "factionWar": {
+          "avg": 0.05,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.075,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "worldTotal": {
+          "avg": 4.05,
+          "p90": 14,
+          "max": 14
+        },
+        "hud": {
+          "avg": 1.05,
+          "p90": 2.6,
+          "max": 2.6
+        },
+        "render": {
+          "avg": 13.9,
+          "p90": 16.2,
+          "max": 16.2
+        },
+        "frame": {
+          "avg": 19.9,
+          "p90": 30.6,
+          "max": 30.6
+        },
+        "drawCalls": {
+          "avg": 432,
+          "p90": 449,
+          "max": 449
+        },
+        "triangles": {
+          "avg": 1472640,
+          "p90": 1473748,
+          "max": 1473748
+        },
+        "samples": 4,
+        "programs": 88,
+        "geometries": 716,
+        "textures": 65
+      },
+      "cur": {
+        "controller": 0.6000000238418579,
+        "destructibles": 0.5,
+        "livingCity": 0.19999992847442627,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0.10000002384185791,
+        "worldTotal": 0.7000000476837158,
+        "hud": 0.5,
+        "render": 13.699999928474426,
+        "frame": 15.5,
+        "drawCalls": 449,
+        "triangles": 1473748,
+        "programs": 88,
+        "geometries": 716,
+        "textures": 65
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "suburbio_norte",
+      "label": "SUBÚRBIO (NORTE)",
+      "pos": {
+        "x": 360,
+        "y": 2.2,
+        "z": -1938
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.95,
+          "p90": 2.7,
+          "max": 2.7
+        },
+        "destructibles": {
+          "avg": 6.925,
+          "p90": 25.7,
+          "max": 25.7
+        },
+        "livingCity": {
+          "avg": 0.7,
+          "p90": 1.2,
+          "max": 1.2
+        },
+        "factionWar": {
+          "avg": 0.075,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.15,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "worldTotal": {
+          "avg": 1.125,
+          "p90": 2,
+          "max": 2
+        },
+        "hud": {
+          "avg": 14.85,
+          "p90": 53.8,
+          "max": 53.8
+        },
+        "render": {
+          "avg": 9.225,
+          "p90": 21.3,
+          "max": 21.3
+        },
+        "frame": {
+          "avg": 26.15,
+          "p90": 62.5,
+          "max": 62.5
+        },
+        "drawCalls": {
+          "avg": 298,
+          "p90": 315,
+          "max": 315
+        },
+        "triangles": {
+          "avg": 1264234,
+          "p90": 1265342,
+          "max": 1265342
+        },
+        "samples": 4,
+        "programs": 88,
+        "geometries": 727,
+        "textures": 65
+      },
+      "cur": {
+        "controller": 2.6999999284744263,
+        "destructibles": 1.600000023841858,
+        "livingCity": 0.7000000476837158,
+        "factionWar": 0.09999990463256836,
+        "police": 0,
+        "atmosphere": 0.20000004768371582,
+        "worldTotal": 1.100000023841858,
+        "hud": 0.2999999523162842,
+        "render": 5.800000071525574,
+        "frame": 9.899999976158142,
+        "drawCalls": 281,
+        "triangles": 1263126,
+        "programs": 88,
+        "geometries": 727,
+        "textures": 65
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "praia_sul",
+      "label": "PRAIA & DUNAS (SUL)",
+      "pos": {
+        "x": 0,
+        "y": 1.5,
+        "z": 3240
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.675,
+          "p90": 0.7,
+          "max": 0.7
+        },
+        "destructibles": {
+          "avg": 0.475,
+          "p90": 0.7,
+          "max": 0.7
+        },
+        "livingCity": {
+          "avg": 0.15,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "factionWar": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "police": {
+          "avg": 0.025,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "atmosphere": {
+          "avg": 0.2,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "worldTotal": {
+          "avg": 0.825,
+          "p90": 1,
+          "max": 1
+        },
+        "hud": {
+          "avg": 0.55,
+          "p90": 0.6,
+          "max": 0.6
+        },
+        "render": {
+          "avg": 18.925,
+          "p90": 33.7,
+          "max": 33.7
+        },
+        "frame": {
+          "avg": 20.975,
+          "p90": 35.6,
+          "max": 35.6
+        },
+        "drawCalls": {
+          "avg": 392,
+          "p90": 409,
+          "max": 409
+        },
+        "triangles": {
+          "avg": 1355761,
+          "p90": 1356869,
+          "max": 1356869
+        },
+        "samples": 4,
+        "programs": 88,
+        "geometries": 735,
+        "textures": 65
+      },
+      "cur": {
+        "controller": 0.6000000238418579,
+        "destructibles": 0.6999999284744263,
+        "livingCity": 0.09999990463256836,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0.2999999523162842,
+        "worldTotal": 0.8999999761581421,
+        "hud": 0.6000000238418579,
+        "render": 9.5,
+        "frame": 11.600000023841858,
+        "drawCalls": 409,
+        "triangles": 1356869,
+        "programs": 88,
+        "geometries": 735,
+        "textures": 65
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "industrial_leste",
+      "label": "INDUSTRIAL & EÓLICO (PCC)",
+      "pos": {
+        "x": 2460,
+        "y": 7.2,
+        "z": -1020
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.475,
+          "p90": 0.6,
+          "max": 0.6
+        },
+        "destructibles": {
+          "avg": 0.775,
+          "p90": 2.2,
+          "max": 2.2
+        },
+        "livingCity": {
+          "avg": 1.175,
+          "p90": 4.1,
+          "max": 4.1
+        },
+        "factionWar": {
+          "avg": 57.525,
+          "p90": 228,
+          "max": 228
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.1,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "worldTotal": {
+          "avg": 59.05,
+          "p90": 232.4,
+          "max": 232.4
+        },
+        "hud": {
+          "avg": 59.35,
+          "p90": 236.1,
+          "max": 236.1
+        },
+        "render": {
+          "avg": 342.725,
+          "p90": 673.5,
+          "max": 673.5
+        },
+        "frame": {
+          "avg": 461.6,
+          "p90": 906.7,
+          "max": 906.7
+        },
+        "drawCalls": {
+          "avg": 292.5,
+          "p90": 301,
+          "max": 301
+        },
+        "triangles": {
+          "avg": 1043530,
+          "p90": 1044084,
+          "max": 1044084
+        },
+        "samples": 4,
+        "programs": 88,
+        "geometries": 802,
+        "textures": 66
+      },
+      "cur": {
+        "controller": 0.6000000238418579,
+        "destructibles": 2.1999999284744263,
+        "livingCity": 0.20000004768371582,
+        "factionWar": 0.6999999284744263,
+        "police": 0,
+        "atmosphere": 0.10000002384185791,
+        "worldTotal": 1.2000000476837158,
+        "hud": 236.10000002384186,
+        "render": 263.7999999523163,
+        "frame": 501.7000000476837,
+        "drawCalls": 267,
+        "triangles": 1041868,
+        "programs": 88,
+        "geometries": 802,
+        "textures": 66
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "porto_leste",
+      "label": "PORTO (LESTE)",
+      "pos": {
+        "x": 2475,
+        "y": 0.5,
+        "z": 1140
+      },
+      "perf": {
+        "controller": {
+          "avg": 61.95,
+          "p90": 243.6,
+          "max": 243.6
+        },
+        "destructibles": {
+          "avg": 0.675,
+          "p90": 1.9,
+          "max": 1.9
+        },
+        "livingCity": {
+          "avg": 8.725,
+          "p90": 34.4,
+          "max": 34.4
+        },
+        "factionWar": {
+          "avg": 3.9,
+          "p90": 14.4,
+          "max": 14.4
+        },
+        "police": {
+          "avg": 0.075,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "atmosphere": {
+          "avg": 0.475,
+          "p90": 1.3,
+          "max": 1.3
+        },
+        "worldTotal": {
+          "avg": 14.45,
+          "p90": 35.3,
+          "max": 35.3
+        },
+        "hud": {
+          "avg": 4.825,
+          "p90": 17.5,
+          "max": 17.5
+        },
+        "render": {
+          "avg": 369.35,
+          "p90": 756.2,
+          "max": 756.2
+        },
+        "frame": {
+          "avg": 450.575,
+          "p90": 1002.3,
+          "max": 1002.3
+        },
+        "drawCalls": {
+          "avg": 420,
+          "p90": 441,
+          "max": 441
+        },
+        "triangles": {
+          "avg": 1196891.5,
+          "p90": 1198654,
+          "max": 1198654
+        },
+        "samples": 4,
+        "programs": 92,
+        "geometries": 940,
+        "textures": 73
+      },
+      "cur": {
+        "controller": 243.60000002384186,
+        "destructibles": 0.2999999523162842,
+        "livingCity": 0.19999992847442627,
+        "factionWar": 0.30000007152557373,
+        "police": 0,
+        "atmosphere": 1.2999999523162842,
+        "worldTotal": 2,
+        "hud": 0.5,
+        "render": 756.2000000476837,
+        "frame": 1002.3000000715256,
+        "drawCalls": 413,
+        "triangles": 1196304,
+        "programs": 92,
+        "geometries": 940,
+        "textures": 73
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "aeroporto_oeste",
+      "label": "AEROPORTO & CABO OESTE",
+      "pos": {
+        "x": -3180,
+        "y": 0.5,
+        "z": 0
+      },
+      "perf": {
+        "controller": {
+          "avg": 1.15,
+          "p90": 2.2,
+          "max": 2.2
+        },
+        "destructibles": {
+          "avg": 0.325,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "livingCity": {
+          "avg": 0.325,
+          "p90": 0.7,
+          "max": 0.7
+        },
+        "factionWar": {
+          "avg": 0.075,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.225,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "worldTotal": {
+          "avg": 1.3,
+          "p90": 1.9,
+          "max": 1.9
+        },
+        "hud": {
+          "avg": 0.7,
+          "p90": 0.9,
+          "max": 0.9
+        },
+        "render": {
+          "avg": 28.2,
+          "p90": 58.6,
+          "max": 58.6
+        },
+        "frame": {
+          "avg": 31.35,
+          "p90": 60.7,
+          "max": 60.7
+        },
+        "drawCalls": {
+          "avg": 296,
+          "p90": 313,
+          "max": 313
+        },
+        "triangles": {
+          "avg": 1079250,
+          "p90": 1080358,
+          "max": 1080358
+        },
+        "samples": 4,
+        "programs": 93,
+        "geometries": 948,
+        "textures": 73
+      },
+      "cur": {
+        "controller": 0.7000000476837158,
+        "destructibles": 0.2999999523162842,
+        "livingCity": 0.2999999523162842,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0.19999992847442627,
+        "worldTotal": 0.8999999761581421,
+        "hud": 0.5,
+        "render": 58.60000002384186,
+        "frame": 60.700000047683716,
+        "drawCalls": 279,
+        "triangles": 1078142,
+        "programs": 93,
+        "geometries": 948,
+        "textures": 73
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "ilha_prisao",
+      "label": "ILHA DA PRISÃO",
+      "pos": {
+        "x": 4125,
+        "y": 0.5,
+        "z": 3525
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.525,
+          "p90": 0.7,
+          "max": 0.7
+        },
+        "destructibles": {
+          "avg": 0.225,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "livingCity": {
+          "avg": 0.15,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "factionWar": {
+          "avg": 0.025,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.15,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "worldTotal": {
+          "avg": 2.2,
+          "p90": 6.9,
+          "max": 6.9
+        },
+        "hud": {
+          "avg": 5.7,
+          "p90": 21.5,
+          "max": 21.5
+        },
+        "render": {
+          "avg": 159.65,
+          "p90": 580.2,
+          "max": 580.2
+        },
+        "frame": {
+          "avg": 168.075,
+          "p90": 587.8,
+          "max": 587.8
+        },
+        "drawCalls": {
+          "avg": 316,
+          "p90": 333,
+          "max": 333
+        },
+        "triangles": {
+          "avg": 1134239,
+          "p90": 1135347,
+          "max": 1135347
+        },
+        "samples": 4,
+        "programs": 93,
+        "geometries": 967,
+        "textures": 73
+      },
+      "cur": {
+        "controller": 0.5,
+        "destructibles": 0.2999999523162842,
+        "livingCity": 0.10000002384185791,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0.30000007152557373,
+        "worldTotal": 0.8000000715255737,
+        "hud": 0.5,
+        "render": 9.100000023841858,
+        "frame": 10.900000095367432,
+        "drawCalls": 333,
+        "triangles": 1135347,
+        "programs": 93,
+        "geometries": 967,
+        "textures": 73
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "aeroporta_avioes",
+      "label": "AEROPORTA-AVIÕES",
+      "pos": {
+        "x": 0,
+        "y": 411.5,
+        "z": -150
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.775,
+          "p90": 0.8,
+          "max": 0.8
+        },
+        "destructibles": {
+          "avg": 0.45,
+          "p90": 0.6,
+          "max": 0.6
+        },
+        "livingCity": {
+          "avg": 0.25,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "factionWar": {
+          "avg": 0.025,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.25,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "worldTotal": {
+          "avg": 0.85,
+          "p90": 1.1,
+          "max": 1.1
+        },
+        "hud": {
+          "avg": 0.625,
+          "p90": 0.7,
+          "max": 0.7
+        },
+        "render": {
+          "avg": 11.875,
+          "p90": 14.7,
+          "max": 14.7
+        },
+        "frame": {
+          "avg": 14.125,
+          "p90": 17.1,
+          "max": 17.1
+        },
+        "drawCalls": {
+          "avg": 404,
+          "p90": 439,
+          "max": 439
+        },
+        "triangles": {
+          "avg": 1313587,
+          "p90": 1314911,
+          "max": 1314911
+        },
+        "samples": 4,
+        "programs": 94,
+        "geometries": 1043,
+        "textures": 75
+      },
+      "cur": {
+        "controller": 0.7999999523162842,
+        "destructibles": 0.6000000238418579,
+        "livingCity": 0.19999992847442627,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0.5,
+        "worldTotal": 1.100000023841858,
+        "hud": 0.6999999284744263,
+        "render": 11.5,
+        "frame": 14.099999904632568,
+        "drawCalls": 369,
+        "triangles": 1312263,
+        "programs": 94,
+        "geometries": 1043,
+        "textures": 75
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 4600,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "X_fav_close",
+      "label": "Favela CDD (Becos / Encosta)",
+      "pos": {
+        "x": -2080,
+        "y": 24,
+        "z": -390
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.5,
+          "p90": 0.8,
+          "max": 0.8
+        },
+        "destructibles": {
+          "avg": 0.225,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "livingCity": {
+          "avg": 0.3,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "factionWar": {
+          "avg": 0.25,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 23.05,
+          "p90": 91.9,
+          "max": 91.9
+        },
+        "worldTotal": {
+          "avg": 122.95,
+          "p90": 396,
+          "max": 396
+        },
+        "hud": {
+          "avg": 0.5,
+          "p90": 0.8,
+          "max": 0.8
+        },
+        "render": {
+          "avg": 67.275,
+          "p90": 223.8,
+          "max": 223.8
+        },
+        "frame": {
+          "avg": 191.225,
+          "p90": 429.7,
+          "max": 429.7
+        },
+        "drawCalls": {
+          "avg": 401.5,
+          "p90": 410,
+          "max": 410
+        },
+        "triangles": {
+          "avg": 1288870,
+          "p90": 1289424,
+          "max": 1289424
+        },
+        "samples": 4,
+        "programs": 94,
+        "geometries": 1088,
+        "textures": 80
+      },
+      "cur": {
+        "controller": 0.7999999523162842,
+        "destructibles": 0.2999999523162842,
+        "livingCity": 0.3999999761581421,
+        "factionWar": 0.20000004768371582,
+        "police": 0,
+        "atmosphere": 91.89999997615814,
+        "worldTotal": 93.80000007152557,
+        "hud": 0.7999999523162842,
+        "render": 223.80000007152557,
+        "frame": 319.2000000476837,
+        "drawCalls": 410,
+        "triangles": 1289424,
+        "programs": 94,
+        "geometries": 1088,
+        "textures": 80
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "X_fav_aerial",
+      "label": "Favela CDD (Vista Aérea)",
+      "pos": {
+        "x": -2145,
+        "y": 36,
+        "z": -405
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.275,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "destructibles": {
+          "avg": 0.125,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "livingCity": {
+          "avg": 0.1,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "factionWar": {
+          "avg": 0.1,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.075,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "worldTotal": {
+          "avg": 0.775,
+          "p90": 0.9,
+          "max": 0.9
+        },
+        "hud": {
+          "avg": 0.275,
+          "p90": 0.3,
+          "max": 0.3
+        },
+        "render": {
+          "avg": 7.575,
+          "p90": 19.4,
+          "max": 19.4
+        },
+        "frame": {
+          "avg": 8.9,
+          "p90": 20.8,
+          "max": 20.8
+        },
+        "drawCalls": {
+          "avg": 318.5,
+          "p90": 336,
+          "max": 336
+        },
+        "triangles": {
+          "avg": 1312548,
+          "p90": 1313750,
+          "max": 1313750
+        },
+        "samples": 4,
+        "programs": 94,
+        "geometries": 1103,
+        "textures": 80
+      },
+      "cur": {
+        "controller": 0.2999999523162842,
+        "destructibles": 0.10000002384185791,
+        "livingCity": 0.20000004768371582,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0,
+        "worldTotal": 0.6000000238418579,
+        "hud": 0.2999999523162842,
+        "render": 3.3000000715255737,
+        "frame": 4.5,
+        "drawCalls": 302,
+        "triangles": 1311534,
+        "programs": 94,
+        "geometries": 1103,
+        "textures": 80
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "X_suburb_close",
+      "label": "Subúrbio Norte (Quadra Residencial)",
+      "pos": {
+        "x": 360,
+        "y": 3,
+        "z": -1940
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.325,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "destructibles": {
+          "avg": 0.275,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "livingCity": {
+          "avg": 1.3,
+          "p90": 3.2,
+          "max": 3.2
+        },
+        "factionWar": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.15,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "worldTotal": {
+          "avg": 1.625,
+          "p90": 3.6,
+          "max": 3.6
+        },
+        "hud": {
+          "avg": 0.45,
+          "p90": 0.6,
+          "max": 0.6
+        },
+        "render": {
+          "avg": 30.1,
+          "p90": 68.7,
+          "max": 68.7
+        },
+        "frame": {
+          "avg": 32.5,
+          "p90": 73.3,
+          "max": 73.3
+        },
+        "drawCalls": {
+          "avg": 312,
+          "p90": 329,
+          "max": 329
+        },
+        "triangles": {
+          "avg": 1300756,
+          "p90": 1301864,
+          "max": 1301864
+        },
+        "samples": 4,
+        "programs": 94,
+        "geometries": 1103,
+        "textures": 80
+      },
+      "cur": {
+        "controller": 0.3999999761581421,
+        "destructibles": 0.3999999761581421,
+        "livingCity": 3.1999999284744263,
+        "factionWar": 0,
+        "police": 0,
+        "atmosphere": 0.20000004768371582,
+        "worldTotal": 3.600000023841858,
+        "hud": 0.6000000238418579,
+        "render": 68.69999992847443,
+        "frame": 73.29999995231628,
+        "drawCalls": 329,
+        "triangles": 1301864,
+        "programs": 94,
+        "geometries": 1103,
+        "textures": 80
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "X_ind_close",
+      "label": "Distrito Industrial Leste",
+      "pos": {
+        "x": 2598,
+        "y": 8,
+        "z": -948
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.375,
+          "p90": 0.6,
+          "max": 0.6
+        },
+        "destructibles": {
+          "avg": 0.1,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "livingCity": {
+          "avg": 0.125,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "factionWar": {
+          "avg": 0.3,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.075,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "worldTotal": {
+          "avg": 0.625,
+          "p90": 0.8,
+          "max": 0.8
+        },
+        "hud": {
+          "avg": 0.275,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "render": {
+          "avg": 9.775,
+          "p90": 27.2,
+          "max": 27.2
+        },
+        "frame": {
+          "avg": 11.05,
+          "p90": 28.7,
+          "max": 28.7
+        },
+        "drawCalls": {
+          "avg": 266.5,
+          "p90": 275,
+          "max": 275
+        },
+        "triangles": {
+          "avg": 723733,
+          "p90": 724287,
+          "max": 724287
+        },
+        "samples": 4,
+        "programs": 94,
+        "geometries": 1103,
+        "textures": 80
+      },
+      "cur": {
+        "controller": 0.6000000238418579,
+        "destructibles": 0.19999992847442627,
+        "livingCity": 0.10000002384185791,
+        "factionWar": 0.20000004768371582,
+        "police": 0,
+        "atmosphere": 0,
+        "worldTotal": 0.40000009536743164,
+        "hud": 0.20000004768371582,
+        "render": 2.5,
+        "frame": 3.7000001668930054,
+        "drawCalls": 241,
+        "triangles": 722071,
+        "programs": 94,
+        "geometries": 1103,
+        "textures": 80
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "X_port_close",
+      "label": "Porto Metropolitano Leste",
+      "pos": {
+        "x": 2980,
+        "y": 2,
+        "z": 1140
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.775,
+          "p90": 0.9,
+          "max": 0.9
+        },
+        "destructibles": {
+          "avg": 0.5,
+          "p90": 0.6,
+          "max": 0.6
+        },
+        "livingCity": {
+          "avg": 0.275,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "factionWar": {
+          "avg": 1.3,
+          "p90": 2.6,
+          "max": 2.6
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.175,
+          "p90": 0.2,
+          "max": 0.2
+        },
+        "worldTotal": {
+          "avg": 2.1,
+          "p90": 3.3,
+          "max": 3.3
+        },
+        "hud": {
+          "avg": 0.725,
+          "p90": 1.1,
+          "max": 1.1
+        },
+        "render": {
+          "avg": 14.275,
+          "p90": 17.7,
+          "max": 17.7
+        },
+        "frame": {
+          "avg": 17.875,
+          "p90": 21.2,
+          "max": 21.2
+        },
+        "drawCalls": {
+          "avg": 433,
+          "p90": 454,
+          "max": 454
+        },
+        "triangles": {
+          "avg": 1307514.5,
+          "p90": 1309277,
+          "max": 1309277
+        },
+        "samples": 4,
+        "programs": 96,
+        "geometries": 1120,
+        "textures": 80
+      },
+      "cur": {
+        "controller": 0.6000000238418579,
+        "destructibles": 0.6000000238418579,
+        "livingCity": 0.2999999523162842,
+        "factionWar": 0.5,
+        "police": 0,
+        "atmosphere": 0.20000004768371582,
+        "worldTotal": 1.100000023841858,
+        "hud": 0.5999999046325684,
+        "render": 12,
+        "frame": 14.299999952316284,
+        "drawCalls": 426,
+        "triangles": 1306927,
+        "programs": 96,
+        "geometries": 1120,
+        "textures": 80
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3100,
+        "fogDensity": 0.00082
+      }
+    },
+    {
+      "id": "X_sky_downtown",
+      "label": "Voo Alto sobre o Centro",
+      "pos": {
+        "x": 0,
+        "y": 240,
+        "z": -300
+      },
+      "perf": {
+        "controller": {
+          "avg": 0.35,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "destructibles": {
+          "avg": 0.225,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "livingCity": {
+          "avg": 0.225,
+          "p90": 0.4,
+          "max": 0.4
+        },
+        "factionWar": {
+          "avg": 0.075,
+          "p90": 0.1,
+          "max": 0.1
+        },
+        "police": {
+          "avg": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "atmosphere": {
+          "avg": 0.25,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "worldTotal": {
+          "avg": 11.85,
+          "p90": 45.6,
+          "max": 45.6
+        },
+        "hud": {
+          "avg": 0.325,
+          "p90": 0.5,
+          "max": 0.5
+        },
+        "render": {
+          "avg": 48.825,
+          "p90": 159.7,
+          "max": 159.7
+        },
+        "frame": {
+          "avg": 61.35,
+          "p90": 206.2,
+          "max": 206.2
+        },
+        "drawCalls": {
+          "avg": 351.5,
+          "p90": 374,
+          "max": 374
+        },
+        "triangles": {
+          "avg": 1369797,
+          "p90": 1370971,
+          "max": 1370971
+        },
+        "samples": 4,
+        "programs": 96,
+        "geometries": 1122,
+        "textures": 80
+      },
+      "cur": {
+        "controller": 0.3999999761581421,
+        "destructibles": 0.10000002384185791,
+        "livingCity": 0.20000004768371582,
+        "factionWar": 0.10000002384185791,
+        "police": 0,
+        "atmosphere": 0.2999999523162842,
+        "worldTotal": 45.60000002384186,
+        "hud": 0.5,
+        "render": 159.70000004768372,
+        "frame": 206.20000004768372,
+        "drawCalls": 329,
+        "triangles": 1368623,
+        "programs": 96,
+        "geometries": 1122,
+        "textures": 80
+      },
+      "pipeline": {
+        "preset": "medium",
+        "autoTier": 2,
+        "drsScale": 1,
+        "effectivePixelRatio": 1,
+        "emaMs": 16.67,
+        "useComposer": true,
+        "gtaoEnabled": false,
+        "bloomEnabled": true,
+        "noirGradeEnabled": true,
+        "aaMode": "fxaa",
+        "shadowMapSize": 1536,
+        "dynamicShadows": true,
+        "activeShadowCasters": 34,
+        "cameraFar": 3255.3111156221153,
+        "fogDensity": 0.00082
+      }
+    }
+  ]
+}

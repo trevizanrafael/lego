@@ -9,9 +9,9 @@ import {
   getStyleVertexTintColor
 } from './BuildingFamiliesAndAtlas.js';
 
-export const BUILDING_LOD_CHUNK_SIZE = 620;
-export const BUILDING_LOD1_DISTANCE = 220;
-export const BUILDING_LOD2_DISTANCE = 640;
+export const BUILDING_LOD_CHUNK_SIZE = 740;
+export const BUILDING_LOD1_DISTANCE = 185;
+export const BUILDING_LOD2_DISTANCE = 535;
 
 const _COLOR_CACHE = new Map();
 let _sharedTrimAndGroundVcMat = null;
@@ -74,6 +74,70 @@ function makeLocalRotatedBox(w, h, d, lx, ly, lz, rotY = 0) {
   return g;
 }
 
+const _OPEN_BOTTOM_IDX = [
+  0, 1, 2, 0, 2, 3,
+  4, 5, 6, 4, 6, 7,
+  8, 9, 10, 8, 10, 11,
+  12, 13, 14, 12, 14, 15,
+  16, 17, 18, 16, 18, 19
+];
+
+/**
+ * Caixa 5 faces (sem tampa inferior enterrada = 10 triângulos em vez de 12, UVs de fachada preservados).
+ */
+function makeOpenBottomLodBox(w, h, d, lx, ly, lz, rotY = 0, withUv = true) {
+  const hx = w * 0.5, hy = h * 0.5, hz = d * 0.5;
+  const cosY = Math.abs(rotY) > 1e-4 ? Math.cos(rotY) : 1;
+  const sinY = Math.abs(rotY) > 1e-4 ? Math.sin(rotY) : 0;
+  const rawPos = [
+    // +Z (frente)
+    -hx, -hy, hz, hx, -hy, hz, hx, hy, hz, -hx, hy, hz,
+    // -Z (fundo)
+    hx, -hy, -hz, -hx, -hy, -hz, -hx, hy, -hz, hx, hy, -hz,
+    // +X (direita)
+    hx, -hy, hz, hx, -hy, -hz, hx, hy, -hz, hx, hy, hz,
+    // -X (esquerda)
+    -hx, -hy, -hz, -hx, -hy, hz, -hx, hy, hz, -hx, hy, -hz,
+    // +Y (teto)
+    -hx, hy, hz, hx, hy, hz, hx, hy, -hz, -hx, hy, -hz
+  ];
+  const rawNorm = [
+    0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
+    0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1,
+    1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
+    -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0,
+    0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0
+  ];
+  const pos = new Float32Array(60);
+  const norm = new Float32Array(60);
+  for (let i = 0; i < 20; i++) {
+    const px = rawPos[i * 3], py = rawPos[i * 3 + 1], pz = rawPos[i * 3 + 2];
+    pos[i * 3] = px * cosY + pz * sinY + lx;
+    pos[i * 3 + 1] = py + ly;
+    pos[i * 3 + 2] = -px * sinY + pz * cosY + lz;
+    const nx = rawNorm[i * 3], ny = rawNorm[i * 3 + 1], nz = rawNorm[i * 3 + 2];
+    norm[i * 3] = nx * cosY + nz * sinY;
+    norm[i * 3 + 1] = ny;
+    norm[i * 3 + 2] = -nx * sinY + nz * cosY;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+  if (withUv) {
+    const uX = Math.max(1, Math.round(w / 24)), uZ = Math.max(1, Math.round(d / 24)), uY = Math.max(1, Math.round(h / 36));
+    const uvs = new Float32Array([
+      0, 0, uX, 0, uX, uY, 0, uY,
+      0, 0, uX, 0, uX, uY, 0, uY,
+      0, 0, uZ, 0, uZ, uY, 0, uY,
+      0, 0, uZ, 0, uZ, uY, 0, uY,
+      0, 0, 0.05, 0, 0.05, 0.05, 0, 0.05
+    ]);
+    g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  }
+  g.setIndex(_OPEN_BOTTOM_IDX);
+  return g;
+}
+
 /**
  * Agrupador espacial 3-Níveis `THREE.LOD` com Famílias Unificadas de Fachada + Vertex Colors (M2/M5):
  *  - Nível 0 (0..220m): Até 4 meshes de fachada por família + 1 `l0TrimAndGround` + 1 `l0Neon`
@@ -89,7 +153,7 @@ export class ChunkedBuildingLodBatcher {
 
   _getChunk(wx, wz) {
     const maxAbs = Math.max(Math.abs(wx), Math.abs(wz));
-    const cs = maxAbs > 2600 ? this.chunkSize * 4 : maxAbs > 1350 ? this.chunkSize * 2 : this.chunkSize;
+    const cs = maxAbs > 2200 ? this.chunkSize * 4 : maxAbs > 1080 ? Math.round(this.chunkSize * 2.2) : this.chunkSize;
     const gx = Math.floor(wx / cs);
     const gz = Math.floor(wz / cs);
     const key = `${cs}:${gx},${gz}`;
@@ -188,24 +252,24 @@ export class ChunkedBuildingLodBatcher {
         const midCrownW = (w * 0.82 + topCrownW) * 0.5;
         const midCrownD = (d * 0.82 + topCrownD) * 0.5;
         list1.push(
-          { geo: makeLocalRotatedBox(w, tier1H, d, lx, yBase + tier1H * 0.5, lz, rotY), color: facadeTintColor },
-          { geo: makeLocalRotatedBox(midCrownW, upperH, midCrownD, lx, yBase + tier1H + upperH * 0.5, lz, rotY), color: facadeTintColor }
+          { geo: makeOpenBottomLodBox(w, tier1H, d, lx, yBase + tier1H * 0.5, lz, rotY, true), color: facadeTintColor },
+          { geo: makeOpenBottomLodBox(midCrownW, upperH, midCrownD, lx, yBase + tier1H + upperH * 0.5, lz, rotY, true), color: facadeTintColor }
         );
       } else {
         list1.push({
-          geo: makeLocalRotatedBox(w, h, d, lx, yBase + h * 0.5, lz, rotY),
+          geo: makeOpenBottomLodBox(w, h, d, lx, yBase + h * 0.5, lz, rotY, true),
           color: facadeTintColor
         });
       }
     }
 
-    // 3. Nível 2 — Silhueta distante em 1 única caixa sólida por prédio
+    // 3. Nível 2 — Silhueta distante ultra-enxuta (5 faces = 10 tris por prédio, castShadow = false)
     let silGeo = lod2CustomGeo;
     if (silGeo) {
       if (Math.abs(rotY) > 1e-4) silGeo.rotateY(rotY);
       silGeo.translate(lx, yBase, lz);
     } else {
-      silGeo = makeLocalRotatedBox(w * 0.96, h, d * 0.96, lx, yBase + h * 0.5, lz, rotY);
+      silGeo = makeOpenBottomLodBox(w * 0.96, h, d * 0.96, lx, yBase + h * 0.5, lz, rotY, false);
     }
     chunk.l2SilhouetteEntries.push({
       geo: silGeo,
@@ -243,11 +307,11 @@ export class ChunkedBuildingLodBatcher {
       lod.position.set(chunk.originX, 0, chunk.originZ);
       lod.userData = { isBuildingChunkLod: true, chunkKey: chunk.key, buildingCount: chunk.count };
 
-      // Nível 0 (Detalhe Completo; <=6 prédios unifica na família dominante; >6 mantém até 2 famílias principais)
+      // Nível 0 (Detalhe Completo; <=14 prédios unifica na família dominante; >14 mantém até 2 famílias principais)
       const level0 = new THREE.Group();
       const sorted0 = [...chunk.l0FacadeByMat.entries()].filter(([, e]) => e.length > 0).sort((a, b) => b[1].length - a[1].length);
       if (sorted0.length > 0) {
-        const keepSeparate = chunk.count <= 6 ? 1 : 2;
+        const keepSeparate = chunk.count <= 14 ? 1 : 2;
         const primary = sorted0.slice(0, keepSeparate).map(([mat, entries]) => [mat, [...entries]]);
         for (let r = keepSeparate; r < sorted0.length; r++) primary[0][1].push(...sorted0[r][1]);
         for (const [facadeMat, entries] of primary) {
@@ -305,7 +369,7 @@ export class ChunkedBuildingLodBatcher {
         merged1.computeBoundingSphere();
         const m1 = new THREE.Mesh(merged1, dominantMat1);
         m1.castShadow = false;
-        m1.receiveShadow = true;
+        m1.receiveShadow = false;
         m1.matrixAutoUpdate = false;
         m1.updateMatrix();
         level1.add(m1);
@@ -326,7 +390,7 @@ export class ChunkedBuildingLodBatcher {
       }
 
       lod.addLevel(level0, 0);
-      if (chunk.count > 5) {
+      if (chunk.count >= 9 && level1.children.length > 0) {
         lod.addLevel(level1, BUILDING_LOD1_DISTANCE);
         lod.addLevel(level2, BUILDING_LOD2_DISTANCE);
         level1.visible = false;

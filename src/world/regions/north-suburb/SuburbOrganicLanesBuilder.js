@@ -356,78 +356,141 @@ export function buildSuburbSuperBlockOrganicInterior(world, batcher, cfg) {
   const cx = (innerMinX + innerMaxX) * 0.5, cz = (coreMinZ + coreMaxZ) * 0.5, spanX = innerMaxX - innerMinX;
   const pattern = (rIdx * 2 + cIdx) % 3, flip = (rIdx + cIdx) % 2 === 0 ? 1 : -1, seed = (rIdx + 1) * 131 + (cIdx + 1) * 37;
 
+  const buildGentleEWPoints = (zBase, waveAmp) => {
+    const pts = [];
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      const px = Math.round(((innerMinX + 1.5) + (spanX - 3.0) * t) * 10) / 10;
+      const pz = Math.round((zBase + Math.sin(t * Math.PI * 2) * waveAmp) * 10) / 10;
+      pts.push([px, pz]);
+    }
+    return pts;
+  };
+
   if (pattern === 0) {
-    const b1x = cx - spanX * 0.13, b1z = cz - flip * 58;
-    const stem1 = [[innerMinX + 1.5, cz - flip * 42], [innerMinX + spanX * 0.15, cz - flip * 68], [b1x - 22, b1z - flip * 6], [b1x, b1z]];
-    registerOrganicLane(ctx, `sub_cds_w_${rIdx}_${cIdx}`, stem1, 15.5, 4.5, false);
-    registerCulDeSacBulb(ctx, `sub_bulb_w_${rIdx}_${cIdx}`, b1x, b1z, 6.4, 20.5, 4.6, seed);
+    // 2 ruas internas fundo-com-fundo c/ as faces Norte/Sul + 2 cul-de-sacs centrais e praça de bolso
+    const laneN = buildGentleEWPoints(cz - 82, flip * 5.5);
+    const laneS = buildGentleEWPoints(cz + 82, -flip * 5.5);
+    registerOrganicLane(ctx, `sub_cross_n_${rIdx}_${cIdx}`, laneN, 15.5, 4.4, true);
+    registerOrganicLane(ctx, `sub_cross_s_${rIdx}_${cIdx}`, laneS, 15.5, 4.4, true);
 
-    const b2x = cx + spanX * 0.13, b2z = cz + flip * 58;
-    const stem2 = [[innerMaxX - 1.5, cz + flip * 42], [innerMaxX - spanX * 0.15, cz + flip * 68], [b2x + 22, b2z + flip * 6], [b2x, b2z]];
-    registerOrganicLane(ctx, `sub_cds_e_${rIdx}_${cIdx}`, stem2, 15.5, 4.5, false);
-    registerCulDeSacBulb(ctx, `sub_bulb_e_${rIdx}_${cIdx}`, b2x, b2z, 6.4, 20.5, 4.6, seed + 1);
-    world.suburbOrganicStats.lanes += 2;
+    const b1x = cx - spanX * 0.16, b1z = cz - flip * 8;
+    const stem1 = [[innerMinX + 1.5, cz - flip * 4], [innerMinX + spanX * 0.16, cz - flip * 11], [b1x, b1z]];
+    registerOrganicLane(ctx, `sub_cds_w_${rIdx}_${cIdx}`, stem1, 15.0, 4.4, false);
+    registerCulDeSacBulb(ctx, `sub_bulb_w_${rIdx}_${cIdx}`, b1x, b1z, 6.2, 19.6, 4.5, seed);
 
-    buildPocketGreenAndPlayground(ctx, cx, cz, 22, 16, seed + 5);
-    placeFanHousesAroundBulb(ctx, b1x, b1z, 20.5, 4.6, Math.atan2(stem1[2][1] - b1z, stem1[2][0] - b1x), 8, 16.0, 26.5, seed + 10);
-    placeFanHousesAroundBulb(ctx, b2x, b2z, 20.5, 4.6, Math.atan2(stem2[2][1] - b2z, stem2[2][0] - b2x), 8, 16.0, 26.5, seed + 40);
-    placeHousesAlongPolyline(ctx, stem1.slice(0, 3), 12.25, 16.4, 26.0, [-1, 1], 17.4, 18, seed + 70);
-    placeHousesAlongPolyline(ctx, stem2.slice(0, 3), 12.25, 16.4, 26.0, [-1, 1], 17.4, 18, seed + 90);
+    const b2x = cx + spanX * 0.16, b2z = cz + flip * 8;
+    const stem2 = [[innerMaxX - 1.5, cz + flip * 4], [innerMaxX - spanX * 0.16, cz + flip * 11], [b2x, b2z]];
+    registerOrganicLane(ctx, `sub_cds_e_${rIdx}_${cIdx}`, stem2, 15.0, 4.4, false);
+    registerCulDeSacBulb(ctx, `sub_bulb_e_${rIdx}_${cIdx}`, b2x, b2z, 6.2, 19.6, 4.5, seed + 1);
+    world.suburbOrganicStats.lanes += 4;
+
+    buildPocketGreenAndPlayground(ctx, cx, cz, 19, 14, seed + 5);
+    placeHousesAlongPolyline(ctx, laneN, 12.15, 16.4, 25.5, [-1, 1], 17.2, 20, seed + 8);
+    placeHousesAlongPolyline(ctx, laneS, 12.15, 16.4, 25.5, [-1, 1], 17.2, 20, seed + 28);
+    placeFanHousesAroundBulb(ctx, b1x, b1z, 19.6, 4.5, Math.atan2(stem1[1][1] - b1z, stem1[1][0] - b1x), 7, 15.8, 25.0, seed + 48);
+    placeFanHousesAroundBulb(ctx, b2x, b2z, 19.6, 4.5, Math.atan2(stem2[1][1] - b2z, stem2[1][0] - b2x), 7, 15.8, 25.0, seed + 68);
+    placeHousesAlongPolyline(ctx, stem1.slice(0, 2), 11.9, 16.2, 25.0, [-1, 1], 17.2, 18, seed + 86);
+    placeHousesAlongPolyline(ctx, stem2.slice(0, 2), 11.9, 16.2, 25.0, [-1, 1], 17.2, 18, seed + 102);
     placeSideAvenueFrontageHouses(ctx, seed + 120);
   } else if (pattern === 1) {
-    const sPts = [], z0 = cz + flip * 18, z1 = cz - flip * 18;
+    const sPts = [], z0 = cz + flip * 12, z1 = cz - flip * 12;
     for (let i = 0; i <= 7; i++) {
-      const t = i / 7, wave = Math.sin(t * Math.PI * 2) * Math.sin(t * Math.PI) * (flip * 42);
+      const t = i / 7, wave = Math.sin(t * Math.PI * 2) * Math.sin(t * Math.PI) * (flip * 26);
       sPts.push([Math.round(((innerMinX + 1.5) + (spanX - 3.0) * t) * 10) / 10, Math.round((z0 + (z1 - z0) * t + wave) * 10) / 10]);
     }
-    registerOrganicLane(ctx, `sub_slane_${rIdx}_${cIdx}`, sPts, 16.5, 4.4, true);
+    registerOrganicLane(ctx, `sub_slane_${rIdx}_${cIdx}`, sPts, 16.0, 4.4, true);
 
-    const pBulbX = cx + spanX * 0.16, pBulbZ = cz - flip * 68;
-    const spurPts = [sPts[2], [cx - 8, cz - flip * 54], [pBulbX, pBulbZ]];
+    const pBulbX = cx + spanX * 0.20, pBulbZ = cz - flip * 78;
+    const spurPts = [[innerMinX + 1.5, cz - flip * 82], [cx - spanX * 0.12, cz - flip * 84], [pBulbX, pBulbZ]];
     registerOrganicLane(ctx, `sub_sspur_${rIdx}_${cIdx}`, spurPts, 15.0, 4.4, false);
-    registerCulDeSacBulb(ctx, `sub_sbulb_${rIdx}_${cIdx}`, pBulbX, pBulbZ, 6.2, 19.8, 4.5, seed + 3);
+    registerCulDeSacBulb(ctx, `sub_sbulb_${rIdx}_${cIdx}`, pBulbX, pBulbZ, 6.2, 19.6, 4.5, seed + 3);
 
-    const pBulb2X = cx - spanX * 0.16, pBulb2Z = cz + flip * 68;
-    const spur2Pts = [sPts[5], [cx + 8, cz + flip * 54], [pBulb2X, pBulb2Z]];
+    const pBulb2X = cx - spanX * 0.20, pBulb2Z = cz + flip * 78;
+    const spur2Pts = [[innerMaxX - 1.5, cz + flip * 82], [cx + spanX * 0.12, cz + flip * 84], [pBulb2X, pBulb2Z]];
     registerOrganicLane(ctx, `sub_sspur2_${rIdx}_${cIdx}`, spur2Pts, 15.0, 4.4, false);
-    registerCulDeSacBulb(ctx, `sub_sbulb2_${rIdx}_${cIdx}`, pBulb2X, pBulb2Z, 6.2, 19.8, 4.5, seed + 4);
+    registerCulDeSacBulb(ctx, `sub_sbulb2_${rIdx}_${cIdx}`, pBulb2X, pBulb2Z, 6.2, 19.6, 4.5, seed + 4);
     world.suburbOrganicStats.lanes += 3;
 
-    placeFanHousesAroundBulb(ctx, pBulbX, pBulbZ, 19.8, 4.5, Math.atan2(spurPts[1][1] - pBulbZ, spurPts[1][0] - pBulbX), 7, 16.0, 26.0, seed + 15);
-    placeFanHousesAroundBulb(ctx, pBulb2X, pBulb2Z, 19.8, 4.5, Math.atan2(spur2Pts[1][1] - pBulb2Z, spur2Pts[1][0] - pBulb2X), 7, 16.0, 26.0, seed + 35);
-    placeHousesAlongPolyline(ctx, sPts, 12.65, 16.5, 26.5, [-1, 1], 17.4, 20, seed + 65);
+    placeFanHousesAroundBulb(ctx, pBulbX, pBulbZ, 19.6, 4.5, Math.atan2(spurPts[1][1] - pBulbZ, spurPts[1][0] - pBulbX), 7, 15.8, 25.5, seed + 15);
+    placeFanHousesAroundBulb(ctx, pBulb2X, pBulb2Z, 19.6, 4.5, Math.atan2(spur2Pts[1][1] - pBulb2Z, spur2Pts[1][0] - pBulb2X), 7, 15.8, 25.5, seed + 35);
+    placeHousesAlongPolyline(ctx, spurPts.slice(0, 2), 11.9, 16.2, 25.5, [-1, 1], 17.2, 18, seed + 50);
+    placeHousesAlongPolyline(ctx, spur2Pts.slice(0, 2), 11.9, 16.2, 25.5, [-1, 1], 17.2, 18, seed + 62);
+    placeHousesAlongPolyline(ctx, sPts, 12.4, 16.4, 25.8, [-1, 1], 17.2, 20, seed + 78);
     placeSideAvenueFrontageHouses(ctx, seed + 130);
   } else {
+    // 2 alamedas em arco + alameda transversal dupla no miolo (casas 100% fundo-com-fundo)
     const arch1 = [], arch2 = [];
     for (let i = 0; i <= 8; i++) {
       const t = i / 8;
       const px = Math.round(((innerMinX + 1.5) + (spanX - 3.0) * t) * 10) / 10;
-      arch1.push([px, Math.round((cz - 46 - Math.sin(t * Math.PI) * 44) * 10) / 10]);
-      arch2.push([px, Math.round((cz + 46 + Math.sin(t * Math.PI) * 44) * 10) / 10]);
+      arch1.push([px, Math.round((cz - 74 - Math.sin(t * Math.PI) * 16) * 10) / 10]);
+      arch2.push([px, Math.round((cz + 74 + Math.sin(t * Math.PI) * 16) * 10) / 10]);
     }
-    registerOrganicLane(ctx, `sub_cresc_n_${rIdx}_${cIdx}`, arch1, 16.0, 4.5, true);
-    registerOrganicLane(ctx, `sub_cresc_s_${rIdx}_${cIdx}`, arch2, 16.0, 4.5, true);
-    world.suburbOrganicStats.lanes += 2;
+    const midCross = buildGentleEWPoints(cz, flip * 7.5);
+    registerOrganicLane(ctx, `sub_cresc_n_${rIdx}_${cIdx}`, arch1, 15.5, 4.4, true);
+    registerOrganicLane(ctx, `sub_cresc_s_${rIdx}_${cIdx}`, arch2, 15.5, 4.4, true);
+    registerOrganicLane(ctx, `sub_cresc_mid_${rIdx}_${cIdx}`, midCross, 15.5, 4.4, true);
+    world.suburbOrganicStats.lanes += 3;
 
-    buildPocketGreenAndPlayground(ctx, cx, cz, 28, 18, seed + 7);
-    placeHousesAlongPolyline(ctx, arch1, 12.5, 16.5, 26.5, [-1, 1], 17.5, 20, seed + 20);
-    placeHousesAlongPolyline(ctx, arch2, 12.5, 16.5, 26.5, [-1, 1], 17.5, 20, seed + 60);
+    buildPocketGreenAndPlayground(ctx, cx + flip * 24, cz - 42, 18, 13, seed + 7);
+    placeHousesAlongPolyline(ctx, arch1, 12.15, 16.4, 25.5, [-1, 1], 17.3, 20, seed + 20);
+    placeHousesAlongPolyline(ctx, arch2, 12.15, 16.4, 25.5, [-1, 1], 17.3, 20, seed + 52);
+    placeHousesAlongPolyline(ctx, midCross, 12.15, 16.4, 25.5, [-1, 1], 17.3, 20, seed + 84);
     placeSideAvenueFrontageHouses(ctx, seed + 140);
   }
 }
 
 export function buildSpecialBlockOrganicPocket(world, batcher, cfg) {
-  const { id, innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD = 0, southLotD = 0, specialKeepout, entrySide = 'west', pocketZ, seed = 77 } = cfg;
+  const {
+    id, innerMinX, innerMaxX, innerMinZ, safeSouthZ,
+    northLotD = 0, southLotD = 0, specialKeepout,
+    entrySide = 'west', pocketZ, crossLaneZ = null, seed = 77
+  } = cfg;
   const ctx = createBlockContext(world, batcher, { innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD, southLotD }, [specialKeepout]);
-  const cx = (innerMinX + innerMaxX) * 0.5, fromWest = entrySide === 'west';
-  const bx = fromWest ? cx + 18 : cx - 18, bz = pocketZ, startX = fromWest ? innerMinX + 1.5 : innerMaxX - 1.5;
-  const pts = [[startX, bz + 14], [(startX + bx) * 0.5, bz - 16], [bx, bz]];
+  const cx = (innerMinX + innerMaxX) * 0.5, spanX = innerMaxX - innerMinX, fromWest = entrySide === 'west';
 
-  registerOrganicLane(ctx, `sub_spec_lane_${id}`, pts, 15.5, 4.5, false);
-  registerCulDeSacBulb(ctx, `sub_spec_bulb_${id}`, bx, bz, 6.2, 20.0, 4.6, seed);
-  world.suburbOrganicStats.lanes++;
+  // Se houver faixa transversal livre do equipamento especial, constrói rua residencial dupla de ponta a ponta
+  const openCrossZ = crossLaneZ ?? (
+    specialKeepout && pocketZ < (innerMinZ + safeSouthZ) * 0.5
+      ? (innerMinZ + Math.max(northLotD, 30) + 54 < specialKeepout.minZ - 26 ? innerMinZ + Math.max(northLotD, 30) + 54 : null)
+      : (specialKeepout && safeSouthZ - Math.max(southLotD, 30) - 54 > specialKeepout.maxZ + 26 ? safeSouthZ - Math.max(southLotD, 30) - 54 : null)
+  );
 
-  placeFanHousesAroundBulb(ctx, bx, bz, 20.0, 4.6, Math.atan2(pts[1][1] - bz, pts[1][0] - bx), 7, 16.0, 26.0, seed + 12);
-  placeHousesAlongPolyline(ctx, pts.slice(0, 2), 12.25, 16.4, 26.0, [-1, 1], 17.2, 18, seed + 50);
+  if (openCrossZ !== null) {
+    const crossPts = [];
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      crossPts.push([
+        Math.round(((innerMinX + 1.5) + (spanX - 3.0) * t) * 10) / 10,
+        Math.round((openCrossZ + Math.sin(t * Math.PI * 2) * 5.0) * 10) / 10
+      ]);
+    }
+    registerOrganicLane(ctx, `sub_spec_cross_${id}`, crossPts, 15.5, 4.4, true);
+    world.suburbOrganicStats.lanes++;
+    placeHousesAlongPolyline(ctx, crossPts, 12.15, 16.4, 25.5, [-1, 1], 17.2, 20, seed + 5);
+  }
+
+  const startX = fromWest ? innerMinX + 1.5 : innerMaxX - 1.5;
+  let bx = fromWest ? cx + 18 : cx - 18;
+  if (specialKeepout && pocketZ >= specialKeepout.minZ - 32 && pocketZ <= specialKeepout.maxZ + 32) {
+    bx = fromWest ? Math.min(bx, specialKeepout.minX - 30) : Math.max(bx, specialKeepout.maxX + 30);
+  }
+  const bz = openCrossZ !== null && Math.abs(pocketZ - openCrossZ) < 62
+    ? (openCrossZ < (innerMinZ + safeSouthZ) * 0.5 ? openCrossZ + 82 : openCrossZ - 82)
+    : pocketZ;
+  if (specialKeepout && bz >= specialKeepout.minZ - 32 && bz <= specialKeepout.maxZ + 32) {
+    bx = fromWest ? Math.min(bx, specialKeepout.minX - 30) : Math.max(bx, specialKeepout.maxX + 30);
+  }
+
+  if (Math.abs(bx - startX) >= 48) {
+    const pts = [[startX, bz + 8], [(startX + bx) * 0.5, bz - 10], [bx, bz]];
+    registerOrganicLane(ctx, `sub_spec_lane_${id}`, pts, 15.5, 4.5, false);
+    registerCulDeSacBulb(ctx, `sub_spec_bulb_${id}`, bx, bz, 6.2, 19.8, 4.5, seed);
+    world.suburbOrganicStats.lanes++;
+
+    placeFanHousesAroundBulb(ctx, bx, bz, 19.8, 4.5, Math.atan2(pts[1][1] - bz, pts[1][0] - bx), 7, 16.0, 25.5, seed + 32);
+    placeHousesAlongPolyline(ctx, pts.slice(0, 2), 12.25, 16.4, 25.5, [-1, 1], 17.2, 18, seed + 60);
+  }
   placeSideAvenueFrontageHouses(ctx, seed + 90);
 }

@@ -166,7 +166,7 @@ function deduplicateWorldDynamicPools(world, remapMap) {
   if (world.atmosphere?.landmarkNeonMaterials) {
     deduplicateAnimatedMatList(
       world.atmosphere.landmarkNeonMaterials,
-      (m) => `${snapToNoirSwatchHex(m.color?.getHex?.() ?? 0xffffff)}_${Math.round((m.userData?.maxOpacity ?? m.opacity ?? 0.28) * 4)}`,
+      (m) => `${snapEmissiveAccentHex(m.color?.getHex?.() ?? 0xffffff) || LEGO_COLORS.white}_${m.transparent ? Math.round((m.userData?.maxOpacity ?? m.opacity ?? 0.28) * 2) : 'op'}`,
       remapMap
     );
   }
@@ -204,22 +204,59 @@ function deduplicateWorldDynamicPools(world, remapMap) {
           }
         }
       }
-      const zs = world.livingCity?.factionWar?.zoneStates?.[fKey];
+      const zs = world.livingCity?.factionWar?.zoneStates?.[fKey] || world.livingCity?.factionWar?.territories?.[fKey];
       if (Array.isArray(infra.outposts)) {
         for (let idx = 0; idx < infra.outposts.length; idx++) {
           const op = infra.outposts[idx];
           if (!op) continue;
-          if (op.beaconMat) op.beaconMat = downgradeProtectedPhysToStd(op.beaconMat, remapMap);
-          if (Array.isArray(op.bollardMats) && op.bollardMats.length > 0) {
-            const firstBol = downgradeProtectedPhysToStd(op.bollardMats[0], remapMap);
-            for (let i = 1; i < op.bollardMats.length; i++) {
-              if (op.bollardMats[i]) remapMap.set(op.bollardMats[i], firstBol);
+          const rawBollard = Array.isArray(op.bollardMats) ? op.bollardMats[0] : op.bollardMats;
+          const canonStd = rawBollard ? downgradeProtectedPhysToStd(rawBollard, remapMap) : null;
+          if (canonStd && canonStd.isMeshStandardMaterial) {
+            canonStd.side = THREE.DoubleSide;
+            markAsSharedAsset(canonStd);
+            if (Array.isArray(op.bollardMats)) {
+              for (let i = 0; i < op.bollardMats.length; i++) {
+                if (op.bollardMats[i] && op.bollardMats[i] !== canonStd) remapMap.set(op.bollardMats[i], canonStd);
+              }
+            } else if (op.bollardMats && op.bollardMats !== canonStd) {
+              remapMap.set(op.bollardMats, canonStd);
             }
-            op.bollardMats = [firstBol];
+            op.bollardMats = canonStd;
+            if (op.ringMat && op.ringMat !== canonStd && !op.ringMat.transparent) {
+              remapMap.set(op.ringMat, canonStd);
+              op.ringMat = canonStd;
+            }
+            if (op.beaconMat && op.beaconMat !== canonStd && !op.beaconMat.transparent) {
+              remapMap.set(op.beaconMat, canonStd);
+              op.beaconMat = canonStd;
+            }
+          } else {
+            if (op.beaconMat) op.beaconMat = downgradeProtectedPhysToStd(op.beaconMat, remapMap);
+            if (Array.isArray(op.bollardMats) && op.bollardMats.length > 0) {
+              const firstBol = downgradeProtectedPhysToStd(op.bollardMats[0], remapMap);
+              for (let i = 1; i < op.bollardMats.length; i++) {
+                if (op.bollardMats[i]) remapMap.set(op.bollardMats[i], firstBol);
+              }
+              op.bollardMats = [firstBol];
+            } else if (op.bollardMats) {
+              op.bollardMats = downgradeProtectedPhysToStd(op.bollardMats, remapMap);
+            }
           }
           if (zs) {
             const match = Array.isArray(zs.outposts) ? zs.outposts.find((zop) => zop && zop.id === op.id) : null;
             if (match) {
+              if (match.beaconMat && op.beaconMat && match.beaconMat !== op.beaconMat) {
+                remapMap.set(match.beaconMat, op.beaconMat);
+              }
+              if (match.bollardMats && op.bollardMats && match.bollardMats !== op.bollardMats) {
+                if (Array.isArray(match.bollardMats)) {
+                  for (let i = 0; i < match.bollardMats.length; i++) {
+                    if (match.bollardMats[i]) remapMap.set(match.bollardMats[i], op.bollardMats);
+                  }
+                } else {
+                  remapMap.set(match.bollardMats, op.bollardMats);
+                }
+              }
               match.beaconMat = op.beaconMat;
               match.bollardMats = op.bollardMats;
               if (match.ringMat && op.ringMat && match.ringMat !== op.ringMat) {
@@ -232,7 +269,7 @@ function deduplicateWorldDynamicPools(world, remapMap) {
               }
             }
             const capZone = Array.isArray(zs.captureZones) ? zs.captureZones[idx] : null;
-            if (capZone?.ringMat && op.ringMat && capZone.ringMat !== op.ringMat) {
+            if (capZone?.ringMat && op.ringMat && capZone.ringMat !== op.ringMat && !capZone.ringMat.transparent) {
               remapMap.set(capZone.ringMat, op.ringMat);
               capZone.ringMat = op.ringMat;
             }
@@ -355,14 +392,26 @@ function consolidateSingleMaterial(m, obj, dynamicMats, remapMap) {
   if (remapped) return remapped;
   if (isProtectedMaterial(m, obj, dynamicMats)) return m;
 
-  // Deduplica para-brisas automotivos (preserva a 1ª instância como canônica!)
+  // Deduplica para-brisas automotivos (preserva a 1ª instância transparente como canônica; rebaixa opacos p/ Standard!)
   if (m.userData?.isVehicleGlass || obj?.userData?.isVehicleGlass) {
     const gKey = `${m.transparent ? 'trans' : 'opaque'}_${quantizeColorHex(m.color?.getHex?.() ?? 0x38bdf8, 64)}`;
     let sharedGlass = SHARED_VEHICLE_GLASS_POOL.get(gKey);
     if (!sharedGlass) {
-      m.userData = m.userData || {};
-      m.userData.isVehicleGlass = true;
-      sharedGlass = markAsSharedAsset(m);
+      if (m.transparent) {
+        m.userData = m.userData || {};
+        m.userData.isVehicleGlass = true;
+        sharedGlass = markAsSharedAsset(m);
+      } else {
+        sharedGlass = new THREE.MeshStandardMaterial({
+          color: snapToNoirSwatchHex(m.color?.getHex?.() ?? 0x090a0d),
+          roughness: 0.16,
+          metalness: 0.35
+        });
+        sharedGlass.clearcoat = 0;
+        sharedGlass.userData = { ...m.userData, isVehicleGlass: true };
+        applyLegoSurfaceFX(sharedGlass, { bevelWeight: 0.25 });
+        markAsSharedAsset(sharedGlass);
+      }
       SHARED_VEHICLE_GLASS_POOL.set(gKey, sharedGlass);
     }
     return sharedGlass;
@@ -408,7 +457,7 @@ function consolidateSingleMaterial(m, obj, dynamicMats, remapMap) {
 
   if (
     m.transparent &&
-    (m.opacity ?? 1) >= 0.92 &&
+    (m.opacity ?? 1) >= 0.80 &&
     (m.blending === undefined || m.blending === THREE.NormalBlending)
   ) {
     m.transparent = false;
@@ -449,7 +498,7 @@ function consolidateSingleMaterial(m, obj, dynamicMats, remapMap) {
     const swatchHex = m.vertexColors ? 0xffffff : snapToNoirSwatchHex(rawHex);
     const rawEmHex = m.emissive && (m.emissiveIntensity ?? 0) > 0.2 ? m.emissive.getHex() : 0;
     const emSwatch = snapEmissiveAccentHex(rawEmHex);
-    const keepPhysical = Boolean(m.transparent || m.userData?.forcePhysical === true);
+    const keepPhysical = Boolean(m.isMeshPhysicalMaterial && (m.transparent || m.userData?.forcePhysical === true));
 
     if (keepPhysical) {
       const physKey = `${m.transparent ? 'glass' : swatchHex}|vc:${m.vertexColors ? 1 : 0}`;
@@ -510,6 +559,22 @@ function consolidateSingleMaterial(m, obj, dynamicMats, remapMap) {
   return m;
 }
 
+export function consolidateObjectMaterials(root, world = null, existingDynamicMats = null, existingRemap = null) {
+  if (!root || typeof root.traverse !== 'function') return;
+  const remapMap = existingRemap || new Map();
+  const dynamicMats = existingDynamicMats || collectProtectedDynamicMaterials(world);
+  root.traverse((obj) => {
+    if (!obj || !obj.material) return;
+    if (Array.isArray(obj.material)) {
+      for (let i = 0; i < obj.material.length; i++) {
+        obj.material[i] = consolidateSingleMaterial(obj.material[i], obj, dynamicMats, remapMap);
+      }
+    } else {
+      obj.material = consolidateSingleMaterial(obj.material, obj, dynamicMats, remapMap);
+    }
+  });
+}
+
 export function consolidateSceneMaterials(scene, world = null) {
   if (!scene || typeof scene.traverse !== 'function') {
     return { beforeCount: 0, afterCount: 0 };
@@ -520,16 +585,25 @@ export function consolidateSceneMaterials(scene, world = null) {
   deduplicateWorldDynamicPools(world, remapMap);
   const dynamicMats = collectProtectedDynamicMaterials(world);
 
-  scene.traverse((obj) => {
-    if (!obj || !obj.material) return;
-    if (Array.isArray(obj.material)) {
-      for (let i = 0; i < obj.material.length; i++) {
-        obj.material[i] = consolidateSingleMaterial(obj.material[i], obj, dynamicMats, remapMap);
+  consolidateObjectMaterials(scene, world, dynamicMats, remapMap);
+
+  const bikeMesh = world?.destructibles?._turboGhostBikeObj?.mesh;
+  if (bikeMesh) consolidateObjectMaterials(bikeMesh, world, dynamicMats, remapMap);
+  const fw = world?.livingCity?.factionWar;
+  if (fw?._soldierVisualPool) {
+    for (const bucket of fw._soldierVisualPool.values()) {
+      for (let i = 0; i < bucket.length; i++) {
+        if (bucket[i]?.root) consolidateObjectMaterials(bucket[i].root, world, dynamicMats, remapMap);
       }
-    } else {
-      obj.material = consolidateSingleMaterial(obj.material, obj, dynamicMats, remapMap);
     }
-  });
+  }
+  if (fw?._convoyCarPool) {
+    for (const bucket of fw._convoyCarPool.values()) {
+      for (let i = 0; i < bucket.length; i++) {
+        consolidateObjectMaterials(bucket[i], world, dynamicMats, remapMap);
+      }
+    }
+  }
 
   const afterCount = countSceneUniqueMaterials(scene);
   return { beforeCount, afterCount };

@@ -166,20 +166,24 @@ export class LivingCityManager {
       this.hud?.setPlayerHealth(this.playerMaxHp, this.playerMaxHp, false);
     }
 
-    // Reciclagem Inteligente da Bolha de Multidão a cada 1.0 segundo!
+    if (!this._perfTimings) {
+      this._perfTimings = { livingCity: 0, factionWar: 0, police: 0 };
+    }
+    this._lastSyncPlayerPos = playerPos || null;
+    const tCit0 = performance.now();
+    // Reciclagem Inteligente da Bolha de Multidão contabilizada integralmente em livingCity!
     this._crowdRingTimer -= dt;
     if (this._crowdRingTimer <= 0) {
       this._crowdRingTimer = 1.0;
       this._updateDynamicCrowdRing(playerPos);
     }
-
-    if (!this._perfTimings) {
-      this._perfTimings = { livingCity: 0, factionWar: 0, police: 0 };
-    }
-    const tCit0 = performance.now();
     this._updateUrbanTraffic(dt, playerPos, controller);
     this.corpseManager?.update(dt, playerPos, controller);
-    this._updatePedestrians(dt, playerPos, controller);
+    this._pedUpdateStrideTick = ((this._pedUpdateStrideTick || 0) + 1) | 0;
+    const isFarVertical = Boolean(playerPos && dt < 0.08 && (playerPos.y > 75 || playerPos.y < -4.5));
+    if (!isFarVertical || (this._pedUpdateStrideTick % 4 === 0)) {
+      this._updatePedestrians(isFarVertical ? dt * 4 : dt, playerPos, controller);
+    }
     this._updateCivilianSkyHelicopter(dt);
     const tCit1 = performance.now();
     this._perfTimings.livingCity = tCit1 - tCit0;

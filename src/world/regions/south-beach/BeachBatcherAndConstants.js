@@ -29,7 +29,7 @@ export const DESIGN_SANTOS_CANALS_X = [-384, -120, 252];
 export const SANTOS_CANALS_X = DESIGN_SANTOS_CANALS_X.map(ws);
 export const CANAL_WIDTH = 22;
 
-export const SOUTH_BEACH_LOD_CHUNK_SIZE = 720;
+export const SOUTH_BEACH_LOD_CHUNK_SIZE = 1320;
 export const SOUTH_BEACH_LOD1_DISTANCE = 280;
 
 export function isInsideSantosCanal(x, margin = 14) {
@@ -257,7 +257,9 @@ export class SouthBeachBatcher {
       (style.basic ? ch.l1Basic : ch.l1Std).push(entry);
       return;
     }
-    const micro = typeof isMicroDetail === 'boolean' ? isMicroDetail : Math.max(w, h, d) < 4.8;
+    const micro = typeof isMicroDetail === 'boolean'
+      ? isMicroDetail
+      : (Math.max(w, h, d) < 5.2 || (style.basic && Math.max(w, d) < 18.0));
     (style.basic ? ch.l0Basic : ch.l0Std).push(entry);
     if (!micro) {
       (style.basic ? ch.l1Basic : ch.l1Std).push(entry);

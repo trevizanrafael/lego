@@ -7,7 +7,7 @@ export const CLASSIC_LEGO_CONTAINER_KEYS = [
   'lego_red', 'pcc_royal', 'forklift_yellow', 'lego_green', 'lego_orange', 'tactical_white', 'matte_black'
 ];
 
-export const IND_CHUNK_SIZE = 920;
+export const IND_CHUNK_SIZE = 680;
 const METALLIC_MAT_KEYS = new Set(['dark_steel', 'brushed_silver', 'stolen_gold', 'smoke_plume']);
 const EMISSIVE_MAT_KEYS = new Set(['pcc_neon_blue', 'c4_hazard_red', 'ares_neon_purple', 'ares_magenta', 'floodlight_glow']);
 let _indStructuralVcMat = null, _indGroundVcMat = null, _indMetallicVcMat = null, _indEmissiveVcMat = null;
@@ -24,23 +24,36 @@ export function getEastPortSharedVcMaterials() {
   return { indStructuralVcMat: _indStructuralVcMat, indGroundVcMat: _indGroundVcMat, indMetallicVcMat: _indMetallicVcMat, indEmissiveVcMat: _indEmissiveVcMat };
 }
 
-function _buildCoarseChunkLodGeo(srcGeo, minDoubleAreaSq = 2200) {
+function _countIndTris(geo) {
+  if (!geo) return 0;
+  return geo.index ? Math.floor(geo.index.count / 3) : Math.floor((geo.attributes?.position?.count || 0) / 3);
+}
+
+function _buildCoarseChunkLodGeo(srcGeo, minDoubleAreaSq = 36.0, minAltitudeSq = 0) {
+  if (!srcGeo) return null;
   const pos = srcGeo.attributes.position, norm = srcGeo.attributes.normal, col = srcGeo.attributes.color;
   if (!pos || !norm || !col) return null;
   const idx = srcGeo.index ? srcGeo.index.array : null, triCount = idx ? Math.floor(idx.length / 3) : Math.floor(pos.count / 3);
-  if (triCount < 32000) return null;
+  if (triCount <= 0) return null;
   const pSrc = pos.array, nSrc = norm.array, cSrc = col.array, kept = new Int32Array(triCount * 3);
   let kLen = 0;
   for (let t = 0; t < triCount; t++) {
     const i0 = idx ? idx[t * 3] : t * 3, i1 = idx ? idx[t * 3 + 1] : t * 3 + 1, i2 = idx ? idx[t * 3 + 2] : t * 3 + 2;
-    if (nSrc[i0 * 3 + 1] < -0.85 && pSrc[i0 * 3 + 1] < 25) continue;
+    if (nSrc[i0 * 3 + 1] < -0.82 && pSrc[i0 * 3 + 1] < 28) continue;
     const x0 = pSrc[i0 * 3], y0 = pSrc[i0 * 3 + 1], z0 = pSrc[i0 * 3 + 2];
     const ax = pSrc[i1 * 3] - x0, ay = pSrc[i1 * 3 + 1] - y0, az = pSrc[i1 * 3 + 2] - z0;
     const bx = pSrc[i2 * 3] - x0, by = pSrc[i2 * 3 + 1] - y0, bz = pSrc[i2 * 3 + 2] - z0;
     const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
-    if (cx * cx + cy * cy + cz * cz >= minDoubleAreaSq) { kept[kLen++] = i0; kept[kLen++] = i1; kept[kLen++] = i2; }
+    const crossSq = cx * cx + cy * cy + cz * cz;
+    if (crossSq < minDoubleAreaSq) continue;
+    if (minAltitudeSq > 0) {
+      const dx2 = bx - ax, dy2 = by - ay, dz2 = bz - az;
+      const maxEdgeSq = Math.max(ax * ax + ay * ay + az * az, bx * bx + by * by + bz * bz, dx2 * dx2 + dy2 * dy2 + dz2 * dz2);
+      if (maxEdgeSq > 1e-4 && crossSq < minAltitudeSq * maxEdgeSq) continue;
+    }
+    kept[kLen++] = i0; kept[kLen++] = i1; kept[kLen++] = i2;
   }
-  if (kLen === 0 || kLen > triCount * 3 * 0.86) return null;
+  if (kLen === 0) return null;
   const remap = new Int32Array(pos.count).fill(-1), used = [], outIdx = pos.count > 65535 ? new Uint32Array(kLen) : new Uint16Array(kLen);
   for (let i = 0; i < kLen; i++) {
     const oVi = kept[i];
@@ -78,6 +91,7 @@ const MAT_DEFS = [
 export class PCCIndustrialBatcher {
   constructor(world = null) {
     this.world = world; this.buckets = new Map(); this.groundBuckets = new Map();
+    this.detailBuckets = new Map(); this.lodMacroBuckets = new Map();
     this.materials = new Map(); this.flushedMeshCount = 0; this._initMaterials();
   }
 
@@ -89,6 +103,7 @@ export class PCCIndustrialBatcher {
   _initMaterials() {
     for (const [key, colorHex, roughness, metalness, emissive, emissiveIntensity] of MAT_DEFS) {
       this.buckets.set(key, []); this.groundBuckets.set(key, []);
+      this.detailBuckets.set(key, []); this.lodMacroBuckets.set(key, []);
       this.materials.set(key, markAsSharedAsset(new THREE.MeshStandardMaterial({
         color: colorHex, roughness, metalness,
         emissive: emissive ? new THREE.Color(emissive) : new THREE.Color(0x000000),
@@ -101,6 +116,20 @@ export class PCCIndustrialBatcher {
     const map = isGroundSlab && !METALLIC_MAT_KEYS.has(key) && !EMISSIVE_MAT_KEYS.has(key) ? this.groundBuckets : this.buckets;
     const arr = map.get(key);
     if (arr) arr.push(geo);
+  }
+
+  addDetailBox(key, w, h, d, x, y, z) {
+    const arr = this.detailBuckets?.get(key);
+    if (!arr) return;
+    const tY = this._terrainLift(x, z);
+    arr.push(makeFastBox(w, h, d, x, y + tY, z));
+  }
+
+  addLodMacroBox(key, w, h, d, x, y, z) {
+    const arr = this.lodMacroBuckets?.get(key);
+    if (!arr) return;
+    const tY = this._terrainLift(x, z);
+    arr.push(makeFastBox(w, h, d, x, y + tY, z));
   }
 
   addBox(key, w, h, d, x, y, z, rotX = 0, rotY = 0, rotZ = 0) {
@@ -151,7 +180,11 @@ export class PCCIndustrialBatcher {
     const sub = Object.create(PCCIndustrialBatcher.prototype);
     sub.world = this.world; sub.materials = this.materials; sub.flushedMeshCount = 0;
     sub.buckets = new Map(); sub.groundBuckets = new Map();
-    for (const key of this.materials.keys()) { sub.buckets.set(key, []); sub.groundBuckets.set(key, []); }
+    sub.detailBuckets = new Map(); sub.lodMacroBuckets = new Map();
+    for (const key of this.materials.keys()) {
+      sub.buckets.set(key, []); sub.groundBuckets.set(key, []);
+      sub.detailBuckets.set(key, []); sub.lodMacroBuckets.set(key, []);
+    }
     return sub;
   }
 
@@ -168,78 +201,197 @@ export class PCCIndustrialBatcher {
     return [(minX + maxX) * 0.5, (minZ + maxZ) * 0.5];
   }
 
-  _chunkKeyFor(cx, cz, isStructural) {
-    if (isStructural) {
-      if (cz < -1840) return `sN:${cx < 3480 ? 0 : 1},${cz < -2900 ? 0 : 1}`;
-      if (cz >= 2460) return 'sS:0,0';
-      return `s:${Math.max(0, Math.min(3, Math.floor((cx - 1640) / IND_CHUNK_SIZE)))},${Math.floor((cz + 1840) / IND_CHUNK_SIZE)}`;
+  _chunkKeyFor(cx, cz) {
+    if (cz < -1650) {
+      return `N:${cx < 3240 ? 0 : 1},${cz < -2800 ? 0 : 1}`;
     }
-    return `a:${cx < 3480 ? 0 : 1},${cz < -1500 ? 0 : cz < 920 ? 1 : 2}`;
+    const gx = Math.max(0, Math.min(4, Math.floor((cx - 1580) / IND_CHUNK_SIZE)));
+    const gz = Math.max(0, Math.min(5, Math.floor((cz + 1650) / IND_CHUNK_SIZE)));
+    return `${gx},${gz}`;
   }
 
   finalize(scene) {
     const { indStructuralVcMat, indGroundVcMat, indMetallicVcMat, indEmissiveVcMat } = getEastPortSharedVcMaterials();
-    const isWorldScene = Boolean(scene?.isScene), groups = new Map();
-    const pushEntry = (kind, chunkKey, geo, color) => {
-      const id = `${kind}|${chunkKey}`;
-      let list = groups.get(id);
-      if (!list) { list = { kind, entries: [] }; groups.set(id, list); }
-      list.entries.push({ geo, color });
+    void indMetallicVcMat;
+    const isWorldScene = Boolean(scene?.isScene);
+
+    const makeSubMesh = (geo, mat, castShadow, receiveShadow) => {
+      if (!geo) return null;
+      geo.computeBoundingBox(); geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+      mesh.userData.skipStaticMerge = true;
+      mesh.userData.isEastPortBatchedMesh = true;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      return mesh;
+    };
+
+    if (!isWorldScene) {
+      const solidList = [], emissList = [];
+      for (const map of [this.buckets, this.detailBuckets, this.groundBuckets]) {
+        for (const [key, geos] of map.entries()) {
+          if (!geos.length) continue;
+          const col = this.materials.get(key)?.color;
+          const dst = EMISSIVE_MAT_KEYS.has(key) ? emissList : solidList;
+          for (let i = 0; i < geos.length; i++) dst.push({ geo: geos[i], color: col });
+          geos.length = 0;
+        }
+      }
+      let subCount = 0;
+      if (solidList.length) { scene.add(makeSubMesh(mergeColoredGeometries(solidList), indStructuralVcMat, true, true)); subCount++; }
+      if (emissList.length) { scene.add(makeSubMesh(mergeColoredGeometries(emissList), indEmissiveVcMat, false, false)); subCount++; }
+      this.flushedMeshCount = subCount;
+      this.buckets.clear(); this.groundBuckets.clear(); this.detailBuckets.clear(); this.lodMacroBuckets.clear();
+      return subCount;
+    }
+
+    const sCells = new Map(), gSectors = new Map(), eSectors = new Map();
+    const getSCell = (k) => {
+      let c = sCells.get(k);
+      if (!c) { c = { core: [], detail: [], macro: [] }; sCells.set(k, c); }
+      return c;
+    };
+    const pushList = (map, k, item) => {
+      let l = map.get(k);
+      if (!l) { l = []; map.set(k, l); }
+      l.push(item);
     };
 
     for (const [key, geos] of this.buckets.entries()) {
-      const col = this.materials.get(key)?.color;
-      const kind = EMISSIVE_MAT_KEYS.has(key) ? 'emissive' : METALLIC_MAT_KEYS.has(key) ? 'metallic' : 'structural';
+      const col = this.materials.get(key)?.color, isEm = EMISSIVE_MAT_KEYS.has(key);
       for (let i = 0; i < geos.length; i++) {
-        const g = geos[i], [cx, cz] = isWorldScene ? this._geoCenterXZ(g) : [0, 0];
-        pushEntry(kind, isWorldScene ? this._chunkKeyFor(cx, cz, kind === 'structural') : 'sub', g, col);
+        const g = geos[i], [cx, cz] = this._geoCenterXZ(g);
+        if (isEm) pushList(eSectors, cz < -1200 ? '0' : cz < 350 ? '1' : '2', { geo: g, color: col });
+        else getSCell(this._chunkKeyFor(cx, cz)).core.push({ geo: g, color: col });
+      }
+      geos.length = 0;
+    }
+    for (const [key, geos] of this.detailBuckets.entries()) {
+      const col = this.materials.get(key)?.color;
+      for (let i = 0; i < geos.length; i++) {
+        const g = geos[i], [cx, cz] = this._geoCenterXZ(g);
+        getSCell(this._chunkKeyFor(cx, cz)).detail.push({ geo: g, color: col });
+      }
+      geos.length = 0;
+    }
+    for (const [key, geos] of this.lodMacroBuckets.entries()) {
+      const col = this.materials.get(key)?.color;
+      for (let i = 0; i < geos.length; i++) {
+        const g = geos[i], [cx, cz] = this._geoCenterXZ(g);
+        getSCell(this._chunkKeyFor(cx, cz)).macro.push({ geo: g, color: col });
       }
       geos.length = 0;
     }
     for (const [key, geos] of this.groundBuckets.entries()) {
-      const col = this.materials.get(key)?.color, kind = isWorldScene ? 'ground' : 'structural';
+      const col = this.materials.get(key)?.color;
       for (let i = 0; i < geos.length; i++) {
-        const g = geos[i], [cx, cz] = isWorldScene ? this._geoCenterXZ(g) : [0, 0];
-        pushEntry(kind, isWorldScene ? this._chunkKeyFor(cx, cz, false) : 'sub', g, col);
+        const g = geos[i], [cx, cz] = this._geoCenterXZ(g);
+        const gk = `${cx < 3250 ? 0 : 1},${cz < -1500 ? 0 : cz < 350 ? 1 : 2}`;
+        pushList(gSectors, gk, { geo: g, color: col });
       }
       geos.length = 0;
     }
 
-    let createdMeshes = 0;
+    let createdChunks = 0;
     const center = new THREE.Vector3();
-    for (const { kind, entries } of groups.values()) {
+
+    for (const cell of sCells.values()) {
+      const l0Entries = cell.detail.length ? cell.core.concat(cell.detail) : cell.core;
+      if (!l0Entries.length && !cell.macro.length) continue;
+      const l0Geo = mergeColoredGeometries(l0Entries.length ? l0Entries : cell.macro);
+      l0Geo.computeBoundingBox();
+      l0Geo.boundingBox.getCenter(center);
+      l0Geo.translate(-center.x, -center.y, -center.z);
+      const l0Tris = _countIndTris(l0Geo);
+
+      if (l0Tris < 600 && !cell.macro.length) {
+        const m = makeSubMesh(l0Geo, indStructuralVcMat, true, true);
+        m.position.copy(center); m.updateMatrix(); m.updateMatrixWorld(true);
+        scene.add(m); createdChunks++;
+        continue;
+      }
+
+      const lodSrcEntries = cell.macro.length ? cell.core.concat(cell.macro) : cell.core;
+      let lodSrcGeo = null;
+      if (lodSrcEntries.length) {
+        lodSrcGeo = mergeColoredGeometries(lodSrcEntries.map((e) => ({ geo: e.geo.isRawBox ? e.geo : e.geo.clone(), color: e.color })));
+        lodSrcGeo.translate(-center.x, -center.y, -center.z);
+      }
+
+      const m0 = makeSubMesh(l0Geo, indStructuralVcMat, true, true);
+      const sL1 = lodSrcGeo ? _buildCoarseChunkLodGeo(lodSrcGeo, 64.0, 0.64) : null;
+      const sL2 = lodSrcGeo ? _buildCoarseChunkLodGeo(lodSrcGeo, 625.0, 7.5) : null;
+      const m1 = sL1 ? makeSubMesh(sL1, indStructuralVcMat, false, true) : new THREE.Object3D();
+      const m2 = sL2 ? makeSubMesh(sL2, indStructuralVcMat, false, true) : new THREE.Object3D();
+
+      const lod = new THREE.LOD();
+      lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
+      lod.userData.skipStaticMerge = true; lod.userData.isEastPortLod = true;
+      lod.userData.l0Triangles = l0Tris;
+      lod.userData.l1Triangles = _countIndTris(sL1);
+      lod.userData.l2Triangles = _countIndTris(sL2);
+      lod.addLevel(m0, 0); lod.addLevel(m1, 220); lod.addLevel(m2, 760);
+      m0.visible = true; m1.visible = false; m2.visible = false;
+      lod.updateMatrixWorld(true);
+      scene.add(lod); createdChunks++;
+    }
+
+    for (const entries of gSectors.values()) {
       if (!entries.length) continue;
-      const merged = mergeColoredGeometries(entries);
-      merged.computeBoundingBox();
-      if (isWorldScene && merged.boundingBox) {
-        merged.boundingBox.getCenter(center); merged.translate(-center.x, -center.y, -center.z); merged.computeBoundingBox();
-      } else center.set(0, 0, 0);
-      merged.computeBoundingSphere();
+      const gGeo = mergeColoredGeometries(entries);
+      gGeo.computeBoundingBox(); gGeo.boundingBox.getCenter(center);
+      gGeo.translate(-center.x, -center.y, -center.z);
+      const gTris = _countIndTris(gGeo);
+      if (gTris < 600) {
+        const m = makeSubMesh(gGeo, indGroundVcMat, false, true);
+        m.position.copy(center); m.updateMatrix(); m.updateMatrixWorld(true);
+        scene.add(m); createdChunks++;
+        continue;
+      }
+      const m0 = makeSubMesh(gGeo, indGroundVcMat, false, true);
+      const gL1 = _buildCoarseChunkLodGeo(gGeo, 196.0, 9.0);
+      const gL2 = _buildCoarseChunkLodGeo(gGeo, 36000.0, 196.0);
+      const m1 = gL1 ? makeSubMesh(gL1, indGroundVcMat, false, true) : new THREE.Object3D();
+      const m2 = gL2 ? makeSubMesh(gL2, indGroundVcMat, false, true) : new THREE.Object3D();
+      const lod = new THREE.LOD();
+      lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
+      lod.userData.skipStaticMerge = true; lod.userData.isEastPortLod = true;
+      lod.userData.l0Triangles = gTris;
+      lod.userData.l1Triangles = _countIndTris(gL1);
+      lod.userData.l2Triangles = _countIndTris(gL2);
+      lod.addLevel(m0, 0); lod.addLevel(m1, 220); lod.addLevel(m2, 760);
+      m0.visible = true; m1.visible = false; m2.visible = false;
+      lod.updateMatrixWorld(true);
+      scene.add(lod); createdChunks++;
+    }
 
-      const mat = kind === 'structural' ? indStructuralVcMat : kind === 'ground' ? indGroundVcMat : kind === 'metallic' ? indMetallicVcMat : indEmissiveVcMat;
-      const mesh = new THREE.Mesh(merged, mat);
-      mesh.castShadow = kind === 'structural'; mesh.receiveShadow = kind !== 'emissive';
-      mesh.userData.skipStaticMerge = true; mesh.userData.isEastPortBatchedMesh = true; mesh.matrixAutoUpdate = false;
-
-      const coarseGeo = isWorldScene && kind === 'structural' ? _buildCoarseChunkLodGeo(merged) : null;
-      if (coarseGeo) {
-        const lod = new THREE.LOD();
-        lod.position.copy(center); lod.userData.skipStaticMerge = true; lod.matrixAutoUpdate = false; lod.updateMatrix();
-        const lod1 = new THREE.Mesh(coarseGeo, mat);
-        lod1.castShadow = false; lod1.receiveShadow = true; lod1.visible = false;
-        lod1.userData.skipStaticMerge = true; lod1.userData.isEastPortBatchedMesh = true;
-        lod1.matrixAutoUpdate = false; lod1.updateMatrix(); mesh.updateMatrix();
-        lod.addLevel(mesh, 0); lod.addLevel(lod1, 340); lod.updateMatrixWorld(true);
-        scene.add(lod); createdMeshes += 2;
+    for (const entries of eSectors.values()) {
+      if (!entries.length) continue;
+      const eGeo = mergeColoredGeometries(entries);
+      eGeo.computeBoundingBox(); eGeo.boundingBox.getCenter(center);
+      eGeo.translate(-center.x, -center.y, -center.z);
+      const eTris = _countIndTris(eGeo);
+      const m0 = makeSubMesh(eGeo, indEmissiveVcMat, false, false);
+      if (eTris < 120) {
+        m0.position.copy(center); m0.updateMatrix(); m0.updateMatrixWorld(true);
+        scene.add(m0); createdChunks++;
       } else {
-        mesh.position.copy(center); mesh.updateMatrix();
-        if (isWorldScene) mesh.updateMatrixWorld(true);
-        scene.add(mesh); createdMeshes += 1;
+        const empty = new THREE.Object3D(); empty.visible = false;
+        const lod = new THREE.LOD();
+        lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
+        lod.userData.skipStaticMerge = true; lod.userData.isEastPortLod = true;
+        lod.userData.l0Triangles = eTris; lod.userData.l1Triangles = 0; lod.userData.l2Triangles = 0;
+        lod.addLevel(m0, 0); lod.addLevel(empty, 260);
+        lod.updateMatrixWorld(true);
+        scene.add(lod); createdChunks++;
       }
     }
-    this.flushedMeshCount = createdMeshes;
-    this.buckets.clear(); this.groundBuckets.clear();
-    return createdMeshes;
+
+    this.flushedMeshCount = createdChunks;
+    this.buckets.clear(); this.groundBuckets.clear(); this.detailBuckets.clear(); this.lodMacroBuckets.clear();
+    return createdChunks;
   }
 }
 
@@ -428,19 +580,27 @@ export function addPCCArmoredBoxTruck(world, batcher, x, z) {
 
 export function addCorrugatedContainerStack(world, batcher, x, z, floors, rotated, colorKeys, seed) {
   const cw = rotated ? 18.0 : 6.0, cd = rotated ? 6.0 : 18.0, ch = 6.0;
+  const useMacroColumn = floors >= 2 && typeof batcher.addLodMacroBox === 'function';
   for (let s = 0; s < floors; s++) {
-    addSingleDetailedContainerGeometry(batcher, colorKeys[(seed + s * 2) % colorKeys.length], x, 0.28 + s * ch + ch * 0.5, z, cw, ch, cd, rotated);
+    addSingleDetailedContainerGeometry(
+      batcher, colorKeys[(seed + s * 2) % colorKeys.length], x, 0.28 + s * ch + ch * 0.5, z, cw, ch, cd, rotated, useMacroColumn
+    );
     world.eastPortData.detailedContainersCount++;
+  }
+  if (useMacroColumn) {
+    batcher.addLodMacroBox(colorKeys[(seed + 2) % colorKeys.length], cw - 0.2, floors * ch - 0.14, cd - 0.2, x, 0.28 + floors * ch * 0.5, z);
   }
   world.addCollider(x, z, cw, cd, 0.28 + floors * ch, 0.28);
   world.mapBuildings.push({ x, z, w: cw, d: cd, height: floors * ch, color: '#f59e0b' });
 }
 
-export function addSingleDetailedContainerGeometry(batcher, colorKey, x, cy, z, cw, ch, cd, rotated) {
-  batcher.addBox(colorKey, cw - 0.2, ch - 0.14, cd - 0.2, x, cy, z);
+export function addSingleDetailedContainerGeometry(batcher, colorKey, x, cy, z, cw, ch, cd, rotated, coreInDetail = false) {
+  if (coreInDetail && typeof batcher.addDetailBox === 'function') batcher.addDetailBox(colorKey, cw - 0.2, ch - 0.14, cd - 0.2, x, cy, z);
+  else batcher.addBox(colorKey, cw - 0.2, ch - 0.14, cd - 0.2, x, cy, z);
+  const addDet = typeof batcher.addDetailBox === 'function' ? batcher.addDetailBox.bind(batcher) : batcher.addBox.bind(batcher);
   for (const off of [-5.2, 0, 5.2]) {
-    if (!rotated) batcher.addBox(colorKey, cw + 0.24, ch - 0.42, 2.2, x, cy, z + off);
-    else batcher.addBox(colorKey, 2.2, ch - 0.42, cd + 0.24, x + off, cy, z);
+    if (!rotated) addDet(colorKey, cw + 0.24, ch - 0.42, 2.2, x, cy, z + off);
+    else addDet(colorKey, 2.2, ch - 0.42, cd + 0.24, x + off, cy, z);
   }
-  batcher.addBox('brushed_silver', rotated ? cw + 0.16 : 3.2, ch - 0.4, rotated ? 3.2 : cd + 0.16, x, cy, z);
+  addDet('brushed_silver', rotated ? cw + 0.16 : 3.2, ch - 0.4, rotated ? 3.2 : cd + 0.16, x, cy, z);
 }

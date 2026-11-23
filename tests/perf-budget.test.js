@@ -35,20 +35,24 @@ describe('ORÇAMENTO DE PERFORMANCE DE CENA (M2 + M3 — Meshes, Materiais, Geom
       `Meshes totais da cena devem ser < 3000 (atual: ${audit.meshes})`
     );
     assert.ok(
-      audit.uniqueMaterials <= 200,
-      `Materiais únicos da cena devem ser <= 200 (atual: ${audit.uniqueMaterials})`
+      audit.uniqueMaterials <= 200 && audit.uniqueMaterials <= 165,
+      `Materiais únicos da cena devem ser <= 165 (atual: ${audit.uniqueMaterials})`
+    );
+    assert.ok(
+      audit.physicalMaterials <= 8,
+      `MeshPhysicalMaterials devem ser <= 8 (atual: ${audit.physicalMaterials})`
     );
     assert.ok(
       audit.uniqueGeometries < 2500,
       `Geometrias únicas da cena devem ser < 2500 (atual: ${audit.uniqueGeometries})`
     );
     assert.ok(
-      audit.transparentMeshes < 80,
-      `Meshes transparentes da cena devem ser < 80 (atual: ${audit.transparentMeshes})`
+      audit.transparentMeshes < 80 && audit.transparentMeshes < 75,
+      `Meshes transparentes da cena devem ser < 75 (atual: ${audit.transparentMeshes})`
     );
     assert.ok(
-      audit.shadowCasters < 400,
-      `Shadow casters ativos devem ser < 400 (atual: ${audit.shadowCasters})`
+      audit.shadowCasters < 400 && audit.shadowCasters <= 80,
+      `Shadow casters ativos devem respeitar o orçamento M9 <= 80 em medium (atual: ${audit.shadowCasters})`
     );
     assert.ok(
       audit.cameraFar <= 4500,

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 export const MAX_SHADOW_BUDGET = 320;
 export const MIN_STATIC_SHADOW_RADIUS = 1.35;
-export const SHADOW_RADIUS_BY_PRESET = { low: 0, medium: 185, auto: 185, ultra: 240 };
+export const SHADOW_BUDGET_BY_PRESET = { low: 0, medium: 34, auto: 36, ultra: 180 };
+export const SHADOW_RADIUS_BY_PRESET = { low: 0, medium: 114, auto: 118, ultra: 210 };
 
 const _BOX3 = new THREE.Box3();
 const _DUMMY_OBJ = new THREE.Object3D();
@@ -56,6 +57,7 @@ export class ShadowBudgetController {
     this.candidates = [];
     this.dynamicGroups = [];
     this._indexedDynamicItems = new WeakSet();
+    this._viaductCandidates = [];
     this._centralViaductCandidate = null;
     this.activeCasterCount = 0;
 
@@ -126,12 +128,17 @@ export class ShadowBudgetController {
   _registerDynamicRoot(root, itemRef = null, outMeshSet = null) {
     if (!root || this._indexedDynamicItems.has(itemRef || root)) return;
     this._indexedDynamicItems.add(itemRef || root);
+    const isHumanoid =
+      itemRef?.type === 'npc_fighter' ||
+      itemRef?.type === 'npc_boss' ||
+      itemRef?.type === 'pedestrian_civilian';
     const meshes = [];
     root.traverse((node) => {
       if (!node || (!node.isMesh && !node.isInstancedMesh)) return;
       if (outMeshSet) outMeshSet.add(node);
       if (!node.castShadow) return;
       if (isTransparentOrBasicMaterial(node.material)) { node.castShadow = false; return; }
+      if (isHumanoid && meshes.length >= 2) { node.castShadow = false; return; }
       meshes.push(node);
     });
     if (meshes.length > 0) this.dynamicGroups.push({ root, item: itemRef, meshes, _distSq: 0, _centerDistSq: 0 });
@@ -159,6 +166,7 @@ export class ShadowBudgetController {
     this.candidates.length = 0;
     this.dynamicGroups.length = 0;
     this._indexedDynamicItems = new WeakSet();
+    this._viaductCandidates.length = 0;
     this._centralViaductCandidate = null;
     if (!this.scene) return 0;
     this.scene.updateMatrixWorld?.(true);
@@ -216,6 +224,7 @@ export class ShadowBudgetController {
       this.candidates.push(cand);
 
       if (isViaductConcrete) {
+        this._viaductCandidates.push(cand);
         const dx = ax < cand.minX ? cand.minX - ax : ax > cand.maxX ? ax - cand.maxX : 0;
         const dz = az < cand.minZ ? cand.minZ - az : az > cand.maxZ ? az - cand.maxZ : 0;
         const dSq = dx * dx + dz * dz + ((cx - ax) ** 2 + (cz - az) ** 2) * 1e-4;
@@ -223,23 +232,24 @@ export class ShadowBudgetController {
       }
     });
 
-    this._applyShadowBudget(ax, az, 210);
+    this._applyShadowBudget(ax, az, SHADOW_RADIUS_BY_PRESET.auto, SHADOW_BUDGET_BY_PRESET.auto);
     this._lastScanX = ax;
     this._lastScanZ = az;
     return this.candidates.length;
   }
 
-  _applyShadowBudget(ax, az, shadowRadius) {
+  _applyShadowBudget(ax, az, shadowRadius, budgetCap = this.maxBudget) {
     this._syncDynamicObjects(null);
+    const effectiveCap = Math.max(0, Math.min(this.maxBudget, Number.isFinite(budgetCap) ? budgetCap : this.maxBudget));
     let usedBudget = 0;
     for (const pr of this._collectPlayerRoots()) {
       pr.traverse((n) => {
         if (!n || (!n.isMesh && !n.isInstancedMesh) || isTransparentOrBasicMaterial(n.material)) return;
-        if (shadowRadius > 0 && usedBudget < this.maxBudget) { n.castShadow = true; usedBudget++; }
-        else if (shadowRadius <= 0) n.castShadow = false;
+        if (shadowRadius > 0 && usedBudget < effectiveCap) { n.castShadow = true; usedBudget++; }
+        else n.castShadow = false;
       });
     }
-    if (shadowRadius <= 0) {
+    if (shadowRadius <= 0 || effectiveCap <= 0) {
       for (let i = 0; i < this.candidates.length; i++) this.candidates[i].mesh.castShadow = false;
       for (let i = 0; i < this.dynamicGroups.length; i++) {
         for (let j = 0; j < this.dynamicGroups[i].meshes.length; j++) this.dynamicGroups[i].meshes[j].castShadow = false;
@@ -249,17 +259,31 @@ export class ShadowBudgetController {
     }
 
     const rSq = shadowRadius * shadowRadius;
-    const dynRSq = Math.min(shadowRadius, 155) ** 2;
+    const dynRSq = Math.min(shadowRadius, 90) ** 2;
     const matched = this._activeEntriesScratch;
     matched.length = 0;
 
-    if (this._centralViaductCandidate && usedBudget < this.maxBudget) {
-      this._centralViaductCandidate.mesh.castShadow = true;
+    let priorityViaduct = null;
+    let bestViaDistSq = 160 * 160;
+    for (let i = 0; i < this._viaductCandidates.length; i++) {
+      const vc = this._viaductCandidates[i];
+      const dx = ax < vc.minX ? vc.minX - ax : ax > vc.maxX ? ax - vc.maxX : 0;
+      const dz = az < vc.minZ ? vc.minZ - az : az > vc.maxZ ? az - vc.maxZ : 0;
+      const dSq = dx * dx + dz * dz;
+      if (dSq <= bestViaDistSq) {
+        bestViaDistSq = dSq;
+        priorityViaduct = vc;
+      }
+    }
+    if (priorityViaduct && usedBudget < effectiveCap) {
+      priorityViaduct.mesh.castShadow = true;
+      this._centralViaductCandidate = priorityViaduct;
       usedBudget++;
     }
+
     for (let i = 0; i < this.candidates.length; i++) {
       const c = this.candidates[i];
-      if (c === this._centralViaductCandidate) continue;
+      if (c === priorityViaduct) continue;
       const dx = ax < c.minX ? c.minX - ax : ax > c.maxX ? ax - c.maxX : 0;
       const dz = az < c.minZ ? c.minZ - az : az > c.maxZ ? az - c.maxZ : 0;
       const distSq = dx * dx + dz * dz;
@@ -281,10 +305,10 @@ export class ShadowBudgetController {
     for (let i = 0; i < matched.length; i++) {
       const entry = matched[i];
       if (entry.meshes) {
-        const allow = usedBudget + entry.meshes.length <= this.maxBudget;
+        const allow = usedBudget + entry.meshes.length <= effectiveCap;
         for (let j = 0; j < entry.meshes.length; j++) entry.meshes[j].castShadow = allow;
         if (allow) usedBudget += entry.meshes.length;
-      } else if (usedBudget < this.maxBudget) {
+      } else if (usedBudget < effectiveCap) {
         entry.mesh.castShadow = true;
         usedBudget++;
       } else entry.mesh.castShadow = false;
@@ -368,17 +392,21 @@ export class ShadowBudgetController {
         this.renderer.shadowMap.autoUpdate = false;
         this.renderer.shadowMap.needsUpdate = false;
       }
-      if (presetChanged || this.activeCasterCount > 0) this._applyShadowBudget(px, pz, 0);
+      if (presetChanged || this.activeCasterCount > 0) this._applyShadowBudget(px, pz, 0, 0);
       this._updateContactShadows(px, py, pz);
       return;
     }
 
     if (this.contactShadowMesh) this.contactShadowMesh.visible = false;
-    const radius = SHADOW_RADIUS_BY_PRESET[preset] ?? 185;
+    const radius = SHADOW_RADIUS_BY_PRESET[preset] ?? SHADOW_RADIUS_BY_PRESET.auto;
+    const budgetCap = SHADOW_BUDGET_BY_PRESET[preset] ?? SHADOW_BUDGET_BY_PRESET.auto;
+    const curDynLen = this.world?.destructibles?._dynamicObjects?.length || 0;
+    const dynChanged = curDynLen !== this._lastDynLen;
+    this._lastDynLen = curDynLen;
     const movedSq = (px - this._lastScanX) ** 2 + (pz - this._lastScanZ) ** 2;
     let rescanned = false;
-    if (presetChanged || !Number.isFinite(movedSq) || movedSq > 576) {
-      this._applyShadowBudget(px, pz, radius);
+    if (presetChanged || dynChanged || !Number.isFinite(movedSq) || movedSq > 576) {
+      this._applyShadowBudget(px, pz, radius, budgetCap);
       this._lastScanX = px;
       this._lastScanZ = pz;
       rescanned = true;

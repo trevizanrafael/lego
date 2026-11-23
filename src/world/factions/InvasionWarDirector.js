@@ -95,13 +95,13 @@ export const invasionWarDirectorMethods = {
   _spawnOutpostGarrison(zoneState, op, mode = 'full', tier = 0, defer = false) {
     const faction = zoneState.ownerFaction;
     const roles = mode === 'full'
-      ? ['rifleman', 'rifleman', 'tank', 'medic', ...(tier >= 1 ? ['special'] : []), ...(tier >= 2 ? ['special', 'rifleman'] : [])]
+      ? ['rifleman', 'tank', 'rifleman', 'medic', ...(tier >= 1 ? ['special'] : []), ...(tier >= 2 ? ['special', 'rifleman'] : [])]
       : ['rifleman', 'rifleman'];
     roles.forEach((role, i) => {
       const ang = (i / roles.length) * Math.PI * 2 + tier;
       const rad = role === 'tank' ? 3.2 : 4.6;
       const spec = { faction, role, x: op.x + Math.cos(ang) * rad, z: op.z + Math.sin(ang) * rad, outpostId: op.id };
-      if (defer || i >= 4) this._enqueuePendingUnit(spec);
+      if (defer || i >= 1) this._enqueuePendingUnit(spec);
       else this._spawnCombatUnit(spec);
     });
   },
@@ -303,11 +303,12 @@ export const invasionWarDirectorMethods = {
   update(dt, playerPos, controller = null) {
     if (!playerPos) return;
     this._prewarmWarPoolsOnce?.();
+    this._allyQueueFrameCounter = ((this._allyQueueFrameCounter || 0) + 1) | 0;
     this._animClock += dt;
     if (controller) this._lastController = controller;
 
     // Anima antenas de radar e giroflex dos 9 Outposts apenas na zona em guerra
-    // ou quando o jogador está próximo (< 360m..420m), dormindo outposts distantes!
+    // ou quando o jogador está realmente próximo (< 240m..280m), dormindo outposts distantes!
     const px = playerPos.x;
     const pz = playerPos.z;
     for (const zKey in this.territories) {
@@ -317,11 +318,11 @@ export const invasionWarDirectorMethods = {
         const b = st.spec?.bounds;
         const cx = b ? (b.minX + b.maxX) * 0.5 : 0;
         const cz = b ? (b.minZ + b.maxZ) * 0.5 : 0;
-        let nearTerritory = b ? (Math.abs(px - cx) < 420 && Math.abs(pz - cz) < 420) : true;
+        let nearTerritory = b ? (Math.abs(px - cx) < 280 && Math.abs(pz - cz) < 280) : true;
         if (!nearTerritory) {
           for (let oi = 0; oi < st.outposts.length; oi++) {
             const op = st.outposts[oi];
-            if (Math.abs(px - op.x) < 360 && Math.abs(pz - op.z) < 360) {
+            if (Math.abs(px - op.x) < 240 && Math.abs(pz - op.z) < 240) {
               nearTerritory = true;
               break;
             }
@@ -424,7 +425,9 @@ export const invasionWarDirectorMethods = {
 
     const currentZone = this.territories[this.activeZoneId];
     if (this.activeMode === 'INVASION_1V1') {
-      this._drainPendingSpawnQueue(3);
+      this._drainPendingSpawnQueue(2);
+    } else if (this.activeMode === 'ALLY_HQ') {
+      this._drainPendingAllyGarrison?.(1);
     }
     this._updateConvoyDrops(dt);
     this._updateCombatUnitsAndHealBeams(dt, playerPos, controller, currentZone);

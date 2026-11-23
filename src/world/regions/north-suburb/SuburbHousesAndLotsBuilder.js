@@ -306,7 +306,7 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
         buildSpecialBlockOrganicPocket(world, batcher, {
           id: 'gas_south', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 46, southLotD: 30,
           specialKeepout: { minX: gx - 78, maxX: innerMaxX, minZ: innerMinZ, maxZ: gz + 76 },
-          entrySide: 'west', pocketZ: safeSouthZ - 108, seed: 301
+          entrySide: 'west', pocketZ: safeSouthZ - 172, crossLaneZ: safeSouthZ - 84, seed: 301
         });
         continue;
       }
@@ -327,7 +327,7 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
         buildSpecialBlockOrganicPocket(world, batcher, {
           id: 'pizzeria_north', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 30, southLotD: 46,
           specialKeepout: { minX: px - 70, maxX: innerMaxX, minZ: pz - 76, maxZ: safeSouthZ },
-          entrySide: 'west', pocketZ: innerMinZ + 108, seed: 331
+          entrySide: 'west', pocketZ: innerMinZ + 172, crossLaneZ: innerMinZ + 84, seed: 331
         });
         continue;
       }
@@ -348,7 +348,7 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
         buildSpecialBlockOrganicPocket(world, batcher, {
           id: 'bball_north', innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 30, southLotD: 46,
           specialKeepout: { minX: bx - 70, maxX: innerMaxX, minZ: bz - 76, maxZ: safeSouthZ },
-          entrySide: 'west', pocketZ: innerMinZ + 108, seed: 367
+          entrySide: 'west', pocketZ: innerMinZ + 172, crossLaneZ: innerMinZ + 84, seed: 367
         });
         continue;
       }
@@ -364,7 +364,7 @@ export function buildScaledNorthSuburbGrid(world, batcher, specialBuilders) {
         buildSpecialBlockOrganicPocket(world, batcher, {
           id: `coast_${designMidX}`, innerMinX, innerMaxX, innerMinZ, safeSouthZ, northLotD: 32, southLotD: 0,
           specialKeepout: { minX: cellCX - 81, maxX: cellCX + 81, minZ: pkZ - 82, maxZ: pkZ + 82 },
-          entrySide: designMidX < 0 ? 'west' : 'east', pocketZ: innerMinZ + 120, seed: designMidX < 0 ? 401 : 439
+          entrySide: designMidX < 0 ? 'west' : 'east', pocketZ: innerMinZ + 174, crossLaneZ: innerMinZ + 88, seed: designMidX < 0 ? 401 : 439
         });
         continue;
       }

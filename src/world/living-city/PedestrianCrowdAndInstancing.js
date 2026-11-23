@@ -100,6 +100,12 @@ export const pedestrianCrowdAndInstancingMethods = {
       allPools[i].count = 0;
     }
 
+    this._pedInstFrameTick = ((this._pedInstFrameTick || 0) + 1) | 0;
+    const pPos = this._lastSyncPlayerPos;
+    const px = pPos ? pPos.x : NaN;
+    const pz = pPos ? pPos.z : NaN;
+    const hasPlayerRef = Number.isFinite(px) && Number.isFinite(pz);
+
     const pushMat = (inst, mat4, colorHex = null) => {
       const idx = inst.count;
       if (idx >= inst.instanceMatrix.count) return;
@@ -110,8 +116,25 @@ export const pedestrianCrowdAndInstancingMethods = {
       inst.count = idx + 1;
     };
 
-    const composePart = (parentMat, px, py, pz, rx, ry, rz) => {
-      _PED_POS.set(px, py, pz);
+    const pushRaw16 = (inst, arr, offset, colorHex = null) => {
+      const idx = inst.count;
+      if (idx >= inst.instanceMatrix.count) return;
+      const dst = inst.instanceMatrix.array;
+      const base = idx * 16;
+      for (let k = 0; k < 16; k++) dst[base + k] = arr[offset + k];
+      if (colorHex !== null) {
+        inst.setColorAt(idx, _PED_COLOR.setHex(colorHex));
+      }
+      inst.count = idx + 1;
+    };
+
+    const storeRaw16 = (arr, offset, mat4) => {
+      const src = mat4.elements;
+      for (let k = 0; k < 16; k++) arr[offset + k] = src[k];
+    };
+
+    const composePart = (parentMat, pxLocal, pyLocal, pzLocal, rx, ry, rz) => {
+      _PED_POS.set(pxLocal, pyLocal, pzLocal);
       _PED_EULER.set(rx, ry, rz);
       _PED_QUAT.setFromEuler(_PED_EULER);
       _PED_LOCAL_MAT4.compose(_PED_POS, _PED_QUAT, _PED_SCALE_ONE);
@@ -125,41 +148,92 @@ export const pedestrianCrowdAndInstancingMethods = {
       const root = vis?.root;
       if (!root || !root.visible) continue;
 
+      const decalKey = vis.torsoKey || 'casual_denim';
+      const decalPool = this._getPedSubPool(pools.decals, decalKey, () =>
+        new THREE.InstancedMesh(NPC_TORSO_DECAL_GEO, getSharedCivilianTorsoMaterial(decalKey), this._pedMaxCap)
+      );
+      const faceKey = vis.faceKey || ped.currentFaceKey || 'civ_calm';
+      const facePool = this._getPedSubPool(pools.faces, faceKey, () =>
+        new THREE.InstancedMesh(NPC_FACE_SHELL_GEO, getSharedHumanCivilianFaceMaterial(faceKey), this._pedMaxCap)
+      );
+      const hasHeadProp = Boolean(vis.headPropMesh?.visible && vis.headPropKey && SHARED_CIV_PROP_GEOS[vis.headPropKey]);
+      const hasHandProp = Boolean(vis.handPropMesh?.visible && vis.handPropKey && SHARED_CIV_PROP_GEOS[vis.handPropKey]);
+      const hasFlash = Boolean(vis.cameraFlashMesh?.visible);
+      const hasBackProp = Boolean(vis.backPropMesh?.visible);
+
+      const isFarPed =
+        hasPlayerRef &&
+        ((root.position.x - px) ** 2 + (root.position.z - pz) ** 2 > 65 * 65);
+
+      if (isFarPed && ped._farMatBuf && ((i + this._pedInstFrameTick) % 3 !== 0)) {
+        const buf = ped._farMatBuf;
+        pushRaw16(pools.hip, buf, 0, vis.legHex);
+        pushRaw16(pools.torso, buf, 16, vis.torsoHex);
+        pushRaw16(decalPool, buf, 16);
+        pushRaw16(pools.legs, buf, 32, vis.legHex);
+        pushRaw16(pools.legs, buf, 48, vis.legHex);
+        pushRaw16(pools.head, buf, 64, vis.skinHex);
+        pushRaw16(facePool, buf, 64);
+        if (hasHeadProp) {
+          const hpKey = vis.headPropKey;
+          const hpPool = this._getPedSubPool(pools.headProps, hpKey, () => {
+            const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHeadPropMat, this._pedMaxCap);
+            im.setColorAt(0, _PED_COLOR.setHex(0xffffff));
+            return im;
+          });
+          pushRaw16(hpPool, buf, 64, vis.headColor);
+        }
+        pushRaw16(pools.arms, buf, 80, vis.armHex ?? vis.torsoHex);
+        pushRaw16(pools.hands, buf, 80, vis.skinHex);
+        pushRaw16(pools.arms, buf, 96, vis.armHex ?? vis.torsoHex);
+        pushRaw16(pools.hands, buf, 96, vis.skinHex);
+        if (hasHandProp && ped._farHasHandProp) {
+          const hpKey = vis.handPropKey;
+          const hpPool = this._getPedSubPool(pools.handProps, hpKey, () => {
+            const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHandPropMat, this._pedMaxCap);
+            im.setColorAt(0, _PED_COLOR.setHex(0xffffff));
+            return im;
+          });
+          pushRaw16(hpPool, buf, 112, vis.handPropColor);
+        }
+        if (hasBackProp && ped._farHasBackProp) {
+          pushRaw16(pools.backProp, buf, 128, vis.backPropColor);
+        }
+        continue;
+      }
+
+      const farBuf = isFarPed ? (ped._farMatBuf || (ped._farMatBuf = new Float32Array(144))) : null;
+
       _PED_QUAT.setFromEuler(root.rotation);
       _PED_ROOT_MAT4.compose(root.position, _PED_QUAT, root.scale || _PED_SCALE_ONE);
 
       // Cintura (cor da calça igual aos operadores) em y = 0.72
       composePart(_PED_ROOT_MAT4, 0, 0.72, 0, 0, 0, 0);
       pushMat(pools.hip, _PED_WORLD_MAT4, vis.legHex);
+      if (farBuf) storeRaw16(farBuf, 0, _PED_WORLD_MAT4);
 
       // Tronco + Decal em y = 0.86 + 0.38 = 1.24
       composePart(_PED_ROOT_MAT4, 0, 1.24, 0, 0, 0, 0);
       pushMat(pools.torso, _PED_WORLD_MAT4, vis.torsoHex);
-
-      const decalKey = vis.torsoKey || 'casual_denim';
-      const decalPool = this._getPedSubPool(pools.decals, decalKey, () =>
-        new THREE.InstancedMesh(NPC_TORSO_DECAL_GEO, getSharedCivilianTorsoMaterial(decalKey), this._pedMaxCap)
-      );
       pushMat(decalPool, _PED_WORLD_MAT4);
+      if (farBuf) storeRaw16(farBuf, 16, _PED_WORLD_MAT4);
 
       // Pernas esquerda e direita (pivô y = 0.72 -> sola toca y = 0.00 exato)
       composePart(_PED_ROOT_MAT4, -0.21, 0.72, 0, vis.leftLeg.rotation.x, 0, vis.leftLeg.rotation.z || 0);
       pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
+      if (farBuf) storeRaw16(farBuf, 32, _PED_WORLD_MAT4);
       composePart(_PED_ROOT_MAT4, 0.21, 0.72, 0, vis.rightLeg.rotation.x, 0, vis.rightLeg.rotation.z || 0);
       pushMat(pools.legs, _PED_WORLD_MAT4, vis.legHex);
+      if (farBuf) storeRaw16(farBuf, 48, _PED_WORLD_MAT4);
 
       // Cabeça humana + Shell de expressão transparente + Cabelo/Boné em y = 1.95 (base headGroup = 1.62)
       const headYaw = vis.headYaw || 0;
       composePart(_PED_ROOT_MAT4, 0, 1.95, 0, 0, headYaw, 0);
       pushMat(pools.head, _PED_WORLD_MAT4, vis.skinHex);
-
-      const faceKey = vis.faceKey || ped.currentFaceKey || 'civ_calm';
-      const facePool = this._getPedSubPool(pools.faces, faceKey, () =>
-        new THREE.InstancedMesh(NPC_FACE_SHELL_GEO, getSharedHumanCivilianFaceMaterial(faceKey), this._pedMaxCap)
-      );
       pushMat(facePool, _PED_WORLD_MAT4);
+      if (farBuf) storeRaw16(farBuf, 64, _PED_WORLD_MAT4);
 
-      if (vis.headPropMesh?.visible && vis.headPropKey && SHARED_CIV_PROP_GEOS[vis.headPropKey]) {
+      if (hasHeadProp) {
         const hpKey = vis.headPropKey;
         const hpPool = this._getPedSubPool(pools.headProps, hpKey, () => {
           const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHeadPropMat, this._pedMaxCap);
@@ -173,14 +247,17 @@ export const pedestrianCrowdAndInstancingMethods = {
       composePart(_PED_ROOT_MAT4, -0.46, 1.52, 0, vis.leftArm.rotation.x, 0, vis.leftArm.rotation.z);
       pushMat(pools.arms, _PED_WORLD_MAT4, vis.armHex ?? vis.torsoHex);
       pushMat(pools.hands, _PED_WORLD_MAT4, vis.skinHex);
+      if (farBuf) storeRaw16(farBuf, 80, _PED_WORLD_MAT4);
 
       // Braço direito + Mão humana em C + Prop de Mão em (0.46, 1.52, 0)
       composePart(_PED_ROOT_MAT4, 0.46, 1.52, 0, vis.rightArm.rotation.x, 0, vis.rightArm.rotation.z);
       pushMat(pools.arms, _PED_WORLD_MAT4, vis.armHex ?? vis.torsoHex);
       pushMat(pools.hands, _PED_WORLD_MAT4, vis.skinHex);
       _PED_ARM_MAT4.copy(_PED_WORLD_MAT4);
+      if (farBuf) storeRaw16(farBuf, 96, _PED_WORLD_MAT4);
 
-      if (vis.handPropMesh?.visible && vis.handPropKey && SHARED_CIV_PROP_GEOS[vis.handPropKey]) {
+      ped._farHasHandProp = hasHandProp;
+      if (hasHandProp) {
         const hpKey = vis.handPropKey;
         const hpPool = this._getPedSubPool(pools.handProps, hpKey, () => {
           const im = new THREE.InstancedMesh(SHARED_CIV_PROP_GEOS[hpKey], this._pedHandPropMat, this._pedMaxCap);
@@ -189,16 +266,19 @@ export const pedestrianCrowdAndInstancingMethods = {
         });
         composePart(_PED_ARM_MAT4, 0, -0.64, 0.08, 0, 0, 0);
         pushMat(hpPool, _PED_WORLD_MAT4, vis.handPropColor);
+        if (farBuf) storeRaw16(farBuf, 112, _PED_WORLD_MAT4);
       }
-      if (vis.cameraFlashMesh?.visible) {
+      if (hasFlash) {
         composePart(_PED_ARM_MAT4, 0, -0.6, 0.24, 0, 0, 0);
         pushMat(pools.cameraFlash, _PED_WORLD_MAT4);
       }
 
       // Mochila compacta encostada nas costas (y = 1.24, z = -0.29)
-      if (vis.backPropMesh?.visible) {
+      ped._farHasBackProp = hasBackProp;
+      if (hasBackProp) {
         composePart(_PED_ROOT_MAT4, 0, 1.24, -0.29, 0, 0, 0);
         pushMat(pools.backProp, _PED_WORLD_MAT4, vis.backPropColor);
+        if (farBuf) storeRaw16(farBuf, 128, _PED_WORLD_MAT4);
       }
     }
 
@@ -547,9 +627,64 @@ export const pedestrianCrowdAndInstancingMethods = {
     }
   },
 
+  _ensureAsphaltRoadSpatialGrid() {
+    const rects = this._roadRects || [];
+    if (this._asphaltRoadGrid && this._asphaltRoadGridLen === rects.length) return this._asphaltRoadGrid;
+    const grid = new Map();
+    const cell = 192;
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i];
+      const gx0 = Math.floor((r.minX - 8) / cell), gx1 = Math.floor((r.maxX + 8) / cell);
+      const gz0 = Math.floor((r.minZ - 8) / cell), gz1 = Math.floor((r.maxZ + 8) / cell);
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
+          let b = grid.get(key);
+          if (!b) { b = []; grid.set(key, b); }
+          b.push(r);
+        }
+      }
+    }
+    this._asphaltRoadGrid = grid;
+    this._asphaltRoadGridLen = rects.length;
+    return grid;
+  },
+
+  _isInsideAsphaltFast(x, z, margin = 0) {
+    const rects = this._roadRects;
+    if (!rects || rects.length === 0) return false;
+    if (margin > 7.5) {
+      for (let i = 0; i < rects.length; i++) {
+        const r = rects[i];
+        if (x > r.minX - margin && x < r.maxX + margin && z > r.minZ - margin && z < r.maxZ + margin) return true;
+      }
+      return false;
+    }
+    const grid = this._ensureAsphaltRoadSpatialGrid();
+    const gx = Math.floor(x / 192), gz = Math.floor(z / 192);
+    const bucket = grid.get(((gx & 0xffff) << 16) | (gz & 0xffff));
+    if (!bucket) return false;
+    for (let i = 0; i < bucket.length; i++) {
+      const r = bucket[i];
+      if (x > r.minX - margin && x < r.maxX + margin && z > r.minZ - margin && z < r.maxZ + margin) return true;
+    }
+    return false;
+  },
+
+  _isInsideAsphaltRoad(x, z, margin = 0) {
+    return this._isInsideAsphaltFast(x, z, margin);
+  },
+
   _updateDynamicCrowdRing(playerPos) {
     const totalPeds = this.pedestrians.length;
-    if (!playerPos || playerPos.y > 95 || totalPeds === 0) return;
+    if (!playerPos || playerPos.y > 95 || playerPos.y < -4.5 || totalPeds === 0) return;
+
+    if (
+      this._lastEmptyCrowdX !== undefined &&
+      (playerPos.x - this._lastEmptyCrowdX) ** 2 + (playerPos.z - this._lastEmptyCrowdZ) ** 2 < 24 * 24
+    ) {
+      return;
+    }
 
     let nearCount = 0;
     for (let k = 0; k < totalPeds; k++) {
@@ -559,15 +694,21 @@ export const pedestrianCrowdAndInstancingMethods = {
       const dx = rp.x - playerPos.x, dz = rp.z - playerPos.z;
       if (dx * dx + dz * dz <= 125.0 * 125.0) nearCount++;
     }
-    const targetLocalCrowd = 28;
+    const targetLocalCrowd = 18;
     if (nearCount >= targetLocalCrowd) return;
 
     if (IS_SCALED_WORLD && typeof this._findSafeSidewalkSpawn === 'function') {
       const probe = this._findSafeSidewalkSpawn(playerPos.x, playerPos.z, 125.0, 0);
-      if (!probe.valid || !probe.corridor) return;
+      if (!probe.valid || !probe.corridor) {
+        this._lastEmptyCrowdX = playerPos.x;
+        this._lastEmptyCrowdZ = playerPos.z;
+        this._crowdRingTimer = 0.65;
+        return;
+      }
+      this._lastEmptyCrowdX = undefined;
     }
 
-    const maxRelocationsPerCall = Math.min(18, targetLocalCrowd - nearCount);
+    const maxRelocationsPerCall = Math.min(1, targetLocalCrowd - nearCount);
     let recycledCount = 0;
     let checkedOutOfRange = 0;
     let hasMoreOutOfRange = false;
@@ -600,7 +741,7 @@ export const pedestrianCrowdAndInstancingMethods = {
       const pdx = root.position.x - playerPos.x, pdz = root.position.z - playerPos.z;
       if (pdx * pdx + pdz * pdz <= 125.0 * 125.0) continue;
 
-      if (recycledCount >= maxRelocationsPerCall || checkedOutOfRange >= 18) {
+      if (recycledCount >= maxRelocationsPerCall || checkedOutOfRange >= 2) {
         hasMoreOutOfRange = nearCount + recycledCount < targetLocalCrowd;
         nextCursor = i;
         break;
@@ -608,7 +749,7 @@ export const pedestrianCrowdAndInstancingMethods = {
       checkedOutOfRange++;
       nextCursor = (i + 1) % totalPeds;
 
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 1; attempt++) {
         const ang = ((i * 1.618 + attempt * 1.25 + performance.now() * 0.0003) % 1) * Math.PI * 2;
         const ringDist = 28.0 + ((i * 19 + attempt * 23) % 86);
         const candX = playerPos.x + Math.cos(ang) * ringDist;
@@ -629,7 +770,7 @@ export const pedestrianCrowdAndInstancingMethods = {
           const sz = c.axis === 'x' ? c.centerCoord + jit : al;
           const distToP = Math.hypot(sx - playerPos.x, sz - playerPos.z);
           if (distToP < 22.0 || distToP > 122.0 || isTooCloseToPeer(sx, sz, ped)) continue;
-          if (this._isInsideAsphaltRoad?.(sx, sz, 1.4) || this._isInsideBuilding(sx, sz, 1.15) || !this._isValidDryLandForPedestrian(sx, sz)) continue;
+          if (this._isInsideAsphaltFast(sx, sz, 1.4) || this._isInsideBuilding(sx, sz, 1.15) || !this._isValidDryLandForPedestrian(sx, sz)) continue;
           const tY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(sx, sz) : 0;
           this._resetRecycledPedestrianState(
             ped, sx, this._getPedestrianGroundY(sx, sz, tY), sz, tY,
@@ -666,8 +807,8 @@ export const pedestrianCrowdAndInstancingMethods = {
     }
 
     this._crowdRecycleCursor = nextCursor;
-    if (hasMoreOutOfRange && recycledCount > 0) {
-      this._crowdRingTimer = 0.05;
+    if (hasMoreOutOfRange) {
+      this._crowdRingTimer = recycledCount > 0 ? 0.06 : 0.28;
     }
   },
 

@@ -231,23 +231,26 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
     }
   },
 
-  _cullSingleObject(obj, px, pz, cameraForward) {
+  _cullSingleObject(obj, px, pz, cameraForward, ignoreHysteresis = false) {
     const refX = obj._isDynamicIndexed ? (obj.mesh?.position?.x ?? obj.basePos.x) : obj.basePos.x;
     const refZ = obj._isDynamicIndexed ? (obj.mesh?.position?.z ?? obj.basePos.z) : obj.basePos.z;
     const dx = refX - px;
     const dz = refZ - pz;
     const distSq = dx * dx + dz * dz;
     let baseDist =
-      obj.type === 'car' || obj.type === 'police_helicopter'
-        ? 280
-        : obj.isStreetProp
-          ? 155
-          : 380;
+      obj.type === 'car'
+        ? 175
+        : obj.type === 'police_helicopter'
+          ? 245
+          : obj.isStreetProp
+            ? 142
+            : 215;
     if (this.hud?.isSniperScopeActive && cameraForward && distSq > baseDist * baseDist) {
       const fwdDot = dx * cameraForward.x + dz * cameraForward.z;
       if (fwdDot > 0 && fwdDot * fwdDot >= 0.84 * distSq) baseDist = 1350;
     }
-    const cullDist = obj.mesh.visible ? baseDist + 26 : baseDist;
+    const hyst = obj.isStreetProp ? 28 : 26;
+    const cullDist = !ignoreHysteresis && obj.mesh.visible ? baseDist + hyst : baseDist;
     const shouldBeVisible = distSq <= cullDist * cullDist;
     if (obj.mesh.visible !== shouldBeVisible) {
       obj.mesh.visible = shouldBeVisible;
@@ -267,7 +270,7 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
         for (let bi = 0; bi < bucket.length; bi++) {
           const obj = bucket[bi];
           if (!obj.destroyed && !obj.isDriven && !obj.isGrabbed) {
-            this._cullSingleObject(obj, px, pz, cameraForward);
+            this._cullSingleObject(obj, px, pz, cameraForward, false);
           }
         }
       }
@@ -282,16 +285,21 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
     this._cullSliceCursor = sliceEnd >= totalObjs ? 0 : sliceEnd;
 
     let runInitialCull = false;
+    let isFirstBootCull = false;
     if (playerPosition) {
       const px = playerPosition.x;
       const pz = playerPosition.z;
       if (!this._initialCullDone) {
         this._initialCullDone = true;
         runInitialCull = true;
+        isFirstBootCull = true;
       } else {
         const jdx = px - this._lastCullX;
         const jdz = pz - this._lastCullZ;
-        if (jdx * jdx + jdz * jdz > 18 * 18) {
+        const jumpDistSq = jdx * jdx + jdz * jdz;
+        if (jumpDistSq > 140 * 140) {
+          runInitialCull = true;
+        } else if (jumpDistSq > 18 * 18) {
           this._cullSpatialWindow(this._lastCullX, this._lastCullZ, 11, px, pz, cameraForward);
           this._cullSpatialWindow(px, pz, 11, px, pz, cameraForward);
         }
@@ -335,7 +343,7 @@ export const DESTRUCTIBLE_REGISTRY_AND_CULLING_METHODS = {
       const inCullSlice = runInitialCull || (oi >= sliceStart && oi < sliceEnd);
       const bypassSlice = obj._isDynamicIndexed || obj.shakeTimer > 0 || obj.isBurning;
       if (playerPosition && (inCullSlice || bypassSlice)) {
-        if (!this._cullSingleObject(obj, playerPosition.x, playerPosition.z, cameraForward)) continue;
+        if (!this._cullSingleObject(obj, playerPosition.x, playerPosition.z, cameraForward, isFirstBootCull)) continue;
       } else if (!obj.mesh.visible) {
         continue;
       }

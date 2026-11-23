@@ -62,7 +62,7 @@ function makeRotatedBoxGeo(w, h, d, rx, ry, rz, cosY, sinY) {
   return geo;
 }
 
-function _suburbGeoCellKey(geo, chunkX, chunkZ) {
+function _suburbGeoCellKey(geo, chunkX, chunkZ, cols = 5, rows = 4) {
   let cx = 0, cz = 0;
   if (geo.isRawBox) {
     cx = geo.x;
@@ -80,17 +80,84 @@ function _suburbGeoCellKey(geo, chunkX, chunkZ) {
     cx = (minX + maxX) * 0.5;
     cz = (minZ + maxZ) * 0.5;
   }
-  const ox = IS_SCALED_WORLD ? -1960 : -680, oz = IS_SCALED_WORLD ? -3960 : -1360;
-  return `${Math.floor((cx - ox) / chunkX)},${Math.floor((cz - oz) / chunkZ)}`;
+  if (IS_SCALED_WORLD) {
+    const gx = Math.max(0, Math.min(cols - 1, Math.floor((cx + 1950) / chunkX)));
+    const gz = Math.max(0, Math.min(rows - 1, Math.floor((cz + 3955) / chunkZ)));
+    return `${gx},${gz}`;
+  }
+  return `${Math.floor((cx + 680) / chunkX)},${Math.floor((cz + 1360) / chunkZ)}`;
+}
+
+function _buildSuburbCoarseGeo(srcGeo, minDoubleAreaSq, minVertSpanY = 0, skipFlatCapBelowSq = 0) {
+  if (!srcGeo) return null;
+  const pos = srcGeo.attributes.position, norm = srcGeo.attributes.normal, col = srcGeo.attributes.color;
+  if (!pos || !norm || !col) return null;
+  const idx = srcGeo.index ? srcGeo.index.array : null;
+  const triCount = idx ? Math.floor(idx.length / 3) : Math.floor(pos.count / 3);
+  if (triCount <= 0) return null;
+
+  const pSrc = pos.array, nSrc = norm.array, cSrc = col.array;
+  const kept = new Int32Array(triCount * 3);
+  let kLen = 0;
+  for (let t = 0; t < triCount; t++) {
+    const i0 = idx ? idx[t * 3] : t * 3, i1 = idx ? idx[t * 3 + 1] : t * 3 + 1, i2 = idx ? idx[t * 3 + 2] : t * 3 + 2;
+    const ny = nSrc[i0 * 3 + 1];
+    if (ny < -0.8) continue;
+    const x0 = pSrc[i0 * 3], y0 = pSrc[i0 * 3 + 1], z0 = pSrc[i0 * 3 + 2];
+    const y1 = pSrc[i1 * 3 + 1], y2 = pSrc[i2 * 3 + 1];
+    if (minVertSpanY > 0 && Math.abs(ny) < 0.45) {
+      const dy = Math.max(y0, y1, y2) - Math.min(y0, y1, y2);
+      if (dy < minVertSpanY) continue;
+    }
+    const ax = pSrc[i1 * 3] - x0, ay = y1 - y0, az = pSrc[i1 * 3 + 2] - z0;
+    const bx = pSrc[i2 * 3] - x0, by = y2 - y0, bz = pSrc[i2 * 3 + 2] - z0;
+    const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+    const crossSq = cx * cx + cy * cy + cz * cz;
+    if (skipFlatCapBelowSq > 0 && ny > 0.985 && crossSq < skipFlatCapBelowSq) continue;
+    if (crossSq >= minDoubleAreaSq) {
+      kept[kLen++] = i0; kept[kLen++] = i1; kept[kLen++] = i2;
+    }
+  }
+  if (kLen === 0) return null;
+
+  const remap = new Int32Array(pos.count).fill(-1), used = [];
+  const outIdx = pos.count > 65535 ? new Uint32Array(kLen) : new Uint16Array(kLen);
+  for (let i = 0; i < kLen; i++) {
+    const oVi = kept[i];
+    let nVi = remap[oVi];
+    if (nVi === -1) { nVi = used.length; remap[oVi] = nVi; used.push(oVi); }
+    outIdx[i] = nVi;
+  }
+  const vc = used.length, pOut = new Float32Array(vc * 3), nOut = new Float32Array(vc * 3), cOut = new Float32Array(vc * 3);
+  for (let k = 0; k < vc; k++) {
+    const s = used[k] * 3, d = k * 3;
+    pOut[d] = pSrc[s]; pOut[d + 1] = pSrc[s + 1]; pOut[d + 2] = pSrc[s + 2];
+    nOut[d] = nSrc[s]; nOut[d + 1] = nSrc[s + 1]; nOut[d + 2] = nSrc[s + 2];
+    cOut[d] = cSrc[s]; cOut[d + 1] = cSrc[s + 1]; cOut[d + 2] = cSrc[s + 2];
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pOut, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nOut, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(cOut, 3));
+  out.setIndex(new THREE.BufferAttribute(outIdx, 1));
+  out.computeBoundingBox();
+  out.computeBoundingSphere();
+  return out;
+}
+
+function _countGeoTris(geo) {
+  if (!geo) return 0;
+  return geo.index ? Math.floor(geo.index.count / 3) : Math.floor((geo.attributes?.position?.count || 0) / 3);
 }
 
 const EXTRA_DESCRIPTORS = [
   ['trim_white', 0x9aa4b2, 'building'], ['wood_warm', 0x4a2511, 'building'],
-  ['stone_grey', 0x3b424f, 'building'], ['chimney_brick', 0x4c1814, 'building'],
-  ['charcoal_metal', 0x141821, 'building'], ['window_glass', 0x0b1524, 'building'],
-  ['shutter_blue', 0x17253b, 'building'], ['shutter_green', 0x142b1e, 'building'],
-  ['hedge_green', 0x12261a, 'building'], ['flower_red', 0x7f1d1d, 'building'],
-  ['flower_yellow', 0xb45309, 'building'], ['flower_pink', 0x6b2137, 'building'],
+  ['stone_grey', 0x3b424f, 'building'], ['plinth_grey', 0x3b424f, 'plinth'],
+  ['chimney_brick', 0x4c1814, 'building'], ['charcoal_metal', 0x141821, 'building'],
+  ['window_glass', 0x0b1524, 'building'], ['shutter_blue', 0x17253b, 'building'],
+  ['shutter_green', 0x142b1e, 'building'], ['hedge_green', 0x12261a, 'building'],
+  ['flower_red', 0x7f1d1d, 'building'], ['flower_yellow', 0xb45309, 'building'],
+  ['flower_pink', 0x6b2137, 'building'],
   ['lawn_green', 0x1b3624, 'ground'], ['driveway_concrete', 0x383f4d, 'ground'],
   ['walkway_stone', 0x4b5260, 'ground'], ['asphalt_lot', 0x11151d, 'ground'],
   ['pool_water', 0x0c4a6e, 'ground'], ['court_orange', 0x7c2d12, 'ground'],
@@ -194,53 +261,145 @@ export class SuburbBatcher {
   }
 
   flush(scene) {
-    const chunkX = IS_SCALED_WORLD ? 1200 : 680, chunkZ = IS_SCALED_WORLD ? 1230 : 680;
-    const cells = new Map();
+    const bCells = new Map(), gCells = new Map(), eCells = new Map();
     for (const [key, geos] of this.buckets.entries()) {
       if (!geos?.length) continue;
       const desc = this.descriptors.get(key);
       if (!desc) continue;
       for (let i = 0; i < geos.length; i++) {
-        const g = geos[i], cKey = _suburbGeoCellKey(g, chunkX, chunkZ);
-        let cell = cells.get(cKey);
-        if (!cell) {
-          cell = { building: [], ground: [], emissive: [] };
-          cells.set(cKey, cell);
+        const g = geos[i];
+        if (desc.kind === 'building' || desc.kind === 'plinth') {
+          const cKey = _suburbGeoCellKey(g, 700, 605, 5, 4);
+          let cell = bCells.get(cKey);
+          if (!cell) { cell = { core: [], plinth: [] }; bCells.set(cKey, cell); }
+          (desc.kind === 'plinth' ? cell.plinth : cell.core).push({ geo: g, color: desc.color });
+        } else if (desc.kind === 'ground') {
+          const cKey = _suburbGeoCellKey(g, 1760, 1210, 2, 2);
+          let list = gCells.get(cKey);
+          if (!list) { list = []; gCells.set(cKey, list); }
+          list.push({ geo: g, color: desc.color });
+        } else {
+          const cKey = _suburbGeoCellKey(g, 1760, 2420, 2, 1);
+          let list = eCells.get(cKey);
+          if (!list) { list = []; eCells.set(cKey, list); }
+          list.push({ geo: g, color: desc.color });
         }
-        cell[desc.kind].push({ geo: g, color: desc.color });
       }
       geos.length = 0;
     }
 
-    const emitMergedChunk = (entries, mat, castShadow, receiveShadow, tag) => {
-      if (!entries.length) return;
-      const mergedGeo = mergeColoredGeometries(entries);
-      mergedGeo.computeBoundingBox();
-      mergedGeo.computeBoundingSphere();
-      const mesh = new THREE.Mesh(mergedGeo, mat);
+    const makeLocalMesh = (geo, mat, castShadow, receiveShadow, tag, isPrimaryChunk = false) => {
+      if (!geo) return null;
+      geo.computeBoundingBox();
+      geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, mat);
       mesh.castShadow = castShadow;
       mesh.receiveShadow = receiveShadow;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
-      mesh.userData.isSuburbBatchChunk = true;
       mesh.userData.skipStaticMerge = true;
+      mesh.userData.isSuburbLodMesh = true;
       mesh.userData.suburbLayer = tag;
-      scene.add(mesh);
+      if (isPrimaryChunk) mesh.userData.isSuburbBatchChunk = true;
+      return mesh;
     };
 
-    for (const cell of cells.values()) {
-      emitMergedChunk(cell.building, SUBURB_MATTE_VC_MAT, true, true, 'buildings');
-      emitMergedChunk(cell.ground, SUBURB_MATTE_VC_MAT, false, true, 'ground');
-      emitMergedChunk(cell.emissive, SUBURB_EMISSIVE_VC_MAT, false, false, 'emissive');
+    const center = new THREE.Vector3();
+    for (const cell of bCells.values()) {
+      const coreGeo = cell.core.length ? mergeColoredGeometries(cell.core) : null;
+      const plinthGeo = cell.plinth.length ? mergeColoredGeometries(cell.plinth) : null;
+      const l0Parts = [coreGeo, plinthGeo].filter(Boolean);
+      if (!l0Parts.length) continue;
+      const bGeo = l0Parts.length > 1 ? mergeBufferGeometries(l0Parts.map((p) => p.clone())) : l0Parts[0];
+      bGeo.computeBoundingBox();
+      bGeo.boundingBox.getCenter(center);
+      bGeo.translate(-center.x, -center.y, -center.z);
+      if (coreGeo && coreGeo !== bGeo) coreGeo.translate(-center.x, -center.y, -center.z);
+
+      const mBuild0 = makeLocalMesh(bGeo, SUBURB_MATTE_VC_MAT, true, true, 'buildings', true);
+      const bL1 = coreGeo ? _buildSuburbCoarseGeo(coreGeo, 36.0, 1.45, 0) : null;
+      const bL2 = coreGeo ? _buildSuburbCoarseGeo(coreGeo, 256.0, 2.2, 65000.0) : null;
+      const l1Obj = bL1 ? makeLocalMesh(bL1, SUBURB_MATTE_VC_MAT, false, true, 'lod1_coarse') : new THREE.Object3D();
+      const l2Obj = bL2 ? makeLocalMesh(bL2, SUBURB_MATTE_VC_MAT, false, true, 'lod2_macro') : new THREE.Object3D();
+
+      const lod = new THREE.LOD();
+      lod.position.copy(center);
+      lod.matrixAutoUpdate = false;
+      lod.updateMatrix();
+      lod.userData.isSuburbLod = true;
+      lod.userData.skipStaticMerge = true;
+      lod.userData.l0Triangles = _countGeoTris(bGeo);
+      lod.userData.l1Triangles = _countGeoTris(bL1);
+      lod.userData.l2Triangles = _countGeoTris(bL2);
+      lod.addLevel(mBuild0, 0);
+      lod.addLevel(l1Obj, 210);
+      lod.addLevel(l2Obj, 740);
+      mBuild0.visible = true;
+      l1Obj.visible = false;
+      l2Obj.visible = false;
+      lod.updateMatrixWorld(true);
+      scene.add(lod);
+    }
+
+    for (const entries of gCells.values()) {
+      if (!entries.length) continue;
+      const gGeo = mergeColoredGeometries(entries);
+      gGeo.computeBoundingBox();
+      gGeo.boundingBox.getCenter(center);
+      gGeo.translate(-center.x, -center.y, -center.z);
+      const mG0 = makeLocalMesh(gGeo, SUBURB_MATTE_VC_MAT, false, true, 'ground', bCells.size === 0);
+      const gMacro = _buildSuburbCoarseGeo(gGeo, 285000.0, 0, 0);
+      const mG1 = gMacro ? makeLocalMesh(gMacro, SUBURB_MATTE_VC_MAT, false, true, 'ground_macro') : new THREE.Object3D();
+      const gLod = new THREE.LOD();
+      gLod.position.copy(center);
+      gLod.matrixAutoUpdate = false;
+      gLod.updateMatrix();
+      gLod.userData.isSuburbLod = true;
+      gLod.userData.skipStaticMerge = true;
+      gLod.userData.l0Triangles = _countGeoTris(gGeo);
+      gLod.userData.l1Triangles = _countGeoTris(gMacro);
+      gLod.userData.l2Triangles = _countGeoTris(gMacro);
+      gLod.addLevel(mG0, 0);
+      gLod.addLevel(mG1, 280);
+      mG0.visible = true;
+      mG1.visible = false;
+      gLod.updateMatrixWorld(true);
+      scene.add(gLod);
+    }
+
+    for (const entries of eCells.values()) {
+      if (!entries.length) continue;
+      const eGeo = mergeColoredGeometries(entries);
+      eGeo.computeBoundingBox();
+      eGeo.boundingBox.getCenter(center);
+      eGeo.translate(-center.x, -center.y, -center.z);
+      const mE0 = makeLocalMesh(eGeo, SUBURB_EMISSIVE_VC_MAT, false, false, 'emissive');
+      const emptyE = new THREE.Object3D();
+      emptyE.visible = false;
+      const eLod = new THREE.LOD();
+      eLod.position.copy(center);
+      eLod.matrixAutoUpdate = false;
+      eLod.updateMatrix();
+      eLod.userData.isSuburbLod = true;
+      eLod.userData.skipStaticMerge = true;
+      eLod.userData.l0Triangles = _countGeoTris(eGeo);
+      eLod.userData.l1Triangles = 0;
+      eLod.userData.l2Triangles = 0;
+      eLod.addLevel(mE0, 0);
+      eLod.addLevel(emptyE, 250);
+      eLod.updateMatrixWorld(true);
+      scene.add(eLod);
     }
 
     if (this.floweringTrees.length > 0) {
-      const tChunkX = IS_SCALED_WORLD ? 1200 : 720, tChunkZ = IS_SCALED_WORLD ? 1230 : 720;
-      const ox = IS_SCALED_WORLD ? -1960 : -720, oz = IS_SCALED_WORLD ? -3960 : -1440;
+      const tChunkX = IS_SCALED_WORLD ? 1760 : 720, tChunkZ = IS_SCALED_WORLD ? 1220 : 720;
+      const ox = IS_SCALED_WORLD ? -1950 : -720, oz = IS_SCALED_WORLD ? -3955 : -1440;
       const treeCells = new Map();
       for (let i = 0; i < this.floweringTrees.length; i++) {
         const t = this.floweringTrees[i];
-        const k = `${t.blossomKey}|${Math.floor((t.x - ox) / tChunkX)},${Math.floor((t.z - oz) / tChunkZ)}`;
+        const gx = IS_SCALED_WORLD ? Math.max(0, Math.min(1, Math.floor((t.x - ox) / tChunkX))) : Math.floor((t.x - ox) / tChunkX);
+        const gz = IS_SCALED_WORLD ? Math.max(0, Math.min(1, Math.floor((t.z - oz) / tChunkZ))) : Math.floor((t.z - oz) / tChunkZ);
+        const k = `${t.blossomKey}|${gx},${gz}`;
         let list = treeCells.get(k);
         if (!list) {
           list = [];
@@ -252,15 +411,24 @@ export class SuburbBatcher {
       const dummy = new THREE.Object3D();
       for (const [key, list] of treeCells.entries()) {
         if (!list.length) continue;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (let i = 0; i < list.length; i++) {
+          const t = list[i];
+          if (t.x < minX) minX = t.x; if (t.x > maxX) maxX = t.x;
+          if (t.y < minY) minY = t.y; if (t.y > maxY) maxY = t.y;
+          if (t.z < minZ) minZ = t.z; if (t.z > maxZ) maxZ = t.z;
+        }
+        const tcx = (minX + maxX) * 0.5, tcy = (minY + maxY) * 0.5, tcz = (minZ + maxZ) * 0.5;
+        const halfDiag = 0.5 * Math.hypot(maxX - minX, maxZ - minZ);
         const inst = new THREE.InstancedMesh(_getSharedFloweringTreeGeo(key.startsWith('pink') ? 'pink' : 'yellow'), SUBURB_MATTE_VC_MAT, list.length);
-        inst.castShadow = true;
+        inst.castShadow = false;
         inst.receiveShadow = true;
         inst.matrixAutoUpdate = false;
         inst.userData.isSuburbBatchChunk = true;
         inst.userData.skipStaticMerge = true;
         inst.userData.suburbLayer = 'trees';
         for (let i = 0; i < list.length; i++) {
-          dummy.position.set(list[i].x, list[i].y, list[i].z);
+          dummy.position.set(list[i].x - tcx, list[i].y - tcy, list[i].z - tcz);
           dummy.scale.setScalar(list[i].scale);
           dummy.updateMatrix();
           inst.setMatrixAt(i, dummy.matrix);
@@ -269,7 +437,19 @@ export class SuburbBatcher {
         inst.updateMatrix();
         inst.computeBoundingBox();
         inst.computeBoundingSphere();
-        scene.add(inst);
+
+        const treeLod = new THREE.LOD();
+        treeLod.position.set(tcx, tcy, tcz);
+        treeLod.matrixAutoUpdate = false;
+        treeLod.updateMatrix();
+        treeLod.userData.isSuburbTreeLod = true;
+        treeLod.userData.skipStaticMerge = true;
+        const emptyFar = new THREE.Object3D();
+        emptyFar.visible = false;
+        treeLod.addLevel(inst, 0);
+        treeLod.addLevel(emptyFar, Math.max(520, Math.round(halfDiag + 190)));
+        treeLod.updateMatrixWorld(true);
+        scene.add(treeLod);
       }
       this.floweringTrees.length = 0;
     }
@@ -343,10 +523,10 @@ export function buildDetailedHouse(world, batcher, cfg) {
 
   try {
     if (IS_SCALED_WORLD) {
-      if (baseY > 0.25 || hasRot) batcher.addBox('stone_grey', lotW - 0.16, 3.0, lotD - 0.16, x, baseY - 1.48, z);
+      if (baseY > 0.25 || hasRot) batcher.addBox('plinth_grey', lotW - 0.16, 3.0, lotD - 0.16, x, baseY - 1.48, z);
       batcher.addBox('lawn_green', lotW - 0.12, 0.06, lotD - 0.12, x, yBase - 0.01, z);
     } else if (baseY > 0.15) {
-      batcher.addBox('stone_grey', lotW - 0.3, 2.4, lotD - 0.3, x, baseY - 0.92, z);
+      batcher.addBox('plinth_grey', lotW - 0.3, 2.4, lotD - 0.3, x, baseY - 0.92, z);
       batcher.addBox('lawn_green', lotW - 0.2, 0.1, lotD - 0.2, x, baseY + 0.28, z);
     }
 

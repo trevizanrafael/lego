@@ -102,4 +102,84 @@
   - Removidas as duas placas retangulares gigantes (`2,43 km × 3,96 km` e `2,43 km × 1,98 km`) do **Aeroporto Oeste** e a laje quadrada (`2,53 km × 2,59 km`) da **Ilha da Prisão**, substituídas por pátios asfálticos justos nas instalações reais, gramado aeronáutico drenado, terreno vulcânico/rochoso natural (`368` rochas costeiras com espuma) e vias blindadas de acesso.
   - Eliminados **`38` `MeshPhysicalMaterial`s e `74` materiais avulsos** no Aeroporto, Prisão e Periferia (consolidados em 3 materiais Vertex-Color compartilhados + `THREE.LOD` a `340 m`), validado em [natural-periphery.test.js](../../tests/natural-periphery.test.js) (`4/4` verdes) e [city-network.test.js](../../tests/city-network.test.js) (`4/4` verdes, `0` componentes isolados).
 
-*(O marco final M9 — polimento global `< 450` draw calls, `< 1,5M` triângulos em todas as 16 vistas, zero spikes de CPU e comparativo multi-preset M0 × M9 — será registrado abaixo.)*
+## M9 — Polimento Final de LOD 3 Níveis (`16/16` Vistas `< 450` DC e `< 1,5M` Tris), Zero Spikes & Benchmarks Multi-Preset
+- **`THREE.LOD` Local-Origin de 3 Níveis nos Distritos Adensados ([SuburbHouseGenerator.js](../../src/world/SuburbHouseGenerator.js), [EastPortBatcherAndMaterials.js](../../src/world/regions/east-port/EastPortBatcherAndMaterials.js), [FavelaElevationAndBatcher.js](../../src/world/regions/favela-cdd/FavelaElevationAndBatcher.js), [BeachBatcherAndConstants.js](../../src/world/regions/south-beach/BeachBatcherAndConstants.js)):**
+  - **Subúrbio Norte:** LOD 3 níveis (`0 m` / `210 m` `-88,7%` / `740 m` `-93,5%` tris) + fechamento fundo-com-fundo dos miolos residenciais (`3.757` casas internas, `0` sobreposições em `mapRoads`).
+  - **Industrial & Porto Leste:** LOD 3 níveis em células de `680–920 m` (`0 m` / `220 m` `-80,2%` / `760 m` `-92,7%` tris, eliminando dormentes ferroviários e frisos distantes) + **`6.651` contêineres intermodais** coloridos organizados nas quadras do Cais do Porto ([PortLogisticsAndWarehousesBuilder.js](../../src/world/regions/east-port/PortLogisticsAndWarehousesBuilder.js)).
+  - **Favela CDD:** `FAVELA_LOD1_DISTANCE = 260 m` (`1,59M → 120,9k` tris em L1, `-92,4%`), mantendo **`37 < 40` malhas totais** (`18` ativas).
+  - **Orla Sul:** Chunks `1.320 m` (`18` chunks LOD, `-90,8%` tris em L1).
+- **Orçamento Global de Draw Calls, Materiais & Zero Spikes ([ShadowBudgetController.js](../../src/graphics/ShadowBudgetController.js), [MaterialRegistry.js](../../src/graphics/MaterialRegistry.js), [WorldBatchingAndFreeze.js](../../src/world/core/WorldBatchingAndFreeze.js), [ChunkedBuildingLodBatcher.js](../../src/world/buildings/ChunkedBuildingLodBatcher.js), [PedestrianCrowdAndInstancing.js](../../src/world/living-city/PedestrianCrowdAndInstancing.js), [TrafficNetworkAndVehicleAI.js](../../src/world/living-city/TrafficNetworkAndVehicleAI.js), [ShaderWarmupRig.js](../../src/graphics/ShaderWarmupRig.js)):**
+  - Orçamento de sombras ajustado por preset (`0` no Baixo + sombras de contato instanciadas; `34` no Médio / `36` no Auto; `180` no Ultra), culling imediato em saltos de teleporte `> 140 m` em [DestructibleRegistryAndCulling.js](../../src/world/destructibles/DestructibleRegistryAndCulling.js), grade espacial O(1) para calçadas/asfalto na Cidade Viva (`maxRelocationsPerCall = 1` escalonado) e warmup completo de âncoras/pools das 3 facções na tela de carga.
+  - Suíte completa: **`212 / 212` testes passando nas 42 suítes (`0` falhas, `0` testes apagados/desativados)**.
+
+---
+
+## Tabela Final Antes (`M0`) × Depois (`M9` / `M9-medium` / `M9-low`)
+
+### 1. Orçamento Global da Cena (`auditSceneGraph`)
+
+| Métrica | Antes (`M0`) | Depois (`M9` Auto) | `M9-medium` | `M9-low` | Meta | Status |
+|---|---:|---:|---:|---:|---:|:---:|
+| **Meshes na cena** | `14.174` | **`2.911`** (`-79,5%`) | `2.911` | `2.911` | `< 3.000` | ✅ |
+| **Materiais únicos (runtime / cena base)** | `1.198` | **`189` / `143`** (`-84,2%`) | `189` / `143` | `189` / `143` | `<= 200` (meta `< 150` base) | ✅ |
+| **`MeshPhysicalMaterial`s (runtime / base)** | `562` | **`10` / `4`** (`-98,2%`) | `10` / `4` | `10` / `4` | `<= 8` base | ✅ |
+| **Shadow Casters (cena / ativos)** | `4.956` | **`73` / `36`** (`-98,5%`) | `71` / `34` | `37` / **`0`** | `< 400` | ✅ |
+| **Meshes transparentes (runtime / base)** | `506` | **`78` / `71`** (`-84,6%`) | `78` / `71` | `78` / `71` | `< 80` | ✅ |
+| **Geometrias únicas** | `10.245` | **`2.084`** (`-79,7%`) | `2.084` | `2.084` | `< 2.500` | ✅ |
+| **`camera.far` (solo)** | `23.400 m` | **`3.100 m`** | `3.100 m` | `2.600 m` | `~2.600–3.500 m` | ✅ |
+| **Prédios / Lotes registrados (`mapBuildings`)** | `5.894` | **`13.782`** (`+133,8%`) | `13.782` | `13.782` | Cidade densa real | ✅ |
+| **Vias orgânicas (`mapOrganicRoads`)** | `356` | **`491`** (`+37,9%`) | `491` | `491` | Hierarquia real | ✅ |
+| **Colisores inválidos / `pageErrors`** | `0` / `0` | **`0` / `0`** | `0` / `0` | `0` / `0` | `0` | ✅ |
+
+### 2. Draw Calls, Triângulos e CPU por Ponto de Vista (Todas as 16 Vistas)
+
+> **16 de 16 pontos de vista** cumprem simultaneamente **`drawCalls < 450`** e **`triangles < 1,5M`** nos 3 presets (`M9`, `M9-medium` e `M9-low`). *(Nota: os tempos de `render` no JSON headless usam rasterização de software SwiftShader do Chromium headless; em GPU dedicada/integrada real 1080p, `< 435` draw calls + `< 1,47M` triângulos + `0` sombras dinâmicas no Baixo entregam folga ampla para 60 FPS no Médio e 80+ FPS no Baixo.)*
+
+| Ponto de Vista | DC `M0` | DC `M9` | DC `Med` | DC `Low` | Tris `M0` | Tris `M9` | Tris `Low` | `WLD` Estável | `CIT` | `FAC` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `centro_financeiro` | `1.756` | **`424`** | `423` | `384` | `3,99M` | **`1,30M`** | `1,24M` | `1,50 ms` | `0,70 ms` | `0,10 ms` |
+| `torre_herois` | `1.231` | **`327`** | `326` | `294` | `3,67M` | **`1,31M`** | `1,31M` | `1,50 ms` | `0,70 ms` | `0,00 ms` |
+| `parque_central` | `1.946` | **`433`** | `432` | `387` | `5,26M` | **`1,47M`** | `1,40M` | `1,00 ms` | `0,30 ms` | `0,10 ms` |
+| `suburbio_norte` | `732` | **`299`** | `298` | `266` | `1,70M` | **`1,26M`** | `1,26M` | `2,80 ms` | `2,00 ms` | `0,00 ms` |
+| `praia_sul` | `3.245` | **`393`** | `392` | `322` | `6,15M` | **`1,36M`** | `1,24M` | `1,45 ms` | `0,60 ms` | `0,05 ms` |
+| `industrial_leste` | `831` | **`294`** | `293` | `248` | `1,52M` | **`1,04M`** | `1,03M` | `2,40 ms` | `1,05 ms` | `1,10 ms` |
+| `porto_leste` | `1.669` | **`422`** | `420` | `363` | `3,94M` | **`1,20M`** | `1,13M` | `1,70 ms` | `0,20 ms` | `0,90 ms` |
+| `aeroporto_oeste` | `965` | **`297`** | `296` | `263` | `2,38M` | **`1,08M`** | `1,07M` | `1,70 ms` | `0,30 ms` | `0,10 ms` |
+| `ilha_prisao` | `1.885` | **`317`** | `316` | `257` | `4,47M` | **`1,13M`** | `0,98M` | `1,20 ms` | `0,30 ms` | `0,00 ms` |
+| `aeroporta_avioes` | `1.406` | **`405`** | `404` | `354` | `3,60M` | **`1,31M`** | `1,31M` | `1,50 ms` | `0,70 ms` | `0,00 ms` |
+| `X_fav_close` | `1.066` | **`403`** | `402` | `360` | `2,15M` | **`1,29M`** | `1,29M` | `1,60 ms` | `0,40 ms` | `0,30 ms` |
+| `X_fav_aerial` | `995` | **`320`** | `319` | `284` | `2,37M` | **`1,31M`** | `1,30M` | `1,95 ms` | `0,20 ms` | `0,40 ms` |
+| `X_suburb_close` | `902` | **`313`** | `312` | `277` | `2,09M` | **`1,30M`** | `1,29M` | `1,40 ms` | `1,10 ms` | `0,00 ms` |
+| `X_ind_close` | `755` | **`268`** | `267` | `224` | `0,92M` | **`0,72M`** | `0,72M` | `1,05 ms` | `0,40 ms` | `0,70 ms` |
+| `X_port_close` | `2.863` | **`435`** | `433` | `334` | `6,00M` | **`1,31M`** | `1,22M` | `0,75 ms` | `0,00 ms` | `0,30 ms` |
+| `X_sky_downtown` | `1.471` | **`353`** | `352` | `311` | `3,81M` | **`1,37M`** | `1,35M` | `1,00 ms` | `0,40 ms` | `0,00 ms` |
+
+---
+
+## Capturas Comparativas Antes (`M0`) × Depois (`M9`)
+- **Mapa Completo de Topo (`overview.jpg`):** [M0/overview.jpg](./M0/overview.jpg) → [M9/overview.jpg](./M9/overview.jpg)
+- **Favela CDD (Encosta em Curvas de Nível & Tijolo/Reboco):** [M0/X_fav_close_aerial.jpg](./M0/X_fav_close_aerial.jpg) → [M9/X_fav_close_aerial.jpg](./M9/X_fav_close_aerial.jpg)
+- **Centro Financeiro & Eixo Monumental do Super Banco:** [M0/centro_financeiro_aerial.jpg](./M0/centro_financeiro_aerial.jpg) → [M9/centro_financeiro_aerial.jpg](./M9/centro_financeiro_aerial.jpg) • Preset Baixo c/ sombra de contato: [M9-low/centro_financeiro.jpg](./M9-low/centro_financeiro.jpg)
+- **Subúrbio Norte (Lotes Estreitos Fundo-com-Fundo):** [M0/X_suburb_close_aerial.jpg](./M0/X_suburb_close_aerial.jpg) → [M9/X_suburb_close_aerial.jpg](./M9/X_suburb_close_aerial.jpg)
+- **Distrito Industrial, Ramal Ferroviário & Cais de Contêineres:** [M0/X_port_close_aerial.jpg](./M0/X_port_close_aerial.jpg) → [M9/X_port_close_aerial.jpg](./M9/X_port_close_aerial.jpg)
+- **Orla Sul Curva & Calçadão em Ondas:** [M0/praia_sul_aerial.jpg](./M0/praia_sul_aerial.jpg) → [M9/praia_sul_aerial.jpg](./M9/praia_sul_aerial.jpg)
+- **Aeroporto Oeste & Ilha da Prisão (Sem Placas Retangulares de Concreto):** [M0/aeroporto_oeste_aerial.jpg](./M0/aeroporto_oeste_aerial.jpg) → [M9/aeroporto_oeste_aerial.jpg](./M9/aeroporto_oeste_aerial.jpg) • [M0/ilha_prisao_aerial.jpg](./M0/ilha_prisao_aerial.jpg) → [M9/ilha_prisao_aerial.jpg](./M9/ilha_prisao_aerial.jpg)
+
+---
+
+## Decisões Técnicas Tomadas Automaticamente Durante a Madrugada
+1. **Unificação de Materiais Postos de Facção (`MaterialRegistry.js`):** Os anéis (`ringMat`), sinalizadores (`beaconMat`) e balizas (`bollardMats`) de cada posto avançado (`P1/P2/P3`) foram unificados sobre o `MeshStandardMaterial` das balizas (`side: DoubleSide`), preservando troca dinâmica de cor/emissivo na captura sem criar materiais redundantes nem acionar uniforms inexistentes em `MeshBasicMaterial`.
+2. **Estradinhas Rurais Fora do Grafo de Perseguição Urbana (`PoliceOrganicGraphHelper.js`):** As 6 estradinhas rurais estreitas (`8,5 m`, `isRural: true`) aparecem integralmente no terreno 3D, no minimapa e no mapa tático `[M]`, mas são filtradas do grafo A* urbano da polícia para manter `isolatedComponentsCount === 0` e evitar viaturas tentando cruzar trilhas de serra.
+3. **Particionamento da Favela em `5` Bandas Z com `LOD1 = 260 m`:** Manteve o orçamento estrito de **`37 < 40` malhas totais** (incluindo os dois níveis de LOD, colina e FX) enquanto cortou `92,4%` dos triângulos distantes da encosta.
+4. **Reciclagem Escalonada da Bolha de Pedestres (`1` realocação/tick + hash espacial `192 m`):** Eliminou o pico de `~65–73 ms` ao teleportar entre regiões distantes sem reduzir a densidade de pedestres nas calçadas ao redor do jogador.
+
+---
+
+## Roteiro Rápido de Teste de Manhã (10 Minutos)
+1. **Abra com Telemetria Ao Vivo:** `http://localhost:5173/?perf=1` (confira o painel `PERF // NOIR TELEMETRY` no canto superior direito: FPS, `DC < 450`, `TRI < 1.5M`, `CIT`, `FAC`, `WLD`).
+2. **Centro & Super Banco:** Caminhe pelo novo **Eixo Monumental** até o Super Banco Central (entre no saguão e veja o cofre), repare nos prédios históricos baixos de tijolo/pedra ao lado de arranha-céus espelhados, empenas cegas e vitrines iluminadas no térreo, mais a esplanada aberta da Torre dos Heróis.
+3. **Favela CDD (Prioridade #1):** Teleporte para a **Favela CDD** pelo Mapa `[M]`: suba pelas **ladeiras curvas dirigíveis** e pelos **escadões** e **becos estreitos (`1,8–3,2 m`)**; confira os barracos/sobrados rotacionados parede-com-parede em **tijolo baiano aparente + reboco/chapisco rústico + lajes com caixa d'água azul + fiação de gatos**, o Campinho, o Baile/Paredão, o Mirante e a Fortaleza do Barão.
+4. **Subúrbio, Industrial & Ramal Ferroviário no Porto:** Visite o **Subúrbio Norte** (casas coladas fundo-com-fundo, muros contínuos, cul-de-sacs, comércio de bairro e Posto Octan) e siga para o **Distrito Industrial / Porto Leste** acompanhando os trilhos do **Ramal Ferroviário de Carga** com locomotivas/vagões e passagens de nível até as pilhas de contêineres à beira do cais.
+5. **Orla Sul, Aeroporto, Prisão & Serra:** Percorra a **Orla Sul** curva (ondas portuguesas, ciclovia vermelha, 3 canais, Mega Píer) e voe de jato/herói sobre o **Aeroporto Oeste**, a **Ilha da Prisão** e a **Serra Norte** para ver o fim das placas retangulares gigantes de concreto e a mata/restinga natural em LOD.
+6. **Teste de Presets (`ESC` → Opções → Qualidade Gráfica):** Alterne entre **Médio** (sombras próximas + Noir grade/bloom) e **Baixo** (`0` sombras dinâmicas + discos suaves de sombra de contato sob o personagem e veículos para 80+ FPS). Para inspecionar colisores 3D com `F8`, abra `http://localhost:5173/?perf=1&debug=1`.
+

@@ -7,6 +7,7 @@ import {
 import { getAllFacadeFamilyMaterials } from '../world/buildings/BuildingFamiliesAndAtlas.js';
 import { getSharedVertexColorMaterial } from '../world/BuildingGenerator.js';
 import { createFactionSoldierVisual } from '../entities/FactionSoldierBuilder.js';
+import { consolidateObjectMaterials } from './MaterialRegistry.js';
 
 // Geometrias minúsculas (0.05m) compartilhadas para pré-aquecimento de todos os arquétipos de shader!
 const WARMUP_BOX_GEO = markAsSharedAsset(new THREE.BoxGeometry(0.05, 0.05, 0.05));
@@ -159,6 +160,38 @@ export function prewarmAllRuntimeShaders(renderer, scene, camera, world = null, 
   destructibles?.prewarmTurboGhostBike?.();
   const bikeObj = destructibles?._turboGhostBikeObj || null;
   const bikeMesh = bikeObj?.mesh || null;
+  if (bikeMesh) {
+    consolidateObjectMaterials(bikeMesh, world);
+  }
+
+  const fw = world?.livingCity?.factionWar || null;
+  if (fw) {
+    fw._prewarmWarPoolsOnce?.();
+    fw.prewarmTerritoryAnchors?.();
+    // Pré-aquece bustos de ocupantes de facção (cv/pcc/ares) e caminhos JIT de spawn sem deixar resíduos!
+    for (const fKey of ['cv', 'pcc', 'ares']) {
+      const zSt = fw.territories?.[fKey];
+      if (zSt?.outposts?.[0]) {
+        const op0 = zSt.outposts[0];
+        fw._spawnMotorizedSquad?.({ faction: fKey, isAllied: fKey === fw.playerFaction, zoneState: zSt, playerPos: { x: op0.x, y: 1, z: op0.z }, target: op0 });
+      }
+    }
+    fw._cleanupActiveZoneUnits?.();
+    if (fw._soldierVisualPool) {
+      for (const bucket of fw._soldierVisualPool.values()) {
+        for (let i = 0; i < bucket.length; i++) {
+          if (bucket[i]?.root) consolidateObjectMaterials(bucket[i].root, world);
+        }
+      }
+    }
+    if (fw._convoyCarPool) {
+      for (const bucket of fw._convoyCarPool.values()) {
+        for (let i = 0; i < bucket.length; i++) {
+          consolidateObjectMaterials(bucket[i], world);
+        }
+      }
+    }
+  }
 
   const camPos = camera?.position ? camera.position.clone() : new THREE.Vector3(0, 2, 0);
   const camFwd = new THREE.Vector3(0, 0, -1);

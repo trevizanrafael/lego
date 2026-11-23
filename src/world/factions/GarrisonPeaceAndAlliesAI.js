@@ -10,11 +10,12 @@ import { EXTRA_THEMES, FACTION_THEME } from './TerritoryZonesAndConfigs.js';
 const _healStartTmp = new THREE.Vector3();
 const _healEndTmp = new THREE.Vector3();
 
-function drainPendingAllyGarrison(system, maxPerFrame = 2) {
+function drainPendingAllyGarrison(system, maxPerFrame = 1) {
   const q = system._pendingAllyGarrisonQueue;
   if (!q || q.length === 0 || system.activeMode !== 'ALLY_HQ') return;
-  if (system._lastAllyQueueDrainTick === system._aiTick) return;
-  system._lastAllyQueueDrainTick = system._aiTick;
+  const tickId = system._allyQueueFrameCounter ?? system._aiTick ?? 0;
+  if (system._lastAllyQueueDrainTick === tickId) return;
+  system._lastAllyQueueDrainTick = tickId;
   const count = Math.min(maxPerFrame, q.length);
   for (let i = 0; i < count; i++) {
     const spec = q.shift();
@@ -45,7 +46,7 @@ function resolveCleanGarrisonPos(system, rawX, rawZ) {
   return { x: fallback.x, y: fallback.y, z: fallback.z };
 }
 
-function getCachedAllyHqAnchors(system, zoneKey, st) {
+export function getCachedAllyHqAnchors(system, zoneKey, st) {
   if (st._cachedAllyHqAnchors) return st._cachedAllyHqAnchors;
   const core = [];
   const deferred = [];
@@ -359,6 +360,24 @@ export const garrisonPeaceAndAlliesMethods = {
       beam.visible = false;
     }
     this.activeWarzones.length = 0;
+  },
+
+  _drainPendingAllyGarrison(maxPerFrame = 1) {
+    drainPendingAllyGarrison(this, maxPerFrame);
+  },
+
+  prewarmTerritoryAnchors() {
+    if (!this.territories) return;
+    for (const [zKey, st] of Object.entries(this.territories)) {
+      if (!st) continue;
+      getCachedAllyHqAnchors(this, zKey, st);
+      for (const r of st.spec?.alliedEntryRoutes || []) {
+        if (r && !r._cachedStartSafe) r._cachedStartSafe = this._findSafeZonePos(r.startX, r.startZ, 2.4);
+      }
+      for (const r of st.spec?.defenderMotorRoutes || []) {
+        if (r && !r._cachedStartSafe) r._cachedStartSafe = this._findSafeZonePos(r.startX, r.startZ, 2.4);
+      }
+    }
   },
 
   _enterAllyHqMode(zoneKey) {

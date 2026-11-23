@@ -23,17 +23,17 @@ const _NORM_M3 = new THREE.Matrix3();
 let _sharedLooseStdVcMat = null, _sharedLooseStdOffsetVcMat = null, _sharedLooseBasicVcMat = null, _sharedLooseBasicOffsetVcMat = null;
 
 function getVcCellSpan(x, z, coreSpan) {
-  if (Math.abs(x) > 4500 || Math.abs(z) > 4500) return 7600;
-  if (Math.abs(x) > 1700 || Math.abs(z) > 1950) return 2250;
+  if (Math.abs(x) > 4500 || Math.abs(z) > 4500) return 11000;
+  if (Math.abs(x) > 1700 || Math.abs(z) > 1950) return 4400;
   return coreSpan;
 }
 
-function buildCoarseVcLodGeo(srcGeo, minDoubleAreaSq = 2500) {
+function buildCoarseVcLodGeo(srcGeo, minDoubleAreaSq = 900) {
   const pos = srcGeo.attributes.position, norm = srcGeo.attributes.normal, col = srcGeo.attributes.color;
   if (!pos || !norm || !col) return null;
   const idx = srcGeo.index ? srcGeo.index.array : null;
   const triCount = idx ? Math.floor(idx.length / 3) : Math.floor(pos.count / 3);
-  if (triCount < 28000) return null;
+  if (triCount < 3200) return null;
 
   const pSrc = pos.array, nSrc = norm.array, cSrc = col.array;
   const kept = new Int32Array(triCount * 3);
@@ -52,7 +52,7 @@ function buildCoarseVcLodGeo(srcGeo, minDoubleAreaSq = 2500) {
   };
   let kLen = filterPass(minDoubleAreaSq);
   if (kLen === 0) kLen = filterPass(minDoubleAreaSq * 0.15);
-  if (kLen === 0 || kLen > triCount * 3 * 0.88) return null;
+  if (kLen === 0 || kLen > triCount * 3 * 0.76) return null;
 
   const remap = new Int32Array(pos.count).fill(-1), used = [];
   const outIdx = pos.count > 65535 ? new Uint32Array(kLen) : new Uint16Array(kLen);
@@ -103,9 +103,8 @@ function sliceWideVcGeoToCells(srcGeo, worldMat4, fallbackCol, cellSize) {
     const x0 = pArr[i0 * 3], z0 = pArr[i0 * 3 + 2], x1 = pArr[i1 * 3], z1 = pArr[i1 * 3 + 2], x2 = pArr[i2 * 3], z2 = pArr[i2 * 3 + 2];
     const minX = Math.min(x0, x1, x2), maxX = Math.max(x0, x1, x2), minZ = Math.min(z0, z1, z2), maxZ = Math.max(z0, z1, z2);
     const mx = (minX + maxX) * 0.5, mz = (minZ + maxZ) * 0.5;
-    const isWide = maxX - minX > 320 || maxZ - minZ > 320;
-    const cs = isWide ? (Math.abs(mx) > 4500 || Math.abs(mz) > 4500 ? 4800 : 2200) : getVcCellSpan(mx, mz, cellSize);
-    const key = `${isWide ? 'wide' : cs}:${Math.floor(mx / cs)},${Math.floor(mz / cs)}`;
+    const cs = getVcCellSpan(mx, mz, cellSize);
+    const key = `${cs}:${Math.floor(mx / cs)},${Math.floor(mz / cs)}`;
     let list = cellTris.get(key);
     if (!list) { list = []; cellTris.set(key, list); }
     list.push(i0, i1, i2);
@@ -395,7 +394,7 @@ export const worldBatchingAndFreezeMethods = {
 
     const m4 = new THREE.Matrix4();
     for (let c = 0; c < candidates.length; c++) {
-      const src = candidates[c], isMicroStuds = src.count >= 5000, cellSpan = isMicroStuds ? 720 : 2400;
+      const src = candidates[c], isMicroStuds = src.count >= 5000, cellSpan = isMicroStuds ? 1080 : 3200;
       const byCell = new Map();
       for (let i = 0; i < src.count; i++) {
         src.getMatrixAt(i, m4);
@@ -416,7 +415,7 @@ export const worldBatchingAndFreezeMethods = {
           const sc = sub.boundingSphere.center, cx = sc.x, cy = sc.y, cz = sc.z;
           const lod = new THREE.LOD();
           lod.position.set(cx, cy, cz); sub.position.set(-cx, -cy, -cz); sub.updateMatrix();
-          lod.addLevel(sub, 0); lod.addLevel(new THREE.Object3D(), 165);
+          lod.addLevel(sub, 0); lod.addLevel(new THREE.Object3D(), 145);
           lod.matrixAutoUpdate = false; lod.updateMatrix(); lod.updateMatrixWorld(true);
           this.scene.add(lod); staticPhaseChildren.add(lod);
         } else {
@@ -441,7 +440,7 @@ export const worldBatchingAndFreezeMethods = {
     markSubtree(this.helicarrierShowcaseHolo);
 
     const protectedDynamicMats = collectProtectedDynamicMaterials(this);
-    const CHUNK_SIZE = 1040, AUX_CHUNK_SIZE = 5400, OUTER_CHUNK_SIZE = 8400;
+    const CHUNK_SIZE = 2150, AUX_CHUNK_SIZE = 8800, OUTER_CHUNK_SIZE = 14000;
     const worldBox = new THREE.Box3(), nearScratch = [], buckets = new Map();
     let matIdSeq = 0;
     const matIds = new WeakMap();
@@ -449,6 +448,14 @@ export const worldBatchingAndFreezeMethods = {
       let id = matIds.get(mat);
       if (id === undefined) { id = ++matIdSeq; matIds.set(mat, id); }
       return id;
+    };
+    const getByMatBucketSig = (mat) => {
+      if (!mat || protectedDynamicMats.has(mat) || mat.map || mat.emissiveMap || mat.alphaMap || mat.userData?.isDynamicMaterial) {
+        return `id:${getMatId(mat)}`;
+      }
+      const hex = Math.round(((mat.color?.getHex?.() ?? 0xffffff) >> 4)) << 4;
+      const opBucket = mat.transparent ? Math.round((mat.opacity ?? 0.5) * 6) : 99;
+      return `sig:${mat.isMeshBasicMaterial ? 'B' : 'P'}:${hex}:${opBucket}:${mat.blending || 0}:${mat.depthWrite === false ? 0 : 1}`;
     };
 
     const pushToBucket = (bKey, kind, mat, minX, maxX, minY, maxY, minZ, maxZ, castS, recvS, itemPayload) => {
@@ -516,11 +523,11 @@ export const worldBatchingAndFreezeMethods = {
         node.material && !Array.isArray(node.material) && !node.userData?.isWater && !node.userData?.isOcean
       ) {
         const mat = node.material, posAttr = node.geometry?.attributes?.position, colAttr = node.geometry?.attributes?.color, matHex = mat.color?.getHex?.();
+        const isViaductShadowSlab = Boolean(node.castShadow && matHex === 0xcbd5e1);
         if (
           posAttr && posAttr.count > 0 && posAttr.count <= 950000 &&
           (!colAttr || colAttr.itemSize === 3) && !mat.userData?.hasAnimatedLegoWater &&
-          !mat.uniforms && mat.side !== THREE.BackSide && matHex !== 0x0369a1 &&
-          !(node.castShadow && matHex === 0xcbd5e1)
+          !mat.uniforms && mat.side !== THREE.BackSide && matHex !== 0x0369a1
         ) {
           if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
           const bb = node.geometry.boundingBox;
@@ -535,7 +542,8 @@ export const worldBatchingAndFreezeMethods = {
               const noTex = !mat.map && !mat.emissiveMap && !mat.alphaMap;
 
               let kind = null;
-              if (!isAnimEmissiveDyn && !mat.transparent && !mat.isMeshBasicMaterial && noTex) kind = mat.polygonOffset ? 'vcStdPo' : 'vcStd';
+              if (isViaductShadowSlab) kind = 'byMat';
+              else if (!isAnimEmissiveDyn && !mat.transparent && !mat.isMeshBasicMaterial && noTex) kind = mat.polygonOffset ? 'vcStdPo' : 'vcStd';
               else if (!isAnimEmissiveDyn && mat.isMeshBasicMaterial && !mat.transparent && noTex) kind = mat.polygonOffset ? 'vcBasicPo' : 'vcBasic';
               else if (!mat.transparent || (!mat.map && !mat.alphaMap && (mat.blending === THREE.AdditiveBlending || mat.depthWrite === false || mat.isMeshPhysicalMaterial || mat.isMeshStandardMaterial || mat.isMeshBasicMaterial))) kind = 'byMat';
 
@@ -549,9 +557,9 @@ export const worldBatchingAndFreezeMethods = {
                   }
                   signNodesToRemove.push(node);
                 } else {
-                  const effCs = kind === 'vcStd' ? cs : (Math.abs(cx) > 4500 || Math.abs(cz) > 4500 ? OUTER_CHUNK_SIZE : AUX_CHUNK_SIZE);
+                  const effCs = (kind === 'vcStd' || isViaductShadowSlab) ? cs : (Math.abs(cx) > 4500 || Math.abs(cz) > 4500 ? OUTER_CHUNK_SIZE : AUX_CHUNK_SIZE);
                   const cKey = `${effCs}:${Math.floor(cx / effCs)},${Math.floor(cz / effCs)}`;
-                  const bKey = kind === 'byMat' ? `byMat|${cKey}|${getMatId(mat)}` : `${kind}|${cKey}`;
+                  const bKey = isViaductShadowSlab ? `byMat|viaduct|${cKey}` : kind === 'byMat' ? `byMat|${cKey}|${getByMatBucketSig(mat)}` : `${kind}|${cKey}`;
                   pushToBucket(bKey, kind, mat, min.x, max.x, min.y, max.y, min.z, max.z, node.castShadow, node.receiveShadow, { node, mat });
                 }
               }
@@ -593,9 +601,9 @@ export const worldBatchingAndFreezeMethods = {
       if (ok) continue;
       buckets.delete(bKey);
       const mcx = (b.minX + b.maxX) * 0.5, mcz = (b.minZ + b.maxZ) * 0.5;
-      const sSpan = b.kind === 'vcStd' ? (Math.abs(mcx) <= 4500 && Math.abs(mcz) <= 4500 ? 2200 : 6400) : 28000;
+      const sSpan = b.kind === 'vcStd' ? (Math.abs(mcx) <= 4500 && Math.abs(mcz) <= 4500 ? 3200 : 8400) : 28000;
       const cellTag = `${sSpan}:${Math.floor(mcx / sSpan)},${Math.floor(mcz / sSpan)}`;
-      const superKey = b.kind === 'byMat' ? `super|byMat|${getMatId(b.mat)}|${cellTag}` : `super|${b.kind}|${cellTag}`;
+      const superKey = b.kind === 'byMat' ? `super|byMat|${getByMatBucketSig(b.mat)}|${cellTag}` : `super|${b.kind}|${cellTag}`;
       let sb = fallbackSuperBuckets.get(superKey);
       if (!sb) {
         sb = { kind: b.kind, mat: b.mat, minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity, anyCastShadow: false, anyReceiveShadow: false, items: [], isSuperCell: true };
@@ -669,15 +677,25 @@ export const worldBatchingAndFreezeMethods = {
       mergedMesh.matrixAutoUpdate = false;
       mergedMesh.updateMatrix();
 
-      const coarseGeo = isVc ? buildCoarseVcLodGeo(mergedGeo, 2500) : null;
-      if (coarseGeo) {
+      const lod1Geo = b.kind === 'vcStd' ? buildCoarseVcLodGeo(mergedGeo, 900) : null;
+      const lod2Geo = b.kind === 'vcStd' ? buildCoarseVcLodGeo(mergedGeo, 3600) : null;
+      if (lod1Geo || lod2Geo) {
         const lod = new THREE.LOD();
         lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
-        const lod1Mesh = new THREE.Mesh(coarseGeo, mergedMat);
-        lod1Mesh.castShadow = false; lod1Mesh.receiveShadow = mergedMesh.receiveShadow;
-        lod1Mesh.matrixAutoUpdate = false; lod1Mesh.updateMatrix();
-        lod.addLevel(mergedMesh, 0); lod.addLevel(lod1Mesh, 310);
-        mergedMesh.visible = true; lod1Mesh.visible = false;
+        lod.addLevel(mergedMesh, 0);
+        mergedMesh.visible = true;
+        if (lod1Geo) {
+          const lod1Mesh = new THREE.Mesh(lod1Geo, mergedMat);
+          lod1Mesh.castShadow = false; lod1Mesh.receiveShadow = mergedMesh.receiveShadow;
+          lod1Mesh.matrixAutoUpdate = false; lod1Mesh.updateMatrix(); lod1Mesh.visible = false;
+          lod.addLevel(lod1Mesh, 210);
+        }
+        if (lod2Geo && (!lod1Geo || lod2Geo.index.count < lod1Geo.index.count * 0.92)) {
+          const lod2Mesh = new THREE.Mesh(lod2Geo, mergedMat);
+          lod2Mesh.castShadow = false; lod2Mesh.receiveShadow = false;
+          lod2Mesh.matrixAutoUpdate = false; lod2Mesh.updateMatrix(); lod2Mesh.visible = false;
+          lod.addLevel(lod2Mesh, 740);
+        }
         lod.updateMatrixWorld(true);
         this.scene.add(lod); staticPhaseChildren.add(lod);
       } else {
@@ -796,7 +814,7 @@ export const worldBatchingAndFreezeMethods = {
     if (this._sidewalkGeosByColor.size === 0) return;
     const mats = new Map();
     for (const colorHex of this._sidewalkGeosByColor.keys()) mats.set(colorHex, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.45 }));
-    flushSpatialChunkedBuckets(this.scene, this._sidewalkGeosByColor, mats, { chunkSize: 1100, castShadowFn: () => false, receiveShadowFn: () => true });
+    flushSpatialChunkedBuckets(this.scene, this._sidewalkGeosByColor, mats, { chunkSize: 1680, castShadowFn: () => false, receiveShadowFn: () => true });
     this._sidewalkGeosByColor.clear();
   },
 
@@ -816,7 +834,7 @@ export const worldBatchingAndFreezeMethods = {
     const trunkMat = new THREE.MeshStandardMaterial({ color: LEGO_COLORS.brown, roughness: 0.4 });
     const canopyGeo = new THREE.BoxGeometry(3.4, 3.2, 3.4).translate(0, 3.8, 0);
     const canopyMat = new THREE.MeshStandardMaterial({ color: LEGO_COLORS.green, roughness: 0.35 });
-    const treeChunk = 2100, chunks = new Map(), dummy = new THREE.Object3D();
+    const treeChunk = 3400, chunks = new Map(), dummy = new THREE.Object3D();
     for (let i = 0; i < count; i++) {
       const t = this._treeInstances[i], key = `${Math.floor(t.x / treeChunk)},${Math.floor(t.z / treeChunk)}`;
       let bucket = chunks.get(key);
@@ -842,7 +860,7 @@ export const worldBatchingAndFreezeMethods = {
       if (tc && n >= 12) {
         const lod = new THREE.LOD();
         lod.position.set(tc.x, tc.y, tc.z); trunkInst.position.set(-tc.x, -tc.y, -tc.z); trunkInst.updateMatrix();
-        lod.addLevel(trunkInst, 0); lod.addLevel(new THREE.Object3D(), 580);
+        lod.addLevel(trunkInst, 0); lod.addLevel(new THREE.Object3D(), 460);
         lod.matrixAutoUpdate = false; lod.updateMatrix(); lod.updateMatrixWorld(true);
         this.scene.add(lod, canopyInst);
       } else {

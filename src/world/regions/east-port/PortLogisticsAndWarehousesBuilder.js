@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
+import { TERRITORY_ZONES } from '../../factions/TerritoryZonesAndConfigs.js';
 import { addCorrugatedContainerStack } from './EastPortBatcherAndMaterials.js';
 import { addPortCargoSemiTruck } from './CargoShipsAndDocksBuilder.js';
 
@@ -407,4 +408,90 @@ export function buildEightPortWarehousesFuelTerminalAndHarborTower(world, batche
     color: '#0284c7',
     label: 'TORRE DA CAPITANIA DOS PORTOS'
   });
+
+  if (IS_SCALED_WORLD) {
+    _buildPortQuayIntermodalStacks(world, batcher, colorKeys);
+  }
+}
+
+function _buildPortQuayIntermodalStacks(world, batcher, colorKeys) {
+  const groundRoads = (world.mapRoads || []).filter((r) => !r.isElevated && !r.isBridge && r.x + r.w * 0.5 > 1750 && r.z + r.d * 0.5 > 320);
+  const existingBuildings = (world.mapBuildings || []).filter((b) => b.x > 1750 && b.z > 320);
+
+  // Reservas futuras para Setores 1..5 de PortCranesAndContainers, Base A.R.E.S., Portainers, Ramal Ferroviário e Spawns
+  const keepRects = [
+    { minX: ws(842), maxX: ws(1152), minZ: ws(548), maxZ: ws(704) }, // Base A.R.E.S.
+    { minX: 4742, maxX: 4865, minZ: 465, maxZ: 2210 },              // Ramal Ferroviário do Cais (x=4760..4806) + Portainers Leste
+    { minX: 4075, maxX: 4765, minZ: 240, maxZ: 515 },               // Curva Norte do Ramal Ferroviário
+    { minX: ws(1015), maxX: ws(1250), minZ: ws(695), maxZ: ws(740) } // Portainers Sul
+  ];
+  const yardCenters = [
+    [868, 370], [922, 370], [976, 370], [1034, 370], [1098, 370],
+    [868, 478], [922, 478], [976, 478], [1034, 478], [1098, 478],
+    [1202, 370], [1258, 370], [1318, 370], [1202, 478], [1258, 478], [1318, 478],
+    [1202, 586], [1260, 586], [1318, 586], [1202, 658], [1260, 658], [1318, 658],
+    [1424, 194], [1488, 194], [1424, 282], [1488, 282], [1424, 370], [1488, 370],
+    [1424, 478], [1488, 478], [1424, 586], [1488, 586], [1424, 658], [1488, 658],
+    [713, 304], [713, 504], [713, 682], [950, 304], [1054, 298], [1142, 298]
+  ];
+  for (const [bx, bz] of yardCenters) {
+    keepRects.push({ minX: ws(bx) - 34, maxX: ws(bx) + 34, minZ: ws(bz) - 44, maxZ: ws(bz) + 44 });
+  }
+
+  const keepPoints = [];
+  for (const reg of world.regions || []) if (reg?.spawn) keepPoints.push(reg.spawn);
+  for (const lm of world.landmarks || []) if (lm?.spawn) keepPoints.push(lm.spawn);
+  for (const zone of [TERRITORY_ZONES?.pcc, TERRITORY_ZONES?.ares]) {
+    if (!zone) continue;
+    for (const pt of [...(zone.outposts || []), ...(zone.gates || []), ...(zone.garages || []), zone.bossCourtyard, zone.alliedBossSpawn]) {
+      if (pt) keepPoints.push(pt);
+    }
+  }
+
+  const isClear = (sx, sz, cw, cd) => {
+    const minX = sx - cw * 0.5 - 6.0, maxX = sx + cw * 0.5 + 6.0;
+    const minZ = sz - cd * 0.5 - 6.0, maxZ = sz + cd * 0.5 + 6.0;
+    for (let i = 0; i < groundRoads.length; i++) {
+      const r = groundRoads[i];
+      if (minX < r.x + r.w * 0.5 && maxX > r.x - r.w * 0.5 && minZ < r.z + r.d * 0.5 && maxZ > r.z - r.d * 0.5) return false;
+    }
+    for (let i = 0; i < keepRects.length; i++) {
+      const k = keepRects[i];
+      if (minX < k.maxX && maxX > k.minX && minZ < k.maxZ && maxZ > k.minZ) return false;
+    }
+    for (let i = 0; i < existingBuildings.length; i++) {
+      const b = existingBuildings[i];
+      if (minX < b.x + b.w * 0.5 + 4 && maxX > b.x - b.w * 0.5 - 4 && minZ < b.z + b.d * 0.5 + 4 && maxZ > b.z - b.d * 0.5 - 4) return false;
+    }
+    for (let i = 0; i < keepPoints.length; i++) {
+      if (Math.hypot(sx - keepPoints[i].x, sz - keepPoints[i].z) < 32) return false;
+    }
+    return true;
+  };
+
+  // Fileiras intermodais organizadas (2 a 4 andares) no pátio do cais entre os armazéns, corredores RTG e Portainers
+  const quayRowPairsX = [
+    [2096, 2104], [2168, 2176], [2362, 2370], [2416, 2424],
+    [2764, 2772], [2836, 2844], [3128, 3136],
+    [4174, 4182], [4358, 4366], [4546, 4554],
+    [4674, 4682], [4718, 4726]
+  ];
+
+  let seed = 17;
+  for (let pIdx = 0; pIdx < quayRowPairsX.length; pIdx++) {
+    const pairX = quayRowPairsX[pIdx];
+    for (let zCluster = 548; zCluster <= 2035; zCluster += 74) {
+      for (const bayOff of [-10.5, 10.5]) {
+        const sz = zCluster + bayOff;
+        for (let c = 0; c < pairX.length; c++) {
+          const sx = pairX[c];
+          if (!isClear(sx, sz, 6.0, 18.0)) continue;
+          seed = (seed + 3 + pIdx + c) | 0;
+          const tiers = 2 + ((seed + pIdx + c) % 3); // 2..4 tiers high
+          addCorrugatedContainerStack(world, batcher, sx, sz, tiers, false, colorKeys, seed);
+          if (tiers >= 4) world.eastPortData.fourStoryStacksCount++;
+        }
+      }
+    }
+  }
 }
