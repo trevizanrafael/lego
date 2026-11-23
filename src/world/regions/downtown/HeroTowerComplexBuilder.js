@@ -3,11 +3,13 @@ import {
   LEGO_COLORS,
   getLegoMaterial,
   createLegoBrick,
-  SHARED_STUD_GEO
+  SHARED_STUD_GEO,
+  markAsSharedAsset
 } from '../../../materials/LegoMaterials.js';
 import {
   mergeBufferGeometries,
-  makeTranslatedBox
+  mergeColoredGeometries,
+  makeFastBox as makeTranslatedBox
 } from '../../BuildingGenerator.js';
 import {
   METRO_ISLAND_CUTOUTS,
@@ -66,62 +68,26 @@ export function buildHeroTowerComplex(world) {
     world._addCityBlockSidewalk(tx, tz, blockW, blockD, LEGO_COLORS.sidewalk);
   }
 
-  // Materiais compartilhados para performance máxima (60 FPS)
+  // Materiais compartilhados para os pivôs interativos e fachadas translúcidas (60 FPS)
   const darkTitaniumMat = getLegoMaterial(0x0f172a, { roughness: 0.22, metalness: 0.55, clearcoat: 0.65 });
-  const slateSteelMat = getLegoMaterial(0x1e293b, { roughness: 0.25, metalness: 0.48, clearcoat: 0.55 });
-  const silverMat = getLegoMaterial(0xcbd5e1, { roughness: 0.18, metalness: 0.72, clearcoat: 0.8 });
-  const whiteMarbleMat = getLegoMaterial(0xf8fafc, { roughness: 0.14, metalness: 0.08, clearcoat: 0.85 });
-  const sapphireMat = getLegoMaterial(0x0284c7, { roughness: 0.16, metalness: 0.35, clearcoat: 0.75 });
   const goldMat = getLegoMaterial(LEGO_COLORS.gold, {
-    roughness: 0.15,
-    metalness: 0.72,
-    clearcoat: 0.88,
-    emissive: 0xb45309,
-    emissiveIntensity: 0.2
+    roughness: 0.15, metalness: 0.72, clearcoat: 0.88, emissive: 0xb45309, emissiveIntensity: 0.2
   });
-  const neonCyanMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-  const neonBlueMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-  const solarOrangeMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
-  const solarGoldGlowMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-  const emeraldGlowMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
-  const alertRedGlowMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-  const purpleGlowMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+  const neonCyanMat = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0x00f0ff }));
+  const solarGoldGlowMat = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+  const glassFacadeMat = markAsSharedAsset(
+    new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, roughness: 0.08, metalness: 0.12, transparent: true, opacity: 0.38, clearcoat: 0.9 })
+  );
+  const holoCyanMat = markAsSharedAsset(
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.52, side: THREE.DoubleSide })
+  );
+  const bactaGlassMat = markAsSharedAsset(
+    new THREE.MeshPhysicalMaterial({ color: 0x34d399, roughness: 0.1, transparent: true, opacity: 0.48 })
+  );
 
-  const glassFacadeMat = new THREE.MeshPhysicalMaterial({
-    color: 0x38bdf8,
-    roughness: 0.08,
-    metalness: 0.12,
-    transparent: true,
-    opacity: 0.38,
-    clearcoat: 0.9
-  });
-  const holoCyanMat = new THREE.MeshBasicMaterial({
-    color: 0x00f0ff,
-    transparent: true,
-    opacity: 0.52,
-    side: THREE.DoubleSide
-  });
-  const bactaGlassMat = new THREE.MeshPhysicalMaterial({
-    color: 0x34d399,
-    roughness: 0.1,
-    transparent: true,
-    opacity: 0.48
-  });
-
-  // Acumuladores de geometria estática por material (Batching 60 FPS)
-  const darkGeos = [];
-  const slateGeos = [];
-  const silverGeos = [];
-  const whiteGeos = [];
-  const sapphireGeos = [];
-  const goldGeos = [];
-  const cyanGeos = [];
-  const blueGlowGeos = [];
-  const orangeGlowGeos = [];
-  const emeraldGeos = [];
-  const redGlowGeos = [];
-  const purpleGeos = [];
-  const glassGeos = [];
+  // Acumuladores de geometria estática por paleta (consolidados em 3 Meshes!)
+  const darkGeos = [], slateGeos = [], silverGeos = [], whiteGeos = [], sapphireGeos = [], goldGeos = [];
+  const cyanGeos = [], blueGlowGeos = [], orangeGlowGeos = [], emeraldGeos = [], redGlowGeos = [], purpleGeos = [], glassGeos = [];
 
   // ============================================================================
   // 1. PISO NOBRE DO QG DOS HERÓIS (RECORTADO NA ESCADARIA DO PORÃO OP-09!)
@@ -772,38 +738,34 @@ export function buildHeroTowerComplex(world) {
     bioGlass.position.set(tubeX, labFloorY + 3.7, tubeZ);
     world.scene.add(bioGlass);
 
-    // Bolhas de energia Bio-LEGO brilhando dentro dos tubos
+    // Bolhas de energia Bio-LEGO brilhando dentro dos tubos (mescladas no lote neon!)
     for (let b = 0; b < 5; b++) {
-      const bSphere = new THREE.Mesh(
-        new THREE.SphereGeometry(0.32 + (b % 2) * 0.18, 10, 10),
-        isCyan ? neonCyanMat : emeraldGlowMat
-      );
-      bSphere.position.set(
+      const bGeo = new THREE.SphereGeometry(0.32 + (b % 2) * 0.18, 10, 10);
+      bGeo.translate(
         tubeX + Math.cos(b * 1.4) * 0.9,
         labFloorY + 1.8 + b * 0.9,
         tubeZ + Math.sin(b * 1.4) * 0.9
       );
-      world.scene.add(bSphere);
+      (isCyan ? cyanGeos : emeraldGeos).push(bGeo);
     }
     world.addCollider(tubeX, tubeZ, 6.0, 6.0, labCeilY, labFloorY);
   }
 
-  // Prateleiras nas Paredes com Peças de Minifiguras LEGO Coloridas (Capacetes, Perucas, Torsos)
+  // Prateleiras nas Paredes com Peças de Minifiguras LEGO Coloridas (mescladas em vertex colors!)
+  const extraStructuralColoredGeos = [];
   const shelfPartColors = [0xef4444, 0x3b82f6, 0xfacc15, 0x22c55e, 0xa855f7, 0xf97316, 0x06b6d4];
+  const shelfColorCache = shelfPartColors.map((hex) => new THREE.Color(hex));
   for (let sRow = 0; sRow < 3; sRow++) {
     const sy = labFloorY + 1.6 + sRow * 1.65;
     slateGeos.push(makeTranslatedBox(1.8, 0.22, 34.0, labMinX + 1.4, sy, labCZ));
     for (let p = 0; p < 9; p++) {
       const pz = labCZ - 14.0 + p * 3.5;
-      const partCol = shelfPartColors[(p + sRow * 3) % shelfPartColors.length];
-      const sparePart = new THREE.Mesh(
-        p % 2 === 0 ? new THREE.CylinderGeometry(0.34, 0.34, 0.52, 12) : new THREE.BoxGeometry(0.68, 0.68, 0.42),
-        getLegoMaterial(partCol, { roughness: 0.22, clearcoat: 0.5 })
-      );
-      sparePart.position.set(labMinX + 1.5, sy + 0.42, pz);
-      const studTop = new THREE.Mesh(SHARED_STUD_GEO, getLegoMaterial(partCol));
-      studTop.position.set(labMinX + 1.5, sy + 0.75, pz);
-      world.scene.add(sparePart, studTop);
+      const cObj = shelfColorCache[(p + sRow * 3) % shelfColorCache.length];
+      const partGeo = p % 2 === 0
+        ? new THREE.CylinderGeometry(0.34, 0.34, 0.52, 12).translate(labMinX + 1.5, sy + 0.42, pz)
+        : makeTranslatedBox(0.68, 0.68, 0.42, labMinX + 1.5, sy + 0.42, pz);
+      const studGeo = SHARED_STUD_GEO.clone().translate(labMinX + 1.5, sy + 0.75, pz);
+      extraStructuralColoredGeos.push({ geo: partGeo, color: cObj }, { geo: studGeo, color: cObj });
     }
   }
   world.addCollider(labMinX + 1.4, labCZ, 2.0, 34.0, labFloorY + 5.5, labFloorY);
@@ -861,21 +823,9 @@ export function buildHeroTowerComplex(world) {
   world.addCollider(pedX + 4.2, pedZ, 1.5, 2.3, labFloorY + 1.8, labFloorY);
 
   const pedBanner = createSignBoardMesh({
-    x: pedX - 4.2,
-    y: labFloorY + 5.3,
-    z: pedZ,
-    width: 11.5,
-    height: 1.75,
-    depth: 0.36,
-    rotY: Math.PI / 2,
-    title: 'CRIADOR BIO-GENÉTICO // OP-09',
-    subText: 'APERTE [F] NO CONSOLE PARA CUSTOMIZAR HERÓI E PODERES',
-    bgColor: '#090a0d',
-    borderColor: '#facc15',
-    topStripeColor: '#00f0ff',
-    textColor: '#f8fafc',
-    subColor: '#00f0ff',
-    doubleSided: true
+    x: pedX - 4.2, y: labFloorY + 5.3, z: pedZ, width: 11.5, height: 1.75, depth: 0.36, rotY: Math.PI / 2,
+    title: 'CRIADOR BIO-GENÉTICO // OP-09', subText: 'APERTE [F] NO CONSOLE PARA CUSTOMIZAR HERÓI E PODERES',
+    bgColor: '#090a0d', borderColor: '#facc15', topStripeColor: '#00f0ff', textColor: '#f8fafc', subColor: '#00f0ff', doubleSided: true
   });
   world.scene.add(pedBanner);
 
@@ -1090,28 +1040,64 @@ export function buildHeroTowerComplex(world) {
     makeTranslatedBox(3.2, 3.2, 3.2, spireX, 352.0, spireZ)
   );
 
-  // Consolida todos os lotes de geometria da Torre dos Heróis em pouquíssimos Draw Calls (60 FPS!)
-  const batches = [
-    [darkGeos, darkTitaniumMat, true],
-    [slateGeos, slateSteelMat, true],
-    [silverGeos, silverMat, true],
-    [whiteGeos, whiteMarbleMat, false],
-    [sapphireGeos, sapphireMat, true],
-    [goldGeos, goldMat, false],
-    [cyanGeos, neonCyanMat, false],
-    [blueGlowGeos, neonBlueMat, false],
-    [orangeGlowGeos, solarOrangeMat, false],
-    [emeraldGeos, emeraldGlowMat, false],
-    [redGlowGeos, alertRedGlowMat, false],
-    [purpleGeos, purpleGlowMat, false],
-    [glassGeos, glassFacadeMat, false]
-  ];
-  for (const [geos, mat, castShad] of batches) {
-    if (geos.length === 0) continue;
-    const mesh = new THREE.Mesh(mergeBufferGeometries(geos), mat);
-    mesh.castShadow = castShad;
-    mesh.receiveShadow = true;
-    world.scene.add(mesh);
+  // Consolida os 13 buckets estáticos da Torre dos Heróis em apenas 3 Meshes (Vertex Colors + Glass)!
+  const pushColoredBucket = (dest, list, hex) => {
+    if (!list.length) return;
+    const color = new THREE.Color(hex);
+    for (let i = 0; i < list.length; i++) dest.push({ geo: list[i], color });
+  };
+
+  const structuralEntries = [...extraStructuralColoredGeos];
+  pushColoredBucket(structuralEntries, darkGeos, 0x0f172a);
+  pushColoredBucket(structuralEntries, slateGeos, 0x1e293b);
+  pushColoredBucket(structuralEntries, silverGeos, 0xcbd5e1);
+  pushColoredBucket(structuralEntries, whiteGeos, 0xf8fafc);
+  pushColoredBucket(structuralEntries, sapphireGeos, 0x0284c7);
+  pushColoredBucket(structuralEntries, goldGeos, LEGO_COLORS.gold);
+
+  if (structuralEntries.length > 0) {
+    const structGeo = mergeColoredGeometries(structuralEntries);
+    structGeo.computeBoundingBox();
+    structGeo.computeBoundingSphere();
+    const structMat = markAsSharedAsset(
+      new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.22, metalness: 0.52 })
+    );
+    const structMesh = new THREE.Mesh(structGeo, structMat);
+    structMesh.name = 'hero_tower_vc_structural';
+    structMesh.castShadow = true;
+    structMesh.receiveShadow = true;
+    world.scene.add(structMesh);
+  }
+
+  const neonEntries = [];
+  pushColoredBucket(neonEntries, cyanGeos, 0x00f0ff);
+  pushColoredBucket(neonEntries, blueGlowGeos, 0x38bdf8);
+  pushColoredBucket(neonEntries, orangeGlowGeos, 0xf97316);
+  pushColoredBucket(neonEntries, emeraldGeos, 0x10b981);
+  pushColoredBucket(neonEntries, redGlowGeos, 0xef4444);
+  pushColoredBucket(neonEntries, purpleGeos, 0xa855f7);
+
+  if (neonEntries.length > 0) {
+    const neonGeo = mergeColoredGeometries(neonEntries);
+    neonGeo.computeBoundingBox();
+    neonGeo.computeBoundingSphere();
+    const neonMat = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }));
+    const neonMesh = new THREE.Mesh(neonGeo, neonMat);
+    neonMesh.name = 'hero_tower_vc_neon';
+    neonMesh.castShadow = false;
+    neonMesh.receiveShadow = false;
+    world.scene.add(neonMesh);
+  }
+
+  if (glassGeos.length > 0) {
+    const glassGeo = mergeBufferGeometries(glassGeos);
+    glassGeo.computeBoundingBox();
+    glassGeo.computeBoundingSphere();
+    const glassMesh = new THREE.Mesh(glassGeo, glassFacadeMat);
+    glassMesh.name = 'hero_tower_glass';
+    glassMesh.castShadow = false;
+    glassMesh.receiveShadow = false;
+    world.scene.add(glassMesh);
   }
 
   // Registra no Mapa 2D e salva metadados completos em world.heroTowerData

@@ -71,4 +71,13 @@
   - `centro_financeiro`: `4,88M → 1,21M` tris (`DC = 490`); `torre_herois`: `4,69M → 1,14M` tris (`DC = 367`); `parque_central`: `5,61M → 1,44M` tris; `suburbio_norte`: `3,39M → 0,95M` tris (`DC = 334`); `industrial_leste`: `3,14M → 0,88M` tris (`DC = 316`); `X_ind_close`: `2,33M → 0,76M` tris (`DC = 300`, `FAC = 0,35 ms`, `p90 = 0,40 ms`); `X_fav_aerial`: `3,79M → 0,98M` tris (`DC = 364`).
   - Cena total: `meshes = 2.870 < 3.000`, `uniqueGeometries = 2.085 < 2.500`, `shadowCasters = 186 < 400`, `invalidColliders = 0`, `SetbackOverBox = 0`.
 
-*(Os próximos marcos M6–M9 serão registrados abaixo conforme concluídos.)*
+## M6 — Favela CDD Real em Encosta (`< 40` Draw Calls), Atlas Tijolo/Reboco & Zero Spike em QG Aliado
+- **Tecido Orgânico em Curvas de Nível ([FavelaContoursAndAlleys.js](../../src/world/regions/favela-cdd/FavelaContoursAndAlleys.js), [FavelaHouseModules.js](../../src/world/regions/favela-cdd/FavelaHouseModules.js), [FavelaParcelFiller.js](../../src/world/regions/favela-cdd/FavelaParcelFiller.js), [FavelaElevationAndBatcher.js](../../src/world/regions/favela-cdd/FavelaElevationAndBatcher.js)):**
+  - Substituídas as tiras retas paralelas por curvas de nível orgânicas (`99,66%` dos lotes fora de `0°/90°`, apenas `0,34%` alinhados aos eixos), 3 ladeiras dirigíveis (`slope <= 10,6%`), 20 escadões com corrimão de ferro, postes tortos com fiação de "gatos", 126 biroscas de esquina, 2 igrejinhas comunitárias e ponto de mototáxi.
+  - Atlas procedural `512×512` em 4 quadrantes (**Tijolo Baiano 8 furos**, **Reboco Mal Feito Parcial**, **Chapisco Cinza Rústico** e **Pintura Desbotada**) com `83,4%` alvenaria crua/reboco rústico e colina dividida em 5 faixas Z sem plano avermelhado liso.
+  - Orçamento da Favela inteira: **`20` malhas estáticas + `9` FX = `29` malhas totais (`< 40`)**, validado em [favela-fabric.test.js](../../tests/favela-fabric.test.js) (`4/4` verdes). *(Nota visual: na inspeção de `M6/X_fav_close_aerial.jpg`, identificamos folgas entre fitas de nível que serão adensadas parede-com-parede + `THREE.LOD` de 2 níveis já na onda paralela do M7.)*
+- **Consolidação do Super Banco, Torre dos Heróis & Guarnição Aliada ([GarrisonPeaceAndAlliesAI.js](../../src/world/factions/GarrisonPeaceAndAlliesAI.js), [SuperBankExteriorAndLobby.js](../../src/world/regions/downtown/SuperBankExteriorAndLobby.js), [HeroTowerComplexBuilder.js](../../src/world/regions/downtown/HeroTowerComplexBuilder.js)):**
+  - `X_fav_close`: `FAC` caiu de **`58,65 ms` (`p90 = 233,6 ms`) → `0,42 ms` (`p90 = 0,60 ms`)**; `SuperBank` + `HeroTower` consolidados em `8` malhas estáticas.
+  - **`199/199` testes passando nas 38 suítes** (`docs/noite/bench-M6.json`).
+
+*(Os próximos marcos M7–M9 serão registrados abaixo conforme concluídos.)*

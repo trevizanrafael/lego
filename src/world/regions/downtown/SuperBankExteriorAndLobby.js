@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { LEGO_COLORS, getLegoMaterial, createLegoBrick } from '../../../materials/LegoMaterials.js';
-import { mergeBufferGeometries, makeFastBox } from '../../BuildingGenerator.js';
+import { LEGO_COLORS, getLegoMaterial, createLegoBrick, markAsSharedAsset } from '../../../materials/LegoMaterials.js';
+import { mergeBufferGeometries, mergeColoredGeometries, makeFastBox } from '../../BuildingGenerator.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
 import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 
@@ -51,8 +51,26 @@ export const BANK_SPEC = {
 
 export const FLOOR_T = 0.6;
 
+const BANK_MATTE_KEYS = new Set([
+  'marble', 'cream', 'granite', 'graniteBlack', 'velvet', 'carpetBlue',
+  'wood', 'black', 'white', 'plant', 'pot', 'cash', 'concrete', 'yellowLine'
+]);
+const BANK_METALLIC_KEYS = new Set(['gold', 'steel', 'steelDark', 'chrome', 'windowGlass']);
+const BANK_EMISSIVE_KEYS = new Set(['lightPanel', 'crystalGlow', 'screen', 'screenGreen', 'ledRed']);
+
+const BANK_VC_MATTE_MAT = markAsSharedAsset(
+  new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.36, metalness: 0.08 })
+);
+const BANK_VC_METALLIC_MAT = markAsSharedAsset(
+  new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.16, metalness: 0.72 })
+);
+const BANK_VC_EMISSIVE_MAT = markAsSharedAsset(
+  new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true })
+);
+const _WHITE_FALLBACK = new THREE.Color(0xffffff);
+
 // ----------------------------------------------------------------------------
-// Lote de geometria por material (poucas draw calls)
+// Lote de geometria consolidado via Vertex Colors (apenas 5 meshes estáticos!)
 // ----------------------------------------------------------------------------
 class Batcher {
   constructor() {
@@ -113,16 +131,52 @@ class Batcher {
     this._push(key, g);
   }
 
-  flush(scene, noShadowKeys = this.noShadowKeys) {
+  flush(scene) {
+    const matteList = [];
+    const metallicList = [];
+    const emissiveList = [];
+
     for (const [key, list] of this.geos) {
       if (!list.length) continue;
-      const merged = mergeBufferGeometries(list);
-      const mesh = new THREE.Mesh(merged, this.mats.get(key));
-      mesh.castShadow = !noShadowKeys.has(key);
-      mesh.receiveShadow = true;
-      mesh.name = `bank_${key}`;
-      scene.add(mesh);
+      if (key === 'glass' || key === 'laser') {
+        const merged = mergeBufferGeometries(list);
+        merged.computeBoundingBox();
+        merged.computeBoundingSphere();
+        const mesh = new THREE.Mesh(merged, markAsSharedAsset(this.mats.get(key)));
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        mesh.name = `bank_${key}`;
+        scene.add(mesh);
+        continue;
+      }
+      const mat = this.mats.get(key);
+      if (BANK_EMISSIVE_KEYS.has(key)) {
+        const col = mat?.emissive && mat.emissive.getHex() !== 0 ? mat.emissive : (mat?.color || _WHITE_FALLBACK);
+        for (let i = 0; i < list.length; i++) emissiveList.push({ geo: list[i], color: col });
+      } else if (BANK_METALLIC_KEYS.has(key)) {
+        const col = mat?.color || _WHITE_FALLBACK;
+        for (let i = 0; i < list.length; i++) metallicList.push({ geo: list[i], color: col });
+      } else {
+        const col = mat?.color || _WHITE_FALLBACK;
+        for (let i = 0; i < list.length; i++) matteList.push({ geo: list[i], color: col });
+      }
     }
+
+    const addVcMesh = (entries, mat, name, castShadow, receiveShadow) => {
+      if (!entries.length) return;
+      const merged = mergeColoredGeometries(entries);
+      merged.computeBoundingBox();
+      merged.computeBoundingSphere();
+      const mesh = new THREE.Mesh(merged, mat);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+      mesh.name = name;
+      scene.add(mesh);
+    };
+
+    addVcMesh(matteList, BANK_VC_MATTE_MAT, 'bank_vc_matte', true, true);
+    addVcMesh(metallicList, BANK_VC_METALLIC_MAT, 'bank_vc_metallic', true, true);
+    addVcMesh(emissiveList, BANK_VC_EMISSIVE_MAT, 'bank_vc_emissive', false, false);
     this.geos.clear();
   }
 }
@@ -151,34 +205,13 @@ export function createBankBatcher() {
   B.mat('yellowLine', () => getLegoMaterial(0xfacc15, { roughness: 0.4 }));
   B.mat('glass', () =>
     new THREE.MeshPhysicalMaterial({
-      color: 0x7dd3fc,
-      roughness: 0.05,
-      metalness: 0.2,
-      clearcoat: 1,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false
+      color: 0x7dd3fc, roughness: 0.05, metalness: 0.2, clearcoat: 1,
+      transparent: true, opacity: 0.42, depthWrite: false
     })
   );
-  B.mat('windowGlass', () =>
-    getLegoMaterial(0x1d4ed8, { roughness: 0.06, metalness: 0.55, clearcoat: 1 })
-  );
-  B.mat('lightPanel', () =>
-    getLegoMaterial(0xfff7d6, {
-      roughness: 0.18,
-      clearcoat: 0.3,
-      emissive: 0xffebb3,
-      emissiveIntensity: 1.4
-    })
-  );
-  B.mat('crystalGlow', () =>
-    getLegoMaterial(0xfffbeb, {
-      roughness: 0.08,
-      clearcoat: 0.85,
-      emissive: 0xfde68a,
-      emissiveIntensity: 1.55
-    })
-  );
+  B.mat('windowGlass', () => getLegoMaterial(0x1d4ed8, { roughness: 0.06, metalness: 0.55, clearcoat: 1 }));
+  B.mat('lightPanel', () => getLegoMaterial(0xfff7d6, { roughness: 0.18, clearcoat: 0.3, emissive: 0xffebb3, emissiveIntensity: 1.4 }));
+  B.mat('crystalGlow', () => getLegoMaterial(0xfffbeb, { roughness: 0.08, clearcoat: 0.85, emissive: 0xfde68a, emissiveIntensity: 1.55 }));
   B.mat('screen', () => new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
   B.mat('screenGreen', () => new THREE.MeshBasicMaterial({ color: 0x4ade80 }));
   B.mat('ledRed', () => new THREE.MeshBasicMaterial({ color: 0xef4444 }));
@@ -344,17 +377,8 @@ export function buildExteriorShell(world, B) {
 
   // Letreiro no entablamento
   const signBoard = createSignBoardMesh({
-    x: 0,
-    y: colTop + 2.1,
-    z: colZ + 2.55,
-    width: 52,
-    height: 2.2,
-    depth: 0.4,
-    title: 'SUPER BANCO CENTRAL',
-    bgColor: '#090a0d',
-    borderColor: '#facc15',
-    textColor: '#facc15',
-    doubleSided: false
+    x: 0, y: colTop + 2.1, z: colZ + 2.55, width: 52, height: 2.2, depth: 0.4,
+    title: 'SUPER BANCO CENTRAL', bgColor: '#090a0d', borderColor: '#facc15', textColor: '#facc15', doubleSided: false
   });
   world.scene.add(signBoard);
 
@@ -377,15 +401,7 @@ export function buildBankMonumentalForecourt(world, B) {
   const topY = 0.2;
 
   // Base perimetral sob o prédio do Super Banco
-  B.box(
-    'concrete',
-    plazaW,
-    0.26,
-    plinthMaxZ - plinthMinZ,
-    0,
-    topY - 0.13,
-    (plinthMinZ + plinthMaxZ) * 0.5
-  );
+  B.box('concrete', plazaW, 0.26, plinthMaxZ - plinthMinZ, 0, topY - 0.13, (plinthMinZ + plinthMaxZ) * 0.5);
 
   // Grande Esplanada Cerimonial ligando a fachada frontal até a calçada da Avenida Z = ws(-117)
   const espD = aveSidewalkInnerZ - plinthMaxZ;
@@ -480,15 +496,9 @@ export function buildGroundLobby(world, B) {
     world.scene.add(group);
     const col = world.addCollider(px, pz, 2.4, 2.4, fy + 9.9, fy);
     world.destructibles?.registerDestructible({
-      mesh: group,
-      type: 'marble_pillar',
-      hp: 140,
-      radius: 1.6,
-      height: 9.9,
-      colliders: [col],
+      mesh: group, type: 'marble_pillar', hp: 140, radius: 1.6, height: 9.9, colliders: [col],
       debrisColors: [LEGO_COLORS.white, 0xfef3c7, LEGO_COLORS.gold],
-      studDrops: { silver: 6, gold: 4, blue: 1, purple: 0 },
-      groundY: fy
+      studDrops: { silver: 6, gold: 4, blue: 1, purple: 0 }, groundY: fy
     });
   }
 

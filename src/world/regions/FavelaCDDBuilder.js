@@ -19,10 +19,11 @@ export { getFavelaEastBorderX, getFavelaElevation };
 
 /**
  * CONSTRUTOR PRINCIPAL (FACHADA FINA): FAVELA / COMPLEXO DA CIDADE DE DEUS (TERRITÓRIO 100% CV)
- * - Colina / Ladeira Suave e Contínua (`PlaneGeometry` subdividido com `getFavelaElevation(x, z)` partindo de Y = 0 nas bordas!)
- * - Zero avenidas retas de quarteirão dentro da Favela (substituídas por Ladeiras Tortas e Escadões serpenteando pela encosta!)
- * - Aglomerados densos de Barracos e Sobrados COLADOS PAREDE COM PAREDE (clusters de 5 a 10 casas encostadas, deixando apenas
- *   becos estreitos de 3.5 a 5 unidades entre um bloco e outro!)
+ * - Colina contínua subdividida em 5 chunks Z frustum-culled com piso urbano de concreto/terra batida
+ *   e encosta externa de capim/granito úmido (zero chão marrom-avermelhado chapado!).
+ * - Atlas procedural 2x2 de Tijolo Baiano 8 furos, Reboco Parcial, Chapisco Cinza e Pintura Descascando.
+ * - Ladeiras dirigíveis (`<= 18%`), Becos em Curva de Nível e Escadões com corrimão, postes tortos e "gatos".
+ * - ~2.000+ barracos, sobrados, biroscas, igrejinhas e ponto de mototáxi orientados ao longo das curvas (`< 40` draw calls!).
  */
 export function buildFavelaCidadeDeDeus(world) {
   const batcher = new FavelaBatcher();
@@ -55,19 +56,22 @@ export function buildFavelaCidadeDeDeus(world) {
     waterTanksCount: 0,
     staircasesCount: 0,
     bocasCount: 0,
+    biroscasCount: 0,
+    chapelsCount: 0,
+    hasMototaxiPoint: false,
     hasSoccerField: false,
     hasBaileParedao: false,
     hasRedBaronFortress: false,
     hasCommunityWaterTower: false
   };
 
-  // 1. MALHA CONTÍNUA DE COLINA / LADEIRA SUAVE (`PlaneGeometry` subdividido com `getFavelaElevation(x, z)`, partindo de Y = 0!)
+  // 1. Relevo Contínuo em 5 Chunks Z (Frustum Culling Limpo + Concreto/Terra de Beco/Capim de Encosta)
   buildContinuousSmoothHillMesh(world);
 
-  // 2. RUELAS TORTAS DE CIMENTO, LADEIRAS SERPENTEANTES E ESCADÕES DO MORRO (VERMELHO E BRANCO)
+  // 2. Vias de Encosta Legadas (apenas fallback `1x`; em `3x`, `FavelaContoursAndAlleys` cria a malha orgânica)
   buildWindingHillsideRoadsAndStaircases(world, batcher);
 
-  // 3. OS 4 PONTOS ICÔNICOS DA CIDADE DE DEUS (Posicionados em `y = getFavelaElevation(x, z)` com alicerce na encosta!):
+  // 3. Marcos Comunitários e Táticos da Cidade de Deus (Bocas, Campinho, Baile/Paredão e Fortaleza + Caixa d'Água)
   const soccerPos = wsP(-605, 195);
   const bailePos = wsP(-715, -135);
   const summitPos = wsP(-865, -240);
@@ -77,12 +81,12 @@ export function buildFavelaCidadeDeDeus(world) {
   buildCVBailePlazaAndGiantParedao(world, batcher, bailePos.x, getFavelaElevation(bailePos.x, bailePos.z), bailePos.z);
   buildRedBaronSummitFortress(world, batcher, summitPos.x, getFavelaElevation(summitPos.x, summitPos.z), summitPos.z);
 
-  // 4. AGLOMERADOS DENSOS DE BARRACOS E SOBRADOS COLADOS PAREDE COM PAREDE (`clusters` de 5 a 10 casas coladas!)
+  // 4. Tecido Orgânico de Barracos, Sobrados, Puxadinhos, Quintais Murados e Pontos Comunitários
   buildGluedFavelaHouseClusters(world, batcher);
 
-  // 5. Mescla todas as geometrias estáticas em poucos Draw Calls mantendo 60 FPS!
+  // 5. Fusão Espacial Unificada (< 25 meshes / draw calls para toda a Favela CDD!)
   batcher.flush(world.scene);
 
-  // 6. Infraestrutura Oficial da Fortaleza do CV: Portões com Bandeira, 2 Garagens Exclusivas e 3 Outposts Táticos!
+  // 6. Infraestrutura Oficial da Guerra Territorial do CV (Portões, 2 Garagens e 3 Outposts P1..P3)
   buildTerritoryInfrastructureForZone(world, 'cv');
 }

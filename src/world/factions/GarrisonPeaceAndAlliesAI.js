@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markAsSharedAsset } from '../../materials/LegoMaterials.js';
 import { EXTRA_THEMES, FACTION_THEME } from './TerritoryZonesAndConfigs.js';
 
 // ============================================================================
@@ -6,10 +7,90 @@ import { EXTRA_THEMES, FACTION_THEME } from './TerritoryZonesAndConfigs.js';
 // CURANDO COM FEIXE 3D, GARAGENS DESTRANCADAS E PERSISTÊNCIA DE CONQUISTAS
 // ============================================================================
 
+const _healStartTmp = new THREE.Vector3();
+const _healEndTmp = new THREE.Vector3();
+
+function drainPendingAllyGarrison(system, maxPerFrame = 2) {
+  const q = system._pendingAllyGarrisonQueue;
+  if (!q || q.length === 0 || system.activeMode !== 'ALLY_HQ') return;
+  if (system._lastAllyQueueDrainTick === system._aiTick) return;
+  system._lastAllyQueueDrainTick = system._aiTick;
+  const count = Math.min(maxPerFrame, q.length);
+  for (let i = 0; i < count; i++) {
+    const spec = q.shift();
+    if (spec) system._spawnCombatUnit(spec);
+  }
+}
+
+function resolveCleanGarrisonPos(system, rawX, rawZ) {
+  const lc = system.livingCity;
+  const res = lc._resolveBuildingCollision(rawX, rawZ, 1.15);
+  if (!lc._isInsideBuilding(res.x, res.z, 1.0) && lc._isValidDryLandForPedestrian(res.x, res.z)) {
+    return { x: res.x, y: system._groundAt(res.x, res.z, 2), z: res.z };
+  }
+  for (let ring = 1; ring <= 10; ring++) {
+    const dist = 4.5 + ring * 3.5;
+    for (let a = 0; a < 8; a++) {
+      const ang = (a / 8) * Math.PI * 2 + ring * 0.25;
+      const tx = rawX + Math.cos(ang) * dist;
+      const tz = rawZ + Math.sin(ang) * dist;
+      if (!lc._isValidDryLandForPedestrian(tx, tz)) continue;
+      const cand = lc._resolveBuildingCollision(tx, tz, 1.15);
+      if (!lc._isInsideBuilding(cand.x, cand.z, 1.0) && lc._isValidDryLandForPedestrian(cand.x, cand.z)) {
+        return { x: cand.x, y: system._groundAt(cand.x, cand.z, 2), z: cand.z };
+      }
+    }
+  }
+  const fallback = system._findSafeZonePos(rawX, rawZ, 1.15);
+  return { x: fallback.x, y: fallback.y, z: fallback.z };
+}
+
+function getCachedAllyHqAnchors(system, zoneKey, st) {
+  if (st._cachedAllyHqAnchors) return st._cachedAllyHqAnchors;
+  const core = [];
+  const deferred = [];
+  const extraByLevel = [];
+
+  for (const op of st.outposts) {
+    const p = resolveCleanGarrisonPos(system, op.x - 5.2, op.z + 5.2);
+    core.push({ role: 'rifleman', x: p.x, y: p.y, z: p.z, outpostId: op.id });
+  }
+  const p1 = st.outposts[0];
+  const p2 = st.outposts[1] || p1;
+  if (p1) {
+    const m1 = resolveCleanGarrisonPos(system, p1.x + 5.2, p1.z + 5.2);
+    core.push({ role: 'medic', x: m1.x, y: m1.y, z: m1.z, outpostId: p1.id });
+  }
+  if (p2) {
+    const m2 = resolveCleanGarrisonPos(system, p2.x + 5.2, p2.z - 5.2);
+    core.push({ role: 'medic', x: m2.x, y: m2.y, z: m2.z, outpostId: p2.id });
+  }
+  for (const g of st.spec.gates) {
+    const gp = resolveCleanGarrisonPos(system, g.x + (zoneKey === 'cv' ? -9 : 9), g.z + 5);
+    deferred.push({ role: 'rifleman', x: gp.x, y: gp.y, z: gp.z, outpostId: null });
+  }
+  for (let i = 0; i < 3; i++) {
+    const op = st.outposts[i % st.outposts.length];
+    if (!op) continue;
+    const ep = resolveCleanGarrisonPos(system, op.x + 5.5, op.z - 5.5);
+    extraByLevel.push({ role: i % 2 ? 'special' : 'tank', x: ep.x, y: ep.y, z: ep.z, outpostId: op.id });
+  }
+
+  st._cachedAllyHqAnchors = { core, deferred, extraByLevel };
+  return st._cachedAllyHqAnchors;
+}
+
 export function updateAllyHqUnitBehavior(system, npc, dt, playerPos, healState) {
+  drainPendingAllyGarrison(system, 2);
+
   const root = npc.visual.root;
   const pos = root.position;
   const distPlayer = Math.hypot(playerPos.x - pos.x, playerPos.z - pos.z);
+
+  if (npc.visual.bodyRig) {
+    const showBody = distPlayer <= 260;
+    if (npc.visual.bodyRig.visible !== showBody) npc.visual.bodyRig.visible = showBody;
+  }
 
   if (
     npc.role === 'medic' &&
@@ -34,8 +115,8 @@ export function updateAllyHqUnitBehavior(system, npc, dt, playerPos, healState) 
     npc.visual.rightLeg.rotation.x = 0;
     npc.visual.rightArm.rotation.x = -2.35 + Math.sin(system._animClock * 5.0) * 0.14;
     npc.visual.rightArm.rotation.z = -0.28;
-  } else {
-    // Patrulha calma ao redor do posto/portão
+  } else if (distPlayer <= 135) {
+    // Patrulha calma ao redor do posto/portão apenas quando próximo ao jogador
     npc.saluting = false;
     npc.visual.rightArm.rotation.z = 0;
     npc.patrolAngle += dt * 0.55;
@@ -58,6 +139,8 @@ export function updateAllyHqUnitBehavior(system, npc, dt, playerPos, healState) 
       npc.visual.rightLeg.rotation.x = -Math.sin(npc.walkPhase) * 0.42;
       npc.visual.rightArm.rotation.x = -0.45;
     }
+  } else {
+    npc.saluting = false;
   }
 
   npc.destructible.basePos.copy(pos);
@@ -65,13 +148,9 @@ export function updateAllyHqUnitBehavior(system, npc, dt, playerPos, healState) 
 
 export const garrisonPeaceAndAlliesMethods = {
   _initHealBeamPool() {
-    const geo = new THREE.CylinderGeometry(0.09, 0.13, 1.0, 8);
+    const geo = markAsSharedAsset(new THREE.CylinderGeometry(0.09, 0.13, 1.0, 8));
     geo.rotateX(Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x4ade80,
-      transparent: true,
-      opacity: 0.82
-    });
+    const mat = markAsSharedAsset(new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.82 }));
     for (let i = 0; i < 4; i++) {
       const beam = new THREE.Mesh(geo, mat);
       beam.visible = false;
@@ -81,9 +160,7 @@ export const garrisonPeaceAndAlliesMethods = {
   },
 
   getConqueredTerritoryIds() {
-    return Object.values(this.territories)
-      .filter((t) => t.conqueredByPlayer)
-      .map((t) => t.id);
+    return Object.values(this.territories).filter((t) => t.conqueredByPlayer).map((t) => t.id);
   },
 
   getFactionTheme(factionKey) {
@@ -237,20 +314,30 @@ export const garrisonPeaceAndAlliesMethods = {
   },
 
   _cleanupActiveZoneUnits() {
+    this._clearPendingSpawnQueue?.();
+    if (this._pendingAllyGarrisonQueue) this._pendingAllyGarrisonQueue.length = 0;
+
     for (const npc of this.combatNpcs) {
+      if (npc.visual?.bodyRig) npc.visual.bodyRig.visible = true;
       if (npc.destructible) {
         this.destructibles.unregisterDestructible(npc.destructible);
+      }
+      if (npc.visual && !npc.destructible?._managedByCorpseManager) {
+        this._releaseSoldierVisual?.(npc.visual);
       }
     }
     this.combatNpcs.length = 0;
 
     for (const proj of this.npcProjectiles) {
       if (proj.mesh?.parent) proj.mesh.parent.remove(proj.mesh);
+      proj.active = false;
     }
     this.npcProjectiles.length = 0;
 
     for (const sw of this.activeShockwaves) {
       if (sw.mesh?.parent) sw.mesh.parent.remove(sw.mesh);
+      sw.active = false;
+      if (!sw._pooled) sw.mat?.dispose?.();
     }
     this.activeShockwaves.length = 0;
 
@@ -276,6 +363,7 @@ export const garrisonPeaceAndAlliesMethods = {
 
   _enterAllyHqMode(zoneKey) {
     this._cleanupActiveZoneUnits();
+    this._prewarmWarPoolsOnce?.();
     this.objectiveHud?.hide();
     this.activeZoneId = zoneKey;
     this.activeMode = 'ALLY_HQ';
@@ -284,51 +372,26 @@ export const garrisonPeaceAndAlliesMethods = {
     const st = this.territories[zoneKey];
     if (!st) return;
 
-    // 2 Guardas Aliados nos Portões + 1 Guarda em cada Outpost + 2 Médicos da Base (+ guarnição extra por nível)
-    for (let i = 0; i < (st.garrisonLevel || 0); i++) {
-      const op = st.outposts[i % st.outposts.length];
-      this._spawnCombatUnit({
-        faction: this.playerFaction,
-        role: i % 2 ? 'special' : 'tank',
-        x: op.x + 3,
-        z: op.z - 3,
-        outpostId: op.id
-      });
+    const anchors = getCachedAllyHqAnchors(this, zoneKey, st);
+    const faction = this.playerFaction;
+
+    // Frame 0: spawna imediatamente os 5 guardas/médicos dos postos (reutilizando _soldierVisualPool em < 0.3 ms)
+    for (let i = 0; i < anchors.core.length; i++) {
+      const s = anchors.core[i];
+      this._spawnCombatUnit({ faction, role: s.role, x: s.x, y: s.y, z: s.z, outpostId: s.outpostId });
     }
-    for (const g of st.spec.gates) {
-      this._spawnCombatUnit({
-        faction: this.playerFaction,
-        role: 'rifleman',
-        x: g.x + (zoneKey === 'cv' ? -9 : 9),
-        z: g.z + 5
-      });
+
+    // Escalonado (<= 2 por frame): guardas de portão + guarnição extra por nível
+    const queue = this._pendingAllyGarrisonQueue || (this._pendingAllyGarrisonQueue = []);
+    queue.length = 0;
+    for (let i = 0; i < anchors.deferred.length; i++) {
+      const s = anchors.deferred[i];
+      queue.push({ faction, role: s.role, x: s.x, y: s.y, z: s.z, outpostId: s.outpostId });
     }
-    for (const op of st.outposts) {
-      this._spawnCombatUnit({
-        faction: this.playerFaction,
-        role: 'rifleman',
-        x: op.x - 2.5,
-        z: op.z + 2.5,
-        outpostId: op.id
-      });
-    }
-    const p1 = st.outposts[0];
-    const p2 = st.outposts[1] || p1;
-    if (p1) {
-      this._spawnCombatUnit({
-        faction: this.playerFaction,
-        role: 'medic',
-        x: p1.x + 2.5,
-        z: p1.z + 2.5
-      });
-    }
-    if (p2) {
-      this._spawnCombatUnit({
-        faction: this.playerFaction,
-        role: 'medic',
-        x: p2.x + 2.5,
-        z: p2.z + 2.5
-      });
+    const gLevel = Math.min(anchors.extraByLevel.length, st.garrisonLevel || 0);
+    for (let i = 0; i < gLevel; i++) {
+      const s = anchors.extraByLevel[i];
+      queue.push({ faction, role: s.role, x: s.x, y: s.y, z: s.z, outpostId: s.outpostId });
     }
   },
 
@@ -341,13 +404,13 @@ export const garrisonPeaceAndAlliesMethods = {
 
     const beam = this.healBeams[beamSlot];
     if (beam) {
-      const start = new THREE.Vector3(medicPos.x, medicPos.y + 1.35, medicPos.z);
-      const end = new THREE.Vector3(playerPos.x, playerPos.y + 1.15, playerPos.z);
-      const dist = start.distanceTo(end);
+      _healStartTmp.set(medicPos.x, medicPos.y + 1.35, medicPos.z);
+      _healEndTmp.set(playerPos.x, playerPos.y + 1.15, playerPos.z);
+      const dist = _healStartTmp.distanceTo(_healEndTmp);
       beam.visible = true;
-      beam.position.copy(start).lerp(end, 0.5);
+      beam.position.copy(_healStartTmp).lerp(_healEndTmp, 0.5);
       beam.scale.set(1, 1, Math.max(0.2, dist));
-      beam.lookAt(end);
+      beam.lookAt(_healEndTmp);
     }
   }
 };

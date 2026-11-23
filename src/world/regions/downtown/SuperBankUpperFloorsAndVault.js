@@ -32,12 +32,8 @@ export function buildFloorsRampsAndElevator(world, B) {
     const hole = holeForFloor(idx);
     // Pisos (piso andável)
     world.elevatedDecks.push({
-      id: `bank_floor_${idx + 1}`,
-      minX: S.innerMinX,
-      maxX: S.innerMaxX,
-      minZ: S.innerBackZ,
-      maxZ: S.innerFrontZ,
-      thresholdBelow: 2.4,
+      id: `bank_floor_${idx + 1}`, minX: S.innerMinX, maxX: S.innerMaxX,
+      minZ: S.innerBackZ, maxZ: S.innerFrontZ, thresholdBelow: 2.4,
       getDeckY: (x, z) => (hole && insideRect(x, z, hole, -0.15) ? null : fy)
     });
 
@@ -116,12 +112,8 @@ export function buildFloorsRampsAndElevator(world, B) {
       B.box('yellowLine', w - 1.2, 0.06, 0.5, cx, rampY(r, z) + 0.02, z);
     }
     world.elevatedDecks.push({
-      id: `bank_ramp_${r.id}`,
-      minX: r.minX,
-      maxX: r.maxX,
-      minZ: Math.min(zl, zh),
-      maxZ: Math.max(zl, zh),
-      thresholdBelow: 1.6,
+      id: `bank_ramp_${r.id}`, minX: r.minX, maxX: r.maxX,
+      minZ: Math.min(zl, zh), maxZ: Math.max(zl, zh), thresholdBelow: 1.6,
       getDeckY: (x, z) => rampY(r, z)
     });
     // Parede de apoio + corrimão no lado de dentro (segmentos para colisão)
@@ -299,47 +291,38 @@ export function buildVaultFloor(world, B) {
 
   // PORTA CIRCULAR GIGANTE (destrutível)
   const door = new THREE.Group();
-  const disc = new THREE.Mesh(
-    new THREE.CylinderGeometry(5.4, 5.4, 1.4, 40),
-    getLegoMaterial(0x94a3b8, { metalness: 0.85, roughness: 0.18 })
-  );
+  const discMat = getLegoMaterial(0x94a3b8, { metalness: 0.85, roughness: 0.18 });
+  const goldDoorMat = getLegoMaterial(0xfacc15, { metalness: 0.8, roughness: 0.15 });
+  const boltMat = getLegoMaterial(0x334155, { metalness: 0.7 });
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(5.4, 5.4, 1.4, 40), discMat);
   disc.rotation.x = Math.PI / 2;
   door.add(disc);
-  const wheel = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.28, 10, 32), getLegoMaterial(0xfacc15, { metalness: 0.8, roughness: 0.15 }));
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.28, 10, 32), goldDoorMat);
   wheel.position.z = 0.9;
   door.add(wheel);
   for (let k = 0; k < 4; k++) {
-    const spoke = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.3, 0.3), getLegoMaterial(0xfacc15, { metalness: 0.8, roughness: 0.15 }));
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.3, 0.3), goldDoorMat);
     spoke.rotation.z = (k / 4) * Math.PI;
     spoke.position.z = 0.9;
     door.add(spoke);
   }
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2;
-    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.6, 10), getLegoMaterial(0x334155, { metalness: 0.7 }));
+    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.6, 10), boltMat);
     bolt.rotation.x = Math.PI / 2;
     bolt.position.set(Math.cos(a) * 4.6, Math.sin(a) * 4.6, 0.8);
     door.add(bolt);
   }
   door.position.set(0, fy + 5.6, vz + 0.6);
-  door.traverse((o) => {
-    if (o.isMesh) o.castShadow = true;
-  });
+  door.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   world.scene.add(door);
   const doorCol = world.addCollider(0, vz, hw * 2, 3.0, fy + 10.6, fy);
   let vaultDoor = null;
   if (world.destructibles) {
     vaultDoor = world.destructibles.registerDestructible({
-      mesh: door,
-      type: 'bank_vault_door',
-      hp: 75,
-      radius: 5.5,
-      height: 11,
-      colliders: [doorCol],
+      mesh: door, type: 'bank_vault_door', hp: 75, radius: 5.5, height: 11, colliders: [doorCol],
       debrisColors: [LEGO_COLORS.silver, LEGO_COLORS.gold, LEGO_COLORS.charcoal],
-      studDrops: { silver: 0, gold: 14, blue: 10, purple: 5 },
-      groundY: fy,
-      goldOnly: false
+      studDrops: { silver: 0, gold: 14, blue: 10, purple: 5 }, groundY: fy, goldOnly: false
     });
   }
 
@@ -375,15 +358,9 @@ export function buildVaultFloor(world, B) {
     brief.position.set(mx, fy + 0.5, mz);
     world.scene.add(brief);
     world.destructibles?.registerDestructible({
-      mesh: brief,
-      type: 'crate',
-      hp: 20,
-      radius: 1.0,
-      height: 1.0,
-      colliders: [],
+      mesh: brief, type: 'crate', hp: 20, radius: 1.0, height: 1.0, colliders: [],
       debrisColors: [LEGO_COLORS.silver, LEGO_COLORS.gold],
-      studDrops: { silver: 4, gold: 6, blue: 2, purple: 1 },
-      groundY: fy
+      studDrops: { silver: 4, gold: 6, blue: 2, purple: 1 }, groundY: fy
     });
   }
   // 36 Studs girando na sala do cofre
@@ -405,16 +382,9 @@ function addGoldStack(world, x, fy, z, w, h, d) {
   world.scene.add(stack);
   const col = world.addCollider(x, z, w, d, fy + h, fy);
   world.destructibles?.registerDestructible({
-    mesh: stack,
-    type: 'gold_vault',
-    hp: 40,
-    radius: Math.max(w, d) * 0.65,
-    height: h,
-    colliders: [col],
+    mesh: stack, type: 'gold_vault', hp: 40, radius: Math.max(w, d) * 0.65, height: h, colliders: [col],
     debrisColors: [LEGO_COLORS.gold, LEGO_COLORS.yellow],
-    studDrops: { silver: 0, gold: 12, blue: 8, purple: 5 },
-    groundY: fy,
-    goldOnly: true
+    studDrops: { silver: 0, gold: 12, blue: 8, purple: 5 }, groundY: fy, goldOnly: true
   });
 }
 
@@ -431,13 +401,8 @@ export function buildRooftop(world, B) {
   // Laje do terraço (andável) + parapeito com pinos LEGO
   B.box('concrete', W, 0.5, D, 0, ry - 0.25, midZ);
   world.elevatedDecks.push({
-    id: 'bank_roof',
-    minX: S.minX,
-    maxX: S.maxX,
-    minZ: S.backZ,
-    maxZ: S.frontZ,
-    thresholdBelow: 2.4,
-    getDeckY: () => ry
+    id: 'bank_roof', minX: S.minX, maxX: S.maxX, minZ: S.backZ, maxZ: S.frontZ,
+    thresholdBelow: 2.4, getDeckY: () => ry
   });
   const parH = S.wallTopY - ry;
   for (let x = S.minX + 2; x <= S.maxX - 2; x += 1.6) {
@@ -511,17 +476,8 @@ export function buildRooftop(world, B) {
 
   // Letreiro dourado no topo da fachada (de frente para a avenida)
   const roofSign = createSignBoardMesh({
-    x: 0,
-    y: S.wallTopY + 3.4,
-    z: S.frontZ - 2.2,
-    width: 44,
-    height: 5.2,
-    depth: 0.5,
-    title: '$ SUPER BANCO $',
-    bgColor: '#090a0d',
-    borderColor: '#facc15',
-    textColor: '#facc15',
-    doubleSided: true
+    x: 0, y: S.wallTopY + 3.4, z: S.frontZ - 2.2, width: 44, height: 5.2, depth: 0.5,
+    title: '$ SUPER BANCO $', bgColor: '#090a0d', borderColor: '#facc15', textColor: '#facc15', doubleSided: true
   });
   world.scene.add(roofSign);
   B.box('steelDark', 0.6, 3.6, 0.6, -18, S.wallTopY + 0.4, S.frontZ - 2.2);
