@@ -1,4 +1,5 @@
 import { IS_SCALED_WORLD, ws } from '../../core/WorldLayoutScale.js';
+import { buildIndustrialOrganicSpursAndInfill } from './IndustrialOrganicInfillBuilder.js';
 import {
   buildFortifiedCompoundWalls,
   addGiantSiloBattery,
@@ -130,6 +131,10 @@ export function buildAllExpandedPCCIndustrialAndCorporateBlocks(world, batcher) 
       _PopulatePCCC4FactoryAndLogisticsBlock(world, batcher, blk, idx);
     }
   });
+
+  if (IS_SCALED_WORLD) {
+    buildIndustrialOrganicSpursAndInfill(world, batcher, pccGridBlocks);
+  }
 }
 
 /**

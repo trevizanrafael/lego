@@ -6,6 +6,12 @@ import {
 } from './TrafficRouteSpecsAndSpawner.js';
 import { disembarkOccupants } from '../vehicles/VehicleOccupants.js';
 import { IS_SCALED_WORLD, ROAD } from '../core/WorldLayoutScale.js';
+import {
+  findSafePolylineAlong,
+  isPointTouchingSidewalkCorridor,
+  lerpAngleRad,
+  samplePolylinePose
+} from './OrganicTrafficPolylineHelper.js';
 
 function syncTrafficObbCollider(world, col, cx, cz, halfX, halfZ, yaw, minY, maxY) {
   if (!col) return;
@@ -246,8 +252,16 @@ export const trafficNetworkAndVehicleAIMethods = {
         }
         if (tv.currentSpeed > 0.04) {
           tv.posAlong += tv.dir * tv.currentSpeed * dt;
-          const nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
-          const nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
+          let nx;
+          let nz;
+          if (tv.isPolylineRoute && tv.polyTable) {
+            const pose = samplePolylinePose(tv.polyTable, tv.posAlong, tv.dir, tv.laneOffset);
+            nx = pose.x;
+            nz = pose.z;
+          } else {
+            nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
+            nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
+          }
           tv.mesh.position.x = nx;
           tv.mesh.position.z = nz;
           obj.basePos.copy(tv.mesh.position);
@@ -457,13 +471,15 @@ export const trafficNetworkAndVehicleAIMethods = {
 
       if (tv.currentSpeed > 0.04) {
         tv.posAlong += tv.dir * tv.currentSpeed * dt;
-        tv.laneOffset = THREE.MathUtils.lerp(
-          tv.laneOffset,
-          tv.targetLaneOffset ?? tv.baseLaneOffset,
-          Math.min(1, dt * 4.0)
-        );
-        if (IS_SCALED_WORLD) {
-          tv.laneOffset = THREE.MathUtils.clamp(tv.laneOffset, -maxAbsLane, maxAbsLane);
+        if (!tv.isPolylineRoute) {
+          tv.laneOffset = THREE.MathUtils.lerp(
+            tv.laneOffset,
+            tv.targetLaneOffset ?? tv.baseLaneOffset,
+            Math.min(1, dt * 4.0)
+          );
+          if (IS_SCALED_WORLD) {
+            tv.laneOffset = THREE.MathUtils.clamp(tv.laneOffset, -maxAbsLane, maxAbsLane);
+          }
         }
         let wrapped = false;
         if (tv.posAlong > tv.maxC) {
@@ -474,8 +490,26 @@ export const trafficNetworkAndVehicleAIMethods = {
           wrapped = true;
         }
 
-        const nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
-        const nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
+        let nx;
+        let nz;
+        if (tv.isPolylineRoute && tv.polyTable) {
+          let pose = samplePolylinePose(tv.polyTable, tv.posAlong, tv.dir, tv.laneOffset);
+          if (wrapped || isPointTouchingSidewalkCorridor(this.world, pose.x, pose.z, 1.8)) {
+            const safe = findSafePolylineAlong(this.world, tv.polyTable, tv.posAlong + tv.dir * 16.0, tv.dir, tv.laneOffset);
+            tv.posAlong = safe.s;
+            pose = safe.pose;
+          }
+          nx = pose.x;
+          nz = pose.z;
+          tv.mesh.rotation.y = wrapped
+            ? pose.rotY
+            : lerpAngleRad(tv.mesh.rotation.y || pose.rotY, pose.rotY, Math.min(1, dt * 9.0));
+        } else {
+          nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
+          nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
+        }
+        const curFwdX = Math.sin(tv.mesh.rotation.y);
+        const curFwdZ = Math.cos(tv.mesh.rotation.y);
         const refY = wrapped
           ? (tv.cfg.wrapY ?? (this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0))
           : tv.mesh.position.y;
@@ -483,7 +517,7 @@ export const trafficNetworkAndVehicleAIMethods = {
           ? this.world.getSurfaceHeightAt(nx, nz, refY)
           : (this.world.getRoadElevation ? this.world.getRoadElevation(nx, nz) : 0);
         const aheadY = this.world.getSurfaceHeightAt
-          ? this.world.getSurfaceHeightAt(nx + fwdX * 2.0, nz + fwdZ * 2.0, ny)
+          ? this.world.getSurfaceHeightAt(nx + curFwdX * 2.0, nz + curFwdZ * 2.0, ny)
           : ny;
         const slopePitch = -Math.atan2(aheadY - ny, 2.0);
 

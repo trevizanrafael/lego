@@ -13,6 +13,11 @@ import {
   SECONDARY_STREETS_Z,
   INDUSTRIAL_STREETS_X
 } from '../core/WorldLayoutScale.js';
+import {
+  buildPolylineRouteTable,
+  findSafePolylineAlong,
+  samplePolylinePose
+} from './OrganicTrafficPolylineHelper.js';
 
 export const SHARED_BRAKE_LIGHT_OFF_MAT = new THREE.MeshBasicMaterial({ color: 0x450a0a });
 export const SHARED_BRAKE_LIGHT_ON_MAT = new THREE.MeshBasicMaterial({ color: 0xff1e1e });
@@ -233,20 +238,80 @@ export const trafficRouteSpecsAndSpawnerMethods = {
     for (let i = 0; i < trafficSpecs.length; i++) {
       this._spawnTrafficVehicle(adaptTrafficSpecToWorldScale(trafficSpecs[i], i));
     }
+
+    // Em escala 3x, adiciona veículos vivos trafegando nas grandes diagonais (Broadway & Diagonal Leste) e curvas em S!
+    if (IS_SCALED_WORLD && Array.isArray(this.world?.mapOrganicRoads)) {
+      const byId = new Map();
+      for (const r of this.world.mapOrganicRoads) {
+        if (r?.kind === 'polyline' && r.id && Array.isArray(r.points)) byId.set(r.id, r);
+      }
+      const polySpecs = [
+        { polyId: 'broadway_metro_nw_se', lane: 5.4, trim: 22, cars: [
+          ['taxi_metro', YEL, BLK, 0.12, 1], ['onibus_urbano', 0x1e293b, 0x0f172a, 0.42, 1], ['apex_gtx', 0x7f1d1d, BLK, 0.76, 1],
+          ['taxi_metro', YEL, BLK, 0.24, -1], ['vortex_roadster', 0x164e63, BLK, 0.58, -1], ['sedan_familiar', 0x334155, WHT, 0.86, -1]
+        ] },
+        { polyId: 'boulevard_diag_ne_sw', lane: 5.2, trim: 22, cars: [
+          ['taxi_metro', YEL, BLK, 0.16, 1], ['sedan_familiar', 0x1e3a5f, WHT, 0.52, 1], ['cyber_blade', 0x0f172a, BLK, 0.82, 1],
+          ['onibus_urbano', 0x172554, 0x0f172a, 0.28, -1], ['taxi_metro', YEL, BLK, 0.64, -1], ['trovao_v8', 0x7c2d12, BLK, 0.90, -1]
+        ] },
+        { polyId: 'r1_c0_scurve', lane: 4.5, trim: 20, cars: [['sedan_familiar', 0x143828, WHT, 0.32, 1], ['taxi_metro', YEL, BLK, 0.68, -1]] },
+        { polyId: 'r1_c5_scurve', lane: 4.5, trim: 20, cars: [['vortex_roadster', 0x1e3a5f, BLK, 0.35, 1], ['sedan_familiar', 0x6b1426, WHT, 0.70, -1]] },
+        { polyId: 'r3_c1_scurve', lane: 4.5, trim: 20, cars: [['taxi_metro', YEL, BLK, 0.34, 1], ['apex_gtx', 0xb47b12, BLK, 0.72, -1]] },
+        { polyId: 'r4_c1_scurve', lane: 4.5, trim: 20, cars: [['buggy_praia', 0x155e75, 0xb47b12, 0.36, 1], ['taxi_metro', YEL, BLK, 0.74, -1]] }
+      ];
+
+      for (const ps of polySpecs) {
+        const org = byId.get(ps.polyId);
+        if (!org) continue;
+        const polyTable = buildPolylineRouteTable(org.points, ps.trim);
+        if (!polyTable) continue;
+        for (const [type, color, roofColor, frac, dir] of ps.cars) {
+          const prefS = polyTable.minS + (polyTable.maxS - polyTable.minS) * frac;
+          const safe = findSafePolylineAlong(this.world, polyTable, prefS, dir, ps.lane);
+          this._spawnTrafficVehicle({
+            type,
+            color,
+            roofColor,
+            isPolylineRoute: true,
+            polyId: ps.polyId,
+            polyTable,
+            axis: `poly_${ps.polyId}`,
+            roadCoord: 0,
+            roadWidth: org.width || ROAD.secondaryWidth,
+            laneOffset: ps.lane,
+            posAlong: safe.s,
+            dir,
+            minC: polyTable.minS,
+            maxC: polyTable.maxS,
+            spawnPose: safe.pose
+          });
+        }
+      }
+    }
   },
 
   _spawnTrafficVehicle(cfg) {
     const spec = VEHICLE_SPECS[cfg.type] || VEHICLE_SPECS.sedan_familiar;
-    const x = cfg.axis === 'z_const' ? cfg.posAlong : cfg.roadCoord + cfg.laneOffset;
-    const z = cfg.axis === 'z_const' ? cfg.roadCoord + cfg.laneOffset : cfg.posAlong;
-    const rotY =
-      cfg.axis === 'z_const'
-        ? cfg.dir > 0
-          ? Math.PI / 2
-          : -Math.PI / 2
-        : cfg.dir > 0
-          ? 0
-          : Math.PI;
+    let x;
+    let z;
+    let rotY;
+    if (cfg.isPolylineRoute && cfg.polyTable) {
+      const pose = cfg.spawnPose || samplePolylinePose(cfg.polyTable, cfg.posAlong, cfg.dir, cfg.laneOffset);
+      x = pose.x;
+      z = pose.z;
+      rotY = pose.rotY;
+    } else {
+      x = cfg.axis === 'z_const' ? cfg.posAlong : cfg.roadCoord + cfg.laneOffset;
+      z = cfg.axis === 'z_const' ? cfg.roadCoord + cfg.laneOffset : cfg.posAlong;
+      rotY =
+        cfg.axis === 'z_const'
+          ? cfg.dir > 0
+            ? Math.PI / 2
+            : -Math.PI / 2
+          : cfg.dir > 0
+            ? 0
+            : Math.PI;
+    }
     const localTerrainY =
       IS_SCALED_WORLD && cfg.isViaduct && this.world.getTerrainHeightAt
         ? Math.max(0, this.world.getTerrainHeightAt(x, z))
@@ -349,6 +414,8 @@ export const trafficRouteSpecsAndSpawnerMethods = {
       roadCoord: cfg.roadCoord,
       roadWidth: cfg.roadWidth || ROAD.mainWidth,
       isViaduct: Boolean(cfg.isViaduct),
+      isPolylineRoute: Boolean(cfg.isPolylineRoute),
+      polyTable: cfg.polyTable || null,
       laneOffset: cfg.laneOffset,
       baseLaneOffset: cfg.laneOffset,
       targetLaneOffset: cfg.laneOffset,
@@ -420,16 +487,27 @@ export const trafficRouteSpecsAndSpawnerMethods = {
       }
     }
 
-    const nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
-    const nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
-    const rotY =
-      tv.axis === 'z_const'
-        ? tv.dir > 0
-          ? Math.PI / 2
-          : -Math.PI / 2
-        : tv.dir > 0
-          ? 0
-          : Math.PI;
+    let nx;
+    let nz;
+    let rotY;
+    if (tv.isPolylineRoute && tv.polyTable) {
+      const safe = findSafePolylineAlong(this.world, tv.polyTable, chosenPosAlong, tv.dir, tv.laneOffset);
+      tv.posAlong = safe.s;
+      nx = safe.pose.x;
+      nz = safe.pose.z;
+      rotY = safe.pose.rotY;
+    } else {
+      nx = tv.axis === 'z_const' ? tv.posAlong : tv.roadCoord + tv.laneOffset;
+      nz = tv.axis === 'z_const' ? tv.roadCoord + tv.laneOffset : tv.posAlong;
+      rotY =
+        tv.axis === 'z_const'
+          ? tv.dir > 0
+            ? Math.PI / 2
+            : -Math.PI / 2
+          : tv.dir > 0
+            ? 0
+            : Math.PI;
+    }
     const baseGroundY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0;
     const refY =
       IS_SCALED_WORLD && tv.isViaduct

@@ -10,9 +10,15 @@ import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
 import { isPointOnOrganicLand, isInsideBuiltUrbanCore } from '../CoastlineProfile.js';
 import { soundFX } from '../../audio/SoundFX.js';
 import { IS_SCALED_WORLD, WORLD_SCALE, ROAD, ws } from '../core/WorldLayoutScale.js';
+import {
+  isPointInsideGridBox,
+  resolvePointOutOfObb,
+  sliceSidewalkCorridorAgainstRoads
+} from './OrganicTrafficPolylineHelper.js';
 
 const CROSSWALK_HASH_CELL = 128;
 const SIDEWALK_HASH_CELL = 192;
+const _obbPushOut = { x: 0, z: 0 };
 
 export const ambientHelicopterAndCityPropsMethods = {
   // ============================================================================
@@ -31,12 +37,34 @@ export const ambientHelicopterAndCityPropsMethods = {
         // O interior térreo do Super Banco Central é aberto, e Estações Elevadas / Mirante não bloqueiam o térreo!
         if (IS_SCALED_WORLD ? bld.label === 'BANCO CENTRAL' : (Math.abs(bld.x) < 76 && bld.z > -231 && bld.z < -128)) continue;
         if (bld.label && (bld.label.startsWith('METRÔ') || bld.label.startsWith('MIRANTE'))) continue;
-        boxes.push({
-          minX: bld.x - hw,
-          maxX: bld.x + hw,
-          minZ: bld.z - hd,
-          maxZ: bld.z + hd
-        });
+        const rotY = Number(bld.rotY) || 0;
+        if (Math.abs(rotY) > 1e-3) {
+          const cosYaw = Math.cos(rotY);
+          const sinYaw = Math.sin(rotY);
+          const extX = Math.abs(cosYaw) * hw + Math.abs(sinYaw) * hd;
+          const extZ = Math.abs(sinYaw) * hw + Math.abs(cosYaw) * hd;
+          boxes.push({
+            minX: bld.x - extX,
+            maxX: bld.x + extX,
+            minZ: bld.z - extZ,
+            maxZ: bld.z + extZ,
+            isObb: true,
+            cx: bld.x,
+            cz: bld.z,
+            hx: hw,
+            hz: hd,
+            cosYaw,
+            sinYaw
+          });
+        } else {
+          boxes.push({
+            minX: bld.x - hw,
+            maxX: bld.x + hw,
+            minZ: bld.z - hd,
+            maxZ: bld.z + hd,
+            isObb: false
+          });
+        }
       }
     }
 
@@ -47,12 +75,29 @@ export const ambientHelicopterAndCityPropsMethods = {
         const w = col.maxX - col.minX;
         const d = col.maxZ - col.minZ;
         if (col.disabled || h < 2.8 || minY >= 3.2 || (w < 2.2 && d < 2.2)) continue;
-        boxes.push({
-          minX: col.minX,
-          maxX: col.maxX,
-          minZ: col.minZ,
-          maxZ: col.maxZ
-        });
+        if (col.shapeType === 'obb') {
+          boxes.push({
+            minX: col.minX,
+            maxX: col.maxX,
+            minZ: col.minZ,
+            maxZ: col.maxZ,
+            isObb: true,
+            cx: col.cx,
+            cz: col.cz,
+            hx: col.halfX,
+            hz: col.halfZ,
+            cosYaw: col.cosYaw,
+            sinYaw: col.sinYaw
+          });
+        } else {
+          boxes.push({
+            minX: col.minX,
+            maxX: col.maxX,
+            minZ: col.minZ,
+            maxZ: col.maxZ,
+            isObb: false
+          });
+        }
       }
     }
 
@@ -85,15 +130,7 @@ export const ambientHelicopterAndCityPropsMethods = {
         const cell = this._buildingGrid.get((((gx + dx) & 0xffff) << 16) | ((gz + dz) & 0xffff));
         if (!cell) continue;
         for (let i = 0; i < cell.length; i++) {
-          const box = cell[i];
-          if (
-            x > box.minX - padding &&
-            x < box.maxX + padding &&
-            z > box.minZ - padding &&
-            z < box.maxZ + padding
-          ) {
-            return true;
-          }
+          if (isPointInsideGridBox(cell[i], x, z, padding)) return true;
         }
       }
     }
@@ -121,16 +158,24 @@ export const ambientHelicopterAndCityPropsMethods = {
           const padMinZ = box.minZ - radius;
           const padMaxZ = box.maxZ + radius;
           if (curX > padMinX && curX < padMaxX && curZ > padMinZ && curZ < padMaxZ) {
-            const dLeft = Math.abs(curX - padMinX);
-            const dRight = Math.abs(padMaxX - curX);
-            const dBack = Math.abs(curZ - padMinZ);
-            const dFront = Math.abs(curZ - padMaxZ);
-            const minD = Math.min(dLeft, dRight, dBack, dFront);
-            if (minD === dLeft) curX = padMinX - 0.08;
-            else if (minD === dRight) curX = padMaxX + 0.08;
-            else if (minD === dBack) curZ = padMinZ - 0.08;
-            else curZ = padMaxZ + 0.08;
-            collided = true;
+            if (box.isObb) {
+              if (resolvePointOutOfObb(box, curX, curZ, radius, _obbPushOut)) {
+                curX = _obbPushOut.x;
+                curZ = _obbPushOut.z;
+                collided = true;
+              }
+            } else {
+              const dLeft = Math.abs(curX - padMinX);
+              const dRight = Math.abs(padMaxX - curX);
+              const dBack = Math.abs(curZ - padMinZ);
+              const dFront = Math.abs(padMaxZ - curZ);
+              const minD = Math.min(dLeft, dRight, dBack, dFront);
+              if (minD === dLeft) curX = padMinX - 0.08;
+              else if (minD === dRight) curX = padMaxX + 0.08;
+              else if (minD === dBack) curZ = padMinZ - 0.08;
+              else curZ = padMaxZ + 0.08;
+              collided = true;
+            }
           }
         }
       }
@@ -212,20 +257,9 @@ export const ambientHelicopterAndCityPropsMethods = {
     const rawCorridors = [];
     const srcCorridors = Array.isArray(this.world?.sidewalkCorridors) ? this.world.sidewalkCorridors : [];
     for (let i = 0; i < srcCorridors.length; i++) {
-      const sc = srcCorridors[i];
-      // Fatiamento de corredores longos (ex.: park_north / park_south) fora das faixas de mapRoads
-      if (sc.axis === 'x' && sc.maxX - sc.minX > 600) {
-        const cuts = [-384, -252, -120, 0, 120, 252, 384].map(ws);
-        let curMinX = sc.minX;
-        for (let k = 0; k <= cuts.length; k++) {
-          const curMaxX = k < cuts.length ? cuts[k] - ROAD.mainWidth * 0.5 : sc.maxX;
-          if (curMaxX - curMinX > 24) {
-            rawCorridors.push({ ...sc, minX: curMinX, maxX: curMaxX, blockId: `${sc.blockId}_${k}` });
-          }
-          if (k < cuts.length) curMinX = cuts[k] + ROAD.mainWidth * 0.5;
-        }
-      } else {
-        rawCorridors.push(sc);
+      const sliced = sliceSidewalkCorridorAgainstRoads(srcCorridors[i], this._roadRects);
+      for (let k = 0; k < sliced.length; k++) {
+        rawCorridors.push(sliced[k]);
       }
     }
     rawCorridors.push(

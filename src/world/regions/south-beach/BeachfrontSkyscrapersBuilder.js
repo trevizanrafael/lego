@@ -11,6 +11,7 @@ import {
   addCurvedLegoPalmTree,
   addNeonHotelSign
 } from './BeachBatcherAndConstants.js';
+import { buildCoastalOrganicBlocksAndBoulevards } from './CoastalOrganicBlocksFiller.js';
 
 const BEACH_FACADE_THEMES = {
   azure_balcony: { wall: '#e2e8f0', slab: '#f8fafc', glass: '#0c4a6e', glassHi: '#38bdf8', warmWin: '#fef08a', glow: '#38bdf8', rough: 0.24, metal: 0.22 },
@@ -372,6 +373,8 @@ export function buildCoastalHotelBlocks(world, batcher) {
     addCurvedLegoPalmTree(batcher, sx - w * 0.38, palmLY, palmZ, -0.18, 0.78, 1.15);
     addCurvedLegoPalmTree(batcher, sx + w * 0.38, palmRY, palmZ, 0.18, 0.78, 1.15);
   });
+
+  if (IS_SCALED_WORLD) buildCoastalOrganicBlocksAndBoulevards(world, batcher);
 }
 
 function buildGenericHighRiseResort(world, batcher, x, z, w, d, floors, seed, isFrontRow = false, signText = null) {

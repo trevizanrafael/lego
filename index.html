@@ -12,7 +12,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=20261122l" />
+  <link rel="stylesheet" href="./style.css?v=20261123b" />
   <script type="importmap">
     {
       "imports": {
@@ -40,7 +40,8 @@
   </div>
 
   <!-- Grade de Seleção de Personagens Estilo Jogos LEGO ([TAB] Toggle em Câmera Lenta 12%) -->
-  <div id="character-grid-overlay" class="character-grid-overlay hidden" role="dialog" aria-modal="true" aria-label="Grade de Personagens"></div>
+  <div id="character-grid-overlay" class="character-grid-overlay hidden" role="dialog" aria-modal="true"
+    aria-label="Grade de Personagens"></div>
 
   <!-- Mira Central Tática Estilo Valorant / Fortnite -->
   <div id="crosshair" data-hero="caveira">
@@ -281,7 +282,8 @@
       <div class="prompt-card">
         <div class="prompt-tag">CÂMERA EM 3ª PESSOA</div>
         <div class="prompt-title">CLIQUE NA TELA PARA JOGAR</div>
-        <div class="prompt-sub"><b>[CTRL]</b> Rolar • <b>[TAB]</b> Personagens • <b>[F]</b> Veículo • <b>[M]</b> Mapa • <b>[Z]</b> Rádio • <b>[ESC]</b> Pausa</div>
+        <div class="prompt-sub"><b>[CTRL]</b> Rolar • <b>[TAB]</b> Personagens • <b>[F]</b> Veículo • <b>[M]</b> Mapa •
+          <b>[Z]</b> Rádio • <b>[ESC]</b> Pausa</div>
       </div>
     </div>
 
@@ -380,7 +382,8 @@
             <div>
               <div id="faction-panel-tag" class="dossier-tag">ALIANÇA</div>
               <h2 id="faction-panel-title" class="panel-header-title">ESCOLHA SUA FACÇÃO</h2>
-              <div id="faction-panel-sub" class="faction-panel-sub">Define sua base aliada, oficinas e reforços pela cidade.</div>
+              <div id="faction-panel-sub" class="faction-panel-sub">Define sua base aliada, oficinas e reforços pela
+                cidade.</div>
             </div>
             <button type="button" id="btn-faction-back" class="tactical-btn">VOLTAR</button>
           </div>
@@ -418,7 +421,8 @@
         <div id="loading-lego-bar" class="loading-lego-bar"></div>
         <div class="loading-tip-box">
           <span id="loading-tip-badge" class="loading-tip-badge">DICA</span>
-          <p id="loading-tip-text" class="loading-tip-text">Pressione [F] perto de carros, motos, barcos ou aeronaves para assumir a direção.</p>
+          <p id="loading-tip-text" class="loading-tip-text">Pressione [F] perto de carros, motos, barcos ou aeronaves
+            para assumir a direção.</p>
         </div>
       </div>
     </div>
@@ -447,16 +451,25 @@
 
         <div class="pause-center-stage">
           <nav id="pause-ingame-actions" class="pause-blades-col pause-actions-grid" aria-label="Menu de Pausa">
-            <button type="button" id="btn-pause-resume" class="tactical-btn pause-blade-btn pause-main-btn" style="--blade-idx: 0">CONTINUAR</button>
-            <button type="button" id="btn-pause-map" class="tactical-btn pause-blade-btn" style="--blade-idx: 1">MAPA</button>
-            <button type="button" id="btn-pause-heroes" class="tactical-btn pause-blade-btn" style="--blade-idx: 2">PERSONAGENS</button>
-            <button type="button" id="btn-pause-open-settings" class="tactical-btn pause-blade-btn" style="--blade-idx: 3">CONFIGURAÇÕES</button>
-            <button type="button" id="btn-pause-save" class="tactical-btn pause-blade-btn" style="--blade-idx: 4">SALVAR JOGO</button>
-            <button type="button" id="btn-pause-switch-faction" class="tactical-btn pause-blade-btn" style="--blade-idx: 5">TROCAR FACÇÃO</button>
-            <button type="button" id="btn-pause-save-quit" class="tactical-btn pause-blade-btn pause-blade-danger danger-btn" style="--blade-idx: 6">SAIR PARA O MENU</button>
+            <button type="button" id="btn-pause-resume" class="tactical-btn pause-blade-btn pause-main-btn"
+              style="--blade-idx: 0">CONTINUAR</button>
+            <button type="button" id="btn-pause-map" class="tactical-btn pause-blade-btn"
+              style="--blade-idx: 1">MAPA</button>
+            <button type="button" id="btn-pause-heroes" class="tactical-btn pause-blade-btn"
+              style="--blade-idx: 2">PERSONAGENS</button>
+            <button type="button" id="btn-pause-open-settings" class="tactical-btn pause-blade-btn"
+              style="--blade-idx: 3">CONFIGURAÇÕES</button>
+            <button type="button" id="btn-pause-save" class="tactical-btn pause-blade-btn" style="--blade-idx: 4">SALVAR
+              JOGO</button>
+            <button type="button" id="btn-pause-switch-faction" class="tactical-btn pause-blade-btn"
+              style="--blade-idx: 5">TROCAR FACÇÃO</button>
+            <button type="button" id="btn-pause-save-quit"
+              class="tactical-btn pause-blade-btn pause-blade-danger danger-btn" style="--blade-idx: 6">SAIR PARA O
+              MENU</button>
           </nav>
 
-          <div id="pause-hero-card" class="pause-hero-card" role="button" tabindex="-1" aria-label="Abrir loja e vitrine de personagens">
+          <div id="pause-hero-card" class="pause-hero-card" role="button" tabindex="-1"
+            aria-label="Abrir loja e vitrine de personagens">
             <div class="pause-hero-card-inner">
               <div class="pause-hero-portrait-wrap">
                 <canvas id="pause-hero-card-canvas" width="420" height="520"></canvas>
@@ -504,10 +517,14 @@
 
         <div id="settings-tabs-bar" class="settings-tabs-bar" role="tablist">
           <span class="tab-key-badge">Q</span>
-          <button type="button" id="tab-btn-audio" class="settings-tab-btn active" role="tab" aria-selected="true" data-settings-tab="audio">ÁUDIO</button>
-          <button type="button" id="tab-btn-video" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="video">VÍDEO</button>
-          <button type="button" id="tab-btn-controls" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="controls">CONTROLES</button>
-          <button type="button" id="tab-btn-game" class="settings-tab-btn" role="tab" aria-selected="false" data-settings-tab="game">JOGO</button>
+          <button type="button" id="tab-btn-audio" class="settings-tab-btn active" role="tab" aria-selected="true"
+            data-settings-tab="audio">ÁUDIO</button>
+          <button type="button" id="tab-btn-video" class="settings-tab-btn" role="tab" aria-selected="false"
+            data-settings-tab="video">VÍDEO</button>
+          <button type="button" id="tab-btn-controls" class="settings-tab-btn" role="tab" aria-selected="false"
+            data-settings-tab="controls">CONTROLES</button>
+          <button type="button" id="tab-btn-game" class="settings-tab-btn" role="tab" aria-selected="false"
+            data-settings-tab="game">JOGO</button>
           <span class="tab-key-badge">E</span>
         </div>
 
@@ -517,14 +534,16 @@
             <div class="option-row" data-desc-key="masterVol">
               <span id="lbl-master-vol" class="option-title">VOLUME GERAL</span>
               <div class="option-slider-wrap">
-                <input id="slider-master-vol" type="range" min="0" max="100" step="5" value="85" class="tactical-slider" />
+                <input id="slider-master-vol" type="range" min="0" max="100" step="5" value="85"
+                  class="tactical-slider" />
                 <span id="val-master-vol" class="option-val">85%</span>
               </div>
             </div>
             <div class="option-row" data-desc-key="musicVol">
               <span id="lbl-music-vol" class="option-title">MÚSICA E RÁDIO</span>
               <div class="option-slider-wrap">
-                <input id="slider-music-vol" type="range" min="0" max="100" step="5" value="55" class="tactical-slider" />
+                <input id="slider-music-vol" type="range" min="0" max="100" step="5" value="55"
+                  class="tactical-slider" />
                 <span id="val-music-vol" class="option-val">55%</span>
               </div>
             </div>
@@ -542,9 +561,11 @@
             <div class="option-row" data-desc-key="graphicsQuality">
               <span id="lbl-graphics-quality" class="option-title">QUALIDADE GRÁFICA</span>
               <div class="ui-stepper">
-                <button type="button" class="stepper-arrow stepper-prev" data-stepper="graphicsQuality" data-dir="-1">◂</button>
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="graphicsQuality"
+                  data-dir="-1">◂</button>
                 <span id="val-graphics-quality" class="stepper-value" data-stepper="graphicsQuality">AUTOMÁTICO</span>
-                <button type="button" class="stepper-arrow stepper-next" data-stepper="graphicsQuality" data-dir="1">▸</button>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="graphicsQuality"
+                  data-dir="1">▸</button>
               </div>
             </div>
             <div class="option-row" data-desc-key="fov">
@@ -557,15 +578,18 @@
             <div class="option-row" data-desc-key="fullscreen">
               <span id="lbl-fullscreen" class="option-title">TELA CHEIA</span>
               <div class="ui-stepper">
-                <button type="button" class="stepper-arrow stepper-prev" data-stepper="fullscreen" data-dir="-1">◂</button>
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="fullscreen"
+                  data-dir="-1">◂</button>
                 <span id="val-fullscreen" class="stepper-value" data-stepper="fullscreen">DESLIGADO</span>
-                <button type="button" class="stepper-arrow stepper-next" data-stepper="fullscreen" data-dir="1">▸</button>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="fullscreen"
+                  data-dir="1">▸</button>
               </div>
             </div>
             <div class="option-row" data-desc-key="timeMode">
               <span id="lbl-time-mode" class="option-title">HORÁRIO</span>
               <div class="ui-stepper">
-                <button type="button" class="stepper-arrow stepper-prev" data-stepper="timeMode" data-dir="-1">◂</button>
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="timeMode"
+                  data-dir="-1">◂</button>
                 <span id="btn-pause-time-mode" class="stepper-value" data-stepper="timeMode">DINÂMICO</span>
                 <button type="button" class="stepper-arrow stepper-next" data-stepper="timeMode" data-dir="1">▸</button>
               </div>
@@ -573,9 +597,11 @@
             <div class="option-row" data-desc-key="killEffect">
               <span id="lbl-kill-effect" class="option-title">EFEITO DE KILL</span>
               <div class="ui-stepper">
-                <button type="button" class="stepper-arrow stepper-prev" data-stepper="killEffect" data-dir="-1">◂</button>
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="killEffect"
+                  data-dir="-1">◂</button>
                 <span id="val-kill-effect" class="stepper-value" data-stepper="killEffect">LIGADO</span>
-                <button type="button" class="stepper-arrow stepper-next" data-stepper="killEffect" data-dir="1">▸</button>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="killEffect"
+                  data-dir="1">▸</button>
               </div>
             </div>
             <div class="option-row" data-desc-key="showFps">
@@ -593,7 +619,8 @@
             <div class="option-row" data-desc-key="mouseSens">
               <span id="lbl-mouse-sens" class="option-title">SENSIBILIDADE DO MOUSE</span>
               <div class="option-slider-wrap">
-                <input id="slider-mouse-sens" type="range" min="20" max="250" step="5" value="100" class="tactical-slider" />
+                <input id="slider-mouse-sens" type="range" min="20" max="250" step="5" value="100"
+                  class="tactical-slider" />
                 <span id="val-mouse-sens" class="option-val">100%</span>
               </div>
             </div>
@@ -616,7 +643,8 @@
             <div class="option-row" data-desc-key="language">
               <span id="lbl-lang-select" class="option-title">IDIOMA</span>
               <div class="ui-stepper">
-                <button type="button" class="stepper-arrow stepper-prev" data-stepper="language" data-dir="-1">◂</button>
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="language"
+                  data-dir="-1">◂</button>
                 <span id="btn-pause-language" class="stepper-value" data-stepper="language">PORTUGUÊS</span>
                 <button type="button" class="stepper-arrow stepper-next" data-stepper="language" data-dir="1">▸</button>
               </div>
@@ -624,23 +652,28 @@
             <div class="option-row" data-desc-key="regionToast">
               <span id="lbl-region-toast" class="option-title">AVISO DE NOVA REGIÃO</span>
               <div class="ui-stepper">
-                <button type="button" class="stepper-arrow stepper-prev" data-stepper="regionToast" data-dir="-1">◂</button>
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="regionToast"
+                  data-dir="-1">◂</button>
                 <span id="btn-toggle-region-toast" class="stepper-value" data-stepper="regionToast">LIGADO</span>
-                <button type="button" class="stepper-arrow stepper-next" data-stepper="regionToast" data-dir="1">▸</button>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="regionToast"
+                  data-dir="1">▸</button>
               </div>
             </div>
             <div class="option-row" data-desc-key="damageNumbers">
               <span id="lbl-damage-numbers" class="option-title">NÚMEROS DE DANO</span>
               <div class="ui-stepper">
-                <button type="button" class="stepper-arrow stepper-prev" data-stepper="damageNumbers" data-dir="-1">◂</button>
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="damageNumbers"
+                  data-dir="-1">◂</button>
                 <span id="val-damage-numbers" class="stepper-value" data-stepper="damageNumbers">LIGADO</span>
-                <button type="button" class="stepper-arrow stepper-next" data-stepper="damageNumbers" data-dir="1">▸</button>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="damageNumbers"
+                  data-dir="1">▸</button>
               </div>
             </div>
             <div id="row-reset-territories" class="option-row ingame-only-setting" data-desc-key="resetTerritories">
               <span id="lbl-reset-territories" class="option-title">REINICIAR TERRITÓRIOS</span>
               <div class="option-action-wrap">
-                <button type="button" id="btn-pause-reset-territories" class="tactical-btn danger-btn" data-setting-action="resetTerritories">REINICIAR TERRITÓRIOS</button>
+                <button type="button" id="btn-pause-reset-territories" class="tactical-btn danger-btn"
+                  data-setting-action="resetTerritories">REINICIAR TERRITÓRIOS</button>
               </div>
             </div>
           </div>
@@ -657,7 +690,8 @@
     </div>
 
     <!-- Modal de Confirmação Tático & Barra Contextual de Atalhos de Menu -->
-    <div id="menu-confirm-dialog" class="menu-confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+    <div id="menu-confirm-dialog" class="menu-confirm-dialog hidden" role="dialog" aria-modal="true"
+      aria-labelledby="confirm-dialog-title">
       <div class="confirm-dialog-panel">
         <div id="confirm-dialog-title" class="confirm-dialog-title">CONFIRMAR</div>
         <p id="confirm-dialog-msg" class="confirm-dialog-msg"></p>
@@ -1086,7 +1120,7 @@
     <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
   </div>
 
-  <script type="module" src="./src/main.js?v=20261122m"></script>
+  <script type="module" src="./src/main.js?v=20261123b"></script>
 </body>
 
 </html>

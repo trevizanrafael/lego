@@ -24,6 +24,11 @@ import {
   addChunkedArrayToScene
 } from './BridgeAndPierSpecs.js';
 import { buildScaledUrbanSidewalksAndBlockPads } from './UrbanSidewalkAndBlockBuilder.js';
+import {
+  ensureOrganicRoadSpatialIndex,
+  getOrganicRoadElevationStateAt,
+  buildOrganicDowntownRoadsAndRoundabouts
+} from './OrganicRoadRibbonBuilder.js';
 
 export {
   RIVER_BRIDGE_SPECS,
@@ -51,6 +56,10 @@ export function buildUrbanRoadGridAndMedians(world) {
   const medianGeos = [];
   const turfGeos = [];
   const poleGeos = [];
+
+  if (IS_SCALED_WORLD) {
+    ensureOrganicRoadSpatialIndex(world);
+  }
 
   const sampleRoadY = (x, z) => getUrbanCityReliefY(x, z);
 
@@ -145,6 +154,16 @@ export function buildUrbanRoadGridAndMedians(world) {
     for (const dSegZ of [-316, -58, 68, 556]) {
       if ((dax === 0 && (dSegZ === -316 || dSegZ === -58)) || (dax === 252 && (dSegZ === -58 || dSegZ === 556))) continue;
       const segZ = ws(dSegZ);
+      if (IS_SCALED_WORLD) {
+        let crossesOrganic = false;
+        for (const dzProbe of [-36, -18, 0, 18, 36]) {
+          if (getOrganicRoadElevationStateAt(world, ax, segZ + dzProbe).minSignedDist <= 6.5) {
+            crossesOrganic = true;
+            break;
+          }
+        }
+        if (crossesOrganic) continue;
+      }
       pushTerrainLineZ(medianGeos, ax, 2.6, segZ - 34, segZ + 34, 12, 0.55, 0.06);
       pushTerrainLineZ(turfGeos, ax, 1.8, segZ - 32, segZ + 32, 12, 0.14, 0.36);
 
@@ -253,9 +272,10 @@ export function buildUrbanRoadGridAndMedians(world) {
     }
   }
 
-  // Calçadas reais de 10m + guias de 0.18m + rampas de esquina + miolos lisos (apenas em escala > 1x)
+  // Calçadas reais de 10m + guias de 0.18m + rampas de esquina + miolos lisos + malha orgânica (apenas em escala > 1x)
   if (IS_SCALED_WORLD) {
     buildScaledUrbanSidewalksAndBlockPads(world);
+    buildOrganicDowntownRoadsAndRoundabouts(world, { yellowGeos, whiteGeos });
   }
 
   addChunkedArrayToScene(

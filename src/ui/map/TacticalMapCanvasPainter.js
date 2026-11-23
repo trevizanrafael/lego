@@ -1,11 +1,8 @@
 import {
   drawCanvasVectorIcon,
   remapBlockColorToGothamNoir,
-  remapBuildingColorToGothamNoir,
-  getGothamBuildingStrokeColor,
   remapBiomeTintToGothamNoir,
-  remapRegionBorderToGothamNoir,
-  classifyGothamRoadKind
+  remapRegionBorderToGothamNoir
 } from '../TacticalIcons.js';
 import { TERRITORY_ZONES, FACTION_THEME } from '../../world/FactionWarSystem.js';
 import {
@@ -23,6 +20,8 @@ import {
 } from './TacticalMapInteractionController.js';
 import {
   getStaticMinimapCache,
+  paintRoadsAndOrganicLayer,
+  paintBuildingsSonarLayer,
   STATIC_MAP_MIN_WX,
   STATIC_MAP_MIN_WZ,
   STATIC_MAP_SPAN
@@ -313,75 +312,24 @@ export function renderFullMapCanvas(hud, world, playerPos, playerFacingYaw = 0) 
       ctx.strokeRect(wx, wy, ww, wd);
     }
 
-    // 5. Malha Viaria em 2 Passes (Avenidas #1b2436 + Meio-Fio #2e3d56, Locais #131a27, Pontes #222d42, Pista #161e2e)
-    const mapRoads = world.mapRoads || [];
-    for (const rd of mapRoads) {
-      const kind = classifyGothamRoadKind(rd);
-      const pad = kind === 'bridge' ? 1.2 : kind === 'main' || kind === 'runway' ? 0.9 : 0.5;
-      ctx.fillStyle =
-        kind === 'bridge' ? '#475569' : kind === 'main' || kind === 'runway' ? '#2e3d56' : '#1e293b';
-      ctx.fillRect(
-        toX(rd.x - rd.w * 0.5) - pad,
-        toY(rd.z - rd.d * 0.5) - pad,
-        rd.w * scale + pad * 2,
-        rd.d * scale + pad * 2
-      );
-    }
-    for (const rd of mapRoads) {
-      const kind = classifyGothamRoadKind(rd);
-      const rx = toX(rd.x - rd.w * 0.5);
-      const ry = toY(rd.z - rd.d * 0.5);
-      const rw = rd.w * scale;
-      const rh = rd.d * scale;
-      ctx.fillStyle =
-        kind === 'bridge'
-          ? '#222d42'
-          : kind === 'runway'
-            ? '#161e2e'
-            : kind === 'main'
-              ? '#1b2436'
-              : '#131a27';
-      ctx.fillRect(rx, ry, rw, rh);
+    // 5. Malha Viaria em 2 Passes + Vias Organicas Continuas (`polyline` e `roundabout`)
+    paintRoadsAndOrganicLayer(ctx, world, toX, toY, scale, {
+      bridgePad: 1.2,
+      mainPad: 0.9,
+      localPad: 0.5,
+      minRunwayMarkPx: 14,
+      drawRunwayThresholds: false,
+      drawRectMainDashes: false
+    });
 
-      if (kind === 'runway' && Math.max(rw, rh) >= 14) {
-        const horiz = rw >= rh;
-        ctx.save();
-        if (typeof ctx.setLineDash === 'function') ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = 'rgba(226, 232, 240, 0.48)';
-        ctx.lineWidth = 0.95;
-        ctx.beginPath();
-        if (horiz) {
-          ctx.moveTo(rx + 4, ry + rh * 0.5);
-          ctx.lineTo(rx + rw - 4, ry + rh * 0.5);
-        } else {
-          ctx.moveTo(rx + rw * 0.5, ry + 4);
-          ctx.lineTo(rx + rw * 0.5, ry + rh - 4);
-        }
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    // 6. Predios, Barracos, Silos, Conteineres e Landmarks em Sonar 3D
-    for (const bld of world.mapBuildings || []) {
-      const isLm = Boolean(bld.isLandmark || bld.landmark);
-      const bx = toX(bld.x - bld.w * 0.5);
-      const by = toY(bld.z - bld.d * 0.5);
-      const bw = bld.w * scale;
-      const bd = bld.d * scale;
-
-      ctx.fillStyle = '#020306';
-      ctx.fillRect(bx + 1.1, by + 1.3, bw, bd);
-
-      ctx.fillStyle = remapBuildingColorToGothamNoir(bld.color, isLm);
-      ctx.fillRect(bx, by, bw, bd);
-
-      if (isLm || Math.max(bw, bd) >= 3.2) {
-        ctx.strokeStyle = getGothamBuildingStrokeColor(bld.color, isLm);
-        ctx.lineWidth = isLm ? 1.35 : 0.75;
-        ctx.strokeRect(bx, by, bw, bd);
-      }
-    }
+    // 6. Predios, Cunhas Flatiron (`polygon`), Girados (`rotY`) e Landmarks em Sonar 3D
+    paintBuildingsSonarLayer(ctx, world.mapBuildings, toX, toY, scale, {
+      shadowDx: 1.1,
+      shadowDy: 1.3,
+      lmLineWidth: 1.35,
+      stdLineWidth: 0.75,
+      minStrokePx: 3.2
+    });
   }
 
   // 6.5 LINHA 01 CIRCULAR DO METRÔ (Subsolo Tracejado + Elevado em Aco-Glacial + Trens ao Vivo)

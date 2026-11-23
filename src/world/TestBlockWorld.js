@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { soundFX } from '../audio/SoundFX.js';
 import { MAP_REGIONS, MAP_LANDMARKS } from './MapRegionsData.js';
-import { BUILDING_STYLES, BUILDING_STYLE_KEYS } from './BuildingGenerator.js';
+import {
+  BUILDING_STYLES,
+  BUILDING_STYLE_KEYS,
+  ChunkedBuildingLodBatcher
+} from './BuildingGenerator.js';
 import { buildOceanAndMainIsland, buildUrbanRoadGridAndMedians } from './RoadGridBuilder.js';
 import { buildParkedLegoCars, buildStreetProps, buildNewsstandsAndFences, buildGoldenLegoObjects } from './StreetPropsBuilder.js';
 import { buildBoatsAndAircraftFleet } from './NavalAndAirFleetBuilder.js';
@@ -24,7 +28,7 @@ import { InteractiveAttractionsManager } from './InteractiveAttractionsAndEmotes
 import { worldSpatialColliderMethods } from './core/WorldSpatialColliderGrid.js';
 import { worldBatchingAndFreezeMethods } from './core/WorldBatchingAndFreeze.js';
 import { worldElevationAndWaterMethods } from './core/WorldElevationAndWaterQueries.js';
-import { ws } from './core/WorldLayoutScale.js';
+import { IS_SCALED_WORLD, ws } from './core/WorldLayoutScale.js';
 
 export { MAP_REGIONS, MAP_LANDMARKS, BUILDING_STYLES, BUILDING_STYLE_KEYS };
 
@@ -57,11 +61,13 @@ export class TestBlockWorld {
     this._sidewalkGeosByColor = new Map();
     this._lastSunUpdatePos = new THREE.Vector3(99999, 99999, 99999);
     this.mapRoads = [];     // { x, z, w, d, isMain }
+    this.mapOrganicRoads = []; // Polilinhas/rotatórias orgânicas para o Minimapa/Mapa Tático e IA
     this.mapBlocks = [];    // { x, z, w, d, color }
-    this.mapBuildings = []; // { x, z, w, d, color, label, styleKey, height }
+    this.mapBuildings = []; // { x, z, w, d, rotY, polygon, color, label, styleKey, height }
     this.mapWater = [];     // { x, z, w, d }
     this.sidewalkCorridors = [];
     this.crosswalkZones = [];
+    this._buildingLodBatcher = IS_SCALED_WORLD ? new ChunkedBuildingLodBatcher() : null;
     this.waypoint = null;   // { x, z, label }
     this._initWaypointBeacon();
 
@@ -100,7 +106,10 @@ export class TestBlockWorld {
     buildGoldenLegoObjects(this);
     buildLegoClouds(this);
 
-    // 9. Finaliza os lotes instanciados/mesclados (Calçadas e Árvores da Cidade Inteira em 5 Draw Calls!)
+    // 9. Finaliza os lotes instanciados/mesclados (Prédios LOD em Chunks, Calçadas e Árvores!)
+    if (this._buildingLodBatcher) {
+      this._buildingLodBatcher.flushToScene(this.scene);
+    }
     this._finalizeMergedSidewalks();
     this._finalizeInstancedTrees();
     const staticPhaseChildren = new Set(this.scene.children);
