@@ -5,23 +5,26 @@ import { createSignBoardMesh } from '../../utils/SignBoardHelper.js';
 import { soundFX } from '../../audio/SoundFX.js';
 
 // ============================================================================
-// 1. MONTANHA-RUSSA OCEÂNICA EM CIRCUITO FECHADO (`X = -36, Z = 1235`, PICO `Y = 38m`!)
+// 1. MONTANHA-RUSSA OCEÂNICA EM CIRCUITO FECHADO (`X = -36, Z = 1235 + pierOffsetZ`, PICO `Y = 38m`!)
 // ============================================================================
 export function initOceanRollerCoaster(mgr) {
+  const pzOff = mgr.world?.pierOffsetZ || 0;
+  const stationZ = 1235 + pzOff;
+
   // Circuito fechado sobre o Píer e as ondas do Oceano Atlântico!
   const waypoints = [
-    new THREE.Vector3(-36, 4.2, 1218),  // Entrada da Estação no Píer
-    new THREE.Vector3(-36, 4.2, 1235),  // Ponto exato de parada/embarque [E]!
-    new THREE.Vector3(-36, 4.4, 1252),  // Saída da Estação
-    new THREE.Vector3(-48, 21.0, 1276), // Rampa íngreme de subida (Chain Lift)
-    new THREE.Vector3(-60, 38.2, 1304), // PICO MÁXIMO DE 38 METROS SOBRE O MAR!
-    new THREE.Vector3(-88, 6.2, 1348),  // Mergulho abissal rasante sobre as ondas do Atlântico!
-    new THREE.Vector3(-92, 19.5, 1396), // Curva oceânica inclinada (Banked Turn Sul)
-    new THREE.Vector3(-66, 28.0, 1418), // Topo panorâmico Sul de frente para a Roda-Gigante
-    new THREE.Vector3(-52, 9.4, 1372),  // Vale de alta velocidade (Airtime Dip)
-    new THREE.Vector3(-56, 22.5, 1326), // Colina Camelback de Airtime
-    new THREE.Vector3(-48, 8.8, 1278),  // Retorno veloz beirando o Píer
-    new THREE.Vector3(-38, 5.0, 1202)   // Curva Norte suave alinhando com a Estação
+    new THREE.Vector3(-36, 4.2, 1218 + pzOff),  // Entrada da Estação no Píer
+    new THREE.Vector3(-36, 4.2, stationZ),      // Ponto exato de parada/embarque [E]!
+    new THREE.Vector3(-36, 4.4, 1252 + pzOff),  // Saída da Estação
+    new THREE.Vector3(-48, 21.0, 1276 + pzOff), // Rampa íngreme de subida (Chain Lift)
+    new THREE.Vector3(-60, 38.2, 1304 + pzOff), // PICO MÁXIMO DE 38 METROS SOBRE O MAR!
+    new THREE.Vector3(-88, 6.2, 1348 + pzOff),  // Mergulho abissal rasante sobre as ondas do Atlântico!
+    new THREE.Vector3(-92, 19.5, 1396 + pzOff), // Curva oceânica inclinada (Banked Turn Sul)
+    new THREE.Vector3(-66, 28.0, 1418 + pzOff), // Topo panorâmico Sul de frente para a Roda-Gigante
+    new THREE.Vector3(-52, 9.4, 1372 + pzOff),  // Vale de alta velocidade (Airtime Dip)
+    new THREE.Vector3(-56, 22.5, 1326 + pzOff), // Colina Camelback de Airtime
+    new THREE.Vector3(-48, 8.8, 1278 + pzOff),  // Retorno veloz beirando o Píer
+    new THREE.Vector3(-38, 5.0, 1202 + pzOff)   // Curva Norte suave alinhando com a Estação
   ];
 
   mgr.coasterCurve = new THREE.CatmullRomCurve3(waypoints, true, 'catmullrom', 0.45);
@@ -83,27 +86,27 @@ export function initOceanRollerCoaster(mgr) {
   );
   mgr.scene.add(railMesh, tieMesh, pillarMesh);
 
-  // Plataforma de Embarque Acessível no Píer (`X = -36, Z = 1235, Y = 4.0m`) + Escada Larga desde `Y = 1.6m`!
+  // Plataforma de Embarque Acessível no Píer (`X = -36, Z = 1235 + pzOff, Y = 4.0m`) + Escada Larga desde `Y = 1.6m`!
   const platGeos = [
-    makeTranslatedBox(6.2, 2.4, 28.0, -31.2, 2.8, 1235),
-    makeTranslatedBox(4.0, 0.6, 8.0, -26.2, 1.9, 1235),
-    makeTranslatedBox(4.0, 1.2, 6.0, -27.2, 2.2, 1235),
-    makeTranslatedBox(4.0, 1.8, 4.0, -28.2, 2.5, 1235)
+    makeTranslatedBox(6.2, 2.4, 28.0, -31.2, 2.8, stationZ),
+    makeTranslatedBox(4.0, 0.6, 8.0, -26.2, 1.9, stationZ),
+    makeTranslatedBox(4.0, 1.2, 6.0, -27.2, 2.2, stationZ),
+    makeTranslatedBox(4.0, 1.8, 4.0, -28.2, 2.5, stationZ)
   ];
   const platMesh = new THREE.Mesh(
     mergeBufferGeometries(platGeos),
     getLegoMaterial(0x1e293b, { roughness: 0.35 })
   );
   mgr.scene.add(platMesh);
-  mgr.world.addCollider(-31.2, 1235, 6.2, 28.0, 4.0, 1.6);
-  mgr.world.addCollider(-26.2, 1235, 4.0, 8.0, 2.2, 1.6);
-  mgr.world.addCollider(-27.2, 1235, 4.0, 6.0, 2.8, 1.6);
-  mgr.world.addCollider(-28.2, 1235, 4.0, 4.0, 3.4, 1.6);
+  mgr.world.addCollider(-31.2, stationZ, 6.2, 28.0, 4.0, 1.6);
+  mgr.world.addCollider(-26.2, stationZ, 4.0, 8.0, 2.2, 1.6);
+  mgr.world.addCollider(-27.2, stationZ, 4.0, 6.0, 2.8, 1.6);
+  mgr.world.addCollider(-28.2, stationZ, 4.0, 4.0, 3.4, 1.6);
 
   const coasterSign = createSignBoardMesh({
     x: -28.0,
     y: 7.2,
-    z: 1235,
+    z: stationZ,
     width: 15.5,
     height: 2.4,
     depth: 0.4,
@@ -185,26 +188,29 @@ export function updateCoasterTrainTransforms(mgr) {
 // 2. RODA-GIGANTE COLOSSAL (73m!) COM 16 CABINES NIVELADAS & PLATAFORMA [E]
 // ============================================================================
 export function initFerrisWheelLevelingAndPlatform(mgr) {
+  const pzOff = mgr.world?.pierOffsetZ || 0;
   mgr.ferrisWheelGroup = mgr.world.ferrisWheelGroup || null;
   mgr.ferrisCabins = mgr.world.ferrisWheelCabins || [];
 
-  // Escadaria frontal e Letreiro na Base da Roda-Gigante (`X = 0, Z = 1480, Y = 4.2m`)
+  // Escadaria frontal e Letreiro na Base da Roda-Gigante (`X = 0, Z = 1480 + pzOff, Y = 4.2m`)
+  const stairZ1 = 1452.0 + pzOff;
+  const stairZ2 = 1454.0 + pzOff;
   const stairGeos = [
-    makeTranslatedBox(12.0, 0.85, 4.0, 0, 2.02, 1452.0),
-    makeTranslatedBox(12.0, 1.7, 4.0, 0, 2.45, 1454.0)
+    makeTranslatedBox(12.0, 0.85, 4.0, 0, 2.02, stairZ1),
+    makeTranslatedBox(12.0, 1.7, 4.0, 0, 2.45, stairZ2)
   ];
   const stairMesh = new THREE.Mesh(
     mergeBufferGeometries(stairGeos),
     getLegoMaterial(0xf8fafc, { roughness: 0.28 })
   );
   mgr.scene.add(stairMesh);
-  mgr.world.addCollider(0, 1452.0, 12.0, 4.0, 2.45, 1.6);
-  mgr.world.addCollider(0, 1454.0, 12.0, 4.0, 3.3, 1.6);
+  mgr.world.addCollider(0, stairZ1, 12.0, 4.0, 2.45, 1.6);
+  mgr.world.addCollider(0, stairZ2, 12.0, 4.0, 3.3, 1.6);
 
   const ferrisSign = createSignBoardMesh({
     x: 0,
     y: 7.4,
-    z: 1455.0,
+    z: 1455.0 + pzOff,
     width: 18.0,
     height: 2.4,
     depth: 0.42,
@@ -220,11 +226,13 @@ export function initFerrisWheelLevelingAndPlatform(mgr) {
 }
 
 // ============================================================================
-// 3. TORRE DE QUEDA LIVRE "BIG DROP" DE 58 METROS (`X = +24, Z = 1325`)
+// 3. TORRE DE QUEDA LIVRE "BIG DROP" DE 58 METROS (`X = +24, Z = 1325 + pierOffsetZ`)
 // ============================================================================
 export function initBigDropTowerGondola(mgr) {
+  const pzOff = mgr.world?.pierOffsetZ || 0;
+  const dropZ = 1325 + pzOff;
   const gondola = new THREE.Group();
-  gondola.position.set(24, mgr.bigDropY, 1325);
+  gondola.position.set(24, mgr.bigDropY, dropZ);
 
   const ringFrame = createLegoBrick(9.4, 1.4, 9.4, 0xec4899, { studStep: 0.8 });
   ringFrame.position.y = 0.7;
@@ -261,7 +269,7 @@ export function initBigDropTowerGondola(mgr) {
   const dropSign = createSignBoardMesh({
     x: 24,
     y: 6.8,
-    z: 1317.5,
+    z: 1317.5 + pzOff,
     width: 13.5,
     height: 2.2,
     depth: 0.4,
@@ -281,9 +289,14 @@ export function initBigDropTowerGondola(mgr) {
 // ============================================================================
 export function findNearbyPierAttraction(mgr, playerPos) {
   if (!playerPos) return null;
+  const pzOff = mgr.world?.pierOffsetZ || 0;
+  const coasterZ = 1235 + pzOff;
+  const ferrisPromptZ = 1468 + pzOff;
+  const ferrisExitZ = 1458 + pzOff;
+  const dropZ = 1325 + pzOff;
 
-  // 1. Montanha-Russa Oceânica (perto da Plataforma `(-31.2, 4.0, 1235)` ou do 1º Vagão!)
-  const dCoasterPlat = Math.hypot(playerPos.x - -31.5, playerPos.z - 1235);
+  // 1. Montanha-Russa Oceânica (perto da Plataforma `(-31.2, 4.0, 1235 + pzOff)` ou do 1º Vagão!)
+  const dCoasterPlat = Math.hypot(playerPos.x - -31.5, playerPos.z - coasterZ);
   const leadCar = mgr.coasterCars[0];
   const dCoasterCar = leadCar
     ? Math.hypot(playerPos.x - leadCar.position.x, playerPos.z - leadCar.position.z)
@@ -295,27 +308,27 @@ export function findNearbyPierAttraction(mgr, playerPos) {
     return {
       type: 'roller_coaster',
       label: 'ANDAR NA MONTANHA-RUSSA',
-      exitPos: new THREE.Vector3(-30.5, 4.05, 1235)
+      exitPos: new THREE.Vector3(-30.5, 4.05, coasterZ)
     };
   }
 
-  // 2. Roda-Gigante Colossal (`X = 0, Z = 1480` — plataforma e escadaria `Z = 1452..1492`)
-  const dFerris = Math.hypot(playerPos.x - 0, playerPos.z - 1468);
+  // 2. Roda-Gigante Colossal (`X = 0, Z = 1480 + pzOff` — plataforma e escadaria `Z = 1452..1492 + pzOff`)
+  const dFerris = Math.hypot(playerPos.x - 0, playerPos.z - ferrisPromptZ);
   if (dFerris <= 18.5 && playerPos.y >= 1.2 && playerPos.y <= 8.5) {
     return {
       type: 'ferris_wheel',
       label: 'ENTRAR NA RODA-GIGANTE',
-      exitPos: new THREE.Vector3(0, 4.25, 1458)
+      exitPos: new THREE.Vector3(0, 4.25, ferrisExitZ)
     };
   }
 
-  // 3. Torre de Queda Livre Big Drop (`X = 24, Z = 1325`)
-  const dDrop = Math.hypot(playerPos.x - 24, playerPos.z - 1325);
+  // 3. Torre de Queda Livre Big Drop (`X = 24, Z = 1325 + pzOff`)
+  const dDrop = Math.hypot(playerPos.x - 24, playerPos.z - dropZ);
   if (dDrop <= 9.5 && playerPos.y >= 1.2 && playerPos.y <= 7.5) {
     return {
       type: 'big_drop',
       label: 'ENTRAR NO BIG DROP',
-      exitPos: new THREE.Vector3(24, 1.65, 1316.5)
+      exitPos: new THREE.Vector3(24, 1.65, 1316.5 + pzOff)
     };
   }
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getLegoMaterial, createLegoBrick } from '../../materials/LegoMaterials.js';
 import { WaveDirector, WAVE_STATE, buildFactionSquad } from './WaveDirector.js';
 import { soundFX } from '../../audio/SoundFX.js';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 
 // ============================================================================
 // CONTRA-ATAQUE (estilo "Garden Ops" + "Flag of Power")
@@ -242,11 +243,23 @@ export class TerritoryCounterAttack {
     const sources = [...gates.map((g) => ({ x: g.x, z: g.z })), ...routes.map((r) => ({ x: r.startX, z: r.startZ }))];
     const src = sources[Math.floor(Math.random() * sources.length)] || st.spec.bossCourtyard;
     const court = st.spec.bossCourtyard;
+    let spawnX = src.x;
+    let spawnZ = src.z;
+    if (IS_SCALED_WORLD) {
+      const dx = src.x - court.x;
+      const dz = src.z - court.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 125) {
+        const clampedDist = 95 + Math.random() * 25;
+        spawnX = court.x + (dx / dist) * clampedDist;
+        spawnZ = court.z + (dz / dist) * clampedDist;
+      }
+    }
     const unit = fw._spawnCombatUnit({
       faction: this.attacker,
       role,
-      x: src.x + (Math.random() - 0.5) * 6,
-      z: src.z + (Math.random() - 0.5) * 6,
+      x: spawnX + (Math.random() - 0.5) * 6,
+      z: spawnZ + (Math.random() - 0.5) * 6,
       outpostId: 'counter_flag',
       patrolAnchor: { x: court.x + (Math.random() - 0.5) * 5, z: court.z + (Math.random() - 0.5) * 5 }
     });

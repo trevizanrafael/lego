@@ -1,4 +1,6 @@
 import { soundFX } from '../../audio/SoundFX.js';
+import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
 import { WANTED_STAR_THRESHOLDS, WANTED_TIER_INFO } from './PolicePursuitAssets.js';
 import {
   PURSUIT_STATES,
@@ -20,6 +22,37 @@ import {
 
 function reasonNeedsReset(controller) {
   return Boolean(controller && controller.position);
+}
+
+function resolveBustedPrecinctSpawn(world) {
+  if (!IS_SCALED_WORLD) return { x: 0, z: -88 };
+  const candidates = [
+    { x: 0, z: ws(-92) },
+    { x: 22, z: -320 },
+    { x: 0, z: -320 },
+    { x: -22, z: -320 }
+  ];
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    if (getMetroCutoutFloorY(c.x, c.z) !== null) continue;
+    if (world?.isDeepWaterAt?.(c.x, c.z)) continue;
+    const gY = world?.getTerrainHeightAt ? world.getTerrainHeightAt(c.x, c.z) : 0;
+    const cols = typeof world?.getCollidersNear === 'function' ? world.getCollidersNear(c.x, c.z, 1.2) : world?.colliders;
+    let blocked = false;
+    if (Array.isArray(cols)) {
+      for (let k = 0; k < cols.length; k++) {
+        const col = cols[k];
+        if (!col || col.disabled || col.isDynamic) continue;
+        if ((col.maxY ?? 10) <= gY + 0.35 || (col.minY ?? 0) >= gY + 2.4) continue;
+        if (c.x >= col.minX - 0.65 && c.x <= col.maxX + 0.65 && c.z >= col.minZ - 0.65 && c.z <= col.maxZ + 0.65) {
+          blocked = true;
+          break;
+        }
+      }
+    }
+    if (!blocked) return c;
+  }
+  return candidates[0];
 }
 
 export function tickPursuitRegeneration(sys, dt) {
@@ -309,8 +342,9 @@ export const wantedEscalationAndEscapeMethods = {
         controller.exitVehicle?.();
       }
       controller.energyNetSlowTimer = 0;
-      const spawnX = 0;
-      const spawnZ = -88;
+      const bustedSpawn = resolveBustedPrecinctSpawn(this.world);
+      const spawnX = bustedSpawn.x;
+      const spawnZ = bustedSpawn.z;
       const spawnY =
         (this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(spawnX, spawnZ) : 0) + 0.5;
       controller.position.set(spawnX, spawnY, spawnZ);

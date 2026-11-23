@@ -3,9 +3,89 @@ import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { ensureVehicleNightLights } from '../DayNightAtmosphereManager.js';
 import { attachVehicleOccupants, restoreDefaultOccupants } from '../vehicles/VehicleOccupants.js';
+import {
+  IS_SCALED_WORLD,
+  ROAD,
+  ws,
+  MAIN_AVENUES_X,
+  MAIN_AVENUES_Z,
+  SECONDARY_STREETS_X,
+  SECONDARY_STREETS_Z,
+  INDUSTRIAL_STREETS_X
+} from '../core/WorldLayoutScale.js';
 
 export const SHARED_BRAKE_LIGHT_OFF_MAT = new THREE.MeshBasicMaterial({ color: 0x450a0a });
 export const SHARED_BRAKE_LIGHT_ON_MAT = new THREE.MeshBasicMaterial({ color: 0xff1e1e });
+
+const SCALED_MAIN_X_SET = new Set(MAIN_AVENUES_X);
+const SCALED_MAIN_Z_SET = new Set(MAIN_AVENUES_Z);
+const SCALED_SEC_X_SET = new Set([...SECONDARY_STREETS_X, ...INDUSTRIAL_STREETS_X]);
+const SCALED_SEC_Z_SET = new Set(SECONDARY_STREETS_Z);
+
+function adaptTrafficSpecToWorldScale(raw, idx) {
+  if (!IS_SCALED_WORLD) return raw;
+
+  const isViaduct = raw.startY !== undefined && raw.startY >= 9.0 && Math.abs(raw.roadCoord) <= 1050;
+  let designRoadCoord = raw.roadCoord;
+  let designPosAlong = raw.posAlong;
+  let minC = raw.minC;
+  let maxC = raw.maxC;
+
+  // Em 3x, alinha rotas às avenidas/ruas reais da malha (evitando calçadas de 10m e o muro fechado do Parque Central)
+  if (!isViaduct) {
+    if (raw.axis === 'z_const') {
+      if (designRoadCoord === -252) designRoadCoord = -250;
+      else if (designRoadCoord === 384) designRoadCoord = 402;
+      else if (designRoadCoord === 0 && minC === -495) minC = -450;
+    } else if (raw.axis === 'x_const') {
+      if (designRoadCoord === 612) {
+        designRoadCoord = 600;
+        maxC = Math.min(maxC, 120);
+      } else if (Math.abs(designRoadCoord) <= 384 && minC < 134 && maxC > 402) {
+        // As avenidas N-S térreas param nas fachadas Norte (Z=134) e Sul (Z=402) do Parque Central!
+        if (designPosAlong <= 125) {
+          maxC = 122;
+          designPosAlong = Math.min(110, Math.max(minC + 20, designPosAlong));
+        } else {
+          minC = 414;
+          maxC = 696;
+          designPosAlong = 430 + ((Math.abs(Math.round(designPosAlong)) * 37 + idx * 29) % 245);
+        }
+      }
+    }
+  }
+
+  const roadCoord = ws(designRoadCoord);
+  const isMainRoad =
+    isViaduct ||
+    (raw.axis === 'z_const' ? SCALED_MAIN_Z_SET.has(roadCoord) : SCALED_MAIN_X_SET.has(roadCoord));
+  const roadWidth = isMainRoad ? ROAD.mainWidth : ROAD.secondaryWidth;
+  const sign = raw.laneOffset >= 0 ? 1 : -1;
+
+  let laneOffset;
+  if (isViaduct) {
+    laneOffset = sign * 7.2;
+  } else if (isMainRoad) {
+    // Distribui suavemente nas 2 faixas por sentido da avenida de 34m (6.4m e 10.0m -> média ~7.5m..8.2m, dentro de ±13.5m)
+    laneOffset = sign * (idx % 2 === 0 ? 6.4 : 10.0);
+  } else if (raw.axis === 'z_const' ? SCALED_SEC_Z_SET.has(roadCoord) : SCALED_SEC_X_SET.has(roadCoord)) {
+    laneOffset = sign * 5.5;
+  } else {
+    // Rodovias inter-regionais da Pangeia (26m)
+    laneOffset = sign * 5.5;
+  }
+
+  return {
+    ...raw,
+    roadCoord,
+    laneOffset,
+    posAlong: ws(designPosAlong),
+    minC: ws(minC),
+    maxC: ws(maxC),
+    roadWidth,
+    isViaduct
+  };
+}
 
 export const trafficRouteSpecsAndSpawnerMethods = {
   // ============================================================================
@@ -150,8 +230,8 @@ export const trafficRouteSpecsAndSpawnerMethods = {
       { type: 'taxi_metro', color: YEL, roofColor: YEL, axis: 'z_const', roadCoord: 710, laneOffset: -5.0, posAlong: -2360, dir: -1, minC: -2900, maxC: -1815, startY: 4.2 }
     ];
 
-    for (const cfg of trafficSpecs) {
-      this._spawnTrafficVehicle(cfg);
+    for (let i = 0; i < trafficSpecs.length; i++) {
+      this._spawnTrafficVehicle(adaptTrafficSpecToWorldScale(trafficSpecs[i], i));
     }
   },
 
@@ -167,7 +247,11 @@ export const trafficRouteSpecsAndSpawnerMethods = {
         : cfg.dir > 0
           ? 0
           : Math.PI;
-    const refStartY = cfg.startY ?? 0;
+    const localTerrainY =
+      IS_SCALED_WORLD && cfg.isViaduct && this.world.getTerrainHeightAt
+        ? Math.max(0, this.world.getTerrainHeightAt(x, z))
+        : 0;
+    const refStartY = (cfg.startY ?? 0) + localTerrainY;
     const yBase = this.world.getSurfaceHeightAt
       ? this.world.getSurfaceHeightAt(x, z, refStartY)
       : (this.world.getRoadElevation ? this.world.getRoadElevation(x, z) : 0);
@@ -263,6 +347,8 @@ export const trafficRouteSpecsAndSpawnerMethods = {
       baseH,
       axis: cfg.axis,
       roadCoord: cfg.roadCoord,
+      roadWidth: cfg.roadWidth || ROAD.mainWidth,
+      isViaduct: Boolean(cfg.isViaduct),
       laneOffset: cfg.laneOffset,
       baseLaneOffset: cfg.laneOffset,
       targetLaneOffset: cfg.laneOffset,
@@ -344,10 +430,11 @@ export const trafficRouteSpecsAndSpawnerMethods = {
         : tv.dir > 0
           ? 0
           : Math.PI;
+    const baseGroundY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0;
     const refY =
-      tv.cfg?.startY ??
-      tv.cfg?.wrapY ??
-      (this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(nx, nz) : 0);
+      IS_SCALED_WORLD && tv.isViaduct
+        ? Math.max(0, baseGroundY) + (tv.cfg?.startY ?? 12.4)
+        : (tv.cfg?.startY ?? tv.cfg?.wrapY ?? baseGroundY);
     const ny = this.world.getSurfaceHeightAt
       ? this.world.getSurfaceHeightAt(nx, nz, refY)
       : (this.world.getRoadElevation ? this.world.getRoadElevation(nx, nz) : 0);

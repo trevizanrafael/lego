@@ -31,7 +31,9 @@ import {
 } from './vehicles/VehicleChassisPrimitives.js';
 
 import {
+  DESIGN_PARKED_CARS_LAYOUT,
   PARKED_CARS_LAYOUT,
+  resolveParkedCarsLayout,
   buildUrbanBusMesh,
   buildOpenTopCabin,
   applyCivilianAndSportsDetails,
@@ -53,7 +55,9 @@ export {
   UNITS_TO_KMH,
   VEHICLE_SPECS,
   TACTICAL_AND_FACTION_TYPES,
+  DESIGN_PARKED_CARS_LAYOUT,
   PARKED_CARS_LAYOUT,
+  resolveParkedCarsLayout,
   getFinishMaterialOpts,
   makeTaperedHullGeo,
   makeRakedCabinGeo,

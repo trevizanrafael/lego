@@ -9,6 +9,10 @@ import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
 import { isPointOnOrganicLand, isInsideBuiltUrbanCore } from '../CoastlineProfile.js';
 import { soundFX } from '../../audio/SoundFX.js';
+import { IS_SCALED_WORLD, WORLD_SCALE, ROAD, ws } from '../core/WorldLayoutScale.js';
+
+const CROSSWALK_HASH_CELL = 128;
+const SIDEWALK_HASH_CELL = 192;
 
 export const ambientHelicopterAndCityPropsMethods = {
   // ============================================================================
@@ -25,7 +29,7 @@ export const ambientHelicopterAndCityPropsMethods = {
         const hd = (bld.d || 0) * 0.5;
         if (hw < 1.5 || hd < 1.5) continue;
         // O interior térreo do Super Banco Central é aberto, e Estações Elevadas / Mirante não bloqueiam o térreo!
-        if (Math.abs(bld.x) < 76 && bld.z > -231 && bld.z < -128) continue;
+        if (IS_SCALED_WORLD ? bld.label === 'BANCO CENTRAL' : (Math.abs(bld.x) < 76 && bld.z > -231 && bld.z < -128)) continue;
         if (bld.label && (bld.label.startsWith('METRÔ') || bld.label.startsWith('MIRANTE'))) continue;
         boxes.push({
           minX: bld.x - hw,
@@ -141,9 +145,243 @@ export const ambientHelicopterAndCityPropsMethods = {
     return this._collisionRes;
   },
 
+  _initRoadAndSidewalkSpatialIndex() {
+    this._roadRects = [];
+    this._crosswalkGrid = new Map();
+    this._sidewalkGrid = new Map();
+    this._validSidewalkCorridors = [];
+    this._corridorsByBlockId = new Map();
+    this._intersectionsByRoadKey = new Map();
+    if (!IS_SCALED_WORLD) return;
+
+    const mapRoads = Array.isArray(this.world?.mapRoads) ? this.world.mapRoads : [];
+    for (let i = 0; i < mapRoads.length; i++) {
+      const r = mapRoads[i];
+      const hw = (r.w || 0) * 0.5;
+      const hd = (r.d || 0) * 0.5;
+      if (hw <= 0 || hd <= 0) continue;
+      const isZConst = r.w >= r.d;
+      this._roadRects.push({
+        minX: r.x - hw,
+        maxX: r.x + hw,
+        minZ: r.z - hd,
+        maxZ: r.z + hd,
+        axis: isZConst ? 'z_const' : 'x_const',
+        roadCoord: isZConst ? r.z : r.x,
+        halfRoadW: isZConst ? hd : hw,
+        isMain: Boolean(r.isMain)
+      });
+    }
+
+    const cwZones = Array.isArray(this.world?.crosswalkZones) ? this.world.crosswalkZones : [];
+    const seenJunctions = new Set();
+    for (let i = 0; i < cwZones.length; i++) {
+      const cw = cwZones[i];
+      const gx0 = Math.floor(cw.minX / CROSSWALK_HASH_CELL);
+      const gx1 = Math.floor(cw.maxX / CROSSWALK_HASH_CELL);
+      const gz0 = Math.floor(cw.minZ / CROSSWALK_HASH_CELL);
+      const gz1 = Math.floor(cw.maxZ / CROSSWALK_HASH_CELL);
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
+          let list = this._crosswalkGrid.get(key);
+          if (!list) {
+            list = [];
+            this._crosswalkGrid.set(key, list);
+          }
+          list.push(cw);
+        }
+      }
+      const jKey = `${cw.ix},${cw.iz}`;
+      if (!seenJunctions.has(jKey)) {
+        seenJunctions.add(jKey);
+        const hwX = cw.axis === 'x' ? (cw.maxX - cw.minX) * 0.5 : Math.abs((cw.minX + cw.maxX) * 0.5 - cw.ix) - 2.35;
+        const hwZ = cw.axis === 'z' ? (cw.maxZ - cw.minZ) * 0.5 : Math.abs((cw.minZ + cw.maxZ) * 0.5 - cw.iz) - 2.35;
+        const zKey = `z:${Math.round(cw.iz)}`;
+        const xKey = `x:${Math.round(cw.ix)}`;
+        if (!this._intersectionsByRoadKey.has(zKey)) this._intersectionsByRoadKey.set(zKey, []);
+        if (!this._intersectionsByRoadKey.has(xKey)) this._intersectionsByRoadKey.set(xKey, []);
+        this._intersectionsByRoadKey.get(zKey).push({ ix: cw.ix, iz: cw.iz, along: cw.ix, halfCrossW: Math.max(13, hwX) });
+        this._intersectionsByRoadKey.get(xKey).push({ ix: cw.ix, iz: cw.iz, along: cw.iz, halfCrossW: Math.max(13, hwZ) });
+      }
+    }
+    for (const list of this._intersectionsByRoadKey.values()) {
+      list.sort((a, b) => a.along - b.along);
+    }
+
+    const rawCorridors = [];
+    const srcCorridors = Array.isArray(this.world?.sidewalkCorridors) ? this.world.sidewalkCorridors : [];
+    for (let i = 0; i < srcCorridors.length; i++) {
+      const sc = srcCorridors[i];
+      // Fatiamento de corredores longos (ex.: park_north / park_south) fora das faixas de mapRoads
+      if (sc.axis === 'x' && sc.maxX - sc.minX > 600) {
+        const cuts = [-384, -252, -120, 0, 120, 252, 384].map(ws);
+        let curMinX = sc.minX;
+        for (let k = 0; k <= cuts.length; k++) {
+          const curMaxX = k < cuts.length ? cuts[k] - ROAD.mainWidth * 0.5 : sc.maxX;
+          if (curMaxX - curMinX > 24) {
+            rawCorridors.push({ ...sc, minX: curMinX, maxX: curMaxX, blockId: `${sc.blockId}_${k}` });
+          }
+          if (k < cuts.length) curMinX = cuts[k] + ROAD.mainWidth * 0.5;
+        }
+      } else {
+        rawCorridors.push(sc);
+      }
+    }
+    rawCorridors.push(
+      { minX: ws(-490), maxX: ws(-400), minZ: ws(731), maxZ: ws(745), axis: 'x', centerCoord: ws(738), blockId: 'boardwalk_w2' },
+      { minX: ws(-368), maxX: ws(-136), minZ: ws(731), maxZ: ws(745), axis: 'x', centerCoord: ws(738), blockId: 'boardwalk_w1' },
+      { minX: ws(-104), maxX: ws(236), minZ: ws(731), maxZ: ws(745), axis: 'x', centerCoord: ws(738), blockId: 'boardwalk_c' },
+      { minX: ws(268), maxX: ws(510), minZ: ws(731), maxZ: ws(745), axis: 'x', centerCoord: ws(738), blockId: 'boardwalk_e' }
+    );
+
+    for (let i = 0; i < rawCorridors.length; i++) {
+      const rc = rawCorridors[i];
+      const startAlong = (rc.axis === 'x' ? rc.minX : rc.minZ) + 4.8;
+      const endAlong = (rc.axis === 'x' ? rc.maxX : rc.maxZ) - 4.8;
+      if (endAlong - startAlong < 18.0) continue;
+      const midAlong = (startAlong + endAlong) * 0.5;
+      const mx = rc.axis === 'x' ? midAlong : rc.centerCoord;
+      const mz = rc.axis === 'x' ? rc.centerCoord : midAlong;
+      if (this._isInsideAsphaltRoad(mx, mz, 1.2) || !this._isValidDryLandForPedestrian(mx, mz)) continue;
+
+      const entry = {
+        axis: rc.axis,
+        centerCoord: rc.centerCoord,
+        startAlong,
+        endAlong,
+        minX: rc.minX,
+        maxX: rc.maxX,
+        minZ: rc.minZ,
+        maxZ: rc.maxZ,
+        mx,
+        mz,
+        blockId: rc.blockId || `sw_${i}`
+      };
+      this._validSidewalkCorridors.push(entry);
+
+      let blkList = this._corridorsByBlockId.get(entry.blockId);
+      if (!blkList) {
+        blkList = [];
+        this._corridorsByBlockId.set(entry.blockId, blkList);
+      }
+      blkList.push(entry);
+
+      const gx0 = Math.floor(entry.minX / SIDEWALK_HASH_CELL);
+      const gx1 = Math.floor(entry.maxX / SIDEWALK_HASH_CELL);
+      const gz0 = Math.floor(entry.minZ / SIDEWALK_HASH_CELL);
+      const gz1 = Math.floor(entry.maxZ / SIDEWALK_HASH_CELL);
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const key = ((gx & 0xffff) << 16) | (gz & 0xffff);
+          let bucket = this._sidewalkGrid.get(key);
+          if (!bucket) {
+            bucket = [];
+            this._sidewalkGrid.set(key, bucket);
+          }
+          bucket.push(entry);
+        }
+      }
+    }
+  },
+
+  _isInsideAsphaltRoad(x, z, margin = 0) {
+    const rects = this._roadRects;
+    if (!rects || rects.length === 0) return false;
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i];
+      if (x > r.minX - margin && x < r.maxX + margin && z > r.minZ - margin && z < r.maxZ + margin) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _isInsideCrosswalkZone(x, z, margin = 0) {
+    if (!this._crosswalkGrid || this._crosswalkGrid.size === 0) return false;
+    const gx = Math.floor(x / CROSSWALK_HASH_CELL);
+    const gz = Math.floor(z / CROSSWALK_HASH_CELL);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const list = this._crosswalkGrid.get((((gx + dx) & 0xffff) << 16) | ((gz + dz) & 0xffff));
+        if (!list) continue;
+        for (let i = 0; i < list.length; i++) {
+          const cw = list[i];
+          if (x >= cw.minX - margin && x <= cw.maxX + margin && z >= cw.minZ - margin && z <= cw.maxZ + margin) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  },
+
+  _isTrafficLightRedForAxis(carAxis, ix, iz) {
+    const phaseOff = ((Math.round(ix) * 7 + Math.round(iz) * 13) % 20 + 20) % 20;
+    const t = (((this._trafficLightClock || 0) + phaseOff * 0.35) % 20 + 20) % 20;
+    // 0..8.8s: verde z_const | 8.8..10.0s: vermelho total | 10.0..18.8s: verde x_const | 18.8..20.0s: vermelho total
+    if (carAxis === 'z_const') return t >= 8.8;
+    return t < 10.0 || t >= 18.8;
+  },
+
+  _findSafeSidewalkSpawn(x, z, maxSearchRadius = 160, seed = 0) {
+    if (!IS_SCALED_WORLD || !this._validSidewalkCorridors?.length) {
+      return this._findSafeStreetSpawn(x, z, 1.5);
+    }
+    const cellR = Math.max(1, Math.ceil(maxSearchRadius / SIDEWALK_HASH_CELL));
+    const gx0 = Math.floor(x / SIDEWALK_HASH_CELL);
+    const gz0 = Math.floor(z / SIDEWALK_HASH_CELL);
+    let bestCorridor = null;
+    let bestAlong = 0;
+    let bestDistSq = maxSearchRadius * maxSearchRadius;
+
+    for (let dx = -cellR; dx <= cellR; dx++) {
+      for (let dz = -cellR; dz <= cellR; dz++) {
+        const bucket = this._sidewalkGrid.get((((gx0 + dx) & 0xffff) << 16) | ((gz0 + dz) & 0xffff));
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i++) {
+          const c = bucket[i];
+          const clampedAlong = c.axis === 'x'
+            ? Math.max(c.startAlong, Math.min(c.endAlong, x))
+            : Math.max(c.startAlong, Math.min(c.endAlong, z));
+          const px = c.axis === 'x' ? clampedAlong : c.centerCoord;
+          const pz = c.axis === 'x' ? c.centerCoord : clampedAlong;
+          const dSq = (px - x) * (px - x) + (pz - z) * (pz - z);
+          if (dSq < bestDistSq) {
+            bestDistSq = dSq;
+            bestCorridor = c;
+            bestAlong = clampedAlong;
+          }
+        }
+      }
+    }
+
+    if (bestCorridor) {
+      const c = bestCorridor;
+      const jitters = [((seed % 5) - 2) * 0.9, 0, -1.8, 1.8];
+      for (let j = 0; j < jitters.length; j++) {
+        const jit = jitters[j];
+        for (let s = 0; s < 5; s++) {
+          const shift = s === 0 ? 0 : (s % 2 === 1 ? 1 : -1) * Math.ceil(s * 0.5) * 8.0;
+          const al = Math.max(c.startAlong, Math.min(c.endAlong, bestAlong + shift));
+          const sx = c.axis === 'x' ? al : c.centerCoord + jit;
+          const sz = c.axis === 'x' ? c.centerCoord + jit : al;
+          if (
+            !this._isInsideAsphaltRoad(sx, sz, 1.4) &&
+            !this._isInsideBuilding(sx, sz, 1.25) &&
+            this._isValidDryLandForPedestrian(sx, sz)
+          ) {
+            return { x: sx, z: sz, valid: true, corridor: c, laneJitter: jit };
+          }
+        }
+      }
+    }
+    return { x, z, valid: false, corridor: null, laneJitter: 0 };
+  },
+
   _isValidDryLandForPedestrian(x, z) {
     // Limites estendidos do supercontinente Pangeia (excluindo mar aberto e bocas subterrâneas do Metrô)
-    if (x < -3380 || x > 3380 || z < -2900 || z > 2500) return false;
+    if (x < ws(-3380) || x > ws(3380) || z < ws(-2900) || z > ws(2500)) return false;
     if (getMetroCutoutFloorY(x, z) !== null) return false;
     if (!isInsideBuiltUrbanCore(x, z) && !isPointOnOrganicLand(x, z)) return false;
     if (this.world?.isDeepWaterAt && this.world.isDeepWaterAt(x, z)) return false;
@@ -222,7 +460,7 @@ export const ambientHelicopterAndCityPropsMethods = {
     tailRotor.position.set(0.22, 0.95, -6.15);
 
     heliGroup.add(cabin, stripe, noseWindshield, yellowTailBoom, tailFin, tvPod, mast, mainRotor, tailRotor);
-    heliGroup.position.set(0, 65, 120);
+    heliGroup.position.set(0, 65, ws(120));
     this.scene.add(heliGroup);
 
     this.civilianSkyHeli = {
@@ -236,11 +474,15 @@ export const ambientHelicopterAndCityPropsMethods = {
   _updateCivilianSkyHelicopter(dt) {
     if (!this.civilianSkyHeli) return;
     const h = this.civilianSkyHeli;
-    h.orbitAngle += dt * 0.075;
-    const cx = Math.cos(h.orbitAngle) * 340;
-    const cz = 180 + Math.sin(h.orbitAngle) * 440;
-    const nextX = Math.cos(h.orbitAngle + 0.02) * 340;
-    const nextZ = 180 + Math.sin(h.orbitAngle + 0.02) * 440;
+    const angRate = IS_SCALED_WORLD ? 0.075 / WORLD_SCALE : 0.075;
+    h.orbitAngle += dt * angRate;
+    const rx = ws(340);
+    const rz = ws(440);
+    const czBase = ws(180);
+    const cx = Math.cos(h.orbitAngle) * rx;
+    const cz = czBase + Math.sin(h.orbitAngle) * rz;
+    const nextX = Math.cos(h.orbitAngle + 0.02) * rx;
+    const nextZ = czBase + Math.sin(h.orbitAngle + 0.02) * rz;
 
     h.group.position.set(cx, 65 + Math.sin(h.orbitAngle * 3.0) * 1.8, cz);
     h.group.rotation.y = Math.atan2(nextX - cx, nextZ - cz);
@@ -255,37 +497,68 @@ export const ambientHelicopterAndCityPropsMethods = {
   _initStreetVendorCarts() {
     if (!this.destructibles) return;
 
-    const cartSpots = [
-      // Centro Financeiro & Super Banco Central
-      { x: -30, z: -133, kind: 'hotdog' },
-      { x: 30, z: -133, kind: 'coffee' },
-      { x: -38, z: -101, kind: 'coffee' },
-      { x: 38, z: -101, kind: 'hotdog' },
-      { x: -104, z: -155, kind: 'coffee' },
-      { x: 104, z: -155, kind: 'hotdog' },
-      // Times Square & Torre dos Heróis
-      { x: -65, z: -16, kind: 'hotdog' },
-      { x: -105, z: -16, kind: 'icecream' },
-      { x: -185, z: -85, kind: 'coffee' },
-      { x: -215, z: -35, kind: 'hotdog' },
-      { x: 65, z: -16, kind: 'coffee' },
-      // Parque Central & Lago
-      { x: 42, z: 22, kind: 'icecream' },
-      { x: 92, z: 22, kind: 'hotdog' },
-      { x: 165, z: 22, kind: 'coffee' },
-      { x: 64, z: 145, kind: 'icecream' },
-      { x: 135, z: 162, kind: 'hotdog' },
-      // Calçadão Turístico da Praia Sul & Píer
-      { x: -165, z: 728, kind: 'icecream' },
-      { x: -72, z: 728, kind: 'hotdog' },
-      { x: -18, z: 728, kind: 'icecream' },
-      { x: 36, z: 728, kind: 'coffee' },
-      { x: 125, z: 728, kind: 'icecream' },
-      { x: 195, z: 728, kind: 'hotdog' }
-    ];
+    const mOff = ROAD.mainWidth * 0.5 + 7.2; // 24.2m em 3x (borda interna da calçada de 10m)
+    const cartSpots = IS_SCALED_WORLD
+      ? [
+          // Centro Financeiro & Super Banco Central (Av. Z = ws(-117), Av. X = ws(±120))
+          { x: -34, z: ws(-117) - mOff, kind: 'hotdog' },
+          { x: 34, z: ws(-117) - mOff, kind: 'coffee' },
+          { x: -42, z: ws(-117) + mOff, kind: 'coffee' },
+          { x: 42, z: ws(-117) + mOff, kind: 'hotdog' },
+          { x: ws(-120) + mOff, z: ws(-155), kind: 'coffee' },
+          { x: ws(120) - mOff, z: ws(-155), kind: 'hotdog' },
+          // Times Square & Torre dos Heróis (Av. Z = 0, Av. X = ws(-252))
+          { x: ws(-65), z: -mOff, kind: 'hotdog' },
+          { x: ws(-105), z: -mOff, kind: 'icecream' },
+          { x: ws(-252) + mOff, z: ws(-85), kind: 'coffee' },
+          { x: ws(-252) + mOff, z: ws(-35), kind: 'hotdog' },
+          { x: ws(65), z: -mOff, kind: 'coffee' },
+          // Parque Central & Lago (Calçada Norte Z = ws(134) + mOff)
+          { x: ws(42), z: ws(134) + mOff, kind: 'icecream' },
+          { x: ws(92), z: ws(134) + mOff, kind: 'hotdog' },
+          { x: ws(165), z: ws(134) + mOff, kind: 'coffee' },
+          { x: ws(-120) + mOff, z: ws(65), kind: 'icecream' },
+          { x: ws(120) - mOff, z: ws(65), kind: 'hotdog' },
+          // Calçadão Turístico da Praia Sul
+          { x: ws(-165), z: ws(734), kind: 'icecream' },
+          { x: ws(-72), z: ws(734), kind: 'hotdog' },
+          { x: ws(-24), z: ws(734), kind: 'icecream' },
+          { x: ws(36), z: ws(734), kind: 'coffee' },
+          { x: ws(135), z: ws(734), kind: 'icecream' },
+          { x: ws(195), z: ws(734), kind: 'hotdog' }
+        ]
+      : [
+          // Centro Financeiro & Super Banco Central
+          { x: -30, z: -133, kind: 'hotdog' },
+          { x: 30, z: -133, kind: 'coffee' },
+          { x: -38, z: -101, kind: 'coffee' },
+          { x: 38, z: -101, kind: 'hotdog' },
+          { x: -104, z: -155, kind: 'coffee' },
+          { x: 104, z: -155, kind: 'hotdog' },
+          // Times Square & Torre dos Heróis
+          { x: -65, z: -16, kind: 'hotdog' },
+          { x: -105, z: -16, kind: 'icecream' },
+          { x: -185, z: -85, kind: 'coffee' },
+          { x: -215, z: -35, kind: 'hotdog' },
+          { x: 65, z: -16, kind: 'coffee' },
+          // Parque Central & Lago
+          { x: 42, z: 22, kind: 'icecream' },
+          { x: 92, z: 22, kind: 'hotdog' },
+          { x: 165, z: 22, kind: 'coffee' },
+          { x: 64, z: 145, kind: 'icecream' },
+          { x: 135, z: 162, kind: 'hotdog' },
+          // Calçadão Turístico da Praia Sul & Píer
+          { x: -165, z: 728, kind: 'icecream' },
+          { x: -72, z: 728, kind: 'hotdog' },
+          { x: -18, z: 728, kind: 'icecream' },
+          { x: 36, z: 728, kind: 'coffee' },
+          { x: 125, z: 728, kind: 'icecream' },
+          { x: 195, z: 728, kind: 'hotdog' }
+        ];
 
     for (const sp of cartSpots) {
       const safe = this._findSafeStreetSpawn(sp.x, sp.z, 1.5);
+      if (IS_SCALED_WORLD && this._isInsideAsphaltRoad(safe.x, safe.z, 1.8)) continue;
       const yBase = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(safe.x, safe.z) : 0;
 
       const primaryHex =

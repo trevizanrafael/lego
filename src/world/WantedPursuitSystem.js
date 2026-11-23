@@ -84,7 +84,7 @@ export class WantedPursuitSystem {
   }
 
   update(dt, playerPos, controller = null) {
-    if (!playerPos) return;
+    if (!playerPos || !Number.isFinite(playerPos.x) || !Number.isFinite(playerPos.z)) return;
 
     const moveDx = playerPos.x - this._lastPlayerPos.x;
     const moveDz = playerPos.z - this._lastPlayerPos.z;

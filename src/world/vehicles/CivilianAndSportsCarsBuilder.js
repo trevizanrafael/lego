@@ -15,6 +15,7 @@ import {
   markAsSharedAsset
 } from '../BuildingGenerator.js';
 import { VEHICLE_SPECS } from './VehicleSpecsCatalog.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
 import {
   makeTaperedHullGeo,
   makeRakedCabinGeo,
@@ -326,9 +327,9 @@ export function buildCivilianOrSportsCarMesh(cfg, ctx) {
 }
 
 /**
- * Vagas fixas distribuídas pelas 10 regiões da cidade.
+ * Vagas fixas de projeto (`1x`) distribuídas pelas 10 regiões da cidade.
  */
-export const PARKED_CARS_LAYOUT = [
+export const DESIGN_PARKED_CARS_LAYOUT = [
   // Motos Táticas da Polícia / ROCAM / BOPE no Centro (Praça da Torre dos Heróis e Avenida Central)
   { x: 18.0, z: -48.0, rotY: 0, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },
   { x: 24.0, z: -48.0, rotY: 0, color: 0x111827, roofColor: LEGO_COLORS.white, type: 'moto_policia' },
@@ -425,14 +426,144 @@ export const PARKED_CARS_LAYOUT = [
 ];
 
 /**
+ * Resolve o layout de vagas estacionadas alinhando-as à faixa de estacionamento junto ao meio-fio
+ * (`roadCoord ± 15.2m` em avenidas de `34m`, `±11.2m` em ruas de `26m`) e aos estacionamentos 3x da Onda 1.
+ */
+export function resolveParkedCarsLayout(world = null) {
+  if (!IS_SCALED_WORLD) return DESIGN_PARKED_CARS_LAYOUT;
+
+  const D = DESIGN_PARKED_CARS_LAYOUT;
+  const citadel = world?.industrialPCCData?.citadelOrigin || { x: ws(866), z: ws(-316) };
+  const convoy = world?.industrialPCCData?.convoyYardOrigin || { x: ws(684), z: ws(-316) };
+  const chop = world?.industrialPCCData?.chopShopOrigin || { x: ws(1062), z: ws(-316) };
+  const aresOx = ws(995) - 995;
+  const aresOz = ws(622) - 622;
+  const airportParkX = (world?.westAirportData?.parkingCenter?.x ?? ws(-1145) + 127) + 6.0;
+  const tankYard = world?.westAirportData?.tankYardCenter || { x: ws(-1380), z: ws(-1135) };
+  const bridgeX = ws(1375);
+  const bridgeNorthCpZ = ws(734) + 14.0;
+  const bridgeSouthCpZ = ws(1122) - 23.0;
+  const prisonOx = ws(1375) - 1375;
+  const prisonOz = ws(1540) - 1540;
+
+  const cvStreetX = ws(-516) - 11.2;
+  const cvStreetZList = [
+    ws(-382) + 28.0,
+    ws(-250) - 28.0,
+    ws(-250) + 28.0,
+    ws(-117) - 28.0,
+    ws(-117) + 28.0,
+    ws(134) + 28.0,
+    ws(245),
+    ws(340)
+  ];
+
+  return [
+    // Centro: 2 Motos Policiais junto ao meio-fio da Av. Z = ws(-117) no Super Banco e na Torre dos Heróis
+    { ...D[0], x: 26.0,    z: ws(-117) - 15.2, rotY: Math.PI / 2 },
+    { ...D[1], x: -940.0,  z: ws(-117) - 15.2, rotY: Math.PI / 2 },
+    // Posto de Gasolina do Subúrbio Norte (âncora (612, -2249), ilhas de bombas em (602, -2261) e (634, -2261))
+    { ...D[2], x: 607.0,   z: -2261.0, rotY: 0 },
+    { ...D[3], x: 639.0,   z: -2261.0, rotY: Math.PI },
+    // Estacionamento da Pizzaria (278, -2011 -> vagas frontais em z = -1979) + Ruas do Subúrbio (Z = ws(-644) - 11.2)
+    { ...D[4], x: 266.0,   z: -1979.0, rotY: 0 },
+    { ...D[5], x: 282.0,   z: -1979.0, rotY: 0 },
+    { ...D[6], x: ws(-45.0),  z: ws(-644) - 11.2, rotY: Math.PI / 2 },
+    { ...D[7], x: ws(-178.0), z: ws(-644) - 11.2, rotY: Math.PI / 2 },
+    // Orla & Praia Sul (Av. Beira-Mar Z = ws(710) + 15.2 = 2145.2 + Buggies na Areia + Costão Sudoeste)
+    { ...D[8],  x: -72.0, z: ws(710) + 15.2, rotY: Math.PI / 2 },
+    { ...D[9],  x: -56.0, z: ws(710) + 15.2, rotY: Math.PI / 2 },
+    { ...D[10], x: 56.0,  z: ws(710) + 15.2, rotY: -Math.PI / 2 },
+    { ...D[11], x: 72.0,  z: ws(710) + 15.2, rotY: -Math.PI / 2 },
+    ...D.slice(12, 18).map((c) => ({ ...c, x: ws(c.x), z: ws(c.z) })),
+    // Favela CDD — 8 veículos na faixa de estacionamento oeste da Rua X = ws(-516) junto às Bocas
+    ...D.slice(18, 26).map((c, i) => ({ ...c, x: cvStreetX, z: cvStreetZList[i], rotY: 0 })),
+    // Cidadela PCC — 5 veículos na Rampa Subterrânea / Garagem de Fuga
+    ...D.slice(26, 31).map((c) => ({
+      ...c,
+      x: citadel.x + (c.x - 866.0),
+      z: citadel.z + (c.z - -381.0)
+    })),
+    // Pátio da Frota ("O Bonde do PCC" — 13 veículos livres das garagens Norte/Leste)
+    { ...D[31], x: convoy.x - 56.0, z: convoy.z - 8.0 },
+    { ...D[32], x: convoy.x - 56.0, z: convoy.z },
+    { ...D[33], x: convoy.x - 56.0, z: convoy.z + 8.0 },
+    ...D.slice(34, 40).map((c, i) => ({
+      ...c,
+      x: convoy.x - 44.0 + i * 14.0,
+      z: convoy.z - 18.0
+    })),
+    ...D.slice(40, 44).map((c, i) => ({
+      ...c,
+      x: convoy.x - 38.0 + i * 18.0,
+      z: convoy.z + 24.0
+    })),
+    // Pátio do Desmanche & Ferro-Velho PCC (4 veículos livres da oficina, prensa e guindaste)
+    { ...D[44], x: chop.x - 40.0, z: chop.z - 58.0 },
+    { ...D[45], x: chop.x - 16.0, z: chop.z - 58.0 },
+    { ...D[46], x: chop.x - 24.0, z: chop.z - 24.0 },
+    { ...D[47], x: chop.x + 4.0,  z: chop.z - 24.0 },
+    // Barricadas Táticas nas Entradas do Distrito Industrial PCC (5 veículos junto ao meio-fio das Avenidas 34m)
+    { ...D[48], x: ws(607), z: ws(-382) + 15.2, rotY: Math.PI / 2 },
+    { ...D[49], x: ws(607), z: ws(-382) - 15.2, rotY: Math.PI / 2 },
+    { ...D[50], x: ws(607), z: ws(-250) + 15.2, rotY: Math.PI / 2 },
+    { ...D[51], x: ws(607), z: ws(-117) - 15.2, rotY: Math.PI / 2 },
+    { ...D[52], x: ws(607), z: ws(-117) + 15.2, rotY: Math.PI / 2 },
+    // Base Portuária Fortificada da A.R.E.S. (4 Hover-APCs nos corredores livres do pátio blindado)
+    { ...D[53], x: 938.0 + aresOx,  z: 604.0 + aresOz, rotY: 0 },
+    { ...D[54], x: 938.0 + aresOx,  z: 640.0 + aresOz, rotY: 0 },
+    { ...D[55], x: 1052.0 + aresOx, z: 604.0 + aresOz, rotY: Math.PI },
+    { ...D[56], x: 1052.0 + aresOx, z: 640.0 + aresOz, rotY: Math.PI },
+    // Aeroporto Oeste (4 carros nas vagas reservadas em X ~ -3302 + 3 tanques/caveirão Sul + 2 tanques Norte)
+    { ...D[57], x: airportParkX, z: -65.0 },
+    { ...D[58], x: airportParkX, z: -95.0 },
+    { ...D[59], x: airportParkX, z: 65.0 },
+    { ...D[60], x: airportParkX, z: 95.0 },
+    { ...D[61], x: ws(-1215) + 22.0, z: ws(395.0) },
+    { ...D[62], x: ws(-1215) + 22.0, z: ws(425.0) },
+    { ...D[63], x: ws(-1215) + 22.0, z: ws(455.0) },
+    { ...D[64], x: tankYard.x - 25.0, z: tankYard.z, _absoluteY: true },
+    { ...D[65], x: tankYard.x + 25.0, z: tankYard.z, _absoluteY: true },
+    // Grande Ponte Blindada (6 veículos nos 2 Checkpoints do BOPE) + Ilha da Prisão Setor 2 (6 veículos)
+    { ...D[66], x: bridgeX - 15.6, z: bridgeNorthCpZ + 8.0, _absoluteY: true },
+    { ...D[67], x: bridgeX - 11.5, z: bridgeNorthCpZ + 8.0, _absoluteY: true },
+    { ...D[68], x: bridgeX + 11.5, z: bridgeNorthCpZ + 8.0, _absoluteY: true },
+    { ...D[69], x: bridgeX - 11.5, z: bridgeSouthCpZ - 8.0, _absoluteY: true },
+    { ...D[70], x: bridgeX + 11.5, z: bridgeSouthCpZ - 8.0, _absoluteY: true },
+    { ...D[71], x: bridgeX + 15.6, z: bridgeSouthCpZ - 8.0, _absoluteY: true },
+    ...D.slice(72, 78).map((c) => ({
+      ...c,
+      x: c.x + prisonOx,
+      z: c.z + prisonOz,
+      _absoluteY: true
+    }))
+  ];
+}
+
+export const PARKED_CARS_LAYOUT = resolveParkedCarsLayout(null);
+
+/**
  * Posiciona toda a frota estacionada pelas 10 regiões da cidade com colisores e registro destrutível.
  */
-export function buildParkedLegoCars(world, createCarMeshFn = _defaultCarMeshFactory) {
-  PARKED_CARS_LAYOUT.forEach((cfg) => {
+export function buildParkedLegoCars(
+  world,
+  createCarMeshFn = _defaultCarMeshFactory,
+  layoutOverride = null
+) {
+  const layout =
+    layoutOverride || (IS_SCALED_WORLD ? resolveParkedCarsLayout(world) : PARKED_CARS_LAYOUT);
+
+  layout.forEach((cfg) => {
     const spec = VEHICLE_SPECS[cfg.type] || VEHICLE_SPECS.apex_gtx;
     const carGroup = createCarMeshFn(cfg);
     const terrainY = world.getTerrainHeightAt ? world.getTerrainHeightAt(cfg.x, cfg.z) : 0;
-    const yBase = cfg.y !== undefined ? (cfg.y < 1.5 ? terrainY + cfg.y : cfg.y) : terrainY;
+    const yBase = cfg._absoluteY
+      ? cfg.y ?? 0
+      : cfg.y !== undefined
+        ? cfg.y < 1.5
+          ? terrainY + cfg.y
+          : cfg.y
+        : terrainY;
     carGroup.position.set(cfg.x, yBase, cfg.z);
     carGroup.rotation.y = cfg.rotY;
     carGroup.userData.carType = cfg.type;

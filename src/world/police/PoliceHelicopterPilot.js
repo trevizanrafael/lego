@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { getSharedPursuitGeos } from './PolicePursuitAssets.js';
+import { HELI_TUNING, PURSUIT_WORLD_BOUNDS } from './PursuitTuning.js';
 import { attachVehicleOccupants } from '../vehicles/VehicleOccupants.js';
 
 // ============================================================================
@@ -8,13 +9,7 @@ import { attachVehicleOccupants } from '../vehicles/VehicleOccupants.js';
 // Física real limitada a 55 m/s, decolagem de helipontos reais (>= 135m),
 // desvio de arranha-céus, cone de busca de 40m e espiral sobre última posição.
 // ============================================================================
-export const POLICE_HELIPAD_BASES = [
-  { id: 'central_precinct', x: 0, y: 54, z: -88 },
-  { id: 'west_airbase', x: -690, y: 28, z: -80 },
-  { id: 'east_port', x: 420, y: 34, z: 120 },
-  { id: 'north_precinct', x: -80, y: 32, z: -540 },
-  { id: 'prison_island', x: 720, y: 38, z: 520 }
-];
+export const POLICE_HELIPAD_BASES = HELI_TUNING.bases;
 
 const HELI_MAX_SPEED = 55.0; // ~198 km/h (carros rápidos e jatos conseguem despistar)
 const HELI_MAX_ACCEL = 26.0;
@@ -82,6 +77,10 @@ function computeSkyscraperAvoidance(sys, heli, hx, hz, fwdX, fwdZ, baseCruiseY) 
     if (Math.abs(hx - b.x) > hw + 30.0 || Math.abs(hz - b.z) > hd + 30.0) continue;
     const distNow = Math.hypot(hx - THREE.MathUtils.clamp(hx, b.x - hw, b.x + hw), hz - THREE.MathUtils.clamp(hz, b.z - hd, b.z + hd));
     const distAhead = Math.hypot(lookX - THREE.MathUtils.clamp(lookX, b.x - hw, b.x + hw), lookZ - THREE.MathUtils.clamp(lookZ, b.z - hd, b.z + hd));
+    if (curY >= roofY - 1.0) {
+      if (distNow < 10.0 || distAhead < 10.0) climbY = Math.max(climbY, roofY + 8.0);
+      continue;
+    }
     if (distNow > 26.0 && distAhead > 24.0) continue;
     if (roofY <= baseCruiseY + 22.0) climbY = Math.max(climbY, roofY + 10.0);
     const fromCenterX = hx - b.x, fromCenterZ = hz - b.z;
@@ -92,7 +91,7 @@ function computeSkyscraperAvoidance(sys, heli, hx, hz, fwdX, fwdZ, baseCruiseY) 
     const pushWeight = 42.0 * (0.35 + proximity * 0.95);
     avoidX += (normX * 0.65 - normZ * tangSign * 0.75) * pushWeight;
     avoidZ += (normZ * 0.65 + normX * tangSign * 0.75) * pushWeight;
-    if (distNow < 3.5 && roofY > curY - 4.0) {
+    if (distNow < 3.5 && roofY > curY + 0.5) {
       heli.mesh.position.x = b.x + normX * (Math.max(hw, hd) + 3.8);
       heli.mesh.position.z = b.z + normZ * (Math.max(hw, hd) + 3.8);
     }
@@ -401,9 +400,13 @@ function stepSingleHelicopter(sys, heli, heliIndex, activeCount, subDt, playerPo
   }
 
   heli.vel.y = THREE.MathUtils.lerp(heli.vel.y, THREE.MathUtils.clamp((desiredY - pos.y) * 2.2, -18.0, 22.0), Math.min(1, subDt * 4.5));
-  pos.x += heli.vel.x * subDt;
+  const minBoundX = Math.min(PURSUIT_WORLD_BOUNDS.minX, playerPos.x - 420);
+  const maxBoundX = Math.max(PURSUIT_WORLD_BOUNDS.maxX, playerPos.x + 420);
+  const minBoundZ = Math.min(PURSUIT_WORLD_BOUNDS.minZ, playerPos.z - 420);
+  const maxBoundZ = Math.max(PURSUIT_WORLD_BOUNDS.maxZ, playerPos.z + 420);
+  pos.x = THREE.MathUtils.clamp(pos.x + heli.vel.x * subDt, minBoundX, maxBoundX);
   pos.y += heli.vel.y * subDt;
-  pos.z += heli.vel.z * subDt;
+  pos.z = THREE.MathUtils.clamp(pos.z + heli.vel.z * subDt, minBoundZ, maxBoundZ);
   heli.obj.basePos.copy(pos);
 
   const lookDx = desiredLookX - heli.lookGroundPos.x;

@@ -15,6 +15,7 @@ import {
   COLOSSAL_AND_PORT_SPECS,
   LAKE_AND_MARINA_BOAT_PLACEMENTS,
   COAST_GUARD_BOAT_PLACEMENTS,
+  resolveNavalBoatPlacements,
   buildNavalBoatMesh
 } from './vehicles/NavalFleetBuilder.js';
 
@@ -25,6 +26,7 @@ import {
   buildJetAircraftMesh,
   buildCommercialAirlinerMesh,
   createNavalOrAircraftMesh,
+  resolveAircraftPlacements,
   buildBoatsAndAircraftFleet
 } from './vehicles/AircraftFleetBuilder.js';
 
@@ -47,6 +49,8 @@ export {
   NAVAL_BOAT_TYPES,
   LAKE_AND_MARINA_BOAT_PLACEMENTS,
   COAST_GUARD_BOAT_PLACEMENTS,
+  resolveNavalBoatPlacements,
+  resolveAircraftPlacements,
   attachExhaustFlames,
   createNavalAirMaterialContext,
   buildNavalBoatMesh,

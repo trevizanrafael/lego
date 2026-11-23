@@ -11,6 +11,7 @@ import {
   createLegoBrick
 } from '../../materials/LegoMaterials.js';
 import { optimizeStaticGroupMeshes } from '../BuildingGenerator.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
 import {
   KMH_TO_UNITS,
   VEHICLE_SPECS
@@ -24,6 +25,7 @@ import {
   NAVAL_SPECS,
   COLOSSAL_AND_PORT_SPECS,
   buildNavalBoatMesh,
+  resolveNavalBoatPlacements,
   LAKE_AND_MARINA_BOAT_PLACEMENTS,
   COAST_GUARD_BOAT_PLACEMENTS
 } from './NavalFleetBuilder.js';
@@ -389,7 +391,7 @@ export function createNavalOrAircraftMesh(cfg) {
   return buildCommercialAirlinerMesh(ctx);
 }
 
-const AIRPORT_AIRCRAFT_PLACEMENTS = [
+const DESIGN_AIRPORT_AIRCRAFT_PLACEMENTS = [
   // 2 Grandes Aviões Comerciais LEGO Airlines nos pátios civis:
   { x: -1380.0, y: 0.22, z: -420.0, rotY: 0, color: LEGO_COLORS.white, type: 'aviao_comercial' },
   { x: -1380.0, y: 0.22, z: -140.0, rotY: 0, color: LEGO_COLORS.white, type: 'aviao_comercial' },
@@ -418,7 +420,7 @@ const AIRPORT_AIRCRAFT_PLACEMENTS = [
   { x: -1215.0, y: 0.22, z: -55.0,  rotY: Math.PI / 2,  color: 0x111827, type: 'heli_policia' }
 ];
 
-const HELIPAD_ROOFTOP_PLACEMENTS = [
+const DESIGN_HELIPAD_ROOFTOP_PLACEMENTS = [
   // Heliponto no Terraço do Super Banco Central:
   { x: -31.5,  y: 40.25, z: -180.0, rotY: 0, color: 0x111827, type: 'heli_policia' },
   // Heliponto Principal no Topo da Torre dos Heróis + Caça Supersônico no Hangar em Balanço:
@@ -432,7 +434,7 @@ const HELIPAD_ROOFTOP_PLACEMENTS = [
   { x: 1398.0, y: 126.8, z: 1540.0, rotY: Math.PI, color: 0x090a0d, roofColor: 0xfacc15, customName: 'HELICÓPTERO CAVEIRA 02 (BOPE / PRISÃO)', type: 'heli_policia' }
 ];
 
-const CAPITANIA_AND_HELICARRIER_PLACEMENTS = [
+const DESIGN_CAPITANIA_AND_HELICARRIER_PLACEMENTS = [
   // Heliponto no Topo da Torre da Capitania dos Portos & Controle Naval:
   { x: 1105.0, y: 92.8,  z: 235.0,  rotY: 0,       color: 0xf8fafc, roofColor: 0x0284c7, customName: 'HELICÓPTERO DA CAPITANIA DOS PORTOS', type: 'heli_policia' },
   // Convés do Aeroporta-Aviões no Céu (Y = 410.45): 3 Caças Supersônicos + 1 Helicóptero de Ataque!
@@ -443,20 +445,102 @@ const CAPITANIA_AND_HELICARRIER_PLACEMENTS = [
 ];
 
 /**
+ * Resolve o posicionamento de aeronaves e helicópteros em `IS_SCALED_WORLD` respeitando rígida ancoragem 1x
+ * nos helipontos de topos de prédios e no Aeroporta-Aviões, sem alterar 1x quando `!IS_SCALED_WORLD`.
+ */
+export function resolveAircraftPlacements(world = null) {
+  if (!IS_SCALED_WORLD) {
+    return {
+      airport: DESIGN_AIRPORT_AIRCRAFT_PLACEMENTS,
+      rooftops: DESIGN_HELIPAD_ROOFTOP_PLACEMENTS,
+      capitaniaAndCarrier: DESIGN_CAPITANIA_AND_HELICARRIER_PLACEMENTS
+    };
+  }
+
+  const termX = world?.westAirportData?.terminalCenter?.x ?? ws(-1145);
+  const airport = [
+    { ...DESIGN_AIRPORT_AIRCRAFT_PLACEMENTS[0], x: termX - 80.0, z: -420.0 },
+    { ...DESIGN_AIRPORT_AIRCRAFT_PLACEMENTS[1], x: termX - 80.0, z: -120.0 },
+    ...DESIGN_AIRPORT_AIRCRAFT_PLACEMENTS.slice(2).map((a) => ({ ...a, x: ws(a.x), z: ws(a.z) }))
+  ];
+
+  const bankZShift = world?.superBankData?.zShift ?? ws(-175) - -175;
+  const bankRoofY = world?.superBankData?.roofTopY ?? 40.96;
+  const hxShift = world?.heroTowerData?.shiftX ?? ws(-324) - -324;
+  const hzShift = world?.heroTowerData?.shiftZ ?? ws(-168) - -168;
+  const pccOrig = world?.industrialPCCData?.citadelOrigin || { x: ws(866), z: ws(-316) };
+  const liftAt = (px, pz) => {
+    const raw = world?.getTerrainHeightAt ? Math.max(0, world.getTerrainHeightAt(px, pz)) : 0;
+    return raw > 0.04 ? raw : 0;
+  };
+  const pccMainLift = liftAt(pccOrig.x, pccOrig.z - 47);
+  const pccAuxLift = liftAt(pccOrig.x - 50, pccOrig.z - 5);
+  const prisonOx = ws(1375) - 1375;
+  const prisonOz = ws(1540) - 1540;
+  const R = DESIGN_HELIPAD_ROOFTOP_PLACEMENTS;
+
+  const rooftops = [
+    {
+      ...R[0],
+      x: -40.0,
+      y: bankRoofY + 0.66,
+      z: -195.0 + bankZShift,
+      _ensureHelipadCollider: { w: 24.0, d: 24.0, minY: bankRoofY, maxY: bankRoofY + 0.64 }
+    },
+    { ...R[1], x: -318.0 + hxShift, y: 310.8, z: -180.0 + hzShift },
+    { ...R[2], x: -318.0 + hxShift, y: 228.45, z: -144.0 + hzShift },
+    { ...R[3], x: pccOrig.x, y: 112.8 + pccMainLift, z: pccOrig.z - 47.0 },
+    { ...R[4], x: pccOrig.x - 50.0, y: 30.55 + pccAuxLift, z: pccOrig.z - 5.0 },
+    { ...R[5], x: 1352.0 + prisonOx, y: 126.8, z: 1540.0 + prisonOz },
+    { ...R[6], x: 1398.0 + prisonOx, y: 126.8, z: 1540.0 + prisonOz }
+  ];
+
+  const carrierZShift = (world?.helicarrierData?.hz ?? ws(-50)) - -50;
+  const C = DESIGN_CAPITANIA_AND_HELICARRIER_PLACEMENTS;
+  const capitaniaAndCarrier = [
+    { ...C[0], x: ws(1105.0), y: 92.8, z: ws(235.0) },
+    ...C.slice(1).map((a) => ({ ...a, z: a.z + carrierZShift }))
+  ];
+
+  return { airport, rooftops, capitaniaAndCarrier };
+}
+
+/**
  * Posiciona todas as embarcações e aeronaves pelo mapa preservando a ordem exata de cena/colisores.
  */
 export function buildBoatsAndAircraftFleet(world) {
+  const naval = IS_SCALED_WORLD
+    ? resolveNavalBoatPlacements(world)
+    : { lakeAndMarina: LAKE_AND_MARINA_BOAT_PLACEMENTS, coastGuard: COAST_GUARD_BOAT_PLACEMENTS };
+  const air = resolveAircraftPlacements(world);
+
   const fleet = [
-    ...LAKE_AND_MARINA_BOAT_PLACEMENTS,
-    ...AIRPORT_AIRCRAFT_PLACEMENTS,
-    ...HELIPAD_ROOFTOP_PLACEMENTS,
-    ...COAST_GUARD_BOAT_PLACEMENTS,
-    ...CAPITANIA_AND_HELICARRIER_PLACEMENTS
+    ...naval.lakeAndMarina,
+    ...air.airport,
+    ...air.rooftops,
+    ...naval.coastGuard,
+    ...air.capitaniaAndCarrier
   ];
 
   fleet.forEach((cfg) => {
     const spec = VEHICLE_SPECS[cfg.type];
     if (!spec) return;
+
+    if (IS_SCALED_WORLD && cfg._ensureHelipadCollider && Array.isArray(world.colliders)) {
+      const pad = cfg._ensureHelipadCollider;
+      const hasPad = world.colliders.some(
+        (c) =>
+          !c.disabled &&
+          cfg.x >= c.minX &&
+          cfg.x <= c.maxX &&
+          cfg.z >= c.minZ &&
+          cfg.z <= c.maxZ &&
+          Math.abs(c.maxY - (cfg.y ?? 0)) <= 2.0
+      );
+      if (!hasPad) {
+        world.addCollider(cfg.x, cfg.z, pad.w, pad.d, pad.maxY, pad.minY);
+      }
+    }
 
     const mesh = createNavalOrAircraftMesh(cfg);
     optimizeStaticGroupMeshes(mesh, [

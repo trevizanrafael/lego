@@ -3,6 +3,7 @@ import { getLegoMaterial } from '../../materials/LegoMaterials.js';
 import { getTerritoryZoneAt } from '../FactionWarSystem.js';
 import { HumanoidHealthModel } from '../npc-health/HumanoidHealthModel.js';
 import { resetHumanoidLimbPose } from '../npc-health/HumanoidHitReactions.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
 import {
   NPC_HEAD_GEO,
   NPC_FACE_SHELL_GEO,
@@ -210,10 +211,46 @@ export const pedestrianCrowdAndInstancingMethods = {
     }
   },
 
-  _registerCivilianPedestrian({ x1, z1, x2, z2, uStart = 0.5, isChatGroup = false, chatPartnerAngle = 0, seed = 0 }) {
+  _registerCivilianPedestrian({
+    x1,
+    z1,
+    x2,
+    z2,
+    uStart = 0.5,
+    isChatGroup = false,
+    chatPartnerAngle = 0,
+    seed = 0,
+    corridor = null,
+    laneJitter = 0
+  }) {
     const rawX = THREE.MathUtils.lerp(x1, x2, uStart);
     const rawZ = THREE.MathUtils.lerp(z1, z2, uStart);
-    const safe = this._findSafeStreetSpawn(rawX, rawZ, 1.35);
+    let safe;
+    let activeCorridor = corridor;
+    let activeJitter = laneJitter;
+    if (IS_SCALED_WORLD) {
+      if (
+        activeCorridor &&
+        !this._isInsideAsphaltRoad(rawX, rawZ, 1.4) &&
+        !this._isInsideBuilding(rawX, rawZ, 1.15) &&
+        this._isValidDryLandForPedestrian(rawX, rawZ)
+      ) {
+        safe = { x: rawX, z: rawZ, valid: true };
+      } else {
+        const sw = this._findSafeSidewalkSpawn(rawX, rawZ, 260, seed);
+        safe = sw.valid ? sw : this._findSafeStreetSpawn(rawX, rawZ, 1.35);
+        if (sw.corridor) {
+          activeCorridor = sw.corridor;
+          activeJitter = sw.laneJitter || 0;
+          x1 = activeCorridor.axis === 'x' ? activeCorridor.startAlong : activeCorridor.centerCoord + activeJitter;
+          z1 = activeCorridor.axis === 'x' ? activeCorridor.centerCoord + activeJitter : activeCorridor.startAlong;
+          x2 = activeCorridor.axis === 'x' ? activeCorridor.endAlong : activeCorridor.centerCoord + activeJitter;
+          z2 = activeCorridor.axis === 'x' ? activeCorridor.centerCoord + activeJitter : activeCorridor.endAlong;
+        }
+      }
+    } else {
+      safe = this._findSafeStreetSpawn(rawX, rawZ, 1.35);
+    }
     const archetype = this._pickArchetypeForCoords(safe.x, safe.z, seed);
     const visual = this._buildCivilianLegoMinifig(archetype, seed);
 
@@ -249,6 +286,15 @@ export const pedestrianCrowdAndInstancingMethods = {
       z1,
       x2,
       z2,
+      corridor: activeCorridor,
+      laneJitter: activeJitter,
+      crossState: 'SIDEWALK',
+      activeCrosswalk: null,
+      waitCrossTimer: 0,
+      cwWaitX: 0,
+      cwWaitZ: 0,
+      cwDestX: 0,
+      cwDestZ: 0,
       dir: seed % 2 === 0 ? 1 : -1,
       walkSpeed: visual.preset.speed,
       state: 'NORMAL',
@@ -321,6 +367,101 @@ export const pedestrianCrowdAndInstancingMethods = {
     ];
 
     let seedCounter = 1;
+    if (IS_SCALED_WORLD && this._validSidewalkCorridors?.length) {
+      for (const spot of chatSpots) {
+        const sw = this._findSafeSidewalkSpawn(ws(spot.cx), ws(spot.cz), 240, seedCounter);
+        const cx = sw.corridor
+          ? (sw.corridor.axis === 'x' ? sw.x : sw.corridor.centerCoord)
+          : sw.x;
+        const cz = sw.corridor
+          ? (sw.corridor.axis === 'x' ? sw.corridor.centerCoord : sw.z)
+          : sw.z;
+        for (let k = 0; k < spot.count; k++) {
+          const ang = (k / spot.count) * Math.PI * 2 + 0.35;
+          const px = cx + Math.cos(ang) * 1.05;
+          const pz = cz + Math.sin(ang) * 1.05;
+          const lookToCenter = Math.atan2(cx - px, cz - pz);
+          const c = sw.corridor;
+          this._registerCivilianPedestrian({
+            x1: c ? (c.axis === 'x' ? c.startAlong : px) : px,
+            z1: c ? (c.axis === 'x' ? pz : c.startAlong) : pz,
+            x2: c ? (c.axis === 'x' ? c.endAlong : px) : px + 18,
+            z2: c ? (c.axis === 'x' ? pz : c.endAlong) : pz,
+            uStart: c
+              ? THREE.MathUtils.clamp(
+                  ((c.axis === 'x' ? px : pz) - c.startAlong) / Math.max(1, c.endAlong - c.startAlong),
+                  0.05,
+                  0.95
+                )
+              : 0,
+            isChatGroup: true,
+            chatPartnerAngle: lookToCenter,
+            seed: seedCounter++,
+            corridor: c
+          });
+        }
+      }
+
+      // Seleciona 64 corredores reais de calçada de 10m distribuídos pelos bairros (mesmo orçamento de 128 pedestres!)
+      const routeAnchorHints = [
+        [0, -117], [-80, -117], [80, -117], [-120, -180], [120, -180], [-60, -250], [60, -250],
+        [-190, -117], [-190, -60], [-120, -40], [120, -40], [-60, 0], [60, 0], [-252, -120],
+        [-252, 40], [190, -117], [252, -80], [60, 134], [190, 134], [-60, 134], [-120, 120],
+        [252, 120], [60, 402], [-120, 402], [252, 402], [-252, 134], [384, -117], [-384, -117],
+        [-60, -512], [60, -512], [60, -644], [-190, -512], [190, -512], [-120, -580], [120, -580],
+        [0, -382], [-252, -382], [252, -382], [-190, 710], [0, 710], [190, 710], [320, 710],
+        [-320, 710], [-180, 738], [-40, 738], [60, 738], [180, 738], [320, 738],
+        [-120, 556], [120, 556], [-516, -180], [-516, -40], [-516, 80], [-516, -320],
+        [-384, 60], [-384, -250], [384, 60], [600, -117], [600, -250], [600, 0],
+        [768, -117], [768, -250], [964, -117], [600, -512]
+      ];
+      const chosenCorridors = [];
+      const usedSet = new Set();
+      for (let h = 0; h < routeAnchorHints.length && chosenCorridors.length < 64; h++) {
+        const hx = ws(routeAnchorHints[h][0]);
+        const hz = ws(routeAnchorHints[h][1]);
+        let bestC = null;
+        let bestD = Infinity;
+        for (let ci = 0; ci < this._validSidewalkCorridors.length; ci++) {
+          const c = this._validSidewalkCorridors[ci];
+          if (usedSet.has(c)) continue;
+          const d = Math.hypot(c.mx - hx, c.mz - hz);
+          if (d < bestD) {
+            bestD = d;
+            bestC = c;
+          }
+        }
+        if (bestC) {
+          usedSet.add(bestC);
+          chosenCorridors.push(bestC);
+        }
+      }
+      for (let ci = 0; ci < chosenCorridors.length; ci++) {
+        const c = chosenCorridors[ci];
+        for (let k = 0; k < 2; k++) {
+          const uStart = k === 0 ? 0.24 : 0.76;
+          const jit = ((seedCounter % 5) - 2) * 0.85; // dentro de centerCoord ± 1.7m (>= 3.3m longe da guia!)
+          const x1 = c.axis === 'x' ? c.startAlong : c.centerCoord + jit;
+          const z1 = c.axis === 'x' ? c.centerCoord + jit : c.startAlong;
+          const x2 = c.axis === 'x' ? c.endAlong : c.centerCoord + jit;
+          const z2 = c.axis === 'x' ? c.centerCoord + jit : c.endAlong;
+          this._registerCivilianPedestrian({
+            x1,
+            z1,
+            x2,
+            z2,
+            uStart,
+            isChatGroup: false,
+            seed: seedCounter++,
+            corridor: c,
+            laneJitter: jit
+          });
+        }
+      }
+      this._syncPedestrianInstances();
+      return;
+    }
+
     for (const spot of chatSpots) {
       const safeCenter = this._findSafeStreetSpawn(spot.cx, spot.cz, 2.1);
       for (let k = 0; k < spot.count; k++) {
@@ -423,9 +564,32 @@ export const pedestrianCrowdAndInstancingMethods = {
     this._syncPedestrianInstances();
   },
 
+  _resetRecycledPedestrianState(ped, x, y, z, terrainY, x1, z1, x2, z2, corridor = null, laneJitter = 0, isChatGroup = false, chatAngle = 0, seedOffset = 0) {
+    const root = ped.visual.root;
+    const newArch = this._pickArchetypeForCoords(x, z, ped.id + seedOffset);
+    this._rethemePedestrianArchetype(ped, newArch, ped.id + seedOffset);
+    root.position.set(x, y, z);
+    root.rotation.set(0, 0, 0);
+    root.scale.set(1, 1, 1);
+    root.visible = true;
+    root.matrixWorldAutoUpdate = true;
+    resetHumanoidLimbPose(ped.visual);
+    Object.assign(ped, {
+      panicTimer: 0, crouchPanicTimer: 0, vehicleHitCooldown: 0, diveTimer: 0,
+      isDeadCorpse: false, _corpseSinkOffset: 0, state: 'NORMAL',
+      corridor, laneJitter, crossState: 'SIDEWALK', activeCrosswalk: null, waitCrossTimer: 0,
+      isChatGroup, chatPartnerAngle: chatAngle, x1, z1, x2, z2
+    });
+    this._setPedestrianFace(ped, ped.normalFaceKey);
+    ped.humanoidHealth?.reset(100);
+    if (ped.destructible) {
+      Object.assign(ped.destructible, { hp: 100, maxHp: 100, destroyed: false, isDeadCorpse: false, groundY: terrainY });
+      ped.destructible.basePos.set(x, y, z);
+    }
+  },
+
   _updateDynamicCrowdRing(playerPos) {
     if (!playerPos || playerPos.y > 95) return;
-
     let recycledCount = 0;
     const maxRecyclesPerTick = 32;
 
@@ -434,88 +598,76 @@ export const pedestrianCrowdAndInstancingMethods = {
       const ped = this.pedestrians[i];
       if (ped.isDeadCorpse || ped.humanoidHealth?.isDead()) continue;
       const root = ped.visual.root;
-      const dist = Math.hypot(root.position.x - playerPos.x, root.position.z - playerPos.z);
-      if (dist <= 125.0) continue;
+      if (Math.hypot(root.position.x - playerPos.x, root.position.z - playerPos.z) <= 125.0) continue;
 
-      let placed = false;
       for (let attempt = 0; attempt < 5; attempt++) {
         const ang = ((i * 1.618 + attempt * 1.25 + performance.now() * 0.0003) % 1) * Math.PI * 2;
         const ringDist = 25.0 + ((i * 19 + attempt * 23) % 90);
         const candX = playerPos.x + Math.cos(ang) * ringDist;
         const candZ = playerPos.z + Math.sin(ang) * ringDist;
         if (!this._isValidDryLandForPedestrian(candX, candZ)) continue;
-        if (
-          this.factionWar?.isInvasionActive &&
-          getTerritoryZoneAt(candX, candZ)?.id === this.factionWar.activeZoneId
-        ) {
-          continue;
+        if (this.factionWar?.isInvasionActive && getTerritoryZoneAt(candX, candZ)?.id === this.factionWar.activeZoneId) continue;
+
+        if (IS_SCALED_WORLD) {
+          const sw = this._findSafeSidewalkSpawn(candX, candZ, 95.0, i + attempt + recycledCount);
+          if (!sw.valid || !sw.corridor) continue;
+          const distToP = Math.hypot(sw.x - playerPos.x, sw.z - playerPos.z);
+          if (distToP < 22.0 || distToP > 122.0) continue;
+          const c = sw.corridor, jit = sw.laneJitter || 0;
+          const tY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(sw.x, sw.z) : 0;
+          this._resetRecycledPedestrianState(
+            ped, sw.x, this._getPedestrianGroundY(sw.x, sw.z, tY), sw.z, tY,
+            c.axis === 'x' ? c.startAlong : c.centerCoord + jit,
+            c.axis === 'x' ? c.centerCoord + jit : c.startAlong,
+            c.axis === 'x' ? c.endAlong : c.centerCoord + jit,
+            c.axis === 'x' ? c.centerCoord + jit : c.endAlong,
+            c, jit, i % 7 === 0, ang + Math.PI * 0.5, recycledCount
+          );
+          recycledCount++;
+          break;
         }
 
         const safe = this._findSafeStreetSpawn(candX, candZ, 1.85);
         if (!safe.valid) continue;
-
         const walkAlongX = (i + attempt) % 2 === 0;
         const halfSeg = 24.0 + (i % 4) * 5.5;
         const ax1 = walkAlongX ? safe.x - halfSeg : safe.x;
         const az1 = walkAlongX ? safe.z : safe.z - halfSeg;
         const ax2 = walkAlongX ? safe.x + halfSeg : safe.x;
         const az2 = walkAlongX ? safe.z : safe.z + halfSeg;
-
         const end1Ok = !this._isInsideBuilding(ax1, az1, 1.1) && this._isValidDryLandForPedestrian(ax1, az1);
         const end2Ok = !this._isInsideBuilding(ax2, az2, 1.1) && this._isValidDryLandForPedestrian(ax2, az2);
-
-        const terrainY = this.world.getTerrainHeightAt
-          ? this.world.getTerrainHeightAt(safe.x, safe.z)
-          : 0;
-        const pedGroundY = this._getPedestrianGroundY(safe.x, safe.z, terrainY);
-        const newArch = this._pickArchetypeForCoords(safe.x, safe.z, ped.id + recycledCount);
-        this._rethemePedestrianArchetype(ped, newArch, ped.id + recycledCount);
-
-        root.position.set(safe.x, pedGroundY, safe.z);
-        root.rotation.set(0, 0, 0);
-        root.scale.set(1, 1, 1);
-        root.visible = true;
-        root.matrixWorldAutoUpdate = true;
-        resetHumanoidLimbPose(ped.visual);
-
-        ped.panicTimer = 0;
-        ped.crouchPanicTimer = 0;
-        ped.vehicleHitCooldown = 0;
-        ped.diveTimer = 0;
-        ped.isDeadCorpse = false;
-        ped._corpseSinkOffset = 0;
-        ped.state = 'NORMAL';
-        ped.isChatGroup = i % 7 === 0;
-        ped.chatPartnerAngle = ang + Math.PI * 0.5;
-        ped.x1 = end1Ok ? ax1 : safe.x;
-        ped.z1 = end1Ok ? az1 : safe.z;
-        ped.x2 = end2Ok ? ax2 : safe.x + (walkAlongX ? 16 : 0);
-        ped.z2 = end2Ok ? az2 : safe.z + (walkAlongX ? 0 : 16);
-        ped.humanoidHealth?.reset(100);
-
-        if (ped.destructible) {
-          ped.destructible.hp = 100;
-          ped.destructible.maxHp = 100;
-          ped.destructible.destroyed = false;
-          ped.destructible.isDeadCorpse = false;
-          ped.destructible.basePos.copy(root.position);
-          ped.destructible.groundY = terrainY;
-        }
-
+        const terrainY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(safe.x, safe.z) : 0;
+        this._resetRecycledPedestrianState(
+          ped, safe.x, this._getPedestrianGroundY(safe.x, safe.z, terrainY), safe.z, terrainY,
+          end1Ok ? ax1 : safe.x, end1Ok ? az1 : safe.z,
+          end2Ok ? ax2 : safe.x + (walkAlongX ? 16 : 0), end2Ok ? az2 : safe.z + (walkAlongX ? 0 : 16),
+          null, 0, i % 7 === 0, ang + Math.PI * 0.5, recycledCount
+        );
         recycledCount++;
-        placed = true;
         break;
       }
-      if (!placed) continue;
     }
   },
 
   recycleDeadPedestrianOutOfSight(ped, spawn) {
     if (!ped || !spawn) return;
-    const root = ped.visual.root;
-    const newArch = this._pickArchetypeForCoords(spawn.x, spawn.z, ped.id + 11);
-    this._rethemePedestrianArchetype(ped, newArch, ped.id + 11);
-
+    if (IS_SCALED_WORLD && typeof this._findSafeSidewalkSpawn === 'function') {
+      const sw = this._findSafeSidewalkSpawn(spawn.x, spawn.z, 220.0, ped.id + 11);
+      if (sw.valid && sw.corridor) {
+        const tY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(sw.x, sw.z) : 0;
+        const c = sw.corridor, jit = sw.laneJitter || 0;
+        this._resetRecycledPedestrianState(
+          ped, sw.x, this._getPedestrianGroundY(sw.x, sw.z, tY), sw.z, tY,
+          c.axis === 'x' ? c.startAlong : c.centerCoord + jit,
+          c.axis === 'x' ? c.centerCoord + jit : c.startAlong,
+          c.axis === 'x' ? c.endAlong : c.centerCoord + jit,
+          c.axis === 'x' ? c.centerCoord + jit : c.endAlong,
+          c, jit, false, 0, 11
+        );
+        return;
+      }
+    }
     const walkAlongX = ped.id % 2 === 0;
     const halfSeg = 22.0 + (ped.id % 4) * 5.0;
     const ax1 = walkAlongX ? spawn.x - halfSeg : spawn.x;
@@ -524,37 +676,12 @@ export const pedestrianCrowdAndInstancingMethods = {
     const az2 = walkAlongX ? spawn.z : spawn.z + halfSeg;
     const end1Ok = !this._isInsideBuilding(ax1, az1, 1.1) && this._isValidDryLandForPedestrian(ax1, az1);
     const end2Ok = !this._isInsideBuilding(ax2, az2, 1.1) && this._isValidDryLandForPedestrian(ax2, az2);
-
-    root.position.set(spawn.x, spawn.y, spawn.z);
-    root.rotation.set(0, 0, 0);
-    root.scale.set(1, 1, 1);
-    root.visible = true;
-    root.matrixWorldAutoUpdate = true;
-    resetHumanoidLimbPose(ped.visual);
-
-    ped.isDeadCorpse = false;
-    ped._corpseSinkOffset = 0;
-    ped.panicTimer = 0;
-    ped.crouchPanicTimer = 0;
-    ped.vehicleHitCooldown = 0;
-    ped.diveTimer = 0;
-    ped.state = 'NORMAL';
-    ped.isChatGroup = false;
-    ped.x1 = end1Ok ? ax1 : spawn.x;
-    ped.z1 = end1Ok ? az1 : spawn.z;
-    ped.x2 = end2Ok ? ax2 : spawn.x + (walkAlongX ? 16 : 0);
-    ped.z2 = end2Ok ? az2 : spawn.z + (walkAlongX ? 0 : 16);
-    this._setPedestrianFace(ped, ped.normalFaceKey);
-    ped.humanoidHealth?.reset(100);
-
-    if (ped.destructible) {
-      ped.destructible.hp = 100;
-      ped.destructible.maxHp = 100;
-      ped.destructible.destroyed = false;
-      ped.destructible.isDeadCorpse = false;
-      ped.destructible.basePos.set(spawn.x, spawn.y, spawn.z);
-      ped.destructible.groundY = spawn.terrainY ?? 0;
-    }
+    this._resetRecycledPedestrianState(
+      ped, spawn.x, spawn.y, spawn.z, spawn.terrainY ?? 0,
+      end1Ok ? ax1 : spawn.x, end1Ok ? az1 : spawn.z,
+      end2Ok ? ax2 : spawn.x + (walkAlongX ? 16 : 0), end2Ok ? az2 : spawn.z + (walkAlongX ? 0 : 16),
+      null, 0, false, 0, 11
+    );
   },
 
   _getPedestrianGroundY(x, z, precomputedTerrainY = null) {

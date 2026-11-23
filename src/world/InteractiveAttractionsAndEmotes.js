@@ -15,6 +15,7 @@
  * ============================================================================
  */
 import * as THREE from 'three';
+import { IS_SCALED_WORLD, ws } from './core/WorldLayoutScale.js';
 import {
   HERO_EMOTES,
   applyEmoteAnimationToMinifigure
@@ -44,8 +45,12 @@ export class InteractiveAttractionsManager {
     this.scene = world.scene;
     this.time = 0;
 
-    // 1. Baile Funk da CDD (X = -715, Z = -135, Y ≈ 25.0m)
-    this.baileCenter = new THREE.Vector3(-715, 25.0, -135);
+    // 1. Baile Funk da CDD (X = -715, Z = -135 em 1x; wsP(-715, -135) em 3x, altura Y 1x!)
+    const baileData = world.favelaBaileData;
+    const initBaileX = baileData?.cx ?? world.favelaBaileCenter?.x ?? (IS_SCALED_WORLD ? ws(-715) : -715);
+    const initBaileY = baileData?.yBase ?? world.favelaBaileCenter?.y ?? 25.0;
+    const initBaileZ = baileData?.cz ?? world.favelaBaileCenter?.z ?? (IS_SCALED_WORLD ? ws(-135) : -135);
+    this.baileCenter = new THREE.Vector3(initBaileX, initBaileY, initBaileZ);
     this.baileWoofers = [];
     this.baileEqBars = [];
     this.baileLaserPivots = [];
@@ -53,25 +58,27 @@ export class InteractiveAttractionsManager {
     this.baileCrowd = null;
 
     // 2. Atrações Embarcáveis do Mega Píer (Montanha-Russa, Roda-Gigante 73m e Big Drop 58m)
+    const pzOff = world.pierOffsetZ || 0;
     this.coasterCurve = null;
     this.coasterCars = [];
     this.coasterU = 0.042; // Começa na plataforma de embarque!
     this.coasterStopTimer = 2.0;
     this.coasterSpeed = 0;
-    this.coasterStationPos = new THREE.Vector3(-36, 4.2, 1235);
+    this.coasterStationPos = new THREE.Vector3(-36, 4.2, 1235 + pzOff);
 
     this.ferrisWheelGroup = null;
     this.ferrisCabins = [];
-    this.ferrisWheelCenter = new THREE.Vector3(0, 42.0, 1480);
+    this.ferrisWheelCenter = new THREE.Vector3(0, 42.0, 1480 + pzOff);
     this.ferrisWheelRadius = 31.0;
-    this.ferrisStationPos = new THREE.Vector3(0, 4.2, 1480);
+    this.ferrisStationPos = new THREE.Vector3(0, 4.2, 1480 + pzOff);
 
     this.bigDropGondola = null;
     this.bigDropState = 'BOARDING'; // 'BOARDING' | 'CLIMBING' | 'SUSPENSE' | 'FREEFALL' | 'BRAKING'
     this.bigDropTimer = 2.5;
     this.bigDropY = 3.2;
     this.bigDropVelY = 0;
-    this.bigDropBasePos = new THREE.Vector3(24, 3.2, 1325);
+    this.bigDropBasePos = new THREE.Vector3(24, 3.2, 1325 + pzOff);
+    this.carouselPos = new THREE.Vector3(-16, 1.6, 1325 + pzOff);
 
     this._dummy = new THREE.Object3D();
     this._tmpTan = new THREE.Vector3();

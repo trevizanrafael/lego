@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { LEGO_COLORS } from '../../materials/LegoMaterials.js';
 import { VEHICLE_SPECS, createLegoCarMesh } from '../VehicleFleetBuilder.js';
 import { getMetroCutoutFloorY } from '../MetroSystemBuilder.js';
-import { STAR_FORCE_BUDGET, DISPATCH_RULES, HELI_TUNING } from './PursuitTuning.js';
+import { IS_SCALED_WORLD, ws } from '../core/WorldLayoutScale.js';
+import { STAR_FORCE_BUDGET, DISPATCH_RULES, HELI_TUNING, PURSUIT_WORLD_BOUNDS } from './PursuitTuning.js';
 import { ensurePoliceRoadGraph } from './PoliceRoadGraph.js';
 import { attachVehicleOccupants } from '../vehicles/VehicleOccupants.js';
 
@@ -44,6 +45,17 @@ function getNearestPrecinctDist(x, z) {
     if (dSq < bestSq) bestSq = dSq;
   }
   return Math.sqrt(bestSq);
+}
+
+function clampDispatchCoords(x, z, px = 0, pz = 0) {
+  const minX = Math.min(PURSUIT_WORLD_BOUNDS.minX, px - 260);
+  const maxX = Math.max(PURSUIT_WORLD_BOUNDS.maxX, px + 260);
+  const minZ = Math.min(PURSUIT_WORLD_BOUNDS.minZ, pz - 260);
+  const maxZ = Math.max(PURSUIT_WORLD_BOUNDS.maxZ, pz + 260);
+  return {
+    x: THREE.MathUtils.clamp(x, minX, maxX),
+    z: THREE.MathUtils.clamp(z, minZ, maxZ)
+  };
 }
 
 /**
@@ -152,10 +164,11 @@ export const policeDispatchMethods = {
   },
 
   _spawnImmediateWaveForStars(playerPos) {
+    const defaultZ = IS_SCALED_WORLD ? ws(-117) : -140;
     const refPos =
       playerPos && (playerPos.x !== 0 || playerPos.z !== 0)
         ? playerPos
-        : new THREE.Vector3(0, 0.5, -140);
+        : new THREE.Vector3(0, 0.5, defaultZ);
 
     if (!this._isPlayerInUndergroundTunnel(refPos)) {
       const desiredCars = this._getDesiredVehicleCount();
@@ -195,6 +208,7 @@ export const policeDispatchMethods = {
     const camFwd = getCameraForward2D(this, null, cameraForward);
     const velX = this._playerVelDir?.x || 0;
     const velZ = this._playerVelDir?.z || 0;
+    const precinctFalloff = ws(680.0);
 
     const samples = ensurePoliceRoadGraph(this).spawnSamples || [];
     let bestSample = null;
@@ -202,6 +216,14 @@ export const policeDispatchMethods = {
 
     for (let i = 0; i < samples.length; i++) {
       const s = samples[i];
+      if (
+        s.x < Math.min(PURSUIT_WORLD_BOUNDS.minX, px - 260) ||
+        s.x > Math.max(PURSUIT_WORLD_BOUNDS.maxX, px + 260) ||
+        s.z < Math.min(PURSUIT_WORLD_BOUNDS.minZ, pz - 260) ||
+        s.z > Math.max(PURSUIT_WORLD_BOUNDS.maxZ, pz + 260)
+      ) {
+        continue;
+      }
       const dx = s.x - px;
       const dz = s.z - pz;
       const dist = Math.hypot(dx, dz);
@@ -222,7 +244,7 @@ export const policeDispatchMethods = {
         if (pd < minPeerDist) minPeerDist = pd;
       }
 
-      const precinctScore = Math.max(0, 1.0 - getNearestPrecinctDist(s.x, s.z) / 680.0) * 38.0;
+      const precinctScore = Math.max(0, 1.0 - getNearestPrecinctDist(s.x, s.z) / precinctFalloff) * 38.0;
       const losScore = blockedByBldg ? 32.0 : 0.0;
       const camScore = dotCam < -0.15 ? 16.0 : (dotCam < 0.2 ? 8.0 : 0.0);
       const bandScore = dist >= prefMin && dist <= prefMax ? 18.0 : 0.0;
@@ -242,19 +264,23 @@ export const policeDispatchMethods = {
     }
 
     const behindAng = Math.atan2(-camFwd.x, -camFwd.z);
-    for (let attempt = 0; attempt < 12; attempt++) {
+    for (let attempt = 0; attempt < 16; attempt++) {
       const ang = behindAng + ((attempt % 2 === 0 ? 1 : -1) * Math.ceil(attempt / 2) * Math.PI) / 9;
       const dist = THREE.MathUtils.clamp(prefMin + 22.0, 130.0, 185.0);
-      const fx = px + Math.sin(ang) * dist;
-      const fz = pz + Math.cos(ang) * dist;
-      if (((fx - px) * camFwd.x + (fz - pz) * camFwd.z) / dist > 0.45) continue;
+      const clamped = clampDispatchCoords(px + Math.sin(ang) * dist, pz + Math.cos(ang) * dist, px, pz);
+      const fx = clamped.x;
+      const fz = clamped.z;
+      const fDist = Math.hypot(fx - px, fz - pz);
+      if (fDist < hardMin || fDist > hardMax) continue;
+      if (((fx - px) * camFwd.x + (fz - pz) * camFwd.z) / fDist > 0.45) continue;
       if (this.world?.isDeepWaterAt?.(fx, fz, { forCar: true })) continue;
+      if (getMetroCutoutFloorY(fx, fz) !== null) continue;
+      if (this._isSegmentBlockedByBuilding?.(fx - 1.5, fz - 1.5, fx + 1.5, fz + 1.5)) continue;
       return { x: fx, y: this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(fx, fz) : 0, z: fz };
     }
 
-    const fbX = px - camFwd.x * 150.0;
-    const fbZ = pz - camFwd.z * 150.0;
-    return { x: fbX, y: this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(fbX, fbZ) : 0, z: fbZ };
+    const fb = clampDispatchCoords(px - camFwd.x * 150.0, pz - camFwd.z * 150.0, px, pz);
+    return { x: fb.x, y: this.world?.getTerrainHeightAt ? this.world.getTerrainHeightAt(fb.x, fb.z) : 0, z: fb.z };
   },
 
   _pickPursuitVehicleConfig() {
@@ -277,7 +303,8 @@ export const policeDispatchMethods = {
 
   _spawnPursuitVehicle(playerPos) {
     if (this.stars > 0 && this._getActivePoliceCarCount() >= this._getDesiredVehicleCount()) return null;
-    const refPos = playerPos || this._lastPlayerPos || new THREE.Vector3(0, 0.5, -140);
+    const defaultZ = IS_SCALED_WORLD ? ws(-117) : -140;
+    const refPos = playerPos || this._lastPlayerPos || new THREE.Vector3(0, 0.5, defaultZ);
     const cfg = this._pickPursuitVehicleConfig();
     const spec = VEHICLE_SPECS[cfg.vType] || VEHICLE_SPECS.interceptor_v8;
     const spawn = this._findPursuitSpawnPos(refPos, 125, 195, this.pursuitVehicles.length % 3 === 1);
@@ -318,7 +345,8 @@ export const policeDispatchMethods = {
     const desiredTanks = this._getDesiredTankCount();
     if (desiredTanks <= 0 || this._getActivePoliceTankCount() >= desiredTanks) return null;
 
-    const refPos = playerPos || this._lastPlayerPos || new THREE.Vector3(0, 0.5, -140);
+    const defaultZ = IS_SCALED_WORLD ? ws(-117) : -140;
+    const refPos = playerPos || this._lastPlayerPos || new THREE.Vector3(0, 0.5, defaultZ);
     const spec = VEHICLE_SPECS.tanque_titan;
     const spawn = this._findPursuitSpawnPos(refPos, 130, 195, false);
     const heading = Math.atan2(refPos.x - spawn.x, refPos.z - spawn.z);

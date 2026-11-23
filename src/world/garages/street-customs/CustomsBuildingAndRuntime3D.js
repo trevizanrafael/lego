@@ -13,6 +13,12 @@ import {
 } from '../../VehicleFleetBuilder.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
 import { soundFX } from '../../../audio/SoundFX.js';
+import {
+  IS_SCALED_WORLD,
+  ROAD,
+  ws,
+  wsStreetAnchored
+} from '../../core/WorldLayoutScale.js';
 import { applyTuningToVehicleObject } from './CustomsVehicleApplier3D.js';
 
 // ============================================================================
@@ -116,12 +122,63 @@ export class StreetCustomsRuntime {
 }
 
 // ============================================================================
-// 6. CONSTRUÇÃO FÍSICA 3D DA OFICINA "LEGO CUSTOMS" EM X = 60, Z = -448 (92m x 96m)
+// 6. CONSTRUÇÃO FÍSICA 3D DA OFICINA "LEGO CUSTOMS" (92m x 96m EM ESCALA 1x!)
 // ============================================================================
-export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 96) {
-  world._addCityBlockSidewalk(bx, bz, bw, bd, LEGO_COLORS.sidewalk);
+export function resolveLegoCustomsAnchor(bx = 60, bz = -448, bw = 92, bd = 96) {
+  if (!IS_SCALED_WORLD) {
+    return {
+      x: bx,
+      z: bz,
+      dx: 0,
+      dz: 0,
+      westCurbX: 14.0,
+      westSidewalkInnerX: 14.0,
+      southCurbZ: -396.0,
+      southSidewalkInnerZ: -396.0
+    };
+  }
 
-  const floorY = 0.30;
+  const yardW = bw - 8;
+  const yardD = bd - 8;
+  const westAnchored = wsStreetAnchored(bx, bz === -448 ? -446 : bz, {
+    halfW: yardW * 0.5,
+    halfD: yardD * 0.5
+  });
+  const westCurbX = ws(0) + ROAD.mainWidth * 0.5;
+  const westSidewalkInnerX = westCurbX + ROAD.sidewalk;
+  const southCurbZ = ws(-382) - ROAD.mainWidth * 0.5;
+  const southSidewalkInnerZ = southCurbZ - ROAD.sidewalk;
+
+  const gx = westAnchored.x;
+  const gz = bz === -448 ? southSidewalkInnerZ - yardD * 0.5 - 1.0 : westAnchored.z;
+
+  return {
+    x: gx,
+    z: gz,
+    dx: gx - bx,
+    dz: gz - bz,
+    westCurbX,
+    westSidewalkInnerX,
+    southCurbZ,
+    southSidewalkInnerZ
+  };
+}
+
+export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 96) {
+  const anchor = resolveLegoCustomsAnchor(bx, bz, bw, bd);
+  const gx = anchor.x;
+  const gz = anchor.z;
+  const { dx, dz } = anchor;
+
+  if (!IS_SCALED_WORLD) {
+    world._addCityBlockSidewalk(bx, bz, bw, bd, LEGO_COLORS.sidewalk);
+  }
+
+  const baseReliefY =
+    IS_SCALED_WORLD && world.getTerrainHeightAt
+      ? Math.max(0, world.getTerrainHeightAt(gx, gz) - 0.14)
+      : 0;
+  const floorY = IS_SCALED_WORLD ? baseReliefY + 0.22 : 0.30;
   const darkBrickGeos = [];
   const steelGeos = [];
   const yellowGeos = [];
@@ -131,31 +188,73 @@ export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 
   const tireBlackGeos = [];
   const glassGeos = [];
 
-  // 6.1 Pátio Asfaltado Drive-Thru & Piso Epóxi Escuro da Oficina (82m x 86m)
-  const yardW = bw - 8; // 84m (X = 18..102)
-  const yardD = bd - 8; // 88m (Z = -492..-404)
-  darkBrickGeos.push(makeTranslatedBox(yardW, 0.08, yardD, bx, floorY, bz));
+  // 6.1 Pátio Asfaltado Drive-Thru & Piso Epóxi Escuro da Oficina (84m x 88m em escala 1x!)
+  const yardW = bw - 8;
+  const yardD = bd - 8;
+  darkBrickGeos.push(makeTranslatedBox(yardW, 0.08, yardD, gx, floorY, gz));
 
-  // Faixas-guia luminosas Ciano e Amarelo Alerta levando da Av. Central (Oeste) e Av. Z=-382 (Sul) até o Elevador Hidráulico!
-  const liftX = 68.0;
-  const liftZ = -454.0;
+  // Faixas-guia luminosas Ciano e Amarelo Alerta levando da Av. Central (Oeste) e Av. Sul até o Elevador Hidráulico!
+  const liftX = 68.0 + dx;
+  const liftZ = -454.0 + dz;
+  const westStripX = 33.0 + dx;
+  const westCyanX = 35.0 + dx;
+  const southStripZ = -417.0 + dz;
+  const southCyanZ = -419.0 + dz;
   yellowGeos.push(
-    makeTranslatedBox(32.0, 0.05, 0.65, 33.0, floorY + 0.05, liftZ - 4.8),
-    makeTranslatedBox(32.0, 0.05, 0.65, 33.0, floorY + 0.05, liftZ + 4.8),
-    makeTranslatedBox(0.65, 0.05, 26.0, liftX - 4.8, floorY + 0.05, -417.0),
-    makeTranslatedBox(0.65, 0.05, 26.0, liftX + 4.8, floorY + 0.05, -417.0)
+    makeTranslatedBox(32.0, 0.05, 0.65, westStripX, floorY + 0.05, liftZ - 4.8),
+    makeTranslatedBox(32.0, 0.05, 0.65, westStripX, floorY + 0.05, liftZ + 4.8),
+    makeTranslatedBox(0.65, 0.05, 26.0, liftX - 4.8, floorY + 0.05, southStripZ),
+    makeTranslatedBox(0.65, 0.05, 26.0, liftX + 4.8, floorY + 0.05, southStripZ)
   );
   cyanGeos.push(
-    makeTranslatedBox(28.0, 0.06, 0.45, 35.0, floorY + 0.055, liftZ),
-    makeTranslatedBox(0.45, 0.06, 22.0, liftX, floorY + 0.055, -419.0)
+    makeTranslatedBox(28.0, 0.06, 0.45, westCyanX, floorY + 0.055, liftZ),
+    makeTranslatedBox(0.45, 0.06, 22.0, liftX, floorY + 0.055, southCyanZ)
   );
 
-  // 6.2 Galpão Automotivo Drive-Thru Aberto (58m x 56m: X = 39..97, Z = -482..-426, Altura = 14.5m)
-  // 2 Portões Largos Sempre Abertos (20m largura x 9.5m altura): Portão Oeste (X = 39, Z = -454) & Portão Sul (X = 68, Z = -426)!
-  const gMinX = 39.0;
-  const gMaxX = 97.0;
-  const gMinZ = -482.0;
-  const gMaxZ = -426.0;
+  // Em 3x, constrói aventais de concreto suave (driveway aprons + rampas de guia rebaixada) cruzando a calçada de 10m até o meio-fio!
+  if (IS_SCALED_WORLD) {
+    const curbH = ROAD.curbHeight;
+    const apronW = 18.0;
+    const rampLen = 1.6;
+    const rampTilt = Math.atan2(curbH, rampLen);
+
+    // Avental Oeste (Av. Central X = 0 -> Pátio Oeste em Z = liftZ)
+    const wPadMinX = anchor.westCurbX + rampLen - 0.1;
+    const wPadMaxX = gx - yardW * 0.5 + 0.2;
+    const wPadSpan = Math.max(1.0, wPadMaxX - wPadMinX);
+    const wPadCX = (wPadMinX + wPadMaxX) * 0.5;
+    steelGeos.push(makeTranslatedBox(wPadSpan, 0.04, apronW, wPadCX, baseReliefY + curbH + 0.015, liftZ));
+    const wRampGeo = new THREE.BoxGeometry(rampLen, 0.08, apronW);
+    wRampGeo.rotateZ(rampTilt);
+    wRampGeo.translate(anchor.westCurbX + rampLen * 0.5, baseReliefY + curbH * 0.5 - 0.01, liftZ);
+    steelGeos.push(wRampGeo);
+    yellowGeos.push(
+      makeTranslatedBox(wPadSpan, 0.045, 0.38, wPadCX, baseReliefY + curbH + 0.02, liftZ - apronW * 0.5 + 0.25),
+      makeTranslatedBox(wPadSpan, 0.045, 0.38, wPadCX, baseReliefY + curbH + 0.02, liftZ + apronW * 0.5 - 0.25)
+    );
+
+    // Avental Sul (Av. Sul Z = ws(-382) -> Pátio Sul em X = liftX)
+    const sPadMinZ = gz + yardD * 0.5 - 0.2;
+    const sPadMaxZ = anchor.southCurbZ - rampLen + 0.1;
+    const sPadSpan = Math.max(1.0, sPadMaxZ - sPadMinZ);
+    const sPadCZ = (sPadMinZ + sPadMaxZ) * 0.5;
+    steelGeos.push(makeTranslatedBox(apronW, 0.04, sPadSpan, liftX, baseReliefY + curbH + 0.015, sPadCZ));
+    const sRampGeo = new THREE.BoxGeometry(apronW, 0.08, rampLen);
+    sRampGeo.rotateX(rampTilt);
+    sRampGeo.translate(liftX, baseReliefY + curbH * 0.5 - 0.01, anchor.southCurbZ - rampLen * 0.5);
+    steelGeos.push(sRampGeo);
+    yellowGeos.push(
+      makeTranslatedBox(0.38, 0.045, sPadSpan, liftX - apronW * 0.5 + 0.25, baseReliefY + curbH + 0.02, sPadCZ),
+      makeTranslatedBox(0.38, 0.045, sPadSpan, liftX + apronW * 0.5 - 0.25, baseReliefY + curbH + 0.02, sPadCZ)
+    );
+  }
+
+  // 6.2 Galpão Automotivo Drive-Thru Aberto (58m x 56m em escala 1x, Altura = 14.5m)
+  // 2 Portões Largos Sempre Abertos (20m largura x 9.5m altura): Portão Oeste & Portão Sul!
+  const gMinX = 39.0 + dx;
+  const gMaxX = 97.0 + dx;
+  const gMinZ = -482.0 + dz;
+  const gMaxZ = -426.0 + dz;
   const gW = gMaxX - gMinX; // 58m
   const gD = gMaxZ - gMinZ; // 56m
   const wallH = 14.2;
@@ -163,15 +262,15 @@ export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 
   const gateW = 20.0;
   const gateH = 9.6;
 
-  // Parede Norte (Z = -482) — Fechada
+  // Parede Norte — Fechada
   darkBrickGeos.push(makeTranslatedBox(gW, wallH, wallT, liftX, floorY + wallH * 0.5, gMinZ + wallT * 0.5));
   world.addCollider(liftX, gMinZ + wallT * 0.5, gW, wallT, floorY + wallH, floorY);
 
-  // Parede Leste (X = 97) — Fechada
+  // Parede Leste — Fechada
   darkBrickGeos.push(makeTranslatedBox(wallT, wallH, gD, gMaxX - wallT * 0.5, floorY + wallH * 0.5, liftZ));
   world.addCollider(gMaxX - wallT * 0.5, liftZ, wallT, gD, floorY + wallH, floorY);
 
-  // Parede Sul (Z = -426) — Portão Drive-Thru Sul de 20m sempre aberto!
+  // Parede Sul — Portão Drive-Thru Sul de 20m sempre aberto!
   const southSegW = (gW - gateW) * 0.5; // 19m de cada lado
   const sLeftX = gMinX + southSegW * 0.5;
   const sRightX = gMaxX - southSegW * 0.5;
@@ -190,7 +289,7 @@ export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 
   world.addCollider(sRightX, sWallZ, southSegW, wallT, floorY + wallH, floorY);
   world.addCollider(liftX, sWallZ, gateW, wallT, floorY + wallH, floorY + gateH);
 
-  // Parede Oeste (X = 39) — Portão Drive-Thru Oeste de 20m sempre aberto virado para a Av. Central!
+  // Parede Oeste — Portão Drive-Thru Oeste de 20m sempre aberto virado para a Av. Central!
   const westSegD = (gD - gateW) * 0.5; // 18m de cada lado
   const wNorthZ = gMinZ + westSegD * 0.5;
   const wSouthZ = gMaxZ - westSegD * 0.5;
@@ -218,7 +317,7 @@ export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 
     cyanGeos.push(makeTranslatedBox(gW - 8, 0.28, 0.55, liftX, floorY + wallH - 0.35, nz));
   }
 
-  // 6.3 ELEVADOR HIDRÁULICO CENTRAL AMARELO/PRETO (`X = 68, Z = -454`) + CONSOLE DE DIAGNÓSTICO
+  // 6.3 ELEVADOR HIDRÁULICO CENTRAL AMARELO/PRETO + CONSOLE DE DIAGNÓSTICO
   steelGeos.push(makeTranslatedBox(9.2, 0.14, 11.6, liftX, floorY + 0.08, liftZ));
   yellowGeos.push(
     // Duas rampas paralelas do elevador automotivo (baixas em 0.16m para qualquer carro subir suave!)
@@ -280,9 +379,9 @@ export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 
     world.addCollider(tx, tz, 2.2, 2.2, floorY + count * 0.72, floorY);
   }
 
-  // 6.5 TERMINAL EXTERNO DE RETIRADA DOS 3 CARROS SALVOS NA GARAGEM PESSOAL (`X = 32, Z = -416`)
-  const retrievalTerminalPos = { x: 33.5, y: floorY, z: -416.0 };
-  const deliverySpawnPos = { x: 25.0, y: floorY + 0.08, z: -416.0, rotY: 0 };
+  // 6.5 TERMINAL EXTERNO DE RETIRADA DOS 3 CARROS SALVOS NA GARAGEM PESSOAL
+  const retrievalTerminalPos = { x: 33.5 + dx, y: floorY, z: -416.0 + dz };
+  const deliverySpawnPos = { x: 25.0 + dx, y: floorY + 0.08, z: -416.0 + dz, rotY: 0 };
   darkBrickGeos.push(makeTranslatedBox(2.2, 2.4, 1.6, retrievalTerminalPos.x, floorY + 1.2, retrievalTerminalPos.z));
   yellowGeos.push(
     makeTranslatedBox(2.4, 0.25, 1.8, retrievalTerminalPos.x, floorY + 2.48, retrievalTerminalPos.z),
@@ -393,9 +492,10 @@ export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 
   });
 
   // 6.7 Estaciona 2 Carros Esportivos no Pátio Externo Oeste para quem chegar a pé já pegar e tunar!
+  const courtesyCarY = IS_SCALED_WORLD ? floorY + 0.06 : undefined;
   const courtesyCars = [
-    { x: 25.0, z: -474.0, rotY: Math.PI / 2, color: 0xdc2626, roofColor: 0x090a0d, type: 'apex_gtx' },
-    { x: 25.0, z: -484.0, rotY: Math.PI / 2, color: 0xf97316, roofColor: 0xf8fafc, type: 'trovao_v8' }
+    { x: 25.0 + dx, y: courtesyCarY, z: -474.0 + dz, rotY: Math.PI / 2, color: 0xdc2626, roofColor: 0x090a0d, type: 'apex_gtx' },
+    { x: 25.0 + dx, y: courtesyCarY, z: -484.0 + dz, rotY: Math.PI / 2, color: 0xf97316, roofColor: 0xf8fafc, type: 'trovao_v8' }
   ];
   for (const cfg of courtesyCars) {
     spawnDraggableCustomVehicle(world, cfg);
@@ -405,13 +505,38 @@ export function buildLegoCustomsGarage(world, bx = 60, bz = -448, bw = 92, bd = 
     world.customsRuntime = new StreetCustomsRuntime(world);
   }
 
+  const courtyardExitPos = { x: 25.5 + dx, y: floorY + 0.08, z: liftZ, rotY: -Math.PI / 2 };
   world.legoCustomsData = {
     liftPos: { x: liftX, y: floorY + 0.16, z: liftZ },
     consolePos,
     retrievalTerminalPos,
     deliverySpawnPos,
-    courtyardExitPos: { x: 25.5, y: floorY + 0.08, z: liftZ, rotY: -Math.PI / 2 }
+    courtyardExitPos
   };
+
+  world.streetCustomsData = {
+    x: gx,
+    z: gz,
+    w: bw,
+    d: bd,
+    buildingX: liftX,
+    buildingZ: liftZ,
+    buildingW: gW,
+    buildingD: gD
+  };
+
+  if (IS_SCALED_WORLD && Array.isArray(world.landmarks)) {
+    const lmCustoms = world.landmarks.find((item) => item && item.id === 'lm_customs');
+    if (lmCustoms) {
+      lmCustoms.x = gx;
+      lmCustoms.z = gz;
+      lmCustoms.spawn = {
+        x: anchor.westSidewalkInnerX - 1.0,
+        y: baseReliefY + 0.5,
+        z: liftZ
+      };
+    }
+  }
 }
 
 /**

@@ -333,17 +333,27 @@ export const worldElevationAndWaterMethods = {
     const uz = fromWs(z);
 
     if (y < -2.2) {
-      if (ux >= -360 && ux <= -280 && uz >= -202 && uz <= -135) {
+      if (Math.abs(x - ws(-320)) <= 45 && Math.abs(z - ws(-168)) <= 45) {
         return this._subRegions.porao;
       }
       return this._subRegions.metro;
     }
 
-    if (y < 24.0 && ux >= 14 && ux <= 106 && uz >= -496 && uz <= -400) {
-      return this._subRegions.customs;
+    const customsBox = this.streetCustomsData;
+    if (y < 24.0) {
+      if (customsBox) {
+        if (
+          Math.abs(x - customsBox.x) <= (customsBox.w || 92) * 0.5 &&
+          Math.abs(z - customsBox.z) <= (customsBox.d || 96) * 0.5
+        ) {
+          return this._subRegions.customs;
+        }
+      } else if (Math.abs(x - ws(60)) <= 46 && Math.abs(z - ws(-448)) <= 48) {
+        return this._subRegions.customs;
+      }
     }
 
-    if (y < 41.0 && Math.abs(x) <= 74 && uz >= -229 && uz <= -130) {
+    if (y < 41.0 && Math.abs(x) <= 74 && z >= ws(-175) - 54 && z <= ws(-175) + 45) {
       return this._subRegions.bankInterior;
     }
 

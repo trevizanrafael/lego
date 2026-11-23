@@ -4,10 +4,12 @@ import { applyHumanoidHitPose, applyHumanoidKnockbackStep, resetHumanoidLimbPose
 import { AgentSeparationSystem } from '../collision/AgentSeparation.js';
 import { projectSlideVelocity2D } from '../collision/CollisionQueries.js';
 import { ARCHETYPE_PRESETS, SHARED_CIV_PROP_GEOS, pickHumanSkinTone } from './PedestrianSharedGeometriesAndArchetypes.js';
+import { IS_SCALED_WORLD } from '../core/WorldLayoutScale.js';
 
 const _pedCapPos = { x: 0, y: 0, z: 0 };
 const _pedCapOut = {};
 const _pedSlideOut = { vx: 0, vz: 0, x: 0, z: 0 };
+const _pedAsphaltOut = { x: 0, z: 0, clamped: false };
 
 function makeNode(x, y, z, vis = true) {
   const o = new THREE.Object3D();
@@ -126,6 +128,10 @@ export const pedestrianBehaviorAndReactionsMethods = {
       const pos = ped.visual.root.position, dx = pos.x - origin.x, dz = pos.z - origin.z, dist = Math.hypot(dx, dz);
       if (dist <= clampR) {
         ped.isChatGroup = false;
+        if (ped.crossState === 'WAIT_CROSSWALK') {
+          ped.crossState = 'SIDEWALK';
+          ped.activeCrosswalk = null;
+        }
         ped.panicTimer = Math.max(ped.panicTimer || 0, isLethalWitness ? 6.8 : 5.2);
         ped.state = 'PANIC';
         if (dist > 0.15) { ped.panicDirX = dx / dist; ped.panicDirZ = dz / dist; }
@@ -140,6 +146,180 @@ export const pedestrianBehaviorAndReactionsMethods = {
         }
       }
     }
+  },
+
+  _hasVehicleNearCrosswalk(cw, playerPos, controller, radius = 30.0) {
+    const cx = (cw.minX + cw.maxX) * 0.5;
+    const cz = (cw.minZ + cw.maxZ) * 0.5;
+    const rSq = radius * radius;
+    if (controller?.currentVehicle && playerPos) {
+      const dx = playerPos.x - cx, dz = playerPos.z - cz;
+      if (dx * dx + dz * dz <= rSq) return true;
+    }
+    const localY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(cx, cz) : 0;
+    const crossedAxis = cw.axis === 'x' ? 'x_const' : 'z_const';
+    for (let i = 0; i < this.trafficVehicles.length; i++) {
+      const tv = this.trafficVehicles[i];
+      if (!tv.destructible || tv.destructible.destroyed) continue;
+      const vp = tv.mesh.position;
+      if (Math.abs(vp.y - localY) > 3.5) continue;
+      if (tv.axis !== crossedAxis && !tv.hijackedByPlayer) continue;
+      const dx = vp.x - cx, dz = vp.z - cz;
+      if (dx * dx + dz * dz <= rSq) return true;
+    }
+    return false;
+  },
+
+  _handleScaledIntersectionCorner(ped, root) {
+    const px = root.position.x, pz = root.position.z;
+    const c = ped.corridor;
+    const tryCrosswalk = ((ped.id + Math.floor(ped.animTime)) % 3) === 0;
+
+    if (tryCrosswalk && this._crosswalkGrid?.size) {
+      const gx = Math.floor(px / 128), gz = Math.floor(pz / 128);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const list = this._crosswalkGrid.get((((gx + dx) & 0xffff) << 16) | ((gz + dz) & 0xffff));
+          if (!list) continue;
+          for (let i = 0; i < list.length; i++) {
+            const cw = list[i];
+            if (cw.axis === 'x') {
+              const cwMidZ = (cw.minZ + cw.maxZ) * 0.5;
+              if (Math.abs(pz - cwMidZ) > 9.0) continue;
+              const startAtMin = Math.abs(px - cw.minX) < 9.5;
+              const startAtMax = Math.abs(px - cw.maxX) < 9.5;
+              if (!startAtMin && !startAtMax) continue;
+              const waitX = startAtMin ? cw.minX - 2.6 : cw.maxX + 2.6;
+              const destX = startAtMin ? cw.maxX + 3.6 : cw.minX - 3.6;
+              if (
+                !this._isInsideAsphaltRoad?.(waitX, cwMidZ, 1.4) &&
+                !this._isInsideAsphaltRoad?.(destX, cwMidZ, 1.4) &&
+                !this._isInsideBuilding(destX, cwMidZ, 1.1) &&
+                this._isValidDryLandForPedestrian(destX, cwMidZ)
+              ) {
+                ped.crossState = 'WAIT_CROSSWALK';
+                ped.activeCrosswalk = cw;
+                ped.waitCrossTimer = 0;
+                ped.cwWaitX = waitX; ped.cwWaitZ = cwMidZ;
+                ped.cwDestX = destX; ped.cwDestZ = cwMidZ;
+                return;
+              }
+            } else {
+              const cwMidX = (cw.minX + cw.maxX) * 0.5;
+              if (Math.abs(px - cwMidX) > 9.0) continue;
+              const startAtMin = Math.abs(pz - cw.minZ) < 9.5;
+              const startAtMax = Math.abs(pz - cw.maxZ) < 9.5;
+              if (!startAtMin && !startAtMax) continue;
+              const waitZ = startAtMin ? cw.minZ - 2.6 : cw.maxZ + 2.6;
+              const destZ = startAtMin ? cw.maxZ + 3.6 : cw.minZ - 3.6;
+              if (
+                !this._isInsideAsphaltRoad?.(cwMidX, waitZ, 1.4) &&
+                !this._isInsideAsphaltRoad?.(cwMidX, destZ, 1.4) &&
+                !this._isInsideBuilding(cwMidX, destZ, 1.1) &&
+                this._isValidDryLandForPedestrian(cwMidX, destZ)
+              ) {
+                ped.crossState = 'WAIT_CROSSWALK';
+                ped.activeCrosswalk = cw;
+                ped.waitCrossTimer = 0;
+                ped.cwWaitX = cwMidX; ped.cwWaitZ = waitZ;
+                ped.cwDestX = cwMidX; ped.cwDestZ = destZ;
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Dobra a esquina na calçada adjacente do mesmo quarteirão (100% em cima da calçada de 10m!)
+    if (c?.blockId && this._corridorsByBlockId) {
+      const siblings = this._corridorsByBlockId.get(c.blockId);
+      if (siblings) {
+        for (let i = 0; i < siblings.length; i++) {
+          const adj = siblings[i];
+          if (adj === c || adj.axis === c.axis) continue;
+          const distStart = adj.axis === 'x'
+            ? Math.hypot(px - adj.startAlong, pz - adj.centerCoord)
+            : Math.hypot(px - adj.centerCoord, pz - adj.startAlong);
+          const distEnd = adj.axis === 'x'
+            ? Math.hypot(px - adj.endAlong, pz - adj.centerCoord)
+            : Math.hypot(px - adj.centerCoord, pz - adj.endAlong);
+          if (Math.min(distStart, distEnd) < 11.0) {
+            const jit = ped.laneJitter || 0;
+            ped.corridor = adj;
+            ped.x1 = adj.axis === 'x' ? adj.startAlong : adj.centerCoord + jit;
+            ped.z1 = adj.axis === 'x' ? adj.centerCoord + jit : adj.startAlong;
+            ped.x2 = adj.axis === 'x' ? adj.endAlong : adj.centerCoord + jit;
+            ped.z2 = adj.axis === 'x' ? adj.centerCoord + jit : adj.endAlong;
+            ped.dir = distStart <= distEnd ? 1 : -1;
+            return;
+          }
+        }
+      }
+    }
+    ped.dir *= -1;
+  },
+
+  _constrainPedestrianOffAsphalt(ped, prevX, prevZ, nx, nz) {
+    _pedAsphaltOut.x = nx;
+    _pedAsphaltOut.z = nz;
+    _pedAsphaltOut.clamped = false;
+    if (!IS_SCALED_WORLD || !this._roadRects?.length) return _pedAsphaltOut;
+
+    if (ped.crossState === 'CROSSING' && ped.activeCrosswalk) {
+      const cw = ped.activeCrosswalk;
+      if (cw.axis === 'x') {
+        _pedAsphaltOut.z = THREE.MathUtils.clamp(nz, cw.minZ + 0.25, cw.maxZ - 0.25);
+        if (ped.state === 'PANIC') {
+          const dirSign = ped.panicDirX >= 0 ? 1 : -1;
+          ped.panicDirX = dirSign;
+          ped.panicDirZ = 0;
+        }
+      } else {
+        _pedAsphaltOut.x = THREE.MathUtils.clamp(nx, cw.minX + 0.25, cw.maxX - 0.25);
+        if (ped.state === 'PANIC') {
+          const dirSign = ped.panicDirZ >= 0 ? 1 : -1;
+          ped.panicDirX = 0;
+          ped.panicDirZ = dirSign;
+        }
+      }
+      if (ped.state === 'PANIC' && !this._isInsideAsphaltRoad?.(_pedAsphaltOut.x, _pedAsphaltOut.z, 1.0)) {
+        ped.crossState = 'SIDEWALK';
+        ped.activeCrosswalk = null;
+      }
+      return _pedAsphaltOut;
+    }
+
+    const curbBuf = 1.05;
+    let cx = nx, cz = nz, clamped = false;
+    for (let i = 0; i < this._roadRects.length; i++) {
+      const r = this._roadRects[i];
+      if (cx <= r.minX - curbBuf || cx >= r.maxX + curbBuf || cz <= r.minZ - curbBuf || cz >= r.maxZ + curbBuf) {
+        continue;
+      }
+      clamped = true;
+      if (r.axis === 'z_const') {
+        const side = prevZ >= r.roadCoord ? 1 : -1;
+        cz = r.roadCoord + side * (r.halfRoadW + curbBuf + 0.15);
+        if (ped.state === 'PANIC') {
+          const alongSign = Math.abs(ped.panicDirX) > 0.2 ? Math.sign(ped.panicDirX) : ((ped.id || 1) % 2 === 0 ? 1 : -1);
+          ped.panicDirX = alongSign * 0.96;
+          ped.panicDirZ = side * 0.28;
+        }
+      } else {
+        const side = prevX >= r.roadCoord ? 1 : -1;
+        cx = r.roadCoord + side * (r.halfRoadW + curbBuf + 0.15);
+        if (ped.state === 'PANIC') {
+          const alongSign = Math.abs(ped.panicDirZ) > 0.2 ? Math.sign(ped.panicDirZ) : ((ped.id || 1) % 2 === 0 ? 1 : -1);
+          ped.panicDirX = side * 0.28;
+          ped.panicDirZ = alongSign * 0.96;
+        }
+      }
+    }
+    _pedAsphaltOut.x = cx;
+    _pedAsphaltOut.z = cz;
+    _pedAsphaltOut.clamped = clamped;
+    return _pedAsphaltOut;
   },
 
   _updatePedestrians(dt, playerPos, controller) {
@@ -205,10 +385,16 @@ export const pedestrianBehaviorAndReactionsMethods = {
         const ahead = dxFromPlayer * carFwdX + dzFromPlayer * carFwdZ;
         const lat = dxFromPlayer * carFwdZ - dzFromPlayer * carFwdX;
         if (ahead > -1.0 && ahead < 11.5 && Math.abs(lat) < 4.5 && ped.diveTimer <= 0) {
-          const sideSign = lat >= 0 ? 1 : -1;
+          let sideSign = lat >= 0 ? 1 : -1;
+          if (IS_SCALED_WORLD) {
+            const testX = root.position.x + carFwdZ * sideSign * 2.5;
+            const testZ = root.position.z - carFwdX * sideSign * 2.5;
+            if (this._isInsideAsphaltRoad?.(testX, testZ, 1.2)) sideSign *= -1;
+          }
           ped.diveTimer = 0.42; ped.diveVelX = carFwdZ * sideSign * 11.5; ped.diveVelZ = -carFwdX * sideSign * 11.5;
         }
         ped.isChatGroup = false; ped.crouchPanicTimer = 0; ped.panicTimer = Math.max(ped.panicTimer || 0, 5.0);
+        if (ped.crossState === 'WAIT_CROSSWALK') { ped.crossState = 'SIDEWALK'; ped.activeCrosswalk = null; }
         ped.panicDirX = dxFromPlayer / Math.max(0.1, distToPlayer);
         ped.panicDirZ = dzFromPlayer / Math.max(0.1, distToPlayer);
         this._setPedestrianFace(ped, 'civ_panic');
@@ -221,7 +407,8 @@ export const pedestrianBehaviorAndReactionsMethods = {
           applyHumanoidKnockbackStep(root, health, dt, (nx, nz) => {
             if (!this._isValidDryLandForPedestrian(nx, nz)) return { blocked: true };
             const col = resolvePedCapsule(this, ped, nx, nz, root.position.y);
-            return { x: col.x, z: col.z, valid: true };
+            const safe = this._constrainPedestrianOffAsphalt(ped, root.position.x, root.position.z, col.x, col.z);
+            return { x: safe.x, z: safe.z, valid: true };
           });
           const tY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(root.position.x, root.position.z) : 0;
           const bY = this._getPedestrianGroundY(root.position.x, root.position.z, tY);
@@ -256,7 +443,11 @@ export const pedestrianBehaviorAndReactionsMethods = {
         ped.diveTimer = Math.max(0, ped.diveTimer - dt);
         const u = 1.0 - ped.diveTimer / 0.42;
         hopHeight = Math.sin(u * Math.PI) * 1.15;
-        root.position.x += ped.diveVelX * dt; root.position.z += ped.diveVelZ * dt;
+        const dnx = root.position.x + ped.diveVelX * dt, dnz = root.position.z + ped.diveVelZ * dt;
+        if (this._isValidDryLandForPedestrian(dnx, dnz)) {
+          const safeDive = this._constrainPedestrianOffAsphalt(ped, root.position.x, root.position.z, dnx, dnz);
+          root.position.x = safeDive.x; root.position.z = safeDive.z;
+        }
         root.rotation.z = Math.sin(u * Math.PI) * 0.48;
         vis.leftArm.rotation.x = -2.6; vis.rightArm.rotation.x = -2.6;
         if (ped.diveTimer <= 0) root.rotation.z = 0;
@@ -283,7 +474,12 @@ export const pedestrianBehaviorAndReactionsMethods = {
         ped.state = 'VILLAIN_SPOOK'; this._setPedestrianFace(ped, 'civ_panic');
         const inv = 1.0 / Math.max(0.1, distToPlayer);
         root.rotation.y = Math.atan2(-dxFromPlayer, -dzFromPlayer);
-        root.position.x += dxFromPlayer * inv * 2.35 * dt; root.position.z += dzFromPlayer * inv * 2.35 * dt;
+        const spkX = root.position.x + dxFromPlayer * inv * 2.35 * dt;
+        const spkZ = root.position.z + dzFromPlayer * inv * 2.35 * dt;
+        if (this._isValidDryLandForPedestrian(spkX, spkZ)) {
+          const safeSpk = this._constrainPedestrianOffAsphalt(ped, root.position.x, root.position.z, spkX, spkZ);
+          root.position.x = safeSpk.x; root.position.z = safeSpk.z;
+        }
         const tr = Math.sin(ped.animTime * 22.0) * 0.08;
         vis.leftArm.rotation.x = -1.65 + tr; vis.rightArm.rotation.x = -1.65 - tr;
         vis.leftLeg.rotation.x = Math.sin(ped.animTime * 9.0) * 0.32; vis.rightLeg.rotation.x = -Math.sin(ped.animTime * 9.0) * 0.32;
@@ -312,21 +508,68 @@ export const pedestrianBehaviorAndReactionsMethods = {
           vis.leftLeg.rotation.x = 0; vis.rightLeg.rotation.x = 0;
           vis.leftArm.rotation.x = -0.06 + Math.sin(ped.animTime * 2.1 + ped.id) * 0.06;
           vis.rightArm.rotation.x = -0.3 + Math.cos(ped.animTime * 2.6 + ped.id) * 0.16;
+        } else if (IS_SCALED_WORLD && ped.crossState === 'WAIT_CROSSWALK' && ped.activeCrosswalk) {
+          const cw = ped.activeCrosswalk;
+          const dwx = ped.cwWaitX - root.position.x, dwz = ped.cwWaitZ - root.position.z;
+          const dw = Math.hypot(dwx, dwz);
+          if (dw > 0.85) {
+            speed = ped.walkSpeed; moveX = dwx / dw; moveZ = dwz / dw;
+          } else {
+            root.rotation.y = Math.atan2(ped.cwDestX - root.position.x, ped.cwDestZ - root.position.z);
+            vis.leftLeg.rotation.x = 0; vis.rightLeg.rotation.x = 0;
+            const crossedCarAxis = cw.axis === 'x' ? 'x_const' : 'z_const';
+            const redForCars = this._isTrafficLightRedForAxis?.(crossedCarAxis, cw.ix, cw.iz);
+            const vehNear30 = this._hasVehicleNearCrosswalk(cw, playerPos, controller, 30.0);
+            const playerClose = Boolean(controller?.currentVehicle && playerPos && Math.hypot(playerPos.x - (cw.minX + cw.maxX) * 0.5, playerPos.z - (cw.minZ + cw.maxZ) * 0.5) < 20.0);
+            if ((redForCars || !vehNear30) && !playerClose) {
+              ped.crossState = 'CROSSING';
+            } else if ((ped.waitCrossTimer = (ped.waitCrossTimer || 0) + dt) > 6.5) {
+              ped.crossState = 'SIDEWALK'; ped.activeCrosswalk = null; ped.dir *= -1;
+            }
+          }
+        } else if (IS_SCALED_WORLD && ped.crossState === 'CROSSING' && ped.activeCrosswalk) {
+          const dcx = ped.cwDestX - root.position.x, dcz = ped.cwDestZ - root.position.z;
+          const dc = Math.hypot(dcx, dcz);
+          if (dc < 0.95) {
+            const sw = this._findSafeSidewalkSpawn?.(ped.cwDestX, ped.cwDestZ, 26.0, ped.id);
+            if (sw?.valid && sw.corridor) {
+              const c = sw.corridor, jit = sw.laneJitter || 0;
+              ped.corridor = c; ped.laneJitter = jit;
+              ped.x1 = c.axis === 'x' ? c.startAlong : c.centerCoord + jit;
+              ped.z1 = c.axis === 'x' ? c.centerCoord + jit : c.startAlong;
+              ped.x2 = c.axis === 'x' ? c.endAlong : c.centerCoord + jit;
+              ped.z2 = c.axis === 'x' ? c.centerCoord + jit : c.endAlong;
+            }
+            ped.crossState = 'SIDEWALK'; ped.activeCrosswalk = null;
+          } else {
+            speed = Math.max(ped.walkSpeed, 4.1); moveX = dcx / dc; moveZ = dcz / dc;
+          }
         } else {
           speed = ped.walkSpeed;
           const dx = (ped.dir > 0 ? ped.x2 : ped.x1) - root.position.x;
           const dz = (ped.dir > 0 ? ped.z2 : ped.z1) - root.position.z;
           const dist = Math.hypot(dx, dz);
-          if (dist < 1.25) ped.dir *= -1; else { moveX = dx / dist; moveZ = dz / dist; }
+          if (dist < 1.25) {
+            if (IS_SCALED_WORLD) this._handleScaledIntersectionCorner(ped, root);
+            else ped.dir *= -1;
+          } else {
+            moveX = dx / dist; moveZ = dz / dist;
+          }
         }
       }
 
+      const prevPedX = root.position.x, prevPedZ = root.position.z;
       if (speed > 0 && (moveX !== 0 || moveZ !== 0)) {
-        const nextX = root.position.x + moveX * speed * dt, nextZ = root.position.z + moveZ * speed * dt;
+        let nextX = prevPedX + moveX * speed * dt, nextZ = prevPedZ + moveZ * speed * dt;
+        if (IS_SCALED_WORLD) {
+          const safeStep = this._constrainPedestrianOffAsphalt(ped, prevPedX, prevPedZ, nextX, nextZ);
+          nextX = safeStep.x; nextZ = safeStep.z;
+        }
         if (this._isValidDryLandForPedestrian(nextX, nextZ)) {
           if (ped.state === 'PANIC' && typeof this.world?.resolveCapsulePenetration === 'function') {
             const cap = resolvePedCapsule(this, ped, nextX, nextZ, root.position.y);
-            root.position.x = cap.x; root.position.z = cap.z;
+            const safeCap = this._constrainPedestrianOffAsphalt(ped, prevPedX, prevPedZ, cap.x, cap.z);
+            root.position.x = safeCap.x; root.position.z = safeCap.z;
             if (cap.collided && (Math.abs(cap.hitNormalX) > 1e-4 || Math.abs(cap.hitNormalZ) > 1e-4)) {
               projectSlideVelocity2D(moveX, moveZ, cap.hitNormalX, cap.hitNormalZ, 0, _pedSlideOut);
               let sx = _pedSlideOut.vx, sz = _pedSlideOut.vz, sLen = Math.hypot(sx, sz);
@@ -362,8 +605,9 @@ export const pedestrianBehaviorAndReactionsMethods = {
 
       const pedCol = ped.state === 'PANIC' ? resolvePedCapsule(this, ped, root.position.x, root.position.z, root.position.y) : this._resolveBuildingCollision(root.position.x, root.position.z, 1.05);
       if (pedCol.collided) {
-        root.position.x = pedCol.x; root.position.z = pedCol.z;
-        if (ped.state === 'NORMAL' && !ped.isChatGroup) ped.dir *= -1;
+        const safeCol = this._constrainPedestrianOffAsphalt(ped, prevPedX, prevPedZ, pedCol.x, pedCol.z);
+        root.position.x = safeCol.x; root.position.z = safeCol.z;
+        if (ped.state === 'NORMAL' && !ped.isChatGroup && ped.crossState !== 'CROSSING') ped.dir *= -1;
       }
 
       ped._hopHeight = hopHeight;
@@ -383,10 +627,12 @@ export const pedestrianBehaviorAndReactionsMethods = {
       const a = sepAgents[s], ped = a.ped, root = ped.visual.root;
       ped._avoidX = a.avoidX || 0; ped._avoidZ = a.avoidZ || 0;
       if ((Math.abs(a.sepPushX) > 1e-5 || Math.abs(a.sepPushZ) > 1e-5) && !a.immovable) {
-        const candX = root.position.x + a.sepPushX, candZ = root.position.z + a.sepPushZ;
+        const prevSX = root.position.x, prevSZ = root.position.z;
+        const candX = prevSX + a.sepPushX, candZ = prevSZ + a.sepPushZ;
         if (this._isValidDryLandForPedestrian(candX, candZ)) {
           const clamped = resolvePedCapsule(this, ped, candX, candZ, root.position.y);
-          root.position.x = clamped.x; root.position.z = clamped.z;
+          const safeSep = this._constrainPedestrianOffAsphalt(ped, prevSX, prevSZ, clamped.x, clamped.z);
+          root.position.x = safeSep.x; root.position.z = safeSep.z;
         }
       }
       const terrainY = this.world.getTerrainHeightAt ? this.world.getTerrainHeightAt(root.position.x, root.position.z) : 0;
