@@ -41,8 +41,13 @@ describe('ATRAÇÕES INTERATIVAS VIVAS (BAILE FUNK CDD + MONTANHA-RUSSA, RODA-GI
     }
     assert.equal(soundFX.baileFunkMix, 0, 'Fora de 75m o Batidão do Baile fica mudo');
 
-    // Perto do Paredão na Quadra do Baile (-718, 25, -135 -> ~3m do centro!) -> crossfade sobe!
-    controller.position.set(-718, 25.2, -135);
+    // Perto do Paredão na Quadra do Baile (~3m do centro real em 1x e 3x!) -> crossfade sobe!
+    const baileCenter = attr.baileCenter;
+    if (world.favelaBaileData) {
+      assert.equal(baileCenter.x, world.favelaBaileData.cx);
+      assert.equal(baileCenter.z, world.favelaBaileData.cz);
+    }
+    controller.position.set(baileCenter.x - 3, baileCenter.y + 0.2, baileCenter.z);
     for (let i = 0; i < 12; i++) {
       world.update(0.1, controller.position, controller);
     }
@@ -56,9 +61,10 @@ describe('ATRAÇÕES INTERATIVAS VIVAS (BAILE FUNK CDD + MONTANHA-RUSSA, RODA-GI
 
   it('2. Montanha-Russa Oceânica, Roda-Gigante Colossal (73m nivelada) e Big Drop (58m) embarcáveis com [E]', () => {
     const attr = world.attractions;
+    const pzOff = world.pierOffsetZ || 0;
 
-    // 2.1 Verifica deck seco do Píer na Estação da Montanha-Russa (-36, 1235) e circuito fechado até 38m sobre o mar!
-    assert.equal(world.isDeepWaterAt(-36, 1235, { forCar: true }), false, 'Deck do Píer em X=-36 é seco');
+    // 2.1 Verifica deck seco do Píer na Estação da Montanha-Russa (-36, 1235 + pzOff) e circuito fechado até 38m sobre o mar!
+    assert.equal(world.isDeepWaterAt(-36, 1235 + pzOff, { forCar: true }), false, 'Deck do Píer em X=-36 é seco');
     assert.equal(attr.coasterCurve.closed, true, 'Montanha-Russa é um circuito fechado CatmullRomCurve3');
     assert.equal(attr.coasterCars.length, 3, 'Trem de 3 vagões LEGO');
 
@@ -73,7 +79,7 @@ describe('ATRAÇÕES INTERATIVAS VIVAS (BAILE FUNK CDD + MONTANHA-RUSSA, RODA-GI
     assert.ok(minOceanX <= -85.0, `Montanha-Russa avança sobre as ondas do Oceano Atlântico (X = ${minOceanX.toFixed(1)}m)`);
 
     // Embarca na Montanha-Russa com [E]
-    controller.position.set(-31.2, 4.0, 1235);
+    controller.position.set(-31.2, 4.0, 1235 + pzOff);
     controller._updateVehiclePrompt();
     assert.equal(
       globalThis.document.getElementById('vehicle-prompt-text').textContent,
@@ -94,7 +100,7 @@ describe('ATRAÇÕES INTERATIVAS VIVAS (BAILE FUNK CDD + MONTANHA-RUSSA, RODA-GI
     controller.toggleVehicleInteraction();
     assert.equal(controller.activeRide, null);
 
-    // 2.2 Roda-Gigante Colossal (Z = 1480, 16 Cabines sempre na vertical até 73m!)
+    // 2.2 Roda-Gigante Colossal (Z = 1480 + pzOff, 16 Cabines sempre na vertical até 73m!)
     assert.equal(attr.ferrisCabins.length, 16, '16 cabines na Roda-Gigante');
     world.update(1.5, controller.position, controller);
     const wheelRot = attr.ferrisWheelGroup.rotation.x;
@@ -106,7 +112,7 @@ describe('ATRAÇÕES INTERATIVAS VIVAS (BAILE FUNK CDD + MONTANHA-RUSSA, RODA-GI
       );
     }
 
-    controller.position.set(0, 3.5, 1460);
+    controller.position.set(0, 3.5, 1460 + pzOff);
     controller._updateVehiclePrompt();
     assert.equal(
       globalThis.document.getElementById('vehicle-prompt-text').textContent,
@@ -118,8 +124,8 @@ describe('ATRAÇÕES INTERATIVAS VIVAS (BAILE FUNK CDD + MONTANHA-RUSSA, RODA-GI
     controller.toggleVehicleInteraction();
     assert.equal(controller.activeRide, null);
 
-    // 2.3 Torre de Queda Livre "Big Drop" (X = 24, Z = 1325 -> sobe até 58m, suspense 2s e queda livre!)
-    controller.position.set(24, 1.8, 1318);
+    // 2.3 Torre de Queda Livre "Big Drop" (X = 24, Z = 1325 + pzOff -> sobe até 58m, suspense 2s e queda livre!)
+    controller.position.set(24, 1.8, 1318 + pzOff);
     controller._updateVehiclePrompt();
     assert.equal(
       globalThis.document.getElementById('vehicle-prompt-text').textContent,

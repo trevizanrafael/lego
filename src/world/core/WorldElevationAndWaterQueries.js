@@ -299,18 +299,19 @@ export const worldElevationAndWaterMethods = {
     if (!forBoat && Math.abs(x - ws(1375)) <= 24 && z >= ws(735) && z <= ws(1126)) return false;
 
     if (!forBoat) {
-      if (Math.abs(x) <= 48 && z >= ws(1020) && z <= ws(1422)) return false;
-      if (Math.abs(x) <= 69 && z >= ws(1405) && z <= ws(1572)) return false;
-      if (x >= 43 && x <= 108 && Math.abs(z - ws(1085)) <= 9) return false;
-      if (x >= 95 && x <= 109 && z >= ws(1062) && z <= ws(1228)) return false;
+      const pierOffZ = this.pierOffsetZ ?? (IS_SCALED_WORLD ? ws(1036) - 1030 : 0);
+      if (Math.abs(x) <= 48 && z >= 1020 + pierOffZ && z <= 1422 + pierOffZ) return false;
+      if (Math.abs(x) <= 69 && z >= 1405 + pierOffZ && z <= 1572 + pierOffZ) return false;
+      if (x >= 43 && x <= 108 && Math.abs(z - (1085 + pierOffZ)) <= 9) return false;
+      if (x >= 95 && x <= 109 && z >= 1062 + pierOffZ && z <= 1228 + pierOffZ) return false;
       for (const ddz of [1095, 1135, 1175, 1215]) {
-        if (x >= 105 && x <= 151 && Math.abs(z - ws(ddz)) <= 3.5) return false;
+        if (x >= 105 && x <= 151 && Math.abs(z - (ddz + pierOffZ)) <= 3.5) return false;
       }
       // Marina Oeste
       const mwX = ws(-1380);
-      if (x >= mwX - 8 && x <= mwX + 8 && z >= ws(1040) && z <= ws(1230)) return false;
+      if (x >= mwX - 8 && x <= mwX + 8 && z >= 1040 + pierOffZ && z <= 1230 + pierOffZ) return false;
       for (const ddz of [1095, 1135, 1175, 1215]) {
-        if (x >= mwX + 4 && x <= mwX + 52 && Math.abs(z - ws(ddz)) <= 3.5) return false;
+        if (x >= mwX + 4 && x <= mwX + 52 && Math.abs(z - (ddz + pierOffZ)) <= 3.5) return false;
       }
     }
 

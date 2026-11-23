@@ -8,6 +8,7 @@ setupTestEnvironment();
 const { DestructibleManager } = await import('../src/world/DestructibleManager.js');
 const { WantedPursuitSystem } = await import('../src/world/WantedPursuitSystem.js');
 const { STAR_FORCE_BUDGET, DISPATCH_RULES } = await import('../src/world/police/PursuitTuning.js');
+const { IS_SCALED_WORLD, ws } = await import('../src/world/core/WorldLayoutScale.js');
 const {
   NS_AVENUES_X,
   EW_AVENUES_Z,
@@ -91,40 +92,50 @@ function createDispatchHarness({ buildings = [], waterPredicate = null } = {}) {
 
 describe('GTA V POLICE ROAD GRAPH A*, OUT-OF-SIGHT DISPATCH, PIT/BOX-IN & 5★ ARMY TANKS (ONDA 2)', () => {
   it('1. PoliceRoadGraph constrói cruzamentos secos em cache e findRoadPathAStar desvia de quarteirões/água pelas avenidas', () => {
-    const { ws, world } = createDispatchHarness({
-      // Bloqueia o trecho direto na Av. X = 0 entre Z = -117 e Z = 0, forçando desvio multi-avenida!
+    const waterX = ws(-516);
+    const waterZ = ws(710);
+    const airportX = ws(-1036);
+    const routeStartZ = IS_SCALED_WORLD ? ws(-250) : -252;
+    const routeGoalZ = ws(134);
+    const prisonStart = IS_SCALED_WORLD ? { x: ws(384), z: ws(402) } : { x: 384, z: 384 };
+    const prisonGoal = IS_SCALED_WORLD ? { x: ws(1375), z: ws(1400) } : { x: 720, z: 520 };
+
+    const { ws: wantedSys, world } = createDispatchHarness({
+      // Bloqueia o trecho direto na Av. X = 0 entre Z = ws(-117) e Z = 0, forçando desvio multi-avenida!
       buildings: [
-        { x: 0, z: -60, w: 28, d: 28, height: 60 },
-        { x: 60, z: -60, w: 70, d: 70, height: 55 }
+        { x: 0, z: ws(-60), w: 28, d: 28, height: 60 },
+        { x: ws(60), z: ws(-60), w: 70, d: 70, height: 55 }
       ],
-      waterPredicate: (x, z) => x === -516 && z === 710
+      waterPredicate: (x, z) => x === waterX && z === waterZ
     });
 
-    const graph1 = ensurePoliceRoadGraph(ws);
-    const graph2 = ensurePoliceRoadGraph(ws);
+    const graph1 = ensurePoliceRoadGraph(wantedSys);
+    const graph2 = ensurePoliceRoadGraph(wantedSys);
     assert.strictEqual(graph1, graph2, 'Grafo viário fica em cache em ws._roadGraph');
     assert.ok(graph1.nodes.length >= 70, `Grafo possui malha densa de cruzamentos (${graph1.nodes.length})`);
 
-    // Nó submerso (-516, 710) filtrado; extensões do Aeroporto (-1036, 0) e Ilha da Prisão (720, 520) presentes!
+    // Nó submerso filtrado; extensões do Aeroporto e Ilha da Prisão presentes!
     assert.equal(
-      graph1.nodes.some((n) => n.x === -516 && n.z === 710),
+      graph1.nodes.some((n) => n.x === waterX && n.z === waterZ),
       false,
       'Interseções em água profunda são filtradas'
     );
     assert.ok(
-      findNearestRoadNode(graph1, -1036, 0, (n) => n.x === -1036 && n.z === 0),
-      'Extensão rodoviária Oeste para o Aeroporto (-1036, 0) conectada'
+      findNearestRoadNode(graph1, airportX, 0, (n) => n.x === airportX && n.z === 0),
+      `Extensão rodoviária Oeste para o Aeroporto (${airportX}, 0) conectada`
     );
     assert.ok(
-      findNearestRoadNode(graph1, 720, 520, (n) => n.x === 720 && n.z === 520),
-      'Ponte Sudeste para a Ilha da Prisão (720, 520) conectada'
+      findNearestRoadNode(graph1, prisonGoal.x, prisonGoal.z, (n) => n.x === prisonGoal.x && n.z === prisonGoal.z),
+      `Ponte Sudeste para a Ilha da Prisão (${prisonGoal.x}, ${prisonGoal.z}) conectada`
     );
 
-    // Rota A* de (0, -252) até (0, 134): como (0, -117)->(0, 0) está bloqueado, deve contornar por X = -120 ou X = 120!
-    const path = findRoadPathAStar(graph1, 0, -252, 0, 134);
+    // Rota A* de (0, routeStartZ) até (0, routeGoalZ): como (0, ws(-117))->(0, 0) está bloqueado, contorna por X = ±ws(120)!
+    const path = findRoadPathAStar(graph1, 0, routeStartZ, 0, routeGoalZ);
     assert.ok(path.length >= 5, `Caminho multi-avenida encontrado com ${path.length} waypoints`);
-    assert.deepEqual(path[0], { x: 0, z: -252 });
-    assert.deepEqual(path[path.length - 1], { x: 0, z: 134 });
+    assert.equal(path[0].x, 0);
+    assert.equal(path[0].z, routeStartZ);
+    assert.equal(path[path.length - 1].x, 0);
+    assert.equal(path[path.length - 1].z, routeGoalZ);
 
     for (let i = 0; i < path.length; i++) {
       const wp = path[i];
@@ -135,34 +146,35 @@ describe('GTA V POLICE ROAD GRAPH A*, OUT-OF-SIGHT DISPATCH, PIT/BOX-IN & 5★ A
         const orthogonal = Math.abs(wp.x - prev.x) < 0.01 || Math.abs(wp.z - prev.z) < 0.01;
         assert.equal(orthogonal, true, 'Segmento A* segue estritamente o alinhamento ortogonal da rua');
         assert.equal(
-          ws._isSegmentBlockedByBuilding(prev.x, prev.z, wp.x, wp.z),
+          wantedSys._isSegmentBlockedByBuilding(prev.x, prev.z, wp.x, wp.z),
           false,
           'Nenhum segmento do caminho A* atravessa prédio'
         );
       }
     }
     assert.ok(
-      path.some((wp) => wp.x === -120 || wp.x === 120),
+      path.some((wp) => wp.x === ws(-120) || wp.x === ws(120)),
       'A* contorna o bloqueio pela avenida paralela adjacente'
     );
 
     // Caminho até a Ilha da Prisão
-    const prisonPath = findRoadPathAStar(graph1, 384, 384, 720, 520);
-    assert.deepEqual(prisonPath[prisonPath.length - 1], { x: 720, z: 520 });
+    const prisonPath = findRoadPathAStar(graph1, prisonStart.x, prisonStart.z, prisonGoal.x, prisonGoal.z);
+    assert.equal(prisonPath[prisonPath.length - 1].x, prisonGoal.x);
+    assert.equal(prisonPath[prisonPath.length - 1].z, prisonGoal.z);
     assert.equal(world.isDeepWaterAt(prisonPath[0].x, prisonPath[0].z, { forCar: true }), false);
   });
 
   it('2. Reforços NUNCA nascem a < 120m do jogador E NUNCA visíveis dentro do frustum frontal da câmera', () => {
-    const { ws, controller } = createDispatchHarness({
+    const { ws: wantedSys, controller } = createDispatchHarness({
       // Sem prédios inicialmente para testar rejeição pura de frustum desobstruído!
       buildings: []
     });
 
     const testPoses = [
       { x: 0, z: 0, yaw: 0 },
-      { x: -120, z: -117, yaw: Math.PI * 0.5 },
-      { x: 252, z: 134, yaw: Math.PI },
-      { x: -252, z: 0, yaw: -Math.PI * 0.35 }
+      { x: ws(-120), z: ws(-117), yaw: Math.PI * 0.5 },
+      { x: ws(252), z: ws(134), yaw: Math.PI },
+      { x: ws(-252), z: 0, yaw: -Math.PI * 0.35 }
     ];
 
     for (const pose of testPoses) {
@@ -171,12 +183,12 @@ describe('GTA V POLICE ROAD GRAPH A*, OUT-OF-SIGHT DISPATCH, PIT/BOX-IN & 5★ A
       const camFwd = { x: -Math.sin(pose.yaw), z: -Math.cos(pose.yaw) };
 
       for (let k = 0; k < 12; k++) {
-        const sp = ws._findPursuitSpawnPos(controller.position, 125, 195, k % 2 === 0, camFwd);
+        const sp = wantedSys._findPursuitSpawnPos(controller.position, 125, 195, k % 2 === 0, camFwd);
         const dx = sp.x - pose.x;
         const dz = sp.z - pose.z;
         const dist = Math.hypot(dx, dz);
         const dotCam = (dx * camFwd.x + dz * camFwd.z) / dist;
-        const blocked = ws._isSegmentBlockedByBuilding(sp.x, sp.z, pose.x, pose.z);
+        const blocked = wantedSys._isSegmentBlockedByBuilding(sp.x, sp.z, pose.x, pose.z);
 
         assert.ok(
           dist >= 120.0 && dist <= 210.0,
@@ -191,25 +203,26 @@ describe('GTA V POLICE ROAD GRAPH A*, OUT-OF-SIGHT DISPATCH, PIT/BOX-IN & 5★ A
   });
 
   it('3. STAR_FORCE_BUDGET estrito em 1★..5★ (Tanques Titan-M1 em 5★ disparando tank_shell e metade do orçamento em SEARCH)', () => {
-    const { ws, controller } = createDispatchHarness();
-    controller.position.set(0, 0.5, -117);
-    ws._lastPlayerPos.copy(controller.position);
+    const { ws: wantedSys, controller } = createDispatchHarness();
+    const avenueZ = ws(-117);
+    controller.position.set(0, 0.5, avenueZ);
+    wantedSys._lastPlayerPos.copy(controller.position);
 
     for (let star = 1; star <= 5; star++) {
-      ws.clearWanted('reset');
-      ws.setWantedStars(star);
+      wantedSys.clearWanted('reset');
+      wantedSys.setWantedStars(star);
 
       // Roda vários ciclos de despacho mantendo perseguição ativa
       for (let tick = 0; tick < 12; tick++) {
-        ws.enterPursuitState(controller.position);
-        ws._spawnTickTimer = 0;
-        ws.update(0.25, controller.position, controller);
+        wantedSys.enterPursuitState(controller.position);
+        wantedSys._spawnTickTimer = 0;
+        wantedSys.update(0.25, controller.position, controller);
       }
 
       const budget = STAR_FORCE_BUDGET[star];
-      const activeCars = ws._getActivePoliceCarCount();
-      const activeTanks = ws._getActivePoliceTankCount();
-      const activeHelis = ws.policeHelicopters.length;
+      const activeCars = wantedSys._getActivePoliceCarCount();
+      const activeTanks = wantedSys._getActivePoliceTankCount();
+      const activeHelis = wantedSys.policeHelicopters.length;
 
       assert.equal(activeCars, budget.cars, `${star}★ respeita orçamento exato de ${budget.cars} viaturas`);
       assert.equal(activeTanks, budget.tanks, `${star}★ respeita orçamento exato de ${budget.tanks} tanques`);
@@ -217,49 +230,49 @@ describe('GTA V POLICE ROAD GRAPH A*, OUT-OF-SIGHT DISPATCH, PIT/BOX-IN & 5★ A
     }
 
     // Valida Tanques Militares 5★ disparando 'tank_shell' quando a 14m–125m com linha de visão livre
-    const tanks = ws.pursuitVehicles.filter((v) => v.isTank);
+    const tanks = wantedSys.pursuitVehicles.filter((v) => v.isTank);
     assert.equal(tanks.length, 2, '5★ mantém exatamente 2 Tanques Militares ativos');
     assert.equal(tanks[0].role, 'army_tank');
     assert.equal(tanks[0].carObj.mesh.userData.carType, 'tanque_titan');
 
     const tank = tanks[0];
-    tank.carObj.mesh.position.set(0, 0, -55); // ~62m de (0, 0.5, -117), linha de visão livre
+    tank.carObj.mesh.position.set(0, 0, avenueZ + 62); // ~62m de (0, 0.5, avenueZ), linha de visão livre
     tank.cannonCooldown = 0.05;
-    ws.enterPursuitState(controller.position);
-    ws._clearAllEnemyProjectiles();
-    ws._updatePursuitVehicles(0.1, controller.position, controller);
+    wantedSys.enterPursuitState(controller.position);
+    wantedSys._clearAllEnemyProjectiles();
+    wantedSys._updatePursuitVehicles(0.1, controller.position, controller);
 
-    const shellProj = ws.enemyProjectiles.find((p) => p.kind === 'tank_shell');
+    const shellProj = wantedSys.enemyProjectiles.find((p) => p.kind === 'tank_shell');
     assert.ok(shellProj, 'Tanque Militar 5★ dispara projétil explosivo tank_shell na cadência de 3.3s');
     assert.ok(Math.abs(tank.cannonCooldown - 3.3) < 0.05, 'Recarga de 3.3s aplicada após disparo do canhão');
 
     // Limpar nível de procurado remove os tanques imediatamente
-    ws.clearWanted('reset');
-    assert.equal(ws.pursuitVehicles.some((v) => v.isTank), false, '_clearAllPoliceTanks limpa todos os tanques');
+    wantedSys.clearWanted('reset');
+    assert.equal(wantedSys.pursuitVehicles.some((v) => v.isTank), false, '_clearAllPoliceTanks limpa todos os tanques');
 
     // Em SEARCH (isEscaping === true), teto de despacho cai pela metade e ZERO novos tanques nascem!
-    ws.setWantedStars(5);
-    ws.pursuitVehicles.forEach((v) => ws.destructibles.unregisterDestructible(v.carObj));
-    ws.pursuitVehicles.length = 0;
-    ws.enterSearchState();
-    assert.equal(ws.isEscaping, true);
+    wantedSys.setWantedStars(5);
+    wantedSys.pursuitVehicles.forEach((v) => wantedSys.destructibles.unregisterDestructible(v.carObj));
+    wantedSys.pursuitVehicles.length = 0;
+    wantedSys.enterSearchState();
+    assert.equal(wantedSys.isEscaping, true);
 
     for (let tick = 0; tick < 8; tick++) {
-      ws._spawnTickTimer = 0;
-      ws._updatePursuitVehicles(0.1, controller.position, controller);
+      wantedSys._spawnTickTimer = 0;
+      wantedSys._updatePursuitVehicles(0.1, controller.position, controller);
       // Despacha no estado SEARCH
-      const desiredSearchCars = ws._getDesiredVehicleCount();
+      const desiredSearchCars = wantedSys._getDesiredVehicleCount();
       assert.equal(
         desiredSearchCars,
         Math.ceil(STAR_FORCE_BUDGET[5].cars * DISPATCH_RULES.searchBudgetFactor),
         'Orçamento de carros em SEARCH reduzido em 50%'
       );
-      ws._spawnPursuitVehicle(controller.position);
-      ws._spawnPoliceTank(controller.position);
+      wantedSys._spawnPursuitVehicle(controller.position);
+      wantedSys._spawnPoliceTank(controller.position);
     }
 
-    assert.equal(ws._getActivePoliceCarCount(), 3, 'SEARCH em 5★ limita despacho a 3 viaturas (50% de 6)');
-    assert.equal(ws._getActivePoliceTankCount(), 0, 'SEARCH não despacha novos Tanques Militares');
+    assert.equal(wantedSys._getActivePoliceCarCount(), 3, 'SEARCH em 5★ limita despacho a 3 viaturas (50% de 6)');
+    assert.equal(wantedSys._getActivePoliceTankCount(), 0, 'SEARCH não despacha novos Tanques Militares');
   });
 
   it('4. Zero teletransporte > 180m atrás (supercarro a 75 m/s abre distância real) e despawn automático > 250m fora de visão', () => {

@@ -280,8 +280,10 @@ export function buildThreeElevatedMetroStations(world, batcher) {
       z: cfg.trackZ,
       w: 22,
       d: lenZ,
+      minY: platY - 1.2,
       height: 24,
       color: '#0284c7',
+      isElevated: true,
       isLandmark: true,
       label: st.shortName
     });

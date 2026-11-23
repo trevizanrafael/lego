@@ -232,15 +232,26 @@ export function buildPangaeaPeripheryExtensions(world) {
       b.addBox('beacon_red', 0.8, 0.45, 0.8, rwyX + 28, ry + 0.45, rz);
     }
     world.mapRoads.push({ x: rwyX, z: rwyCenterZ, w: 60, d: 840, isMain: true });
-    world.mapBuildings.push({
-      x: rwyX,
-      z: rwyCenterZ,
-      w: 60,
-      d: 840,
-      height: 2,
-      color: '#334155',
-      label: 'PISTA AUXILIAR 18/36'
-    });
+    if (!IS_SCALED_WORLD) {
+      world.mapBuildings.push({
+        x: rwyX,
+        z: rwyCenterZ,
+        w: 60,
+        d: 840,
+        height: 2,
+        color: '#334155',
+        label: 'PISTA AUXILIAR 18/36'
+      });
+    } else {
+      world.mapBlocks.push({
+        x: rwyX,
+        z: rwyCenterZ,
+        w: 68,
+        d: 848,
+        color: '#334155',
+        label: 'PISTA AUXILIAR 18/36'
+      });
+    }
 
     // 1.3 Hangares Militares Avançados & Galpões Aeronáuticos ao longo do Oeste (dimensões 1x!)
     const westHangars = [

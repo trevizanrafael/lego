@@ -31,9 +31,15 @@ Este arquivo contém **todo o contexto, regras de negócio, decisões de design 
 
 ---
 
-## 🗺️ 3. Especificação Exata do Mapa (As 10 Regiões Fixas)
+## 🗺️ 3. Especificação Exata do Mapa (As 10 Regiões Fixas — Escala `3×` + Calçadas de `10 m`)
 
 O mundo é uma **Grande Ilha Metropolitana** cercada pelo oceano, mais a **Ilha da Prisão** (conectada por ponte) e o **Aeroporta-Aviões no Céu**.
+
+### Regra de Escala Horizontal (`WORLD_SCALE = 3`) & Calçadas Largas (`src/world/core/WorldLayoutScale.js`):
+* **Escala Horizontal `3×` (`WORLD_SCALE = 3` por padrão; `?worldScale=1` restaura `1×` para debug):**
+  * **Posições horizontais (`X` e `Z`)** de regiões, avenidas, marcos, spawns, rotas e limites usam os helpers de `WorldLayoutScale.js` (`ws`, `wsP`, `wsPos3`, `wsBounds`, `wsStreetAnchored`).
+  * **Tamanhos (`×1`) e Alturas (`Y` = `×1`) NÃO crescem:** prédios, carros, barcos, aeronaves, NPCs, props, relevo, Torre dos Heróis (`310 m`) e Aeroporta-Aviões (`Y ~ 410 m`) mantêm proporção `1×`. Conjuntos rígidos (Super Banco, Torre + Porão OP-09, Cidadela da Prisão, Aeroporta-Aviões, 5 estações do Metrô, LEGO Customs e Mega Píer) movem apenas sua âncora `(originX, originZ)` preservando offsets internos em `1×`.
+* **Vias & Calçadas Reais (`ROAD`):** Avenidas principais de **`34 m`**, ruas secundárias de **`26 m`** e **calçadas de `10 m`** em cada lado elevadas a **`+0.18 m`** com meio-fio, rampas de esquina e faixas de pedestres semafóricas. Pedestres caminham e fogem em pânico **exclusivamente nas calçadas/praças** e atravessam ruas apenas nas faixas de pedestres.
 
 ### Regra de Interiores:
 * **APENAS UM PRÉDIO TEM INTERIOR ABERTO:** O **Super Banco Central** (no Centro Financeiro). Todos os outros prédios do jogo são maciços por fora com fachadas 3D detalhadas e **terraços acessíveis no topo** (com helipontos, caixas d'água, geradores e recompensas).

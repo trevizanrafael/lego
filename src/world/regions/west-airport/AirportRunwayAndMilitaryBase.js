@@ -81,7 +81,9 @@ export function buildTaxiwayBlocksAnd16RowHangars(world, batcher, groundY) {
   if (IS_SCALED_WORLD) {
     // Pistas curtas de pátio conectando as bocas Leste/Oeste de cada fileira de hangares às Taxiways Verticais
     for (const hz of hangarRowsZ) {
-      addTaxiwayStripX(world, batcher, groundY, ws(-1215), ws(-1545), hz, 24);
+      addTaxiwayStripX(world, batcher, groundY, ws(-1215), ws(-1298) + 44, hz, 24);
+      addTaxiwayStripX(world, batcher, groundY, ws(-1298) - 44, ws(-1462) + 44, hz, 24);
+      addTaxiwayStripX(world, batcher, groundY, ws(-1462) - 44, ws(-1545), hz, 24);
     }
   }
 
@@ -471,7 +473,9 @@ export function buildNorthMilitaryBaseWing(world, batcher, groundY) {
   const northHangarRowsZ = [-735, -865].map(ws);
   if (IS_SCALED_WORLD) {
     for (const hz of northHangarRowsZ) {
-      addTaxiwayStripX(world, batcher, groundY, ws(-1215), ws(-1545), hz, 24);
+      addTaxiwayStripX(world, batcher, groundY, ws(-1215), ws(-1298) + 44, hz, 24);
+      addTaxiwayStripX(world, batcher, groundY, ws(-1298) - 44, ws(-1462) + 44, hz, 24);
+      addTaxiwayStripX(world, batcher, groundY, ws(-1462) - 44, ws(-1545), hz, 24);
     }
   }
   for (const hx of northHangarColsX) {

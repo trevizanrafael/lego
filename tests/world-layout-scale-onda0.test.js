@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { setupTestEnvironment } from './setup-env.js';
 
-globalThis.__ENABLE_3X_DEFAULT_IN_NODE = true;
 setupTestEnvironment({ search: '' });
 
 const {

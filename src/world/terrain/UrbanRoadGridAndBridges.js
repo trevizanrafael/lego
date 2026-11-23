@@ -110,18 +110,36 @@ export function buildUrbanRoadGridAndMedians(world) {
   const zRampGapTop = ws(-382) - 6;
   const zRampGapBot = ws(-382) + 102;
 
+  const pushMainAveZSegment = (ax, z0, z1) => {
+    const d = z1 - z0;
+    if (d <= 1) return;
+    world.mapRoads.push({ x: ax, z: (z0 + z1) * 0.5, w: mainW, d, isMain: true });
+    pushTerrainLineZ(yellowGeos, ax - 0.5, 0.45, z0, z1, lineStep);
+    pushTerrainLineZ(yellowGeos, ax + 0.5, 0.45, z0, z1, lineStep);
+  };
+
   for (const dax of DESIGN_MAIN_AVENUES_X) {
     const ax = ws(dax);
-    world.mapRoads.push({ x: ax, z: zAveCenter, w: mainW, d: zAveSpan, isMain: true });
-
-    if (dax !== 0) {
-      pushTerrainLineZ(yellowGeos, ax - 0.5, 0.45, zAveMin, zAveMax, lineStep);
-      pushTerrainLineZ(yellowGeos, ax + 0.5, 0.45, zAveMin, zAveMax, lineStep);
+    if (!IS_SCALED_WORLD) {
+      world.mapRoads.push({ x: ax, z: zAveCenter, w: mainW, d: zAveSpan, isMain: true });
+      if (dax !== 0) {
+        pushTerrainLineZ(yellowGeos, ax - 0.5, 0.45, zAveMin, zAveMax, lineStep);
+        pushTerrainLineZ(yellowGeos, ax + 0.5, 0.45, zAveMin, zAveMax, lineStep);
+      } else {
+        pushTerrainLineZ(yellowGeos, -0.5, 0.45, zAveMin, zRampGapTop, lineStep);
+        pushTerrainLineZ(yellowGeos, 0.5, 0.45, zAveMin, zRampGapTop, lineStep);
+        pushTerrainLineZ(yellowGeos, -0.5, 0.45, zRampGapBot, zAveMax, lineStep);
+        pushTerrainLineZ(yellowGeos, 0.5, 0.45, zRampGapBot, zAveMax, lineStep);
+      }
+    } else if (dax === 0) {
+      // Av. Central X=0 para antes do Super Banco [ws(-250)..ws(-117)] e do Parque Central [ws(134)..ws(402)]
+      pushMainAveZSegment(ax, zAveMin, ws(-250));
+      pushMainAveZSegment(ax, ws(-117), ws(134));
+      pushMainAveZSegment(ax, ws(402), zAveMax);
     } else {
-      pushTerrainLineZ(yellowGeos, -0.5, 0.45, zAveMin, zRampGapTop, lineStep);
-      pushTerrainLineZ(yellowGeos, 0.5, 0.45, zAveMin, zRampGapTop, lineStep);
-      pushTerrainLineZ(yellowGeos, -0.5, 0.45, zRampGapBot, zAveMax, lineStep);
-      pushTerrainLineZ(yellowGeos, 0.5, 0.45, zRampGapBot, zAveMax, lineStep);
+      // Avenidas N-S térreas param nas fachadas Norte (ws(134)) e Sul (ws(402)) do Parque Central
+      pushMainAveZSegment(ax, zAveMin, ws(134));
+      pushMainAveZSegment(ax, ws(402), zAveMax);
     }
 
     for (const dSegZ of [-316, -58, 68, 556]) {

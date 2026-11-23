@@ -11,6 +11,7 @@ const { TestBlockWorld } = await import('../src/world/TestBlockWorld.js');
 const { ThirdPersonController } = await import('../src/controls/ThirdPersonController.js');
 const { LegoHud } = await import('../src/ui/LegoHud.js');
 const { TERRITORY_ZONES, FACTION_THEME } = await import('../src/world/FactionWarSystem.js');
+const { ws } = await import('../src/world/core/WorldLayoutScale.js');
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.65, 2200);
@@ -59,11 +60,11 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
     hud.setPlayerFaction('cv', true);
 
     const peacefulCoords = [
-      new THREE.Vector3(0, 0.5, -117),     // Centro Financeiro / Frente do Super Banco
-      new THREE.Vector3(0, 0.5, 240),      // Parque Central
-      new THREE.Vector3(120, 2.2, -646),   // Subúrbio Norte
-      new THREE.Vector3(0, 1.5, 1080),     // Praia Sul
-      new THREE.Vector3(-1060, 0.5, 0)     // Aeroporto Oeste
+      new THREE.Vector3(0, 0.5, ws(-117)),       // Centro Financeiro / Frente do Super Banco
+      new THREE.Vector3(0, 0.5, ws(240)),        // Parque Central
+      new THREE.Vector3(ws(120), 2.2, ws(-646)), // Subúrbio Norte
+      new THREE.Vector3(0, 1.5, ws(1080)),       // Praia Sul
+      new THREE.Vector3(ws(-1060), 0.5, 0)       // Aeroporto Oeste
     ];
 
     for (const pos of peacefulCoords) {
@@ -77,7 +78,9 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
 
   it('3. Próprio Território (QG Aliado em Paz): Guardas batem continência, zero inimigos e Médicos curam', () => {
     hud.setPlayerFaction('cv', true);
-    const cvOutpostPos = new THREE.Vector3(-705, 22.4, -80);
+    const cvP2 = world.territoryInfra.cv.outposts[1] || TERRITORY_ZONES.cv.outposts[1];
+    const cvGroundY = cvP2.y ?? world.getTerrainHeightAt(cvP2.x, cvP2.z);
+    const cvOutpostPos = new THREE.Vector3(cvP2.x, cvGroundY + 0.5, cvP2.z);
     controller.position.copy(cvOutpostPos);
 
     livingCity.update(0.1, controller.position, controller);
@@ -89,6 +92,12 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
     assert.equal(enemiesInOwnBase.length, 0, 'Zero inimigos dentro do próprio território aliado');
 
     // Guardas próximos devem bater continência / acenar e exibir o losango verde aliado
+    const nearGuard = livingCity.combatNpcs.find((n) => n.role !== 'medic') || livingCity.combatNpcs[0];
+    controller.position.set(
+      nearGuard.visual.root.position.x + 3,
+      nearGuard.visual.root.position.y + 0.5,
+      nearGuard.visual.root.position.z + 3
+    );
     livingCity.update(0.2, controller.position, controller);
     const salutingGuards = livingCity.combatNpcs.filter((n) => n.saluting);
     assert.ok(salutingGuards.length >= 1, 'Pelo menos 1 guarda próximo bate continência ao jogador');
@@ -97,6 +106,12 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
     }
 
     // Simula ferimento prévio e verifica cura automática no QG
+    const nearMedic = livingCity.combatNpcs.find((n) => n.role === 'medic') || nearGuard;
+    controller.position.set(
+      nearMedic.visual.root.position.x + 3,
+      nearMedic.visual.root.position.y + 0.5,
+      nearMedic.visual.root.position.z + 3
+    );
     livingCity.playerHp = 150;
     livingCity.factionWar._updateCombatUnitsAndHealBeams(
       0.5,
@@ -267,14 +282,18 @@ describe('GUERRA TERRITORIAL DE INVASÃO DE FACÇÕES (1x1 nos 3 Territórios + 
 
   it('5. Desengajamento Limpo ao Sair do Território + Botão Resetar Territórios + Renderização Mapa [M] / Minimapa', () => {
     // Invade o território da A.R.E.S. e depois sai de volta para o Centro Civil
-    controller.position.set(675, 0.6, 140);
+    const aresP1 = TERRITORY_ZONES.ares.outposts[0];
+    controller.position.set(aresP1.x, 0.6, aresP1.z);
     livingCity.update(0.2, controller.position, controller);
     assert.equal(livingCity.factionWar.activeMode, 'INVASION_1V1');
     assert.equal(livingCity.factionWar.activeZoneId, 'ares');
     assert.ok(livingCity.combatNpcs.length > 0);
 
-    // Volta para a frente do Super Banco no Centro Financeiro
-    controller.position.set(0, 0.5, -117);
+    // Sai pela saída segura e volta para a frente do Super Banco no Centro Financeiro
+    const aresExit = TERRITORY_ZONES.ares.safeExitGate;
+    controller.position.set(aresExit.x, 0.5, aresExit.z);
+    livingCity.update(0.2, controller.position, controller);
+    controller.position.set(0, 0.5, ws(-117));
     livingCity.update(0.2, controller.position, controller);
     assert.equal(livingCity.factionWar.activeMode, 'PEACEFUL_CITY');
     assert.equal(livingCity.factionWar.isInvasionActive, false);

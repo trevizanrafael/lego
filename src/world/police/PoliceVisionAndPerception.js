@@ -287,6 +287,16 @@ export const policeVisionAndPerceptionMethods = {
 
   _isInsideCoveredGarage(playerPos) {
     if (!playerPos) return false;
+    const sc = this.world?.streetCustomsData;
+    if (sc && Number.isFinite(sc.buildingX) && Number.isFinite(sc.buildingZ)) {
+      const hw = (sc.buildingW || 58) * 0.5 - 1.5;
+      const hd = (sc.buildingD || 56) * 0.5 - 1.5;
+      return (
+        Math.abs(playerPos.x - sc.buildingX) < hw &&
+        Math.abs(playerPos.z - sc.buildingZ) < hd &&
+        playerPos.y < 13.5
+      );
+    }
     return (
       playerPos.x > 40.5 && playerPos.x < 95.5 &&
       playerPos.z > -480.5 && playerPos.z < -427.5 &&

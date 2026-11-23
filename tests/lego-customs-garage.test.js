@@ -51,42 +51,55 @@ hud._lastController = controller;
 describe('OFICINA DE RUA "LEGO CUSTOMS" (TUNING 0–10, PINTURA, DECALS, MONSTER TRUCK & RAMPA CUNHA)', () => {
   it('1. Construção Drive-Thru em X = 60, Z = -448 (2 Portões Abertos, 2 Carros no Pátio, Marco no Mapa e Elevador [E])', () => {
     assert.ok(world.legoCustomsData, 'Metadados da LEGO Customs expostos em world.legoCustomsData');
+    assert.ok(world.streetCustomsData, 'Metadados espaciais da LEGO Customs expostos em world.streetCustomsData');
+
+    const sc = world.streetCustomsData;
+    const dx = sc.x - 60;
+    const dz = sc.z - -448;
+    const liftPos = world.legoCustomsData.liftPos;
+    const floorY = liftPos.y - 0.16;
 
     // Marco registrado no Minimapa e Mapa Completo [M] com ícone exclusivo 'customs'
-    const lm = MAP_LANDMARKS.find((item) => item.id === 'lm_customs');
-    assert.ok(lm, 'Marco lm_customs presente em MAP_LANDMARKS');
+    const lm = (world.landmarks || MAP_LANDMARKS).find((item) => item.id === 'lm_customs');
+    assert.ok(lm, 'Marco lm_customs presente em world.landmarks / MAP_LANDMARKS');
     assert.equal(lm.icon, 'customs');
-    assert.equal(lm.x, 60);
-    assert.equal(lm.z, -448);
+    assert.equal(lm.x, sc.x);
+    assert.equal(lm.z, sc.z);
 
     // Renderiza Minimapa e Mapa [M] sem erros
-    const reg = world.getRegionAt(68, 1.0, -454);
+    const reg = world.getRegionAt(sc.buildingX, 1.0, sc.buildingZ);
     assert.equal(reg.id, 'lego_customs');
-    hud.updateMinimap(new THREE.Vector3(60, 0.5, -448), 0, 0, reg, world, 0, 0.016);
-    hud.renderFullMap(world, new THREE.Vector3(60, 0.5, -448), 0, controller);
+    hud.updateMinimap(new THREE.Vector3(sc.x, 0.5, sc.z), 0, 0, reg, world, 0, 0.016);
+    hud.renderFullMap(world, new THREE.Vector3(sc.x, 0.5, sc.z), 0, controller);
 
-    // Verifica que os 2 Portões Drive-Thru (Oeste X=39, Z=-454 e Sul X=68, Z=-426) estão livres abaixo de Y = 9.5m!
+    // Verifica que os 2 Portões Drive-Thru (Oeste e Sul) estão livres abaixo do dintel de 9.6m!
     const checkPortalClear = (px, pz) =>
       world.colliders.every((col) => {
         if (col.disabled) return true;
         const hitsXZ = px > col.minX && px < col.maxX && pz > col.minZ && pz < col.maxZ;
         if (!hitsXZ) return true;
         const minY = col.minY ?? 0;
-        return col.maxY <= 0.6 || minY >= 9.0;
+        return col.maxY <= floorY + 0.35 || minY >= floorY + 8.7;
       });
-    assert.equal(checkPortalClear(39.8, -454.0), true, 'Portão Oeste Drive-Thru 100% livre para passagem');
-    assert.equal(checkPortalClear(68.0, -426.8), true, 'Portão Sul Drive-Thru 100% livre para passagem');
+    assert.equal(checkPortalClear(39.8 + dx, sc.buildingZ), true, 'Portão Oeste Drive-Thru 100% livre para passagem');
+    assert.equal(checkPortalClear(sc.buildingX, -426.8 + dz), true, 'Portão Sul Drive-Thru 100% livre para passagem');
 
     // Verifica os 2 carros esportivos estacionados no pátio externo Oeste
     const courtyardCars = destructibles.objects.filter(
-      (o) => !o.destroyed && o.type === 'car' && o.mesh.position.x > 18 && o.mesh.position.x < 34 && o.mesh.position.z < -465 && o.mesh.position.z > -490
+      (o) =>
+        !o.destroyed &&
+        o.type === 'car' &&
+        o.mesh.position.x > 18 + dx &&
+        o.mesh.position.x < 34 + dx &&
+        o.mesh.position.z < -465 + dz &&
+        o.mesh.position.z > -490 + dz
     );
     assert.ok(courtyardCars.length >= 2, '2 carros esportivos estacionados no pátio da LEGO Customs');
 
-    // Entra num dos carros e dirige até o Elevador Hidráulico Central (68, -454)
+    // Entra num dos carros e dirige até o Elevador Hidráulico Central (sc.buildingX, sc.buildingZ)
     const testCar = courtyardCars[0];
     controller.enterVehicle(testCar);
-    testCar.mesh.position.set(65.0, 0.46, -454.0);
+    testCar.mesh.position.set(liftPos.x - 3.0, liftPos.y, liftPos.z);
     controller.vehicleSpeed = 6.0;
     controller._updateVehiclePrompt();
     const promptTxt = globalThis.document.getElementById('vehicle-prompt-text').textContent;
@@ -511,22 +524,26 @@ describe('OFICINA DE RUA "LEGO CUSTOMS" (TUNING 0–10, PINTURA, DECALS, MONSTER
   });
 
   it('6. Suporte Universal 3D e Enquadramento de Câmera para Motos, Caminhões e Ônibus Urbano', () => {
+    const sc = world.streetCustomsData;
+    const dx = sc ? sc.x - 60 : 0;
+    const dz = sc ? sc.z - -448 : 0;
+    const spawnY = (world.legoCustomsData?.liftPos?.y ?? 0.4) + 0.05;
     const motoObj = spawnDraggableCustomVehicle(world, {
-      x: 50,
-      y: 0.4,
-      z: -454,
+      x: 50 + dx,
+      y: spawnY,
+      z: -454 + dz,
       type: 'moto_pcc'
     });
     const busObj = spawnDraggableCustomVehicle(world, {
-      x: 55,
-      y: 0.4,
-      z: -454,
+      x: 55 + dx,
+      y: spawnY,
+      z: -454 + dz,
       type: 'onibus_urbano'
     });
     const truckObj = spawnDraggableCustomVehicle(world, {
-      x: 60,
-      y: 0.4,
-      z: -454,
+      x: 60 + dx,
+      y: spawnY,
+      z: -454 + dz,
       type: 'carro_forte'
     });
 

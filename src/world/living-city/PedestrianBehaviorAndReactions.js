@@ -360,7 +360,7 @@ export const pedestrianBehaviorAndReactionsMethods = {
           root.visible = isCloseVisible;
           root.matrixWorldAutoUpdate = isCloseVisible;
         }
-        if (!isCloseVisible && !ped.isDeadCorpse && !health?.isDead()) continue;
+        if (!isCloseVisible && !ped.isDeadCorpse && !(health && health.state !== HUMANOID_STATES.ALIVE)) continue;
         distToPlayer = Math.sqrt(dSq);
       }
 

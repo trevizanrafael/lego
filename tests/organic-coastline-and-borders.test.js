@@ -21,6 +21,7 @@ import {
   isPointOnOrganicLand,
   getWorldSoftBoundaryForce
 } from '../src/world/CoastlineProfile.js';
+import { ws } from '../src/world/core/WorldLayoutScale.js';
 
 setupTestEnvironment();
 
@@ -38,29 +39,49 @@ test('Supercontinente Pangeia expandido, faixa contínua de areia, rodovias e re
   assert.ok(REGION_BORDER_LINES.length >= 8, 'Fronteiras claras inter-regionais mapeadas');
   assert.ok(PANGAEA_HIGHWAYS.length >= 6, 'Rodovias regionais interligam as novas áreas');
 
-  // Escala supercontinental (~6700m x 5300m) + grande variação de costas
+  // Escala supercontinental + grande variação de costas
   const westXs = MAIN_WEST_POLYGON.map((p) => p[0]);
   const westZs = MAIN_WEST_POLYGON.map((p) => p[1]);
   const eastXs = EAST_PENINSULA_POLYGON.map((p) => p[0]);
-  assert.ok(Math.min(...westXs) <= -3200, 'Cabo Noroeste / Sudoeste alcança <= -3200m');
-  assert.ok(Math.max(...eastXs) >= 3250, 'Chifre Nordeste alcança >= +3250m');
-  assert.ok(Math.min(...westZs) <= -2800, 'Planalto Boreal Norte alcança <= -2800m');
-  assert.ok(Math.max(...westZs) >= 2400, 'Península Sudoeste alcança >= +2400m');
+  assert.ok(Math.min(...westXs) <= ws(-3200), 'Cabo Noroeste / Sudoeste alcança <= ws(-3200m)');
+  assert.ok(Math.max(...eastXs) >= ws(3250), 'Chifre Nordeste alcança >= ws(+3250m)');
+  assert.ok(Math.min(...westZs) <= ws(-2800), 'Planalto Boreal Norte alcança <= ws(-2800m)');
+  assert.ok(Math.max(...westZs) >= ws(2400), 'Península Sudoeste alcança >= ws(+2400m)');
 
   // Novas regiões periféricas caminháveis com elevação real e Golfo de Tétis aberto em mar profundo
-  assert.equal(isPointOnOrganicLand(-1215, -2420), true, 'Planalto Boreal Norte em terra firme');
-  assert.equal(isPointOnOrganicLand(-2920, -1285), true, 'Cabo Radar Noroeste em terra firme');
-  assert.equal(isPointOnOrganicLand(2740, -1120), true, 'Parque Eólico / Refinaria Tétis em terra firme');
-  assert.equal(isPointOnOrganicLand(-2520, 2020), true, 'Vila Dunas Sudoeste em terra firme');
-  assert.equal(world.isDeepWaterAt(2000, 480), true, 'Golfo de Tétis Leste deve ser mar aberto entre penínsulas');
+  assert.equal(isPointOnOrganicLand(ws(-1215), ws(-2420)), true, 'Planalto Boreal Norte em terra firme');
+  assert.equal(isPointOnOrganicLand(ws(-2920), ws(-1285)), true, 'Cabo Radar Noroeste em terra firme');
+  assert.equal(isPointOnOrganicLand(ws(2740), ws(-1120)), true, 'Parque Eólico / Refinaria Tétis em terra firme');
+  assert.equal(isPointOnOrganicLand(ws(-2520), ws(2020)), true, 'Vila Dunas Sudoeste em terra firme');
+  assert.equal(world.isDeepWaterAt(ws(2000), ws(480)), true, 'Golfo de Tétis Leste deve ser mar aberto entre penínsulas');
 
   // Verifica que TODA a costa tem faixa contínua de areia/descida natural até a água (zero corte seco)
-  for (const [sx, sz, label] of [
-    [-1280, -2840, 'Costa Boreal Norte'],
-    [-3340, -1040, 'Cabo Radar Noroeste'],
-    [-2660, 2440, 'Ponta Dunas Sudoeste'],
-    [3320, -1420, 'Ponta Leste Tétis']
+  const findShorePoint = (inX, inZ, outX, outZ) => {
+    let loX = inX, loZ = inZ, hiX = outX, hiZ = outZ;
+    for (let i = 0; i < 16; i++) {
+      const mx = (loX + hiX) * 0.5;
+      const mz = (loZ + hiZ) * 0.5;
+      if (isPointOnOrganicLand(mx, mz)) {
+        loX = mx;
+        loZ = mz;
+      } else {
+        hiX = mx;
+        hiZ = mz;
+      }
+    }
+    const dx = inX - loX;
+    const dz = inZ - loZ;
+    const len = Math.hypot(dx, dz) || 1;
+    return [loX + (dx / len) * 14, loZ + (dz / len) * 14];
+  };
+
+  for (const [inX, inZ, outX, outZ, label] of [
+    [ws(-1280), ws(-2700), ws(-1280), ws(-3050), 'Costa Boreal Norte'],
+    [ws(-3150), ws(-1040), ws(-3500), ws(-1040), 'Cabo Radar Noroeste'],
+    [ws(-2520), ws(2280), ws(-2800), ws(2600), 'Ponta Dunas Sudoeste'],
+    [ws(3150), ws(-1360), ws(3500), ws(-1500), 'Ponta Leste Tétis']
   ]) {
+    const [sx, sz] = findShorePoint(inX, inZ, outX, outZ);
     assert.ok(getDistanceToCoastAt(sx, sz) < 50, `${label} dentro da faixa costeira arenosa`);
     const yShore = getPangaeaElevationAt(sx, sz);
     assert.ok(yShore >= -0.35 && yShore <= 4.0, `${label} com rampa suave até a água (${yShore})`);
@@ -75,10 +96,10 @@ test('Supercontinente Pangeia expandido, faixa contínua de areia, rodovias e re
   });
   assert.ok(localOriginChunkCount >= 6, `Chunks periféricos usam origem local (${localOriginChunkCount})`);
 
-  // Ponte Boreal sobre o Fjord em Z=-2150 sustenta tráfego seco sobre o canal do rio
-  assert.ok(world.getRoadElevation(560, -2150) >= 5.0, 'Ponte Boreal eleva em arco 5.5m');
-  assert.equal(world.isDeepWaterAt(560, -2150, { forCar: true }), false, 'Carros atravessam Ponte Boreal');
-  assert.equal(world.isDeepWaterAt(560, -2150, { forBoat: true }), true, 'Barcos passam sob Ponte Boreal');
+  // Ponte Boreal sobre o Fjord em Z=ws(-2150) sustenta tráfego seco sobre o canal do rio
+  assert.ok(world.getRoadElevation(ws(560), ws(-2150)) >= 5.0, 'Ponte Boreal eleva em arco 5.5m');
+  assert.equal(world.isDeepWaterAt(ws(560), ws(-2150), { forCar: true }), false, 'Carros atravessam Ponte Boreal');
+  assert.equal(world.isDeepWaterAt(ws(560), ws(-2150), { forBoat: true }), true, 'Barcos passam sob Ponte Boreal');
 
   // Ilhotas do arquipélago devem ser pisáveis
   for (const isl of ARCHIPELAGO_ISLETS) {
@@ -87,15 +108,15 @@ test('Supercontinente Pangeia expandido, faixa contínua de areia, rodovias e re
   }
 
   // Pontos críticos de água/terra preservados
-  assert.equal(world.isDeepWaterAt(220, 1080, { forCar: true }), true, 'Canal aberto Sul preservado');
-  assert.equal(world.isDeepWaterAt(0, 1620), true, 'Oceano além do Mega Píer preservado');
-  assert.equal(world.isDeepWaterAt(1650, 700), true, 'Canal de atracação do Porto preservado');
-  assert.equal(world.isDeepWaterAt(-1380, 1135, false), false, 'Marina Oeste preservada');
-  assert.equal(isPointOnOrganicLand(-1735, 945), true, 'Promontório do Farol Sudoeste preservado');
+  assert.equal(world.isDeepWaterAt(ws(220), ws(1080), { forCar: true }), true, 'Canal aberto Sul preservado');
+  assert.equal(world.isDeepWaterAt(0, ws(1036) + 590), true, 'Oceano além do Mega Píer preservado');
+  assert.equal(world.isDeepWaterAt(ws(1650), ws(700)), true, 'Canal de atracação do Porto preservado');
+  assert.equal(world.isDeepWaterAt(ws(-1380), 1135 + (world.pierOffsetZ || 0), false), false, 'Marina Oeste preservada');
+  assert.equal(isPointOnOrganicLand(ws(-1735), ws(945)), true, 'Promontório do Farol Sudoeste preservado');
 
-  // Oceano cobre super-horizonte além de ±14000m
+  // Oceano cobre super-horizonte
   const oceanBox = new THREE.Box3().setFromObject(world.oceanMesh);
-  assert.ok(oceanBox.max.x >= 13800 && oceanBox.min.x <= -13800, 'Oceano até ±14500m');
+  assert.ok(oceanBox.max.x >= ws(13800) && oceanBox.min.x <= ws(-13800), 'Oceano cobre super-horizonte');
 });
 
 test('Limites da Pangeia, spawns em periferias, câmera longe da origem, Minimapa & Mapa [M]', () => {
@@ -112,39 +133,39 @@ test('Limites da Pangeia, spawns em periferias, câmera longe da origem, Minimap
   const ctrl = new ThirdPersonController(camera, canvas, fig, world, dest, hud);
 
   // Alcança livremente regiões periféricas extremas (Parque Eólico Leste & Vila Sudoeste) sem bloqueio
-  ctrl.position.set(2680, 12.0, -1120);
+  ctrl.position.set(ws(2680), 12.0, ws(-1120));
   ctrl.update(0.016);
-  assert.ok(ctrl.position.x >= 2650, 'Jogador alcança Parque Eólico no extremo Leste sem parede invisível');
+  assert.ok(ctrl.position.x >= ws(2650), 'Jogador alcança Parque Eólico no extremo Leste sem parede invisível');
 
   // Região correta resolvida nas fronteiras expandidas (sem cair em Centro Financeiro!)
-  assert.equal(world.getRegionAt(2680, 2, -1120).id, 'industrial_leste');
-  assert.equal(world.getRegionAt(-2920, 2, -1285).id, 'aeroporto_oeste');
-  assert.equal(world.getRegionAt(-2520, 2, 2020).id, 'praia_sul');
-  assert.equal(world.getRegionAt(-1215, 2, -2420).id, 'suburbio_norte');
+  assert.equal(world.getRegionAt(ws(2680), 2, ws(-1120)).id, 'industrial_leste');
+  assert.equal(world.getRegionAt(ws(-2920), 2, ws(-1285)).id, 'aeroporto_oeste');
+  assert.equal(world.getRegionAt(ws(-2520), 2, ws(2020)).id, 'praia_sul');
+  assert.equal(world.getRegionAt(ws(-1215), 2, ws(-2420)).id, 'suburbio_norte');
 
   // Pedestres e tráfego validam novas áreas secas da Pangeia
-  assert.equal(world.livingCity._isValidDryLandForPedestrian(-2460, 2020), true);
-  assert.equal(world.livingCity._isValidDryLandForPedestrian(2680, -1120), true);
-  assert.equal(world.livingCity._isValidDryLandForPedestrian(2000, 480), false);
+  assert.equal(world.livingCity._isValidDryLandForPedestrian(ws(-2460), ws(2020)), true);
+  assert.equal(world.livingCity._isValidDryLandForPedestrian(ws(2680), ws(-1120)), true);
+  assert.equal(world.livingCity._isValidDryLandForPedestrian(ws(2000), ws(480)), false);
 
   // Limite natural no oceano extremo aplica força de retorno suave
-  const edgeForce = getWorldSoftBoundaryForce(4150, 0);
-  assert.ok(edgeForce.fx < 0 && edgeForce.intensity > 0, 'Força suave empurra de volta além de 3950m');
+  const edgeForce = getWorldSoftBoundaryForce(ws(4150), 0);
+  assert.ok(edgeForce.fx < 0 && edgeForce.intensity > 0, 'Força suave empurra de volta além da borda');
 
   // Renderiza Minimapa e Mapa Tático [M] sem erros
-  const region = world.getRegionAt(0, 1, -80);
+  const region = world.getRegionAt(0, 1, ws(-80));
   assert.doesNotThrow(() => {
     hud.updateMinimap(ctrl.position, 0, 0, region, world, 0, 0.016);
     hud.renderFullMap(world, ctrl.position, 0);
   });
 
   // Regressão: Praia Sul nivelada em Y ≈ 0.12m (sem colina fantasma da Pangeia nem pedestres voando)
-  const sandHeight = world.getTerrainHeightAt(150, 900);
+  const sandHeight = world.getTerrainHeightAt(ws(150), ws(900));
   assert.ok(
     sandHeight >= 0.08 && sandHeight <= 0.2,
     `Areia da Praia Sul nivelada em ~0.12m sem colina fantasma (${sandHeight})`
   );
-  const beachPedY = world.livingCity._getPedestrianGroundY(150, 900);
+  const beachPedY = world.livingCity._getPedestrianGroundY(ws(150), ws(900));
   assert.ok(
     beachPedY >= 0.08 && beachPedY <= 0.2,
     `Banhistas/pedestres na areia pisam direto em ~0.12m sem flutuar (${beachPedY})`
@@ -156,7 +177,7 @@ test('Limites da Pangeia, spawns em periferias, câmera longe da origem, Minimap
     `Estruturas periféricas construídas nas pontas da Pangeia (${world.pangaeaPeripheryData?.structuresBuilt})`
   );
   assert.ok(
-    world.getTerrainHeightAt(-840, -1550) > 8.0,
-    'Morro da Cidade de Deus continua além de Z = -1320 rumo ao Norte'
+    world.getTerrainHeightAt(ws(-840), ws(-1550)) > 8.0,
+    'Morro da Cidade de Deus continua além de Z = ws(-1320) rumo ao Norte'
   );
 });

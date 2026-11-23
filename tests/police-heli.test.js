@@ -8,6 +8,8 @@ setupTestEnvironment();
 const { DestructibleManager } = await import('../src/world/DestructibleManager.js');
 const { WantedPursuitSystem } = await import('../src/world/WantedPursuitSystem.js');
 const { POLICE_HELIPAD_BASES } = await import('../src/world/police/PoliceHelicopterPilot.js');
+const { HELI_TUNING } = await import('../src/world/police/PursuitTuning.js');
+const { IS_SCALED_WORLD, ws } = await import('../src/world/core/WorldLayoutScale.js');
 
 function createPursuitTestHarness() {
   const scene = new THREE.Scene();
@@ -30,11 +32,11 @@ function createPursuitTestHarness() {
     colliders,
     atmosphere: { nightFactor: 0 },
     mapBuildings: [
-      { x: 48, z: -210, w: 30, d: 30, height: 96 },
-      { x: -48, z: -150, w: 28, d: 28, height: 82 }
+      { x: 48, z: ws(-117) - 93, w: 30, d: 30, height: 96 },
+      { x: -48, z: ws(-117) - 33, w: 28, d: 28, height: 82 }
     ],
     elevatedDecks: [
-      { minX: -400, maxX: 400, minZ: -396, maxZ: -368, topY: 11.5 }
+      { minX: ws(-400), maxX: ws(400), minZ: ws(-382) - 14, maxZ: ws(-382) + 14, topY: 11.5 }
     ],
     addCollider(x, z, w, d, maxY, minY) {
       const col = {
@@ -88,25 +90,25 @@ function createPursuitTestHarness() {
   };
   hud._lastController = controller;
 
-  const ws = new WantedPursuitSystem(livingCity);
-  livingCity.wantedSystem = ws;
+  const wantedSys = new WantedPursuitSystem(livingCity);
+  livingCity.wantedSystem = wantedSys;
 
-  return { scene, world, destructibles, hud, controller, ws };
+  return { scene, world, destructibles, hud, controller, ws: wantedSys };
 }
 
 describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIRAL) & ANTI-TELETRANSPORTE', () => {
   it('1. Helicóptero decola sempre de um heliponto real (>= 135m do jogador, nunca 65m na cabeça) e sincroniza eagleHeli com policeHelicopters[0]', () => {
-    const { ws, controller } = createPursuitTestHarness();
+    const { ws: wantedSys, controller } = createPursuitTestHarness();
 
-    // Caso A: Jogador na avenida em Z = -250 (162m da Delegacia Central)
-    controller.position.set(0, 0.5, -250);
-    ws._lastPlayerPos.copy(controller.position);
-    ws.setWantedStars(3);
+    // Caso A: Jogador na avenida em Z = ws(-250) (>= 135m de todas as bases oficiais)
+    controller.position.set(0, 0.5, ws(-250));
+    wantedSys._lastPlayerPos.copy(controller.position);
+    wantedSys.setWantedStars(3);
 
-    assert.equal(ws.policeHelicopters.length, 1, '3★ despacha exatamente 1 helicóptero');
-    assert.strictEqual(ws.eagleHeli, ws.policeHelicopters[0], 'eagleHeli sincronizado com policeHelicopters[0]');
+    assert.equal(wantedSys.policeHelicopters.length, 1, '3★ despacha exatamente 1 helicóptero');
+    assert.strictEqual(wantedSys.eagleHeli, wantedSys.policeHelicopters[0], 'eagleHeli sincronizado com policeHelicopters[0]');
 
-    const hPosA = ws.eagleHeli.mesh.position;
+    const hPosA = wantedSys.eagleHeli.mesh.position;
     const distA = Math.hypot(hPosA.x - controller.position.x, hPosA.z - controller.position.z);
     assert.ok(distA >= 135.0, `Helicóptero nasceu longe do jogador (>= 135m), dist=${distA.toFixed(1)}m`);
     assert.ok(
@@ -116,31 +118,33 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
       'Helicóptero nasceu exatamente em um heliponto oficial'
     );
 
-    // Caso B: Jogador colado na Delegacia Central (0, -88) (< 135m) -> escolhe 2º heliponto mais próximo (>= 135m)!
-    ws.clearWanted('reset');
-    assert.equal(ws.policeHelicopters.length, 0);
-    assert.equal(ws.eagleHeli, null);
+    // Caso B: Jogador embaixo do heliponto central_precinct (< 135m) -> escolhe 2º heliponto mais próximo (>= 135m)!
+    wantedSys.clearWanted('reset');
+    assert.equal(wantedSys.policeHelicopters.length, 0);
+    assert.equal(wantedSys.eagleHeli, null);
 
-    controller.position.set(4, 0.5, -90);
-    ws._lastPlayerPos.copy(controller.position);
-    ws.setWantedStars(3);
+    const centralBase = HELI_TUNING.bases.find((b) => b.id === 'central_precinct');
+    controller.position.set(centralBase.x, 0.5, centralBase.z);
+    wantedSys._lastPlayerPos.copy(controller.position);
+    wantedSys.setWantedStars(3);
 
-    const hPosB = ws.eagleHeli.mesh.position;
+    const hPosB = wantedSys.eagleHeli.mesh.position;
     const distB = Math.hypot(hPosB.x - controller.position.x, hPosB.z - controller.position.z);
     assert.ok(
       distB >= 135.0,
-      `Mesmo ao lado da Delegacia Central, Águia decola de outra base >= 135m (dist=${distB.toFixed(1)}m)`
+      `Mesmo ao lado de central_precinct, Águia decola de outra base >= 135m (dist=${distB.toFixed(1)}m)`
     );
-    assert.notEqual(ws.eagleHeli.baseOrigin.id, 'central_precinct', 'Evita heliponto em cima da cabeça do jogador');
+    assert.notEqual(wantedSys.eagleHeli.baseOrigin.id, 'central_precinct', 'Evita heliponto em cima da cabeça do jogador');
   });
 
   it('2. Velocidade horizontal do Águia NUNCA passa de 55.0 m/s, permitindo que supercarro/jato a 75 m/s escape do cone de 40m', () => {
-    const { ws, controller } = createPursuitTestHarness();
+    const { ws: wantedSys, controller } = createPursuitTestHarness();
+    const openStreetZ = IS_SCALED_WORLD ? ws(-117) : -240;
 
-    controller.position.set(0, 0.5, -240);
-    ws._lastPlayerPos.copy(controller.position);
-    ws.setWantedStars(3);
-    const heli = ws.eagleHeli;
+    controller.position.set(0, 0.5, openStreetZ);
+    wantedSys._lastPlayerPos.copy(controller.position);
+    wantedSys.setWantedStars(3);
+    const heli = wantedSys.eagleHeli;
     assert.ok(heli);
 
     // Deixa o helicóptero chegar do heliponto até adquirir visual sobre a avenida aberta
@@ -148,7 +152,7 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
     for (let step = 0; step < 90; step++) {
       const prevX = heli.mesh.position.x;
       const prevZ = heli.mesh.position.z;
-      ws.update(0.05, controller.position, controller);
+      wantedSys.update(0.05, controller.position, controller);
       const velMag = Math.hypot(heli.vel.x, heli.vel.z);
       const stepSpd = Math.hypot(heli.mesh.position.x - prevX, heli.mesh.position.z - prevZ) / 0.05;
       maxObservedSpeed = Math.max(maxObservedSpeed, velMag, stepSpd);
@@ -169,7 +173,7 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
       controller.position.z -= 75.0 * 0.05;
       const prevX = heli.mesh.position.x;
       const prevZ = heli.mesh.position.z;
-      ws.update(0.05, controller.position, controller);
+      wantedSys.update(0.05, controller.position, controller);
       const velMag = Math.hypot(heli.vel.x, heli.vel.z);
       const stepSpd = Math.hypot(heli.mesh.position.x - prevX, heli.mesh.position.z - prevZ) / 0.05;
       maxObservedSpeed = Math.max(maxObservedSpeed, velMag, stepSpd);
@@ -194,30 +198,34 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
   });
 
   it('3. Entrar sob viaduto ou túnel subterrâneo zera hasVisual, inicia busca espiral sobre _lastKnownPlayerPos e aponta holofote para lookGroundPos à noite', () => {
-    const { ws, world, controller } = createPursuitTestHarness();
+    const { ws: wantedSys, world, controller } = createPursuitTestHarness();
     world.atmosphere.nightFactor = 0.92;
 
-    // Jogador visível antes do Viaduto Norte (Z = -340)
-    controller.position.set(120, 0.5, -340);
-    ws._lastPlayerPos.copy(controller.position);
-    ws.setWantedStars(3);
-    ws.pursuitVehicles.forEach((pv) => ws.destructibles.unregisterDestructible(pv.carObj));
-    ws.pursuitVehicles.length = 0;
+    const viaductX = ws(120);
+    const viaductZ = ws(-382);
+    const beforeViaductZ = viaductZ + 42;
 
-    const heli = ws.eagleHeli;
-    heli.mesh.position.set(120, 48, -325);
-    heli.lookGroundPos.set(120, 0.08, -340);
-    ws.update(0.1, controller.position, controller);
+    // Jogador visível antes do Viaduto Norte
+    controller.position.set(viaductX, 0.5, beforeViaductZ);
+    wantedSys._lastPlayerPos.copy(controller.position);
+    wantedSys.setWantedStars(3);
+    wantedSys.pursuitVehicles.forEach((pv) => wantedSys.destructibles.unregisterDestructible(pv.carObj));
+    wantedSys.pursuitVehicles.length = 0;
+
+    const heli = wantedSys.eagleHeli;
+    heli.mesh.position.set(viaductX, 48, beforeViaductZ + 15);
+    heli.lookGroundPos.set(viaductX, 0.08, beforeViaductZ);
+    wantedSys.update(0.1, controller.position, controller);
     assert.equal(heli.hasVisual, true, 'Águia tem visual antes do viaduto');
-    const lastSeenBeforeCover = ws._lastKnownPlayerPos.clone();
+    const lastSeenBeforeCover = wantedSys._lastKnownPlayerPos.clone();
 
-    // Jogador entra debaixo do Viaduto (Z = -382, Y = 0.4 < topY 11.5) e desloca-se escondido para X = 210
-    const underViaductPos = new THREE.Vector3(210, 0.4, -382);
-    assert.equal(ws._isPlayerUnderViaduct(underViaductPos), true);
+    // Jogador entra debaixo do Viaduto (Z = ws(-382), Y = 0.4 < topY 11.5) e desloca-se escondido +90m em X
+    const underViaductPos = new THREE.Vector3(viaductX + 90, 0.4, viaductZ);
+    assert.equal(wantedSys._isPlayerUnderViaduct(underViaductPos), true);
 
     for (let s = 0; s < 30; s++) {
-      ws._spawnTickTimer = 99; // Isola teste aéreo sem novas viaturas terrestres
-      ws.update(0.1, underViaductPos, controller);
+      wantedSys._spawnTickTimer = 99; // Isola teste aéreo sem novas viaturas terrestres
+      wantedSys.update(0.1, underViaductPos, controller);
     }
 
     assert.equal(heli.hasVisual, false, 'Águia perde visual imediatamente sob o viaduto');
@@ -239,23 +247,23 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
     );
 
     // Verifica também corte de visão em túnel subterrâneo (Y = -6.5)
-    const tunnelPos = new THREE.Vector3(120, -6.5, -340);
-    ws.update(0.1, tunnelPos, controller);
+    const tunnelPos = new THREE.Vector3(viaductX, -6.5, beforeViaductZ);
+    wantedSys.update(0.1, tunnelPos, controller);
     assert.equal(heli.hasVisual, false, 'Túnel subterrâneo também mantém hasVisual === false');
   });
 
   it('4. Abate aplica cooldown de 28s e próximo nasce em heliponto; 4★–5★ permite 2 helicópteros; viaturas NUNCA teleportam (> 175m) e despawnam > 250m', () => {
-    const { ws, destructibles, controller } = createPursuitTestHarness();
+    const { ws: wantedSys, destructibles, controller } = createPursuitTestHarness();
 
-    controller.position.set(0, 0.5, -240);
-    ws._lastPlayerPos.copy(controller.position);
-    ws.setWantedStars(4);
+    controller.position.set(0, 0.5, IS_SCALED_WORLD ? ws(-117) : -240);
+    wantedSys._lastPlayerPos.copy(controller.position);
+    wantedSys.setWantedStars(4);
 
-    assert.equal(ws.policeHelicopters.length, 2, '4★–5★ despacha até 2 helicópteros policiais');
-    assert.strictEqual(ws.eagleHeli, ws.policeHelicopters[0]);
+    assert.equal(wantedSys.policeHelicopters.length, 2, '4★–5★ despacha até 2 helicópteros policiais');
+    assert.strictEqual(wantedSys.eagleHeli, wantedSys.policeHelicopters[0]);
 
     // Reforços terrestres SEMPRE nascem >= 120m do jogador (nunca na cara!)
-    for (const pv of ws.pursuitVehicles) {
+    for (const pv of wantedSys.pursuitVehicles) {
       const d = Math.hypot(
         pv.carObj.mesh.position.x - controller.position.x,
         pv.carObj.mesh.position.z - controller.position.z
@@ -264,20 +272,20 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
     }
 
     // Abate o 1º helicóptero -> cooldown de 28s (>= 20s) e sincroniza eagleHeli com o helicóptero restante
-    const shotHeli = ws.policeHelicopters[0];
-    const secondHeli = ws.policeHelicopters[1];
+    const shotHeli = wantedSys.policeHelicopters[0];
+    const secondHeli = wantedSys.policeHelicopters[1];
     destructibles.damageObject(shotHeli.obj, 9999, shotHeli.mesh.position);
 
-    assert.equal(ws.policeHelicopters.length, 1, 'Helicóptero abatido removido de policeHelicopters');
-    assert.strictEqual(ws.eagleHeli, secondHeli, 'eagleHeli assume o 2º helicóptero ativo');
+    assert.equal(wantedSys.policeHelicopters.length, 1, 'Helicóptero abatido removido de policeHelicopters');
+    assert.strictEqual(wantedSys.eagleHeli, secondHeli, 'eagleHeli assume o 2º helicóptero ativo');
     assert.ok(
-      ws.eagleHeliRespawnCooldown >= 20.0,
-      `Cooldown de respawn aéreo >= 20s aplicado (${ws.eagleHeliRespawnCooldown}s)`
+      wantedSys.eagleHeliRespawnCooldown >= 20.0,
+      `Cooldown de respawn aéreo >= 20s aplicado (${wantedSys.eagleHeliRespawnCooldown}s)`
     );
 
     // Após zerar o cooldown, o helicóptero substituto nasce de novo num heliponto real (>= 135m)!
-    ws.eagleHeliRespawnCooldown = 0;
-    const replacement = ws._spawnEagleHelicopter(controller.position);
+    wantedSys.eagleHeliRespawnCooldown = 0;
+    const replacement = wantedSys._spawnEagleHelicopter(controller.position);
     assert.ok(replacement, 'Novo helicóptero decola após expirar o cooldown');
     const repDist = Math.hypot(
       replacement.mesh.position.x - controller.position.x,
@@ -286,11 +294,11 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
     assert.ok(repDist >= 135.0, `Substituto nasceu em heliponto real >= 135m (${repDist.toFixed(1)}m)`);
 
     // Anti-Teletransporte: viatura a 190m (> 175m) NUNCA teleporta para perto do jogador!
-    const testPv = ws.pursuitVehicles[0];
+    const testPv = wantedSys.pursuitVehicles[0];
     assert.ok(testPv);
     testPv.carObj.mesh.position.set(0, 0, controller.position.z + 190.0);
     testPv.stuckTimer = 0;
-    ws.update(0.1, controller.position, controller);
+    wantedSys.update(0.1, controller.position, controller);
 
     const distAfter190 = Math.hypot(
       testPv.carObj.mesh.position.x - controller.position.x,
@@ -305,7 +313,7 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
     const stuckBeforeX = testPv.carObj.mesh.position.x;
     const stuckBeforeZ = testPv.carObj.mesh.position.z;
     testPv.stuckTimer = 3.1;
-    ws.update(0.05, controller.position, controller);
+    wantedSys.update(0.05, controller.position, controller);
     const unwedgeShift = Math.hypot(
       testPv.carObj.mesh.position.x - stuckBeforeX,
       testPv.carObj.mesh.position.z - stuckBeforeZ
@@ -314,9 +322,9 @@ describe('HELICÓPTERO POLICIAL ÁGUIA (55 M/S, HELIPONTOS REAIS, BUSCA EM ESPIR
 
     // Acima de 250m atrás da câmera: viatura perdida é despawnada de forma limpa!
     testPv.carObj.mesh.position.set(0, 0, controller.position.z + 265.0);
-    ws.update(0.1, controller.position, controller);
+    wantedSys.update(0.1, controller.position, controller);
     assert.equal(
-      ws.pursuitVehicles.includes(testPv),
+      wantedSys.pursuitVehicles.includes(testPv),
       false,
       'Viatura perdida além de 250m é despawnada de pursuitVehicles'
     );

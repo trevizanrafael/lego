@@ -33,6 +33,7 @@ const fw = livingCity.factionWar;
 const heist = fw.bankHeist;
 const bank = world.superBankData;
 const F = bank.floors;
+const bz = (z) => z + bank.zShift;
 
 function step(dt = 0.5) {
   livingCity.playerHp = livingCity.playerMaxHp;
@@ -51,11 +52,11 @@ const allies = () => livingCity.combatNpcs.filter((n) => n.isAllied && !n.destru
 describe('🏦 ASSALTO AO SUPER BANCO (você é o assaltante, 4 andares)', () => {
   it('1. Entrar no banco começa o assalto: seguranças no 1º andar, seu time chega e os andares de cima ficam trancados', () => {
     hud.setPlayerFaction('cv', true);
-    controller.position.set(0, F[0] + 0.05, -110); // na rua: nada acontece
+    controller.position.set(0, F[0] + 0.05, bz(-110)); // na rua: nada acontece
     step(0.2);
     assert.equal(heist.state, 'IDLE');
 
-    controller.position.set(0, F[0] + 0.05, -150);
+    controller.position.set(0, F[0] + 0.05, bz(-150));
     step(0.2);
     assert.equal(heist.state, 'FLOORS', 'Assalto começou ao entrar');
     assert.equal(fw.activeMode, 'BANK_HEIST');
@@ -107,7 +108,7 @@ describe('🏦 ASSALTO AO SUPER BANCO (você é o assaltante, 4 andares)', () =>
 
   it('4. Limpar o 4º andar abre o cofre; pegar o ouro inicia a fuga com a polícia', () => {
     killEnemies();
-    controller.position.set(0, F[3] + 0.05, -190);
+    controller.position.set(0, F[3] + 0.05, bz(-190));
     step(0.3);
     assert.equal(heist.state, 'VAULT');
     assert.equal(bank.vaultDoor.destroyed, true, 'Porta do cofre explodiu');
@@ -131,7 +132,7 @@ describe('🏦 ASSALTO AO SUPER BANCO (você é o assaltante, 4 andares)', () =>
 
   it('5. Cair durante o assalto ou sair do banco cancela', () => {
     assert.ok(fw.debugBankHeist());
-    controller.position.set(0, F[0] + 0.05, -150);
+    controller.position.set(0, F[0] + 0.05, bz(-150));
     step(0.2);
     fw._damagePlayerInInvasion(1e9, controller, fw._bankZoneState);
     assert.equal(heist.state, 'IDLE');
@@ -140,9 +141,9 @@ describe('🏦 ASSALTO AO SUPER BANCO (você é o assaltante, 4 andares)', () =>
     assert.equal(bank.vaultDoor.destroyed, false, 'Cofre volta a fechar para a próxima tentativa');
 
     fw.debugBankHeist();
-    controller.position.set(0, F[0] + 0.05, -150);
+    controller.position.set(0, F[0] + 0.05, bz(-150));
     step(0.2);
-    controller.position.set(0, 0.5, -60);
+    controller.position.set(0, 0.5, bank.frontZ + 76);
     step(0.2);
     assert.equal(heist.state, 'IDLE', 'Saiu do banco: abortado');
     assert.equal(fw.activeMode, 'PEACEFUL_CITY');

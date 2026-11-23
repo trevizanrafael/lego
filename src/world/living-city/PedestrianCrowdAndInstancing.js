@@ -597,6 +597,13 @@ export const pedestrianCrowdAndInstancingMethods = {
       if (recycledCount >= maxRecyclesPerTick) break;
       const ped = this.pedestrians[i];
       if (ped.isDeadCorpse || ped.humanoidHealth?.isDead()) continue;
+      if (
+        ped.state === 'PANIC' ||
+        (ped.panicTimer || 0) > 0 ||
+        (ped.humanoidHealth && ped.humanoidHealth.state !== 'ALIVE')
+      ) {
+        continue;
+      }
       const root = ped.visual.root;
       if (Math.hypot(root.position.x - playerPos.x, root.position.z - playerPos.z) <= 125.0) continue;
 

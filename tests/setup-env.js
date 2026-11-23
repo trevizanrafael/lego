@@ -220,7 +220,7 @@ export function setupTestEnvironment(opts = {}) {
     innerHeight: 720,
     devicePixelRatio: 1,
     location: {
-      search: opts.search !== undefined ? opts.search : '?worldScale=1'
+      search: opts.search !== undefined ? opts.search : ''
     },
     addEventListener(type, fn) {
       winListeners[type] = winListeners[type] || [];
