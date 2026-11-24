@@ -503,10 +503,21 @@ export function buildDetailedHouse(world, batcher, cfg) {
 
   if (hasRot) batcher.setTransform(x, z, rotY, world, baseY);
 
-  const registerFootprint = (cx, cz, cw, cd, maxY, minY, mapZ, mapW, mapD, mapH, mapColor, label) => {
+  const registerColliderOnly = (cx, cz, cw, cd, maxY, minY) => {
     if (hasColliderRot) {
       const rc = localToWorldXZ(x, z, cx - x, cz - z, cosY, sinY);
-      const rm = localToWorldXZ(x, z, cx - x, mapZ - z, cosY, sinY);
+      const dy = (world.getTerrainHeightAt ? world.getTerrainHeightAt(rc.x, rc.z) : baseY) - baseY;
+      if (typeof world.addObbCollider === 'function') world.addObbCollider(rc.x, rc.z, cw, cd, rotY, maxY + dy, minY + dy);
+      else world.addCollider(rc.x, rc.z, cw, cd, maxY + dy, minY + dy);
+      return;
+    }
+    world.addCollider(cx, cz, cw, cd, maxY, minY);
+  };
+
+  const registerFootprint = (cx, cz, cw, cd, maxY, minY, mapZ, mapW, mapD, mapH, mapColor, label, mapX = cx) => {
+    if (hasColliderRot) {
+      const rc = localToWorldXZ(x, z, cx - x, cz - z, cosY, sinY);
+      const rm = localToWorldXZ(x, z, mapX - x, mapZ - z, cosY, sinY);
       const dy = (world.getTerrainHeightAt ? world.getTerrainHeightAt(rc.x, rc.z) : baseY) - baseY;
       if (typeof world.addObbCollider === 'function') world.addObbCollider(rc.x, rc.z, cw, cd, rotY, maxY + dy, minY + dy);
       else world.addCollider(rc.x, rc.z, cw, cd, maxY + dy, minY + dy);
@@ -516,7 +527,7 @@ export function buildDetailedHouse(world, batcher, cfg) {
       return;
     }
     world.addCollider(cx, cz, cw, cd, maxY, minY);
-    const entry = { x: cx, z: mapZ, w: mapW, d: mapD, height: mapH, color: mapColor };
+    const entry = { x: mapX, z: mapZ, w: mapW, d: mapD, height: mapH, color: mapColor };
     if (label) entry.label = label;
     world.mapBuildings.push(entry);
   };
@@ -587,7 +598,10 @@ export function buildDetailedHouse(world, batcher, cfg) {
       addFramedWindow(batcher, mainX + mainW * 0.23, yBase + 6.3, fZ, winW * 0.92, 1.65, facingDirZ, shutterKey, true);
       batcher.addBox('walkway_stone', 1.5, 0.08, Math.abs(frontEdgeZ - porchZ), doorX, yBase + 0.065, (frontEdgeZ + porchZ) * 0.5);
 
-      registerFootprint(x, houseZ, totW, mainD, yBase + mainH + 3.0, yBase, houseZ, totW, mainD, mainH, wallEntry.mapColor);
+      // Casa principal + garagem com colisores próprios: a garagem é mais rasa que a casa,
+      // então um único colisor totW×mainD criava uma parede invisível na frente da garagem.
+      registerFootprint(mainX, houseZ, mainW, mainD, yBase + mainH + 3.0, yBase, houseZ, totW, mainD, mainH, wallEntry.mapColor, undefined, x);
+      registerColliderOnly(garX, garZ, garW, garD, yBase + garH + 1.9, yBase);
     } else if (styleKey === 'ranch_l_shape') {
       const wingW = IS_SCALED_WORLD ? Math.min(18.8, availW) : Math.min(22, lotW - 4);
       const wingD = IS_SCALED_WORLD ? Math.min(9.6, lotD * 0.34) : 10.5, wingH = 5.3;

@@ -66,6 +66,14 @@ O overhaul (M4–M9) deixou a cidade mais orgânica, mas alguns elementos se per
 - **Praia:** a *skyline* da orla ficou com prédios muito espaçados; o objetivo é uma muralha densa de prédios que tape a visão da cidade a partir da areia.
 - **Favela CDD:** casas soltas e separadas, sem becos, vielas e escadarias de verdade, e o miolo desconectado das ruas. Deve voltar a ser uma favela densa e contínua (como era antes), mantendo o que melhorou no overhaul.
 
+### 2.1.1 Resultado da Etapa 2.0 (diagnóstico global)
+Ferramenta: `node tools/audit/ghost-colliders.mjs` (mapa de altura da geometria visível × colisores; `--debug x z` desenha a vizinhança em ASCII).
+
+- **Causa principal das barreiras invisíveis:** a física a pé, dos carros, dos barcos e da câmera testava o **AABB** de todo colisor. Prédios e casas girados no overhaul (OBB) e cilindros bloqueavam o retângulo alinhado que os envolve, fechando becos e vãos. Área extra bloqueada: Centro ~1,41 km², Praia ~0,95 km², Favela ~0,74 km², Subúrbio ~0,23 km², Torre ~26 mil m². **Corrigido** com teste exato da forma (`circleOverlapsColliderXZ`).
+- **Prédios sem textura / apagados:** o LOD do M9 unificava as famílias de fachada no material dominante (prédio com textura errada de perto), e chunks com <9 prédios viravam silhueta escura a 185 m. **Corrigido:** o L0 mantém todas as famílias, o L1 mantém até 3, e todo chunk ganha o L1.
+- **Barreiras menores corrigidas:** frente da garagem das casas de 2 andares e chafarizes das pracinhas.
+- **Pendentes para as etapas por região:** ilhas das rotatórias (cilindros sólidos de 26–28 m sobre grama baixa), blocos da Ilha da Prisão e caixas elevadas do Aeroporto.
+
 ### 2.2 Ordem das etapas
 | Etapa | Região | Foco principal |
 | --- | --- | --- |
@@ -113,7 +121,7 @@ O overhaul (M4–M9) deixou a cidade mais orgânica, mas alguns elementos se per
 | Fase | Status |
 | --- | --- |
 | 0 — Plano (este documento) | ✅ Commitado |
-| 1 — Controle | 🧪 Implementado, aguardando teste do usuário |
-| 2 — Regiões | ⏸️ Depois da Fase 1 |
+| 1 — Controle | ✅ Aprovado (PR #15) + ajuste de drift |
+| 2 — Regiões | 🧪 Etapa 2.0 (global) implementada, aguardando teste |
 | 3 — Entrevista & novas regiões | ⏸️ |
 | 4 — Continente | ⏸️ |

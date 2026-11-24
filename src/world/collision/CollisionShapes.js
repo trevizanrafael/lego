@@ -364,3 +364,23 @@ export function raycastSegmentVsCollider3D(ax, ay, az, bx, by, bz, col, radiusPa
     col.minX - pad, col.maxX + pad, minY, maxY, col.minZ - pad, col.maxZ + pad, out
   );
 }
+
+const _overlapScratch = { hit: false, pushX: 0, pushZ: 0, nx: 0, nz: 0, depth: 0 };
+
+/**
+ * Teste booleano rápido círculo×colisor no plano XZ usando a FORMA REAL do colisor.
+ * Pré-filtro pelo AABB; caixas alinhadas mantêm o teste AABB+raio histórico, enquanto
+ * OBBs (prédios/casas rotacionados) e cilindros usam o teste exato — sem "paredes
+ * invisíveis" nos cantos do AABB de formas giradas.
+ */
+export function circleOverlapsColliderXZ(x, z, radius, col) {
+  if (!col) return false;
+  const r = radius > 0 ? radius : 0;
+  if (x + r <= col.minX || x - r >= col.maxX || z + r <= col.minZ || z - r >= col.maxZ) {
+    // Pontos exatamente na borda (r = 0) contam como dentro, igual ao teste inclusivo antigo.
+    if (!(r === 0 && x >= col.minX && x <= col.maxX && z >= col.minZ && z <= col.maxZ)) return false;
+  }
+  const type = col.shapeType || 'box';
+  if (type === 'box') return true;
+  return testCircleVsCollider2D(x, z, r, col, _overlapScratch).hit;
+}

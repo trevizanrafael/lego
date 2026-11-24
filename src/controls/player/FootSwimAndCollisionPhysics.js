@@ -4,6 +4,7 @@ import { isFactionOperatorKey, getOperatorSpec } from '../../entities/operators/
 import { resolveRoleRollSpec } from '../../entities/operators/RoleBaselines.js';
 import { getWorldSoftBoundaryForce } from '../../world/CoastlineProfile.js';
 import { lerpAngle } from './CameraOrbitAndRig.js';
+import { circleOverlapsColliderXZ } from '../../world/collision/CollisionShapes.js';
 
 export const footSwimAndCollisionMethods = {
   _isAnyMenuOpenForRoll() {
@@ -157,7 +158,7 @@ export const footSwimAndCollisionMethods = {
       : (this.world?.colliders || []);
     for (const col of supportCols) {
       if (col.disabled) continue;
-      if (x >= col.minX && x <= col.maxX && z >= col.minZ && z <= col.maxZ) {
+      if (circleOverlapsColliderXZ(x, z, 0, col)) {
         if (currentY + 2.5 >= col.maxY && col.maxY > supportY) {
           supportY = col.maxY;
         }
@@ -446,12 +447,7 @@ export const footSwimAndCollisionMethods = {
     let blockedX = false;
     for (const col of nearCols) {
       if (col.disabled) continue;
-      if (
-        nextX + r > col.minX &&
-        nextX - r < col.maxX &&
-        this.position.z + r > col.minZ &&
-        this.position.z - r < col.maxZ
-      ) {
+      if (circleOverlapsColliderXZ(nextX, this.position.z, r, col)) {
         const colMinY = col.minY ?? 0;
         // Só bloqueia horizontalmente se o corpo do boneco estiver na faixa vertical do colisor
         if (
@@ -473,12 +469,7 @@ export const footSwimAndCollisionMethods = {
     let blockedZ = false;
     for (const col of nearCols) {
       if (col.disabled) continue;
-      if (
-        this.position.x + r > col.minX &&
-        this.position.x - r < col.maxX &&
-        nextZ + r > col.minZ &&
-        nextZ - r < col.maxZ
-      ) {
+      if (circleOverlapsColliderXZ(this.position.x, nextZ, r, col)) {
         const colMinY = col.minY ?? 0;
         if (
           this.position.y + stepUpHeight < col.maxY &&
@@ -544,12 +535,7 @@ export const footSwimAndCollisionMethods = {
 
     for (const col of nearCols) {
       if (col.disabled) continue;
-      if (
-        this.position.x + r * 0.85 > col.minX &&
-        this.position.x - r * 0.85 < col.maxX &&
-        this.position.z + r * 0.85 > col.minZ &&
-        this.position.z - r * 0.85 < col.maxZ
-      ) {
+      if (circleOverlapsColliderXZ(this.position.x, this.position.z, r * 0.85, col)) {
         const colMinY = col.minY ?? 0;
         if (this.position.y + stepUpHeight >= col.maxY && col.maxY >= supportY) {
           supportY = col.maxY;

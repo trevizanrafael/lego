@@ -6,6 +6,7 @@ import {
   getVehicleCustomFlameHex
 } from '../../world/StreetCustomGarage.js';
 import { getWorldSoftBoundaryForce } from '../../world/CoastlineProfile.js';
+import { circleOverlapsColliderXZ } from '../../world/collision/CollisionShapes.js';
 
 export const groundVehicleDrivingMethods = {
   /**
@@ -308,10 +309,7 @@ export const groundVehicleDrivingMethods = {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
         if (col.maxY <= carBottomX + 0.38 || colMinY > carBottomX + 2.2) continue;
-        if (
-          nextX + carRadius > col.minX && nextX - carRadius < col.maxX &&
-          curZ + carRadius > col.minZ && curZ - carRadius < col.maxZ
-        ) {
+        if (circleOverlapsColliderXZ(nextX, curZ, carRadius, col)) {
           blockedX = true;
           break;
         }
@@ -327,10 +325,7 @@ export const groundVehicleDrivingMethods = {
         if (col.disabled) continue;
         const colMinY = col.minY ?? 0;
         if (col.maxY <= carBottomZ + 0.38 || colMinY > carBottomZ + 2.2) continue;
-        if (
-          finalX + carRadius > col.minX && finalX - carRadius < col.maxX &&
-          nextZ + carRadius > col.minZ && nextZ - carRadius < col.maxZ
-        ) {
+        if (circleOverlapsColliderXZ(finalX, nextZ, carRadius, col)) {
           blockedZ = true;
           break;
         }

@@ -12,6 +12,8 @@ import {
 export const BUILDING_LOD_CHUNK_SIZE = 740;
 export const BUILDING_LOD1_DISTANCE = 185;
 export const BUILDING_LOD2_DISTANCE = 535;
+/** Famílias de fachada com material próprio no L1 (o resto entra na dominante). */
+export const L1_MAX_FACADE_FAMILIES = 3;
 
 const _COLOR_CACHE = new Map();
 let _sharedTrimAndGroundVcMat = null;
@@ -307,13 +309,14 @@ export class ChunkedBuildingLodBatcher {
       lod.position.set(chunk.originX, 0, chunk.originZ);
       lod.userData = { isBuildingChunkLod: true, chunkKey: chunk.key, buildingCount: chunk.count };
 
-      // Nível 0 (Detalhe Completo; <=14 prédios unifica na família dominante; >14 mantém até 2 famílias principais)
+      // Nível 0 (Detalhe Completo): cada família de fachada mantém o PRÓPRIO material.
+      // Etapa 2.0: unificar famílias na dominante (otimização do M9) pintava prédios com
+      // a textura errada/"sem textura" de perto. O L0 só existe nos chunks a <185 m,
+      // então o custo extra de draw calls fica limitado aos poucos chunks vizinhos.
       const level0 = new THREE.Group();
       const sorted0 = [...chunk.l0FacadeByMat.entries()].filter(([, e]) => e.length > 0).sort((a, b) => b[1].length - a[1].length);
       if (sorted0.length > 0) {
-        const keepSeparate = chunk.count <= 14 ? 1 : 2;
-        const primary = sorted0.slice(0, keepSeparate).map(([mat, entries]) => [mat, [...entries]]);
-        for (let r = keepSeparate; r < sorted0.length; r++) primary[0][1].push(...sorted0[r][1]);
+        const primary = sorted0.map(([mat, entries]) => [mat, [...entries]]);
         for (const [facadeMat, entries] of primary) {
           const merged = mergeColoredGeometries(entries);
           merged.computeBoundingBox(); merged.computeBoundingSphere();
@@ -350,29 +353,24 @@ export class ChunkedBuildingLodBatcher {
         level0.add(nm);
       }
 
-      // Nível 1 (Média Distância — consolidado na família dominante do chunk)
+      // Nível 1 (Média Distância): até 3 famílias de fachada com material próprio; as demais
+      // entram na família mais parecida em quantidade (a dominante).
       const level1 = new THREE.Group();
-      let dominantMat1 = null;
-      let bestLen1 = -1;
-      const allL1Entries = [];
-      for (const [facadeMat, entries] of chunk.l1FacadeByMat.entries()) {
-        if (!entries.length) continue;
-        if (entries.length > bestLen1) {
-          bestLen1 = entries.length;
-          dominantMat1 = facadeMat;
+      const sorted1 = [...chunk.l1FacadeByMat.entries()].filter(([, e]) => e.length > 0).sort((a, b) => b[1].length - a[1].length);
+      if (sorted1.length > 0) {
+        const keep1 = sorted1.slice(0, L1_MAX_FACADE_FAMILIES).map(([mat, entries]) => [mat, [...entries]]);
+        for (let r = L1_MAX_FACADE_FAMILIES; r < sorted1.length; r++) keep1[0][1].push(...sorted1[r][1]);
+        for (const [facadeMat, entries] of keep1) {
+          const merged1 = mergeColoredGeometries(entries);
+          merged1.computeBoundingBox();
+          merged1.computeBoundingSphere();
+          const m1 = new THREE.Mesh(merged1, facadeMat);
+          m1.castShadow = false;
+          m1.receiveShadow = false;
+          m1.matrixAutoUpdate = false;
+          m1.updateMatrix();
+          level1.add(m1);
         }
-        for (let i = 0; i < entries.length; i++) allL1Entries.push(entries[i]);
-      }
-      if (allL1Entries.length > 0 && dominantMat1) {
-        const merged1 = mergeColoredGeometries(allL1Entries);
-        merged1.computeBoundingBox();
-        merged1.computeBoundingSphere();
-        const m1 = new THREE.Mesh(merged1, dominantMat1);
-        m1.castShadow = false;
-        m1.receiveShadow = false;
-        m1.matrixAutoUpdate = false;
-        m1.updateMatrix();
-        level1.add(m1);
       }
 
       // Nível 2 (Silhueta Distante)
@@ -390,7 +388,9 @@ export class ChunkedBuildingLodBatcher {
       }
 
       lod.addLevel(level0, 0);
-      if (chunk.count >= 9 && level1.children.length > 0) {
+      // Etapa 2.0: qualquer chunk com fachada média ganha o L1 (antes, chunks com <9 prédios
+      // pulavam direto para a silhueta escura a 185 m — a skyline ficava "apagada").
+      if (level1.children.length > 0) {
         lod.addLevel(level1, BUILDING_LOD1_DISTANCE);
         lod.addLevel(level2, BUILDING_LOD2_DISTANCE);
         level1.visible = false;
