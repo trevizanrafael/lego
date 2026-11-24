@@ -16,34 +16,31 @@ Plano de trabalho da branch `claude/inspiring-johnson-347y9o`. Segue as regras d
 
 **Objetivo:** jogar o jogo inteiro só com o controle (Xbox, PlayStation ou genérico via Gamepad API do navegador, layout `standard`), com a mesma sensação do GTA.
 
-### 1.1 Mapeamento oficial (escolhido pelo usuário)
+### 1.1 Mapeamento oficial (revisão 2, definida pelo usuário)
 
 | Ação | Teclado | Xbox | PlayStation |
 | --- | --- | --- | --- |
-| Mover (360° analógico) | `WASD` | Analógico esquerdo | Analógico esquerdo |
+| Andar (360° analógico) | `WASD` | Analógico esquerdo | Analógico esquerdo |
+| Correr | `Shift` | Clicar `L3` andando (dura até soltar o analógico) | `L3` |
 | Câmera | Mouse | Analógico direito | Analógico direito |
-| Correr / voo supersônico | `Shift` | `LB` | `L1` |
 | Pular / Subir no voo | `Espaço` | `A` | `✕` |
-| Habilidade 1 | `Q` | `X` | `□` |
-| Habilidade 2 | `E` | `B` | `○` |
+| Habilidade 1 / 2 | `Q` / `E` | `X` / `B` | `□` / `○` |
 | Grade de Personagens | `Tab` | `Y` | `△` |
+| Rádio (analógico escolhe, `A` confirma) | `Z` | `LB` | `L1` |
 | Entrar/sair de veículo, interagir | `F` | `RB` | `R1` |
-| Atirar / Ataque | Clique esquerdo | `RT` | `R2` |
-| Mirar / Ataque secundário (+ mira assistida) | Clique direito | `LT` | `L2` |
+| Atirar / Mirar (+ mira assistida) | Clique esq. / dir. | `RT` / `LT` | `R2` / `L2` |
 | Recarregar | `R` | D-pad `↓` | D-pad `↓` |
-| Poder extra / invocação | `G` | D-pad `↑` | D-pad `↑` |
+| Poder extra / Ficha do herói | `G` / `H` | D-pad `↑` toque / segurar | idem |
 | Operador 1 / Operador 2 | `1` / `2` | D-pad `←` / `→` | D-pad `←` / `→` |
 | Agachar / Rolamento / Descer no voo | `Ctrl` / `C` | `R3` | `R3` |
-| Ficha do herói | `H` | `L3` | `L3` |
-| Mapa | `M` | `View` (toque) | `Share` (toque) |
-| Roda de Rádio | `Z` | Segurar `View` + analógico dir. | Segurar `Share` |
-| Trocar estação (roda aberta) | `[` / `]` | D-pad `←` / `→` | D-pad `←` / `→` |
-| Pausa | `Esc` | `Menu` | `Options` |
+| Mapa | `M` | `☰` (Menu) | `Options` |
+| Pausa (ESC) | `Esc` | `⧉` (View) | `Share` |
 
-**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça (analógico), `A` ou `LB` segurado curvando = **drift**, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai.
+**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça, `A` segurado = **drift**, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai, `LB` rádio.
 **Helicópteros e aviões:** `RT`/`LT` potência, `A` sobe, `B` desce, `R3` atira, `RB` sai.
-**Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas da loja, `Y` fecha a Grade.
+**Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas, `Y` fecha a Grade, `⧉` fecha a pausa.
 **Oficinas, Hangar, Laboratório OP-09, Mapa e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
+**Prompts na tela:** com o controle em uso, todo `[F]`, `<kbd>Q</kbd>`, chip `M1` e dica `ENTER/ESC` vira o botão equivalente (Xbox/PS); volta ao teclado ao usar teclado/mouse.
 
 ### 1.2 Entregas técnicas
 - Novo submódulo `src/controls/player/GamepadInput.js` (Gamepad API, *polling* por frame, zona morta radial, curva de resposta) alimentando o mesmo `this.keys`/`yaw`/`pitch` que o teclado usa, sem duplicar a lógica de gameplay.

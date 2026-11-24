@@ -1,10 +1,12 @@
 import {
-  PAD, PAD_NAMES, VIEW_HOLD_SECONDS, MENU_REPEAT_DELAY, MENU_REPEAT_RATE, MENU_REPEATING,
+  PAD, PAD_NAMES, DPAD_HOLD_SECONDS, MENU_REPEAT_DELAY, MENU_REPEAT_RATE, MENU_REPEATING,
+  SPRINT_LATCH, RADIO_OPEN,
   DIGITAL_STICK_THRESHOLD, applyRadialDeadzone, applyLookCurve, detectGamepadFamily,
   isAirVehicleCategory, readButtonPressed, resolveBindingsForContext
 } from './GamepadBindings.js';
 import { GamepadVirtualCursor } from './GamepadVirtualCursor.js';
 import { applyGamepadAimAssist } from './GamepadAimAssist.js';
+import { setGamepadPromptMode } from '../../../ui/gamepad/GamepadPromptGlyphs.js';
 
 const LOOK_SPEED_YAW = 3.1;
 const LOOK_SPEED_PITCH = 2.2;
@@ -36,8 +38,8 @@ export class GamepadInputRuntime {
     this._prevPressed = Object.create(null);
     this._heldBindings = Object.create(null);
     this._repeatTimers = Object.create(null);
-    this._viewHeldTime = 0;
-    this._viewRadioOpened = false;
+    this._sprintLatched = false;
+    this._tapHold = Object.create(null); // botão -> { t, fired, tap, hold }
     this._prevStickDigital = { forward: false, backward: false, left: false, right: false };
     this._prevContext = 'foot';
     this._rumbleTimer = 0;
@@ -101,6 +103,14 @@ export class GamepadInputRuntime {
       if (ctl.keys) for (const k of Object.keys(this._prevStickDigital)) if (this._prevStickDigital[k]) ctl.keys[k] = false;
     }
     this._prevStickDigital = { forward: false, backward: false, left: false, right: false };
+    this._setSprintLatch(false);
+    this._tapHold = Object.create(null);
+  }
+
+  _setSprintLatch(on) {
+    if (this._sprintLatched === on) return;
+    this._sprintLatched = on;
+    this.emitKey('ShiftLeft', on);
   }
 
   _sendBinding(binding, isDown) {
@@ -116,6 +126,7 @@ export class GamepadInputRuntime {
 
   _markActivity() {
     this.lastInputTime = this._time;
+    setGamepadPromptMode(true, this.family);
     const ctl = this.controller;
     if (ctl && !ctl.hasEnteredGame && !this.hud?.isTitleScreenActive) {
       ctl.hasEnteredGame = true;
@@ -146,8 +157,7 @@ export class GamepadInputRuntime {
       this._releaseAllHeld();
       this._repeatTimers = Object.create(null);
       // O botão que abriu/fechou o menu continua apertado: ignora até soltar para não disparar de novo.
-      const radioSwap = context === 'radio' || this._prevContext === 'radio';
-      for (const name of PAD_NAMES) if (pressed[name] && !(radioSwap && name === 'VIEW')) this._suppressUntilRelease.add(name);
+      for (const name of PAD_NAMES) if (pressed[name]) this._suppressUntilRelease.add(name);
       this._prevContext = context;
     }
     for (const name of [...this._suppressUntilRelease]) {
@@ -162,7 +172,7 @@ export class GamepadInputRuntime {
 
     if (context === 'cursor') this._updateCursorContext(dt, pressed, left, right);
     else if (context === 'menu') this._updateMenuContext(dt, pressed, left);
-    else if (context === 'radio') this._updateRadioContext(pressed, right);
+    else if (context === 'radio') this._updateRadioContext(pressed, left, right);
     else this._updateGameplayContext(dt, context, pressed, left, right);
 
     for (const name of PAD_NAMES) this._prevPressed[name] = pressed[name];
@@ -179,14 +189,26 @@ export class GamepadInputRuntime {
     const bindings = resolveBindingsForContext(context);
 
     for (const name of PAD_NAMES) {
-      if (name === 'VIEW') continue;
       const binding = bindings[name];
       if (!binding) continue;
       const edge = this._edge(pressed, name);
+      if (binding === SPRINT_LATCH) {
+        if (edge === 'down') this._setSprintLatch(!this._sprintLatched);
+        continue;
+      }
+      if (binding === RADIO_OPEN) {
+        if (edge === 'down') this.emitKey('KeyZ', true); // fica aberta: o analógico escolhe e A confirma
+        continue;
+      }
+      if (binding.startsWith('tap:')) {
+        this._updateTapHold(name, binding, edge, pressed[name], dt);
+        continue;
+      }
       if (edge === 'down') { this._heldBindings[name] = binding; this._sendBinding(binding, true); }
       else if (edge === 'up' && this._heldBindings[name]) { this._sendBinding(this._heldBindings[name], false); delete this._heldBindings[name]; }
     }
-    this._updateViewButton(dt, pressed);
+    // Corrida no L3: dura enquanto o analógico estiver inclinado (soltou = volta a andar).
+    if (this._sprintLatched && (left.mag === 0 || context !== 'foot')) this._setSprintLatch(false);
 
     if (ctl?.keys) {
       const isVehicle = context === 'vehicle' || context === 'air';
@@ -225,32 +247,30 @@ export class GamepadInputRuntime {
     this._updateFireRumble(dt, pressed, context);
   }
 
-  _updateViewButton(dt, pressed) {
-    const edge = this._edge(pressed, 'VIEW');
-    if (pressed.VIEW) {
-      this._viewHeldTime += dt;
-      if (!this._viewRadioOpened && this._viewHeldTime >= VIEW_HOLD_SECONDS) {
-        this._viewRadioOpened = true;
-        this.emitKey('KeyZ', true);
-      }
+  /** Toque curto = tecla de toque (ao soltar); segurar = tecla de segurar (dispara uma vez). */
+  _updateTapHold(name, binding, edge, isPressed, dt) {
+    const [tapPart, holdPart] = binding.split('|');
+    const tapCode = tapPart.slice(4), holdCode = holdPart.slice(5);
+    if (edge === 'down') this._tapHold[name] = { t: 0, fired: false };
+    const st = this._tapHold[name];
+    if (!st) return;
+    if (isPressed) {
+      st.t += dt;
+      if (!st.fired && st.t >= DPAD_HOLD_SECONDS) { st.fired = true; this.emitKey(holdCode, true); this.emitKey(holdCode, false); }
     } else if (edge === 'up') {
-      if (this._viewRadioOpened) this.emitKey('KeyZ', false);
-      else { this.emitKey('KeyM', true); this.emitKey('KeyM', false); }
-      this._viewHeldTime = 0;
-      this._viewRadioOpened = false;
+      if (!st.fired) { this.emitKey(tapCode, true); this.emitKey(tapCode, false); }
+      delete this._tapHold[name];
     }
   }
 
-  _updateRadioContext(pressed, right) {
-    if (right.mag > 0) this.hud?.updateRadioWheelAim?.(right.x * 24, right.y * 24);
+  _updateRadioContext(pressed, left, right) {
+    const stick = left.mag > 0 ? left : right;
+    if (stick.mag > 0) this.hud?.updateRadioWheelAim?.(stick.x * 24, stick.y * 24);
     if (this._edge(pressed, 'LEFT') === 'down') this.emitKey('BracketLeft', true);
     if (this._edge(pressed, 'RIGHT') === 'down') this.emitKey('BracketRight', true);
-    if (this._edge(pressed, 'B') === 'down') { this.emitKey('Escape', true); this.emitKey('Escape', false); }
-    if (this._edge(pressed, 'VIEW') === 'up') {
-      if (this._viewRadioOpened) this.emitKey('KeyZ', false);
-      this._viewHeldTime = 0;
-      this._viewRadioOpened = false;
-    }
+    // A confirma a estação mirada (mesmo que soltar o Z no teclado); LB de novo também fecha.
+    if (this._edge(pressed, 'A') === 'down' || this._edge(pressed, 'LB') === 'down') this.emitKey('KeyZ', false);
+    if (this._edge(pressed, 'B') === 'down' || this._edge(pressed, 'VIEW') === 'down') { this.emitKey('Escape', true); this.emitKey('Escape', false); }
   }
 
   _updateMenuContext(dt, pressed, left) {
@@ -286,10 +306,11 @@ export class GamepadInputRuntime {
     if (stick.mag > 0) cursor?.move?.(stick.x, stick.y, dt);
     if (this._edge(pressed, 'A') === 'down') cursor?.press?.();
     if (this._edge(pressed, 'A') === 'up') cursor?.release?.();
-    for (const name of ['B', 'MENU']) {
+    for (const name of ['B', 'VIEW']) {
       if (this._edge(pressed, name) === 'down') { this.emitKey('Escape', true); this.emitKey('Escape', false); }
     }
-    if (this.hud?.isFullMapOpen && this._edge(pressed, 'VIEW') === 'up') { this.emitKey('KeyM', true); this.emitKey('KeyM', false); }
+    // ☰ (Menu) abriu o mapa, então ☰ também fecha.
+    if (this.hud?.isFullMapOpen && this._edge(pressed, 'MENU') === 'down') { this.emitKey('KeyM', true); this.emitKey('KeyM', false); }
   }
 
   _updateFireRumble(dt, pressed, context) {

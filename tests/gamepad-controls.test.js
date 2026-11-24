@@ -44,21 +44,26 @@ function makeRig({ hud = {}, controller = null } = {}) {
 }
 
 describe('Gamepad — mapeamento escolhido pelo usuário', () => {
-  it('a pé: LB corre, A pula, Y abre a Grade, X = Q, B = E', () => {
-    assert.equal(ON_FOOT_BINDINGS.LB, 'ShiftLeft');
+  it('a pé: L3 corre, A pula, Y Grade, X = Q, B = E, LB rádio, ☰ mapa, ⧉ pausa', () => {
+    assert.equal(ON_FOOT_BINDINGS.L3, 'sprint:latch');
     assert.equal(ON_FOOT_BINDINGS.A, 'Space');
     assert.equal(ON_FOOT_BINDINGS.Y, 'Tab');
     assert.equal(ON_FOOT_BINDINGS.X, 'KeyQ');
     assert.equal(ON_FOOT_BINDINGS.B, 'KeyE');
+    assert.equal(ON_FOOT_BINDINGS.LB, 'radio:open');
+    assert.equal(ON_FOOT_BINDINGS.MENU, 'KeyM');
+    assert.equal(ON_FOOT_BINDINGS.VIEW, 'Escape');
+    assert.equal(ON_FOOT_BINDINGS.LEFT, 'Digit1');
+    assert.equal(ON_FOOT_BINDINGS.RIGHT, 'Digit2');
     assert.equal(ON_FOOT_BINDINGS.RT, 'mouse:0');
     assert.equal(ON_FOOT_BINDINGS.LT, 'mouse:2');
   });
 
-  it('veículos: gatilhos aceleram/freiam e aeronaves sobem/descem em A/B', () => {
+  it('veículos: gatilhos aceleram/freiam, A faz drift, aeronaves sobem/descem em A/B', () => {
     assert.equal(GROUND_VEHICLE_BINDINGS.RT, 'KeyW');
     assert.equal(GROUND_VEHICLE_BINDINGS.LT, 'KeyS');
     assert.equal(GROUND_VEHICLE_BINDINGS.A, 'ShiftLeft', 'A segurado = drift no carro');
-    assert.equal(GROUND_VEHICLE_BINDINGS.LB, 'ShiftLeft', 'LB também faz drift');
+    assert.equal(GROUND_VEHICLE_BINDINGS.LB, 'radio:open');
     assert.equal(AIR_VEHICLE_BINDINGS.A, 'Space');
     assert.equal(AIR_VEHICLE_BINDINGS.B, 'KeyC');
     assert.equal(resolveBindingsForContext('menu'), MENU_BINDINGS);
@@ -123,26 +128,64 @@ describe('Gamepad — runtime', () => {
   it('menus: direcional navega, A confirma, B volta e o botão que abriu o menu não dispara de novo', () => {
     const hud = { isPauseMenuOpen: false };
     const { pad, events, rt } = makeRig({ hud });
-    press(pad, 'MENU'); rt.poll(1 / 60);
+    press(pad, 'VIEW'); rt.poll(1 / 60);
     assert.deepEqual(events.at(-1), ['Escape', true]);
     rt.hud.isPauseMenuOpen = true;
     const before = events.length;
     rt.poll(1 / 60);
-    assert.ok(events.slice(before).every(([c, d]) => !(c === 'Escape' && d)), 'MENU segurado não fecha a pausa');
-    press(pad, 'MENU', false); rt.poll(1 / 60);
+    assert.ok(events.slice(before).every(([c, d]) => !(c === 'Escape' && d)), 'View segurado não fecha a pausa');
+    press(pad, 'VIEW', false); rt.poll(1 / 60);
     press(pad, 'DOWN'); rt.poll(1 / 60);
     assert.deepEqual(events.slice(-2), [['ArrowDown', true], ['ArrowDown', false]]);
     press(pad, 'DOWN', false); press(pad, 'A'); rt.poll(1 / 60);
     assert.deepEqual(events.slice(-2), [['Enter', true], ['Enter', false]]);
   });
 
-  it('VIEW: toque abre o mapa, segurar abre a rádio', () => {
+  it('☰ abre o mapa e ⧉ é o ESC', () => {
     const { pad, events, rt } = makeRig();
-    press(pad, 'VIEW'); rt.poll(0.05);
-    press(pad, 'VIEW', false); rt.poll(0.05);
-    assert.deepEqual(events.slice(-2), [['KeyM', true], ['KeyM', false]]);
-    press(pad, 'VIEW'); rt.poll(0.2); rt.poll(0.2);
+    press(pad, 'MENU'); rt.poll(1 / 60);
+    assert.deepEqual(events.at(-1), ['KeyM', true]);
+    press(pad, 'MENU', false); rt.poll(1 / 60);
+    press(pad, 'VIEW'); rt.poll(1 / 60);
+    assert.deepEqual(events.at(-1), ['Escape', true]);
+  });
+
+  it('L3 liga a corrida e ela desliga ao soltar o analógico', () => {
+    const { pad, events, rt } = makeRig();
+    pad.axes = [0, -1, 0, 0];
+    rt.poll(1 / 60);
+    assert.ok(!events.some(([c]) => c === 'ShiftLeft'), 'só mexer = andar');
+    press(pad, 'L3'); rt.poll(1 / 60);
+    assert.deepEqual(events.at(-1), ['ShiftLeft', true]);
+    press(pad, 'L3', false); rt.poll(1 / 60);
+    assert.ok(rt._sprintLatched, 'continua correndo depois de soltar o clique');
+    pad.axes = [0, 0, 0, 0]; rt.poll(1 / 60);
+    assert.deepEqual(events.at(-1), ['ShiftLeft', false]);
+  });
+
+  it('LB abre a rádio, o analógico mira e A confirma', () => {
+    const aims = [];
+    const hud = { isRadioWheelOpen: false, updateRadioWheelAim: (x, y) => aims.push([x, y]) };
+    const { pad, events, rt } = makeRig({ hud });
+    press(pad, 'LB'); rt.poll(1 / 60);
     assert.deepEqual(events.at(-1), ['KeyZ', true]);
+    rt.hud.isRadioWheelOpen = true;
+    press(pad, 'LB', false); pad.axes = [1, 0, 0, 0]; rt.poll(1 / 60); rt.poll(1 / 60);
+    assert.ok(aims.length > 0 && aims.at(-1)[0] > 0);
+    assert.ok(!events.some(([c, d]) => c === 'KeyZ' && !d), 'soltar LB não fecha a rádio');
+    press(pad, 'A'); rt.poll(1 / 60);
+    assert.deepEqual(events.at(-1), ['KeyZ', false]);
+  });
+
+  it('direcional ▲: toque = poder extra (G), segurar = ficha do herói (H)', () => {
+    const { pad, events, rt } = makeRig();
+    press(pad, 'UP'); rt.poll(0.05);
+    press(pad, 'UP', false); rt.poll(0.05);
+    assert.deepEqual(events.slice(-2), [['KeyG', true], ['KeyG', false]]);
+    press(pad, 'UP'); rt.poll(0.3); rt.poll(0.3);
+    assert.deepEqual(events.slice(-2), [['KeyH', true], ['KeyH', false]]);
+    press(pad, 'UP', false); rt.poll(0.05);
+    assert.notEqual(events.at(-1)[0], 'KeyG', 'segurar não dispara o toque');
   });
 });
 
@@ -162,5 +205,18 @@ describe('Gamepad — mira assistida', () => {
     applyGamepadAimAssist(ctl, 1 / 60);
     assert.ok(Math.abs(wrapAngle(goal - ctl.yaw)) < Math.abs(goal));
     assert.ok(Math.sign(ctl.yaw) === Math.sign(goal));
+  });
+});
+
+describe('Gamepad — transcrição dos prompts', async () => {
+  const { translateKeyToken, translateBracketText } = await import('../src/ui/gamepad/GamepadPromptGlyphs.js');
+  it('troca [F] por [RB] no Xbox e teclas de menu por botões', () => {
+    assert.equal(translateBracketText('PRESSIONE [F] PARA SALTAR', 'xbox'), 'PRESSIONE [RB] PARA SALTAR');
+    assert.equal(translateBracketText('[Q] / [E] habilidades', 'playstation'), '[□] / [○] habilidades');
+    assert.equal(translateKeyToken('ENTER', 'xbox', true), 'A');
+    assert.equal(translateKeyToken('ESC', 'playstation', true), '○');
+    assert.equal(translateKeyToken('Q', 'xbox', true), 'LB');
+    assert.equal(translateKeyToken('1 / 2', 'xbox'), '◀/▶');
+    assert.equal(translateBracketText('array[0] sem tecla', 'xbox'), 'array[0] sem tecla');
   });
 });
