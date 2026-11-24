@@ -156,7 +156,7 @@ export const navalAircraftAndRidesMethods = {
       this.vehicleSpeed = Math.abs(this.vehicleSpeed) < 0.2 ? 0 : this.vehicleSpeed - Math.sign(this.vehicleSpeed) * 7.5 * dt;
     }
 
-    const steerInput = (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
+    const steerInput = Number.isFinite(this.analogSteer) ? this.analogSteer : (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
     this.vehicleSteerAngle = THREE.MathUtils.lerp(this.vehicleSteerAngle, steerInput * 0.55, Math.min(1, dt * 12));
     if (Math.abs(this.vehicleSpeed) > 0.25) {
       const turnRate = this.isDrifting ? spec.driftTurnRate : spec.turnRate;
@@ -445,7 +445,7 @@ export const navalAircraftAndRidesMethods = {
     const targetVy = (this.keys.jump ? (this.isTurboActive ? 34.0 : 24.0) : 0) - (this.keys.descend ? 22.0 : 0);
     this.vehicleVerticalSpeed = THREE.MathUtils.lerp(this.vehicleVerticalSpeed || 0, targetVy, Math.min(1, dt * 10));
 
-    const steerInput = (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
+    const steerInput = Number.isFinite(this.analogSteer) ? this.analogSteer : (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
     this.vehicleSteerAngle = THREE.MathUtils.lerp(this.vehicleSteerAngle, steerInput * 0.45, Math.min(1, dt * 10));
     this.vehicleHeading += steerInput * spec.turnRate * dt;
     if (this.keys.forward && steerInput === 0) {
@@ -493,7 +493,7 @@ export const navalAircraftAndRidesMethods = {
       this.vehicleSpeed = THREE.MathUtils.lerp(this.vehicleSpeed, isAirborne ? 22.0 : 0, Math.min(1, dt * 2.5));
     }
 
-    const steerInput = (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
+    const steerInput = Number.isFinite(this.analogSteer) ? this.analogSteer : (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
     this.vehicleSteerAngle = THREE.MathUtils.lerp(this.vehicleSteerAngle, steerInput * 0.5, Math.min(1, dt * 10));
     if (Math.abs(this.vehicleSpeed) > 0.5 || isAirborne) this.vehicleHeading += steerInput * spec.turnRate * dt;
 

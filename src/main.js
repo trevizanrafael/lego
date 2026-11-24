@@ -14,6 +14,7 @@ import { PerfOverlay, auditSceneGraph } from './debug/PerfOverlay.js';
 import { getStaticMinimapCache } from './ui/minimap/MinimapTerrainAndRoadsPainter.js';
 import { CollisionDebugOverlay, isCollisionDebugAllowed } from './world/collision/CollisionDebugOverlay.js';
 import { WORLD_SCALE } from './world/core/WorldLayoutScale.js';
+import { GamepadInputRuntime } from './controls/player/gamepad/GamepadInputRuntime.js';
 
 class LegoCityGame {
   constructor() {
@@ -38,6 +39,8 @@ class LegoCityGame {
 
   _initHudBindings() {
     this.hud = new LegoHud();
+    // Controle (Gamepad API): ativo desde a Tela Inicial; o controlador do jogador é ligado depois.
+    this.gamepad = new GamepadInputRuntime(null, this.hud);
     this.hud.onSelectFaction = (factionKey, conqueredTerritories = null) => {
       if (this.world?.livingCity) {
         this.world.livingCity.setPlayerFaction(factionKey, this.controller, conqueredTerritories);
@@ -213,6 +216,8 @@ class LegoCityGame {
     );
     this.controller.switchToHero(starterKey, true);
     this.hud._lastController = this.controller;
+    this.gamepad.controller = this.controller;
+    this.controller.gamepad = this.gamepad;
     consolidateSceneMaterials(this.scene, this.world);
     const initialQuality =
       this._pendingGraphicsQuality || this.hud?.settings?.graphicsQuality || 'auto';
@@ -434,6 +439,7 @@ class LegoCityGame {
     const rawDt = (now - this.lastTime) * 0.001;
     this.lastTime = now;
     const baseDt = Math.min(rawDt, 0.05);
+    this.gamepad?.poll(baseDt > 0 ? baseDt : 1 / 60);
 
     // Na Tela Inicial ou na Tela de Loading, NÃO roda nem renderiza o mundo 3D em tempo real
     if (this.hud.isTitleScreenActive || this.hud.isLoadingActive || !this._engineReady) {

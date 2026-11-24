@@ -61,6 +61,9 @@ export class ThirdPersonController {
       sprint: false, turbo: false, jump: false, descend: false
     };
     this.mouseButtons = { left: false, right: false };
+    /** Analógico esquerdo do controle a pé ({x: direita, y: frente, mag}) e esterço analógico em veículos. */
+    this.analogMove = null;
+    this.analogSteer = null;
     this.isPointerLocked = false;
     this.isDraggingMouse = false;
     this.hasEnteredGame = false;
@@ -177,10 +180,16 @@ export class ThirdPersonController {
     const isUsingSolarBeam = this._updateHeroContinuousCombatAndCharges(dt);
 
     const moveInput = new THREE.Vector3();
-    if (this.keys.forward) moveInput.add(camForward);
-    if (this.keys.backward) moveInput.sub(camForward);
-    if (this.keys.right) moveInput.add(camRight);
-    if (this.keys.left) moveInput.sub(camRight);
+    const analog = this.analogMove;
+    if (analog && analog.mag > 0) {
+      // Analógico do controle: direção livre em 360° relativa à câmera.
+      moveInput.addScaledVector(camForward, analog.y).addScaledVector(camRight, analog.x);
+    } else {
+      if (this.keys.forward) moveInput.add(camForward);
+      if (this.keys.backward) moveInput.sub(camForward);
+      if (this.keys.right) moveInput.add(camRight);
+      if (this.keys.left) moveInput.sub(camRight);
+    }
     const hasInput = moveInput.lengthSq() > 0.001;
     if (hasInput) moveInput.normalize();
 

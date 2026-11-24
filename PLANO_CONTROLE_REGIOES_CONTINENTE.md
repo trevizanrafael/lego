@@ -16,32 +16,34 @@ Plano de trabalho da branch `claude/inspiring-johnson-347y9o`. Segue as regras d
 
 **Objetivo:** jogar o jogo inteiro só com o controle (Xbox, PlayStation ou genérico via Gamepad API do navegador, layout `standard`), com a mesma sensação do GTA.
 
-### 1.1 Mapeamento proposto (aguardando aprovação do usuário)
+### 1.1 Mapeamento oficial (escolhido pelo usuário)
 
-| Ação | Teclado atual | Xbox | PlayStation |
+| Ação | Teclado | Xbox | PlayStation |
 | --- | --- | --- | --- |
-| Mover | `WASD` | Analógico esquerdo | Analógico esquerdo |
+| Mover (360° analógico) | `WASD` | Analógico esquerdo | Analógico esquerdo |
 | Câmera | Mouse | Analógico direito | Analógico direito |
-| Correr / Turbo de voo | `Shift` / `Q` | `L3` (clicar analógico esq.) | `L3` |
-| Pular / Subir (voo) | `Espaço` | `A` | `✕` |
-| Agachar / Descer (voo) | `Ctrl` / `C` | `B` | `○` |
-| Recarregar | `R` | `X` | `□` |
-| Entrar/sair de veículo, interagir | `F` | `Y` | `△` |
+| Correr / voo supersônico | `Shift` | `LB` | `L1` |
+| Pular / Subir no voo | `Espaço` | `A` | `✕` |
+| Habilidade 1 | `Q` | `X` | `□` |
+| Habilidade 2 | `E` | `B` | `○` |
+| Grade de Personagens | `Tab` | `Y` | `△` |
+| Entrar/sair de veículo, interagir | `F` | `RB` | `R1` |
 | Atirar / Ataque | Clique esquerdo | `RT` | `R2` |
-| Mirar / Ataque secundário | Clique direito | `LT` | `L2` |
-| Habilidade 1 | `Q` | `LB` | `L1` |
-| Habilidade 2 | `E` | `RB` | `R1` |
+| Mirar / Ataque secundário (+ mira assistida) | Clique direito | `LT` | `L2` |
+| Recarregar | `R` | D-pad `↓` | D-pad `↓` |
 | Poder extra / invocação | `G` | D-pad `↑` | D-pad `↑` |
 | Operador 1 / Operador 2 | `1` / `2` | D-pad `←` / `→` | D-pad `←` / `→` |
-| Grade de Personagens | `Tab` | Segurar D-pad `↓` | Segurar D-pad `↓` |
-| Trocar ombro da câmera | — | `R3` | `R3` |
-| Mapa | `M` | `View` (toque curto) | `Touchpad` / `Share` |
-| Roda de Rádio | `Z` / `P` | Segurar `View` | Segurar `Touchpad` |
-| Trocar estação | `[` / `]` | D-pad `←` / `→` com a roda aberta | idem |
+| Agachar / Rolamento / Descer no voo | `Ctrl` / `C` | `R3` | `R3` |
+| Ficha do herói | `H` | `L3` | `L3` |
+| Mapa | `M` | `View` (toque) | `Share` (toque) |
+| Roda de Rádio | `Z` | Segurar `View` + analógico dir. | Segurar `Share` |
+| Trocar estação (roda aberta) | `[` / `]` | D-pad `←` / `→` | D-pad `←` / `→` |
 | Pausa | `Esc` | `Menu` | `Options` |
 
-**Veículos terrestres:** `RT` acelera, `LT` freia/ré, analógico esq. esterça, `RB` freio de mão, `Y` sai, analógico dir. olha em volta.
-**Barcos/aeronaves:** `RT`/`LT` potência, analógico esq. arfagem/rolagem, `LB`/`RB` leme (guinada), `A`/`B` sobe/desce no helicóptero.
+**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça (analógico), `A` freio (duplo toque = pulo hidráulico), `LB` drift, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai.
+**Helicópteros e aviões:** `RT`/`LT` potência, `A` sobe, `B` desce, `R3` atira, `RB` sai.
+**Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas da loja, `Y` fecha a Grade.
+**Oficinas, Hangar, Laboratório OP-09, Mapa e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
 
 ### 1.2 Entregas técnicas
 - Novo submódulo `src/controls/player/GamepadInput.js` (Gamepad API, *polling* por frame, zona morta radial, curva de resposta) alimentando o mesmo `this.keys`/`yaw`/`pitch` que o teclado usa, sem duplicar a lógica de gameplay.
@@ -111,7 +113,7 @@ O overhaul (M4–M9) deixou a cidade mais orgânica, mas alguns elementos se per
 | Fase | Status |
 | --- | --- |
 | 0 — Plano (este documento) | ✅ Commitado |
-| 1 — Controle | ⏳ Aguardando aprovação do mapeamento |
+| 1 — Controle | 🧪 Implementado, aguardando teste do usuário |
 | 2 — Regiões | ⏸️ Depois da Fase 1 |
 | 3 — Entrevista & novas regiões | ⏸️ |
 | 4 — Continente | ⏸️ |

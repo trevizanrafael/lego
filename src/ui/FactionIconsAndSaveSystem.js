@@ -137,6 +137,9 @@ export const UI_TEXTS = {
     damageNumbersLabel: 'NÚMEROS DE DANO',
     mouseSensLabel: 'SENSIBILIDADE DO MOUSE',
     invertYLabel: 'INVERTER EIXO Y',
+    gamepadSensLabel: 'SENSIBILIDADE DO CONTROLE',
+    gamepadAimAssistLabel: 'MIRA ASSISTIDA (CONTROLE)',
+    gamepadConnectedToast: 'CONTROLE CONECTADO',
     controlsSectionTitle: 'LISTA DE CONTROLES',
     controlsList: [
       ['W A S D', 'Mover personagem / veículo'], ['MOUSE', 'Câmera e mira'],
@@ -169,6 +172,8 @@ export const UI_TEXTS = {
       damageNumbers: 'Exibe números flutuantes de dano ao acertar inimigos, civis e veículos.',
       mouseSens: 'Ajusta a velocidade de rotação da câmera ao mover o mouse.',
       invertY: 'Inverte o movimento vertical do mouse ao olhar para cima ou para baixo.',
+      gamepadSens: 'Ajusta a velocidade da câmera no analógico direito do controle.',
+      gamepadAimAssist: 'Ao segurar LT/L2 no controle, a mira puxa de leve para o inimigo mais próximo da mira.',
       controlsList: 'Atalhos principais de teclado e mouse para combate, poderes e veículos.',
       language: 'Altera imediatamente o idioma dos menus, legendas e avisos na tela.',
       regionToast: 'Exibe o nome do bairro ao cruzar a fronteira para uma nova região.',
@@ -309,6 +314,9 @@ export const UI_TEXTS = {
     damageNumbersLabel: 'DAMAGE NUMBERS',
     mouseSensLabel: 'MOUSE SENSITIVITY',
     invertYLabel: 'INVERT Y AXIS',
+    gamepadSensLabel: 'CONTROLLER SENSITIVITY',
+    gamepadAimAssistLabel: 'AIM ASSIST (CONTROLLER)',
+    gamepadConnectedToast: 'CONTROLLER CONNECTED',
     controlsSectionTitle: 'CONTROLS LIST',
     controlsList: [
       ['W A S D', 'Move character / vehicle'], ['MOUSE', 'Camera and aim'],
@@ -341,6 +349,8 @@ export const UI_TEXTS = {
       damageNumbers: 'Shows floating damage numbers when hitting enemies, civilians, and vehicles.',
       mouseSens: 'Adjusts how fast the camera rotates when moving the mouse.',
       invertY: 'Inverts vertical mouse movement when looking up or down.',
+      gamepadSens: 'Adjusts camera speed on the controller right stick.',
+      gamepadAimAssist: 'While holding LT/L2 on a controller, the reticle gently pulls toward the closest enemy.',
       controlsList: 'Primary keyboard and mouse shortcuts for combat, powers, and vehicles.',
       language: 'Immediately changes the language of menus, labels, and HUD alerts.',
       regionToast: 'Shows the district name when crossing into a new region.',
@@ -478,6 +488,8 @@ export const DEFAULT_GAME_SETTINGS = {
   language: 'pt-BR',
   mouseSensitivity: 1.0,
   invertY: false,
+  gamepadSensitivity: 1.0,
+  gamepadAimAssist: true,
   fov: 60
 };
 
@@ -673,6 +685,9 @@ export function loadGameSettings() {
     const fov = Number(merged.fov);
     merged.fov = Number.isFinite(fov) ? Math.min(85, Math.max(50, fov)) : DEFAULT_GAME_SETTINGS.fov;
     merged.invertY = Boolean(merged.invertY);
+    const padSens = Number(merged.gamepadSensitivity);
+    merged.gamepadSensitivity = Number.isFinite(padSens) ? Math.min(2.5, Math.max(0.2, padSens)) : DEFAULT_GAME_SETTINGS.gamepadSensitivity;
+    merged.gamepadAimAssist = merged.gamepadAimAssist !== false;
     merged.killEffect = merged.killEffect !== false;
     merged.showFps = merged.showFps !== false;
     merged.damageNumbers = merged.damageNumbers !== false;
