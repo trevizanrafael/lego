@@ -17,6 +17,7 @@ import { METRO_ISLAND_CUTOUTS, sliceRectAroundCutouts } from '../MetroSystemBuil
 import { IS_SCALED_WORLD, ROAD, ws, fromWs } from './WorldLayoutScale.js';
 import { getScaledUrbanCurbLiftAt } from '../terrain/UrbanSidewalkAndBlockBuilder.js';
 import { collectProtectedDynamicMaterials } from '../../graphics/MaterialRegistry.js';
+import { NearestBoxLOD } from './NearestBoxLOD.js';
 
 const _WHITE_COL = new THREE.Color(0xffffff);
 const _NORM_M3 = new THREE.Matrix3();
@@ -413,7 +414,7 @@ export const worldBatchingAndFreezeMethods = {
         sub.computeBoundingBox(); sub.computeBoundingSphere();
         if (isMicroStuds && sub.boundingSphere) {
           const sc = sub.boundingSphere.center, cx = sc.x, cy = sc.y, cz = sc.z;
-          const lod = new THREE.LOD();
+          const lod = new NearestBoxLOD();
           lod.position.set(cx, cy, cz); sub.position.set(-cx, -cy, -cz); sub.updateMatrix();
           lod.addLevel(sub, 0); lod.addLevel(new THREE.Object3D(), 145);
           lod.matrixAutoUpdate = false; lod.updateMatrix(); lod.updateMatrixWorld(true);
@@ -440,7 +441,7 @@ export const worldBatchingAndFreezeMethods = {
     markSubtree(this.helicarrierShowcaseHolo);
 
     const protectedDynamicMats = collectProtectedDynamicMaterials(this);
-    const CHUNK_SIZE = 2150, AUX_CHUNK_SIZE = 8800, OUTER_CHUNK_SIZE = 14000;
+    const CHUNK_SIZE = 1075, AUX_CHUNK_SIZE = 8800, OUTER_CHUNK_SIZE = 14000;
     const worldBox = new THREE.Box3(), nearScratch = [], buckets = new Map();
     let matIdSeq = 0;
     const matIds = new WeakMap();
@@ -680,7 +681,7 @@ export const worldBatchingAndFreezeMethods = {
       const lod1Geo = b.kind === 'vcStd' ? buildCoarseVcLodGeo(mergedGeo, 900) : null;
       const lod2Geo = b.kind === 'vcStd' ? buildCoarseVcLodGeo(mergedGeo, 3600) : null;
       if (lod1Geo || lod2Geo) {
-        const lod = new THREE.LOD();
+        const lod = new NearestBoxLOD();
         lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
         lod.addLevel(mergedMesh, 0);
         mergedMesh.visible = true;
@@ -858,7 +859,7 @@ export const worldBatchingAndFreezeMethods = {
       canopyInst.computeBoundingBox(); canopyInst.computeBoundingSphere();
       const tc = trunkInst.boundingSphere?.center;
       if (tc && n >= 12) {
-        const lod = new THREE.LOD();
+        const lod = new NearestBoxLOD();
         lod.position.set(tc.x, tc.y, tc.z); trunkInst.position.set(-tc.x, -tc.y, -tc.z); trunkInst.updateMatrix();
         lod.addLevel(trunkInst, 0); lod.addLevel(new THREE.Object3D(), 460);
         lod.matrixAutoUpdate = false; lod.updateMatrix(); lod.updateMatrixWorld(true);

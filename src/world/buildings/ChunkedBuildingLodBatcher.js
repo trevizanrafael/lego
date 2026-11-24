@@ -8,10 +8,11 @@ import {
   getFamilyFacadeMaterialForStyle,
   getStyleVertexTintColor
 } from './BuildingFamiliesAndAtlas.js';
+import { NearestBoxLOD } from '../core/NearestBoxLOD.js';
 
 export const BUILDING_LOD_CHUNK_SIZE = 740;
 export const BUILDING_LOD1_DISTANCE = 185;
-export const BUILDING_LOD2_DISTANCE = 535;
+export const BUILDING_LOD2_DISTANCE = 900;
 /** Famílias de fachada com material próprio no L1 (o resto entra na dominante). */
 export const L1_MAX_FACADE_FAMILIES = 3;
 
@@ -271,11 +272,13 @@ export class ChunkedBuildingLodBatcher {
       if (Math.abs(rotY) > 1e-4) silGeo.rotateY(rotY);
       silGeo.translate(lx, yBase, lz);
     } else {
-      silGeo = makeOpenBottomLodBox(w * 0.96, h, d * 0.96, lx, yBase + h * 0.5, lz, rotY, false);
+      // Etapa 2.1: com UV, a silhueta usa a fachada (janelas acesas à noite) em vez de bloco liso.
+      silGeo = makeOpenBottomLodBox(w * 0.96, h, d * 0.96, lx, yBase + h * 0.5, lz, rotY, true);
     }
     chunk.l2SilhouetteEntries.push({
       geo: silGeo,
-      color: getCachedHexColor(style?.wallHex ?? 0x09192e)
+      color: familyFacadeMat ? facadeTintColor : getCachedHexColor(style?.wallHex ?? 0x09192e),
+      facadeMat: familyFacadeMat || null
     });
 
     chunk.count++;
@@ -304,7 +307,7 @@ export class ChunkedBuildingLodBatcher {
     for (const chunk of this.chunks.values()) {
       if (chunk.count === 0 && chunk.l0NeonEntries.length === 0) continue;
 
-      const lod = new THREE.LOD();
+      const lod = new NearestBoxLOD();
       lod.name = `BuildingChunkLOD_${chunk.key}`;
       lod.position.set(chunk.originX, 0, chunk.originZ);
       lod.userData = { isBuildingChunkLod: true, chunkKey: chunk.key, buildingCount: chunk.count };
@@ -373,13 +376,17 @@ export class ChunkedBuildingLodBatcher {
         }
       }
 
-      // Nível 2 (Silhueta Distante)
+      // Nível 2 (Silhueta Distante): 1 draw call com a fachada dominante do chunk (janelas
+      // acesas) quando todas as silhuetas têm UV; senão cai no material liso antigo.
       const level2 = new THREE.Group();
       if (chunk.l2SilhouetteEntries.length > 0) {
         const merged2 = mergeColoredGeometries(chunk.l2SilhouetteEntries);
         merged2.computeBoundingBox();
         merged2.computeBoundingSphere();
-        const m2 = new THREE.Mesh(merged2, farVcMat);
+        const facadeCounts = new Map();
+        for (const e of chunk.l2SilhouetteEntries) if (e.facadeMat) facadeCounts.set(e.facadeMat, (facadeCounts.get(e.facadeMat) || 0) + 1);
+        const dominant2 = [...facadeCounts].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+        const m2 = new THREE.Mesh(merged2, dominant2 && merged2.attributes.uv ? dominant2 : farVcMat);
         m2.castShadow = false;
         m2.receiveShadow = false;
         m2.matrixAutoUpdate = false;

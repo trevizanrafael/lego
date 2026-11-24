@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { makeFastBox, mergeColoredGeometries } from '../../BuildingGenerator.js';
 import { markAsSharedAsset } from '../../../materials/LegoMaterials.js';
 import { ws } from '../../core/WorldLayoutScale.js';
+import { NearestBoxLOD } from '../../core/NearestBoxLOD.js';
 
 export const CLASSIC_LEGO_CONTAINER_KEYS = [
   'lego_red', 'pcc_royal', 'forklift_yellow', 'lego_green', 'lego_orange', 'tactical_white', 'matte_black'
@@ -326,7 +327,7 @@ export class PCCIndustrialBatcher {
       const m1 = sL1 ? makeSubMesh(sL1, indStructuralVcMat, false, true) : new THREE.Object3D();
       const m2 = sL2 ? makeSubMesh(sL2, indStructuralVcMat, false, true) : new THREE.Object3D();
 
-      const lod = new THREE.LOD();
+      const lod = new NearestBoxLOD();
       lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
       lod.userData.skipStaticMerge = true; lod.userData.isEastPortLod = true;
       lod.userData.l0Triangles = l0Tris;
@@ -355,7 +356,7 @@ export class PCCIndustrialBatcher {
       const gL2 = _buildCoarseChunkLodGeo(gGeo, 36000.0, 196.0);
       const m1 = gL1 ? makeSubMesh(gL1, indGroundVcMat, false, true) : new THREE.Object3D();
       const m2 = gL2 ? makeSubMesh(gL2, indGroundVcMat, false, true) : new THREE.Object3D();
-      const lod = new THREE.LOD();
+      const lod = new NearestBoxLOD();
       lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
       lod.userData.skipStaticMerge = true; lod.userData.isEastPortLod = true;
       lod.userData.l0Triangles = gTris;
@@ -379,7 +380,7 @@ export class PCCIndustrialBatcher {
         scene.add(m0); createdChunks++;
       } else {
         const empty = new THREE.Object3D(); empty.visible = false;
-        const lod = new THREE.LOD();
+        const lod = new NearestBoxLOD();
         lod.position.copy(center); lod.matrixAutoUpdate = false; lod.updateMatrix();
         lod.userData.skipStaticMerge = true; lod.userData.isEastPortLod = true;
         lod.userData.l0Triangles = eTris; lod.userData.l1Triangles = 0; lod.userData.l2Triangles = 0;

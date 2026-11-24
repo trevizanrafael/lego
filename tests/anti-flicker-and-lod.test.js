@@ -162,18 +162,22 @@ test('Prédios da orla da praia têm LOD 3 níveis, texturas com mipmaps e brilh
   assert.equal(sampleLod.levels.length, 3, 'Cada prédio da orla deve ter 3 níveis de LOD');
 
   const p = sampleLod.position;
+  // Etapa 2.1: o LOD mede a distância até a CAIXA do prédio (não até o centro), então as
+  // distâncias do teste partem da face +Z da torre.
+  sampleLod.updateMatrixWorld(true);
+  const faceZ = sampleLod.refreshWorldBox ? sampleLod.refreshWorldBox().max.z : p.z;
   const cam = new THREE.PerspectiveCamera(60, 1.6, 0.8, 5200);
-  cam.position.set(p.x, p.y + 40, p.z + 120);
+  cam.position.set(p.x, p.y + 40, faceZ + 120);
   cam.updateMatrixWorld();
   sampleLod.update(cam);
   assert.equal(sampleLod.getCurrentLevel(), 0, 'De perto o prédio da orla usa LOD 0 detalhado');
 
-  cam.position.set(p.x, p.y + 80, p.z + 520);
+  cam.position.set(p.x, p.y + 80, faceZ + 520);
   cam.updateMatrixWorld();
   sampleLod.update(cam);
   assert.equal(sampleLod.getCurrentLevel(), 1, 'À média distância usa LOD 1');
 
-  cam.position.set(p.x, p.y + 120, p.z + 1350);
+  cam.position.set(p.x, p.y + 120, faceZ + 1350);
   cam.updateMatrixWorld();
   sampleLod.update(cam);
   assert.equal(sampleLod.getCurrentLevel(), 2, 'De longe (vôo/oceano) usa LOD 2 sólido sem cintilação');

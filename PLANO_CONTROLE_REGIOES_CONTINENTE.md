@@ -73,6 +73,15 @@ Ferramenta: `node tools/audit/ghost-colliders.mjs` (mapa de altura da geometria 
 - **Barreiras menores corrigidas:** frente da garagem das casas de 2 andares e chafarizes das pracinhas.
 - **Pendentes para as etapas por região:** ilhas das rotatórias (cilindros sólidos de 26–28 m sobre grama baixa), blocos da Ilha da Prisão e caixas elevadas do Aeroporto.
 
+### 2.1.2 Resultado da Etapa 2.1 (Centro)
+Ferramentas: `node tools/bench/run-bench.mjs --tag X` (agora roda no Linux) e `node tools/bench/inspect-view.mjs --region <id> --forward <m> --pick street:x,y` (screenshot + raycast que diz qual objeto/material/LOD está em cada pixel).
+
+- **Causa dos prédios "apagados" (blocos pretos/cinza) e do banco branco liso:** todos os lotes estáticos usavam `THREE.LOD`, que mede a distância até o **centro** do chunk. Os chunks têm 740 m (prédios) e 2150 m (resto). Colado num prédio na borda do chunk, o jogador via a versão grosseira (L2 sem janelas / casca simplificada). **Corrigido** com `NearestBoxLOD` (distância até o ponto mais próximo da caixa) nos batchers de prédios, estáticos, Favela, Porto e Praia, mais chunks estáticos de 1075 m.
+- **Silhueta distante (L2):** agora usa a fachada do chunk (janelas acesas à noite) e entra a 900 m (era 535).
+- **Super Banco coberto:** a caixa de brilho aditiva de 88×28 m na frente da fachada virou uma faixa de luz rente ao chão.
+- **Orçamento (bench E21b):** draw calls iguais (≤463); triângulos de 1,4M para 2,3M no Centro e ~1,5M nas outras regiões.
+- **Pendente (aguarda decisão do usuário):** ilhas das rotatórias (cilindros de 28 m) e praças de cruzamento (cilindros de 8–12 m) bloqueiam a grama baixa.
+
 ### 2.2 Ordem das etapas
 | Etapa | Região | Foco principal |
 | --- | --- | --- |

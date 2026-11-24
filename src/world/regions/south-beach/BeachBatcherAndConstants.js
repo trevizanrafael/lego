@@ -3,6 +3,7 @@ import { makeFastBox, mergeColoredGeometries } from '../../BuildingGenerator.js'
 import { markAsSharedAsset } from '../../../materials/LegoMaterials.js';
 import { createSignBoardMesh } from '../../../utils/SignBoardHelper.js';
 import { IS_SCALED_WORLD, ROAD, WORLD_SCALE, ws } from '../../core/WorldLayoutScale.js';
+import { NearestBoxLOD } from '../../core/NearestBoxLOD.js';
 
 export const TROPICAL_WALL_KEYS = [
   { key: 'coastal_white', hex: 0xf8fafc, mapColor: '#f8fafc' },
@@ -319,7 +320,7 @@ export class SouthBeachBatcher {
 
     for (const ch of this.chunks.values()) {
       if (!ch.l0Std.length && !ch.l0Basic.length && !ch.l1Std.length && !ch.l1Basic.length) continue;
-      const lod = new THREE.LOD();
+      const lod = new NearestBoxLOD();
       lod.position.set(ch.originX, 0, ch.originZ);
       lod.userData.skipStaticMerge = true;
       lod.userData.isSouthBeachBatchLOD = true;
