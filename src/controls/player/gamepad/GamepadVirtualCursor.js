@@ -48,7 +48,8 @@ export class GamepadVirtualCursor {
       this._hoverTarget = target;
       this._dispatchMouse(target, 'mouseover');
     }
-    if (this._pressTarget) this._dispatchMouse(this._pressTarget, 'mousemove');
+    // mousemove sempre: hover do mapa tático/oficinas e arrasto com A segurado.
+    if (this._pressTarget || target) this._dispatchMouse(this._pressTarget || target, 'mousemove');
   }
 
   _sync() {

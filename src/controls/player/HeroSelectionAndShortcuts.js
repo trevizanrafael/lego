@@ -220,7 +220,7 @@ export const heroSelectionAndShortcutsMethods = {
       case 'KeyQ': {
         this.keys.turbo = isDown;
         const hero = this.minifigure.currentHeroKey;
-        if (hero === 'turbo') {
+        if (hero === 'turbo' && !this.currentVehicle) {
           // No Turbo Fantasma, [Q] funciona igual Turbo de Carro: ativo enquanto segura [Q], desliga ao soltar!
           if (isDown && !e.repeat) {
             this._triggerTurboOverdrive(true);

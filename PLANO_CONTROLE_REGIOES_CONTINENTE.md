@@ -36,10 +36,12 @@ Plano de trabalho da branch `claude/inspiring-johnson-347y9o`. Segue as regras d
 | Mapa | `M` | `☰` (Menu) | `Options` |
 | Pausa (ESC) | `Esc` | `⧉` (View) | `Share` |
 
-**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça, `A` segurado = **drift**, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai, `LB` rádio.
+**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça, `A` freio de mão / **grau** na moto / **pulo** (toque duplo), `B` segurado = **drift**, `X` turbo, `R3` atira, `RB` sai, `LB` rádio. Habilidades do personagem ficam desligadas dirigindo.
 **Helicópteros e aviões:** `RT`/`LT` potência, `A` sobe, `B` desce, `R3` atira, `RB` sai.
 **Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas, `Y` fecha a Grade, `⧉` fecha a pausa.
-**Oficinas, Hangar, Laboratório OP-09, Mapa e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
+**Mapa (padrão GTA):** analógico esq. move o cursor e arrasta o mapa na borda, analógico dir. arrasta o mapa, `RT`/`LT` zoom suave ancorado no cursor, `A` seleciona (viagem rápida no marco / waypoint), `X` limpa o waypoint, `Y` recentraliza, `B` ou `☰` fecham.
+**Luneta da sniper:** D-pad `▲`/`▼` dão e tiram zoom (segurar repete).
+**Oficinas, Hangar, Laboratório OP-09 e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
 **Prompts na tela:** com o controle em uso, todo `[F]`, `<kbd>Q</kbd>`, chip `M1` e dica `ENTER/ESC` vira o botão equivalente (Xbox/PS); volta ao teclado ao usar teclado/mouse.
 
 ### 1.2 Entregas técnicas

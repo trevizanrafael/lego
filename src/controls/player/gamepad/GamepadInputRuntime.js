@@ -7,6 +7,9 @@ import {
 import { GamepadVirtualCursor } from './GamepadVirtualCursor.js';
 import { applyGamepadAimAssist } from './GamepadAimAssist.js';
 import { setGamepadPromptMode } from '../../../ui/gamepad/GamepadPromptGlyphs.js';
+import { GamepadMapNavigator } from './GamepadMapNavigator.js';
+
+const SCOPE_ZOOM_REPEAT = 0.16;
 
 const LOOK_SPEED_YAW = 3.1;
 const LOOK_SPEED_PITCH = 2.2;
@@ -45,6 +48,8 @@ export class GamepadInputRuntime {
     this._rumbleTimer = 0;
     this._aimWasHeld = false;
     this._suppressUntilRelease = new Set();
+    this.mapNavigator = new GamepadMapNavigator(this);
+    this._scopeRepeat = Object.create(null);
   }
 
   _showConnectedToast(padId) {
@@ -170,7 +175,9 @@ export class GamepadInputRuntime {
     const right = applyRadialDeadzone(axes[2] || 0, axes[3] || 0);
     if (left.mag > 0 || right.mag > 0 || PAD_NAMES.some((n) => pressed[n])) this._markActivity();
 
-    if (context === 'cursor') this._updateCursorContext(dt, pressed, left, right);
+    const triggers = { lt: Number(pad.buttons?.[PAD.LT]?.value || 0), rt: Number(pad.buttons?.[PAD.RT]?.value || 0) };
+    if (context === 'cursor' && this.hud?.isFullMapOpen) this.mapNavigator.update(dt, pressed, left, right, triggers, (n) => this._edge(pressed, n));
+    else if (context === 'cursor') this._updateCursorContext(dt, pressed, left, right);
     else if (context === 'menu') this._updateMenuContext(dt, pressed, left);
     else if (context === 'radio') this._updateRadioContext(pressed, left, right);
     else this._updateGameplayContext(dt, context, pressed, left, right);
@@ -188,10 +195,16 @@ export class GamepadInputRuntime {
     const ctl = this.controller;
     const bindings = resolveBindingsForContext(context);
 
+    // Sniper com luneta: ▲/▼ aproximam/afastam o zoom (segurar repete) no lugar de G/recarregar.
+    const scoped = context === 'foot' && Boolean(ctl?.operatorWeapons?.isScopedIn);
     for (const name of PAD_NAMES) {
       const binding = bindings[name];
       if (!binding) continue;
       const edge = this._edge(pressed, name);
+      if (scoped && (name === 'UP' || name === 'DOWN')) {
+        this._updateScopeZoom(name, edge, pressed[name], dt);
+        continue;
+      }
       if (binding === SPRINT_LATCH) {
         if (edge === 'down') this._setSprintLatch(!this._sprintLatched);
         continue;
@@ -245,6 +258,15 @@ export class GamepadInputRuntime {
     this._aimWasHeld = aimHeld;
 
     this._updateFireRumble(dt, pressed, context);
+  }
+
+  _updateScopeZoom(name, edge, isPressed, dt) {
+    const step = () => this.controller?.operatorWeapons?.handleScopeWheel?.(name === 'UP' ? -1 : 1);
+    if (edge === 'down') { this._scopeRepeat[name] = SCOPE_ZOOM_REPEAT * 2; step(); delete this._tapHold[name]; return; }
+    if (!isPressed) { delete this._scopeRepeat[name]; return; }
+    if (this._scopeRepeat[name] === undefined) return;
+    this._scopeRepeat[name] -= dt;
+    if (this._scopeRepeat[name] <= 0) { this._scopeRepeat[name] = SCOPE_ZOOM_REPEAT; step(); }
   }
 
   /** Toque curto = tecla de toque (ao soltar); segurar = tecla de segurar (dispara uma vez). */
@@ -315,7 +337,7 @@ export class GamepadInputRuntime {
 
   _updateFireRumble(dt, pressed, context) {
     this._rumbleTimer = Math.max(0, this._rumbleTimer - dt);
-    const firing = (context === 'foot' && pressed.RT) || ((context === 'vehicle') && pressed.B) || (context === 'air' && pressed.R3);
+    const firing = (context === 'foot' && pressed.RT) || ((context === 'vehicle' || context === 'air') && pressed.R3);
     if (firing && this._rumbleTimer <= 0) {
       this._rumbleTimer = 0.11;
       this.rumble(0.18, 0.35, 60);
