@@ -57,6 +57,8 @@ describe('Gamepad — mapeamento escolhido pelo usuário', () => {
   it('veículos: gatilhos aceleram/freiam e aeronaves sobem/descem em A/B', () => {
     assert.equal(GROUND_VEHICLE_BINDINGS.RT, 'KeyW');
     assert.equal(GROUND_VEHICLE_BINDINGS.LT, 'KeyS');
+    assert.equal(GROUND_VEHICLE_BINDINGS.A, 'ShiftLeft', 'A segurado = drift no carro');
+    assert.equal(GROUND_VEHICLE_BINDINGS.LB, 'ShiftLeft', 'LB também faz drift');
     assert.equal(AIR_VEHICLE_BINDINGS.A, 'Space');
     assert.equal(AIR_VEHICLE_BINDINGS.B, 'KeyC');
     assert.equal(resolveBindingsForContext('menu'), MENU_BINDINGS);

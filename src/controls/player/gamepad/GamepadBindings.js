@@ -49,9 +49,12 @@ export const ON_FOOT_BINDINGS = Object.freeze({
   MENU: 'Escape'
 });
 
-/** Carros, motos e barcos: gatilhos aceleram/freiam como no GTA. */
+/**
+ * Carros, motos e barcos: gatilhos aceleram/freiam como no GTA.
+ * Drift (freio de mão): segurar A ou LB curvando em velocidade (= Shift no teclado).
+ */
 export const GROUND_VEHICLE_BINDINGS = Object.freeze({
-  A: 'Space',
+  A: 'ShiftLeft',
   B: 'mouse:0',
   X: 'KeyQ',
   Y: 'Tab',
@@ -153,6 +156,7 @@ export function buildGamepadHelpRows(family = 'xbox') {
     [`🎮 ${g('Y')}`, 'Grade de Personagens'],
     [`🎮 ${g('RB')}`, 'Entrar/Sair de veículo, interagir'],
     [`🎮 ${g('RT')} / ${g('LT')}`, 'Atirar / Mirar (a pé) • Acelerar / Frear (veículo)'],
+    [`🎮 ${g('A')} / ${g('LB')}`, 'Drift / freio de mão (segurar curvando no carro)'],
     [`🎮 ${g('DOWN')} / ${g('UP')}`, 'Recarregar / Poder extra'],
     [`🎮 ${g('LEFT')} / ${g('RIGHT')}`, 'Operador 1 / Operador 2'],
     [`🎮 ${g('R3')}`, 'Agachar / Rolamento / Descer no voo'],

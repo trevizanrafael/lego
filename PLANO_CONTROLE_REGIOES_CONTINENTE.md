@@ -40,7 +40,7 @@ Plano de trabalho da branch `claude/inspiring-johnson-347y9o`. Segue as regras d
 | Trocar estação (roda aberta) | `[` / `]` | D-pad `←` / `→` | D-pad `←` / `→` |
 | Pausa | `Esc` | `Menu` | `Options` |
 
-**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça (analógico), `A` freio (duplo toque = pulo hidráulico), `LB` drift, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai.
+**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça (analógico), `A` ou `LB` segurado curvando = **drift**, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai.
 **Helicópteros e aviões:** `RT`/`LT` potência, `A` sobe, `B` desce, `R3` atira, `RB` sai.
 **Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas da loja, `Y` fecha a Grade.
 **Oficinas, Hangar, Laboratório OP-09, Mapa e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
