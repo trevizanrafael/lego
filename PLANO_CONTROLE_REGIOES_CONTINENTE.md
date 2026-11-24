@@ -16,34 +16,31 @@ Plano de trabalho da branch `claude/inspiring-johnson-347y9o`. Segue as regras d
 
 **Objetivo:** jogar o jogo inteiro só com o controle (Xbox, PlayStation ou genérico via Gamepad API do navegador, layout `standard`), com a mesma sensação do GTA.
 
-### 1.1 Mapeamento oficial (escolhido pelo usuário)
+### 1.1 Mapeamento oficial (revisão 2, definida pelo usuário)
 
 | Ação | Teclado | Xbox | PlayStation |
 | --- | --- | --- | --- |
-| Mover (360° analógico) | `WASD` | Analógico esquerdo | Analógico esquerdo |
+| Andar (360° analógico) | `WASD` | Analógico esquerdo | Analógico esquerdo |
+| Correr | `Shift` | Clicar `L3` andando (dura até soltar o analógico) | `L3` |
 | Câmera | Mouse | Analógico direito | Analógico direito |
-| Correr / voo supersônico | `Shift` | `LB` | `L1` |
 | Pular / Subir no voo | `Espaço` | `A` | `✕` |
-| Habilidade 1 | `Q` | `X` | `□` |
-| Habilidade 2 | `E` | `B` | `○` |
+| Habilidade 1 / 2 | `Q` / `E` | `X` / `B` | `□` / `○` |
 | Grade de Personagens | `Tab` | `Y` | `△` |
+| Rádio (analógico escolhe, `A` confirma) | `Z` | `LB` | `L1` |
 | Entrar/sair de veículo, interagir | `F` | `RB` | `R1` |
-| Atirar / Ataque | Clique esquerdo | `RT` | `R2` |
-| Mirar / Ataque secundário (+ mira assistida) | Clique direito | `LT` | `L2` |
+| Atirar / Mirar (+ mira assistida) | Clique esq. / dir. | `RT` / `LT` | `R2` / `L2` |
 | Recarregar | `R` | D-pad `↓` | D-pad `↓` |
-| Poder extra / invocação | `G` | D-pad `↑` | D-pad `↑` |
+| Poder extra / Ficha do herói | `G` / `H` | D-pad `↑` toque / segurar | idem |
 | Operador 1 / Operador 2 | `1` / `2` | D-pad `←` / `→` | D-pad `←` / `→` |
 | Agachar / Rolamento / Descer no voo | `Ctrl` / `C` | `R3` | `R3` |
-| Ficha do herói | `H` | `L3` | `L3` |
-| Mapa | `M` | `View` (toque) | `Share` (toque) |
-| Roda de Rádio | `Z` | Segurar `View` + analógico dir. | Segurar `Share` |
-| Trocar estação (roda aberta) | `[` / `]` | D-pad `←` / `→` | D-pad `←` / `→` |
-| Pausa | `Esc` | `Menu` | `Options` |
+| Mapa | `M` | `☰` (Menu) | `Options` |
+| Pausa (ESC) | `Esc` | `⧉` (View) | `Share` |
 
-**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça (analógico), `A` freio (duplo toque = pulo hidráulico), `LB` drift, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai.
+**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça, `A` segurado = **drift**, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai, `LB` rádio.
 **Helicópteros e aviões:** `RT`/`LT` potência, `A` sobe, `B` desce, `R3` atira, `RB` sai.
-**Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas da loja, `Y` fecha a Grade.
+**Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas, `Y` fecha a Grade, `⧉` fecha a pausa.
 **Oficinas, Hangar, Laboratório OP-09, Mapa e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
+**Prompts na tela:** com o controle em uso, todo `[F]`, `<kbd>Q</kbd>`, chip `M1` e dica `ENTER/ESC` vira o botão equivalente (Xbox/PS); volta ao teclado ao usar teclado/mouse.
 
 ### 1.2 Entregas técnicas
 - Novo submódulo `src/controls/player/GamepadInput.js` (Gamepad API, *polling* por frame, zona morta radial, curva de resposta) alimentando o mesmo `this.keys`/`yaw`/`pitch` que o teclado usa, sem duplicar a lógica de gameplay.
@@ -65,6 +62,14 @@ O overhaul (M4–M9) deixou a cidade mais orgânica, mas alguns elementos se per
 - **Metrô:** sumiu ou se desconectou (estações e linha). A malha ferroviária de superfície ficou boa e deve ser mantida.
 - **Praia:** a *skyline* da orla ficou com prédios muito espaçados; o objetivo é uma muralha densa de prédios que tape a visão da cidade a partir da areia.
 - **Favela CDD:** casas soltas e separadas, sem becos, vielas e escadarias de verdade, e o miolo desconectado das ruas. Deve voltar a ser uma favela densa e contínua (como era antes), mantendo o que melhorou no overhaul.
+
+### 2.1.1 Resultado da Etapa 2.0 (diagnóstico global)
+Ferramenta: `node tools/audit/ghost-colliders.mjs` (mapa de altura da geometria visível × colisores; `--debug x z` desenha a vizinhança em ASCII).
+
+- **Causa principal das barreiras invisíveis:** a física a pé, dos carros, dos barcos e da câmera testava o **AABB** de todo colisor. Prédios e casas girados no overhaul (OBB) e cilindros bloqueavam o retângulo alinhado que os envolve, fechando becos e vãos. Área extra bloqueada: Centro ~1,41 km², Praia ~0,95 km², Favela ~0,74 km², Subúrbio ~0,23 km², Torre ~26 mil m². **Corrigido** com teste exato da forma (`circleOverlapsColliderXZ`).
+- **Prédios sem textura / apagados:** o LOD do M9 unificava as famílias de fachada no material dominante (prédio com textura errada de perto), e chunks com <9 prédios viravam silhueta escura a 185 m. **Corrigido:** o L0 mantém todas as famílias, o L1 mantém até 3, e todo chunk ganha o L1.
+- **Barreiras menores corrigidas:** frente da garagem das casas de 2 andares e chafarizes das pracinhas.
+- **Pendentes para as etapas por região:** ilhas das rotatórias (cilindros sólidos de 26–28 m sobre grama baixa), blocos da Ilha da Prisão e caixas elevadas do Aeroporto.
 
 ### 2.2 Ordem das etapas
 | Etapa | Região | Foco principal |
@@ -113,7 +118,7 @@ O overhaul (M4–M9) deixou a cidade mais orgânica, mas alguns elementos se per
 | Fase | Status |
 | --- | --- |
 | 0 — Plano (este documento) | ✅ Commitado |
-| 1 — Controle | 🧪 Implementado, aguardando teste do usuário |
-| 2 — Regiões | ⏸️ Depois da Fase 1 |
+| 1 — Controle | ✅ Aprovado (PR #15) + ajuste de drift |
+| 2 — Regiões | 🧪 Etapa 2.0 (global) implementada, aguardando teste |
 | 3 — Entrevista & novas regiões | ⏸️ |
 | 4 — Continente | ⏸️ |

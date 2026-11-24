@@ -13,57 +13,71 @@ export const PAD_NAMES = Object.freeze(Object.keys(PAD));
 
 /** Rótulos exibidos na HUD conforme a família do controle detectado. */
 export const PAD_GLYPHS = Object.freeze({
-  xbox: { A: 'A', B: 'B', X: 'X', Y: 'Y', LB: 'LB', RB: 'RB', LT: 'LT', RT: 'RT', VIEW: 'VIEW', MENU: 'MENU', L3: 'L3', R3: 'R3', UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶' },
+  xbox: { A: 'A', B: 'B', X: 'X', Y: 'Y', LB: 'LB', RB: 'RB', LT: 'LT', RT: 'RT', VIEW: '⧉', MENU: '☰', L3: 'L3', R3: 'R3', UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶' },
   playstation: { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', VIEW: 'SHARE', MENU: 'OPTIONS', L3: 'L3', R3: 'R3', UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶' }
 });
 
 export const STICK_DEADZONE = 0.18;
 export const TRIGGER_THRESHOLD = 0.22;
 export const DIGITAL_STICK_THRESHOLD = 0.5;
-/** Segurar VIEW por mais que isso abre a Roda de Rádio; toque curto abre o mapa. */
-export const VIEW_HOLD_SECONDS = 0.35;
+/** Segurar o direcional ▲ por mais que isso abre a Ficha do Herói; toque curto = poder extra (G). */
+export const DPAD_HOLD_SECONDS = 0.45;
 /** Repetição de navegação de menu ao segurar o direcional/analógico. */
 export const MENU_REPEAT_DELAY = 0.38;
 export const MENU_REPEAT_RATE = 0.11;
 
 /**
- * A pé (heróis e operadores). Esquema escolhido pelo usuário:
- * LB corre, A pula, Y abre a Grade (Tab), X = habilidade Q, B = habilidade E.
- * Valores = `KeyboardEvent.code` equivalente; `mouse:0`/`mouse:2` = cliques.
+ * Ações especiais (não são uma tecla direta):
+ * - `sprint:latch` — clicar o analógico esquerdo liga a corrida; ela dura até soltar o analógico (andar = só mexer).
+ * - `radio:open` — abre a Roda de Rádio; o analógico escolhe e `A` confirma.
+ * - `tap:KeyG|hold:KeyH` — toque = tecla G, segurar = tecla H.
+ */
+export const SPRINT_LATCH = 'sprint:latch';
+export const RADIO_OPEN = 'radio:open';
+export const DPAD_UP_TAP_HOLD = 'tap:KeyG|hold:KeyH';
+
+/**
+ * A pé (heróis e operadores) — padrão definido pelo usuário:
+ * L3 corre, A pula, X = Q, B = E, Y Grade, LB rádio, RB interagir, ◀/▶ operadores,
+ * ☰ (Menu) mapa, ⧉ (View) pausa. Valores = `KeyboardEvent.code`; `mouse:0`/`mouse:2` = cliques.
  */
 export const ON_FOOT_BINDINGS = Object.freeze({
   A: 'Space',
   B: 'KeyE',
   X: 'KeyQ',
   Y: 'Tab',
-  LB: 'ShiftLeft',
+  LB: RADIO_OPEN,
   RB: 'KeyF',
   LT: 'mouse:2',
   RT: 'mouse:0',
-  L3: 'KeyH',
+  L3: SPRINT_LATCH,
   R3: 'KeyC',
-  UP: 'KeyG',
+  UP: DPAD_UP_TAP_HOLD,
   DOWN: 'KeyR',
   LEFT: 'Digit1',
   RIGHT: 'Digit2',
-  MENU: 'Escape'
+  VIEW: 'Escape',
+  MENU: 'KeyM'
 });
 
-/** Carros, motos e barcos: gatilhos aceleram/freiam como no GTA. */
+/**
+ * Carros, motos e barcos: RT acelera, LT freia/ré, analógico esterça.
+ * Drift (freio de mão): segurar A curvando em velocidade (= Shift no teclado).
+ */
 export const GROUND_VEHICLE_BINDINGS = Object.freeze({
-  A: 'Space',
+  A: 'ShiftLeft',
   B: 'mouse:0',
   X: 'KeyQ',
   Y: 'Tab',
-  LB: 'ShiftLeft',
+  LB: RADIO_OPEN,
   RB: 'KeyF',
   LT: 'KeyS',
   RT: 'KeyW',
   R3: 'KeyX',
-  L3: 'KeyH',
-  UP: 'KeyG',
+  UP: DPAD_UP_TAP_HOLD,
   DOWN: 'KeyR',
-  MENU: 'Escape'
+  VIEW: 'Escape',
+  MENU: 'KeyM'
 });
 
 /** Helicópteros e aviões: A sobe, B desce, gatilhos controlam a potência, R3 dispara. */
@@ -74,11 +88,11 @@ export const AIR_VEHICLE_BINDINGS = Object.freeze({
   R3: 'mouse:0'
 });
 
-/** Menus (título, pausa, loja, grade, mapa, dossiê, diálogos). */
+/** Menus (título, pausa, loja, grade, dossiê, diálogos). View fecha a pausa (é o ESC). */
 export const MENU_BINDINGS = Object.freeze({
   A: 'Enter',
   B: 'Escape',
-  MENU: 'Escape',
+  VIEW: 'Escape',
   Y: 'Tab',
   LB: 'KeyQ',
   RB: 'KeyE',
@@ -147,16 +161,18 @@ export function readButtonPressed(button, name) {
 export function buildGamepadHelpRows(family = 'xbox') {
   const g = (n) => glyphFor(n, family);
   return [
-    [`🎮 ${g('LB')}`, 'Correr (controle)'],
-    [`🎮 ${g('A')}`, 'Pular / Subir no voo'],
+    [`🎮 L3`, 'Correr (clique o analógico esquerdo andando)'],
+    [`🎮 ${g('A')}`, 'Pular / Subir no voo • Drift (carro)'],
     [`🎮 ${g('X')} / ${g('B')}`, 'Habilidade Q / Habilidade E'],
     [`🎮 ${g('Y')}`, 'Grade de Personagens'],
+    [`🎮 ${g('LB')}`, 'Rádio (analógico escolhe, A confirma)'],
     [`🎮 ${g('RB')}`, 'Entrar/Sair de veículo, interagir'],
     [`🎮 ${g('RT')} / ${g('LT')}`, 'Atirar / Mirar (a pé) • Acelerar / Frear (veículo)'],
-    [`🎮 ${g('DOWN')} / ${g('UP')}`, 'Recarregar / Poder extra'],
+    [`🎮 ${g('DOWN')}`, 'Recarregar'],
+    [`🎮 ${g('UP')}`, 'Toque: Poder extra • Segurar: Ficha do herói'],
     [`🎮 ${g('LEFT')} / ${g('RIGHT')}`, 'Operador 1 / Operador 2'],
     [`🎮 ${g('R3')}`, 'Agachar / Rolamento / Descer no voo'],
-    [`🎮 ${g('VIEW')}`, 'Toque: Mapa • Segurar: Roda de Rádio'],
-    [`🎮 ${g('MENU')}`, 'Pausa']
+    [`🎮 ${g('MENU')}`, 'Mapa'],
+    [`🎮 ${g('VIEW')}`, 'Pausa (ESC)']
   ];
 }

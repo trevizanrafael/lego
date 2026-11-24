@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
 import { isFactionOperatorKey } from '../../entities/operators/OperatorCatalog.js';
+import { circleOverlapsColliderXZ } from '../../world/collision/CollisionShapes.js';
 
 export const UP = new THREE.Vector3(0, 1, 0);
 
@@ -28,7 +29,7 @@ export const cameraOrbitAndRigMethods = {
           : this.world.colliders;
         for (const col of candCols) {
           if (col.disabled) continue;
-          if (tx + r > col.minX && tx - r < col.maxX && tz + r > col.minZ && tz - r < col.maxZ) {
+          if (circleOverlapsColliderXZ(tx, tz, r, col)) {
             const colMinY = col.minY ?? 0;
             if (ty + stepUpHeight < col.maxY && ty + playerHeight > colMinY) {
               return true;

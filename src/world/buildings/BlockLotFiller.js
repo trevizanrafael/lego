@@ -210,7 +210,10 @@ function buildUrbanPocketPlaza(world, px, pz, addFountain, seed) {
   pushSidewalkColoredBox(world, 7.6, 0.85, 7.6, px, baseY + 0.44, pz, 0x64748b);
   pushSidewalkColoredBox(world, 5.8, 0.92, 5.8, px, baseY + 0.48, pz, 0x0284c7);
   pushSidewalkColoredBox(world, 1.9, 4.1, 1.9, px, baseY + 2.1, pz, (seed & 1) === 0 ? 0xd97706 : 0x94a3b8);
-  world.addCollider?.(px, pz, 7.6, 7.6, baseY + 4.2, baseY);
+  // Borda baixa da bacia (dá para subir/pular) + coluna central sólida; antes um bloco
+  // de 7.6 m × 4.2 m de altura criava uma parede invisível em volta do chafariz.
+  world.addCollider?.(px, pz, 7.6, 7.6, baseY + 0.92, baseY);
+  world.addCollider?.(px, pz, 1.9, 1.9, baseY + 4.2, baseY);
 }
 
 const _CIVIC_ORG_SCRATCH = {};

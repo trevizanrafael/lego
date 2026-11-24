@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { soundFX } from '../../audio/SoundFX.js';
 import { getWorldSoftBoundaryForce } from '../../world/CoastlineProfile.js';
 import { lerpAngle } from './CameraOrbitAndRig.js';
+import { circleOverlapsColliderXZ } from '../../world/collision/CollisionShapes.js';
 
 const _airSupportCols = [];
 const _airFromCenter = { x: 0, y: 0, z: 0 };
@@ -182,7 +183,7 @@ export const navalAircraftAndRidesMethods = {
       for (const col of boatNearCols) {
         if (col.disabled || (isColossal && (col.isGangway || col.maxY <= 12.0))) continue;
         if (!isColossal && (col.maxY <= waterY + 0.15 || (col.minY ?? 0) > waterY + 1.8)) continue;
-        if (tx + boatRadius > col.minX && tx - boatRadius < col.maxX && tz + boatRadius > col.minZ && tz - boatRadius < col.maxZ) return true;
+        if (circleOverlapsColliderXZ(tx, tz, boatRadius, col)) return true;
       }
       return false;
     };
