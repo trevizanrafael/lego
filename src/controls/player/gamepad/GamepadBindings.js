@@ -62,18 +62,20 @@ export const ON_FOOT_BINDINGS = Object.freeze({
 
 /**
  * Carros, motos e barcos: RT acelera, LT freia/ré, analógico esterça.
- * Drift (freio de mão): segurar A curvando em velocidade (= Shift no teclado).
+ * A = freio de mão / grau na moto (segurar acelerando) / pulo hidráulico (toque duplo) — mesmo que Espaço.
+ * B = drift (segurar curvando). X = turbo/nitro. R3 = arma do veículo.
+ * Habilidades do personagem ficam desligadas dirigindo (Q/E não são enviados como habilidade).
  */
 export const GROUND_VEHICLE_BINDINGS = Object.freeze({
-  A: 'ShiftLeft',
-  B: 'mouse:0',
+  A: 'Space',
+  B: 'ShiftLeft',
   X: 'KeyQ',
   Y: 'Tab',
   LB: RADIO_OPEN,
   RB: 'KeyF',
   LT: 'KeyS',
   RT: 'KeyW',
-  R3: 'KeyX',
+  R3: 'mouse:0',
   UP: DPAD_UP_TAP_HOLD,
   DOWN: 'KeyR',
   VIEW: 'Escape',
@@ -84,8 +86,7 @@ export const GROUND_VEHICLE_BINDINGS = Object.freeze({
 export const AIR_VEHICLE_BINDINGS = Object.freeze({
   ...GROUND_VEHICLE_BINDINGS,
   A: 'Space',
-  B: 'KeyC',
-  R3: 'mouse:0'
+  B: 'KeyC'
 });
 
 /** Menus (título, pausa, loja, grade, dossiê, diálogos). View fecha a pausa (é o ESC). */
@@ -162,17 +163,18 @@ export function buildGamepadHelpRows(family = 'xbox') {
   const g = (n) => glyphFor(n, family);
   return [
     [`🎮 L3`, 'Correr (clique o analógico esquerdo andando)'],
-    [`🎮 ${g('A')}`, 'Pular / Subir no voo • Drift (carro)'],
+    [`🎮 ${g('A')}`, 'Pular / Subir no voo • Carro: freio de mão, grau, pulo (toque duplo)'],
+    [`🎮 ${g('B')} (carro)`, 'Drift (segurar curvando) • R3 atira com o veículo'],
     [`🎮 ${g('X')} / ${g('B')}`, 'Habilidade Q / Habilidade E'],
     [`🎮 ${g('Y')}`, 'Grade de Personagens'],
     [`🎮 ${g('LB')}`, 'Rádio (analógico escolhe, A confirma)'],
     [`🎮 ${g('RB')}`, 'Entrar/Sair de veículo, interagir'],
     [`🎮 ${g('RT')} / ${g('LT')}`, 'Atirar / Mirar (a pé) • Acelerar / Frear (veículo)'],
-    [`🎮 ${g('DOWN')}`, 'Recarregar'],
+    [`🎮 ${g('DOWN')}`, 'Recarregar • Na luneta: ▲/▼ zoom'],
     [`🎮 ${g('UP')}`, 'Toque: Poder extra • Segurar: Ficha do herói'],
     [`🎮 ${g('LEFT')} / ${g('RIGHT')}`, 'Operador 1 / Operador 2'],
     [`🎮 ${g('R3')}`, 'Agachar / Rolamento / Descer no voo'],
-    [`🎮 ${g('MENU')}`, 'Mapa'],
+    [`🎮 ${g('MENU')}`, 'Mapa (RT/LT zoom, A seleciona, X limpa waypoint, Y centraliza)'],
     [`🎮 ${g('VIEW')}`, 'Pausa (ESC)']
   ];
 }

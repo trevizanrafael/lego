@@ -36,10 +36,12 @@ Plano de trabalho da branch `claude/inspiring-johnson-347y9o`. Segue as regras d
 | Mapa | `M` | `☰` (Menu) | `Options` |
 | Pausa (ESC) | `Esc` | `⧉` (View) | `Share` |
 
-**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça, `A` segurado = **drift**, `X` turbo, `B` atira, `R3` pulo hidráulico, `RB` sai, `LB` rádio.
+**Carros, motos e barcos:** `RT` acelera, `LT` freia/ré, analógico esq. esterça, `A` freio de mão / **grau** na moto / **pulo** (toque duplo), `B` segurado = **drift**, `X` turbo, `R3` atira, `RB` sai, `LB` rádio. Habilidades do personagem ficam desligadas dirigindo.
 **Helicópteros e aviões:** `RT`/`LT` potência, `A` sobe, `B` desce, `R3` atira, `RB` sai.
 **Menus:** direcional ou analógico navega, `A` confirma, `B` volta, `LB`/`RB` trocam abas, `Y` fecha a Grade, `⧉` fecha a pausa.
-**Oficinas, Hangar, Laboratório OP-09, Mapa e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
+**Mapa (padrão GTA):** analógico esq. move o cursor e arrasta o mapa na borda, analógico dir. arrasta o mapa, `RT`/`LT` zoom suave ancorado no cursor, `A` seleciona (viagem rápida no marco / waypoint), `X` limpa o waypoint, `Y` recentraliza, `B` ou `☰` fecham.
+**Luneta da sniper:** D-pad `▲`/`▼` dão e tiram zoom (segurar repete).
+**Oficinas, Hangar, Laboratório OP-09 e Rádio TikTok:** cursor virtual (analógico move, `A` clica, `B` fecha).
 **Prompts na tela:** com o controle em uso, todo `[F]`, `<kbd>Q</kbd>`, chip `M1` e dica `ENTER/ESC` vira o botão equivalente (Xbox/PS); volta ao teclado ao usar teclado/mouse.
 
 ### 1.2 Entregas técnicas
@@ -70,6 +72,15 @@ Ferramenta: `node tools/audit/ghost-colliders.mjs` (mapa de altura da geometria 
 - **Prédios sem textura / apagados:** o LOD do M9 unificava as famílias de fachada no material dominante (prédio com textura errada de perto), e chunks com <9 prédios viravam silhueta escura a 185 m. **Corrigido:** o L0 mantém todas as famílias, o L1 mantém até 3, e todo chunk ganha o L1.
 - **Barreiras menores corrigidas:** frente da garagem das casas de 2 andares e chafarizes das pracinhas.
 - **Pendentes para as etapas por região:** ilhas das rotatórias (cilindros sólidos de 26–28 m sobre grama baixa), blocos da Ilha da Prisão e caixas elevadas do Aeroporto.
+
+### 2.1.2 Resultado da Etapa 2.1 (Centro)
+Ferramentas: `node tools/bench/run-bench.mjs --tag X` (agora roda no Linux) e `node tools/bench/inspect-view.mjs --region <id> --forward <m> --pick street:x,y` (screenshot + raycast que diz qual objeto/material/LOD está em cada pixel).
+
+- **Causa dos prédios "apagados" (blocos pretos/cinza) e do banco branco liso:** todos os lotes estáticos usavam `THREE.LOD`, que mede a distância até o **centro** do chunk. Os chunks têm 740 m (prédios) e 2150 m (resto). Colado num prédio na borda do chunk, o jogador via a versão grosseira (L2 sem janelas / casca simplificada). **Corrigido** com `NearestBoxLOD` (distância até o ponto mais próximo da caixa) nos batchers de prédios, estáticos, Favela, Porto e Praia, mais chunks estáticos de 1075 m.
+- **Silhueta distante (L2):** agora usa a fachada do chunk (janelas acesas à noite) e entra a 900 m (era 535).
+- **Super Banco coberto:** a caixa de brilho aditiva de 88×28 m na frente da fachada virou uma faixa de luz rente ao chão.
+- **Orçamento (bench E21b):** draw calls iguais (≤463); triângulos de 1,4M para 2,3M no Centro e ~1,5M nas outras regiões.
+- **Pendente (aguarda decisão do usuário):** ilhas das rotatórias (cilindros de 28 m) e praças de cruzamento (cilindros de 8–12 m) bloqueiam a grama baixa.
 
 ### 2.2 Ordem das etapas
 | Etapa | Região | Foco principal |

@@ -4,6 +4,7 @@ import { mergeBufferGeometries, mergeColoredGeometries, makeTranslatedBox } from
 import { IS_SCALED_WORLD, ROAD, ws } from '../../core/WorldLayoutScale.js';
 import { TROPICAL_WALL_KEYS, getSouthBeachBayOffsetZ, addCurvedLegoPalmTree, addNeonHotelSign } from './BeachBatcherAndConstants.js';
 import { buildCoastalOrganicBlocksAndBoulevards } from './CoastalOrganicBlocksFiller.js';
+import { NearestBoxLOD } from '../../core/NearestBoxLOD.js';
 
 const BEACH_FACADE_THEMES = {
   azure_balcony: { wall: '#e2e8f0', slab: '#f8fafc', glass: '#0c4a6e', glassHi: '#38bdf8', warmWin: '#fef08a', glow: '#38bdf8', rough: 0.24, metal: 0.22 },
@@ -179,7 +180,7 @@ class BeachChunkLodBatcher {
 
   flush(world) {
     for (const ch of this.chunks.values()) {
-      const lod = new THREE.LOD();
+      const lod = new NearestBoxLOD();
       lod.position.set(ch.originX, 0, ch.originZ);
       lod.userData.skipStaticMerge = true;
       _buildTowerLodLevels(lod, ch.lodFacades, ch.lodSolids, ch.lodBasics);
@@ -206,7 +207,7 @@ export class BeachTowerBuilder {
     geos.push(_makeUvScaledBox(w, h, d, lx, ly, lz, tileW, tileH));
   }
   buildLOD(worldX, worldY, worldZ) {
-    const lod = new THREE.LOD();
+    const lod = new NearestBoxLOD();
     lod.position.set(worldX, worldY, worldZ);
     lod.userData.skipStaticMerge = true;
     _buildTowerLodLevels(lod, this.lodFacades, this.lodSolids, this.lodBasics);

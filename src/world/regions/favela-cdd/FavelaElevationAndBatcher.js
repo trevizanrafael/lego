@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { markAsSharedAsset } from '../../BuildingGenerator.js';
 import { IS_SCALED_WORLD, ws, fromWs } from '../../core/WorldLayoutScale.js';
+import { NearestBoxLOD } from '../../core/NearestBoxLOD.js';
 
 const HILL_MIN_DESIGN_Z = -1825;
 const HILL_MAX_DESIGN_Z = 680;
@@ -451,7 +452,7 @@ export class FavelaBatcher {
       for (const m of [makeLodMesh(builtW0, wallMat, true, 0), makeLodMesh(builtS0, solidMat, true, 0)]) if (m) level0.add(m);
       for (const m of [makeLodMesh(builtW1, wallMat, false, 1), makeLodMesh(builtS1, solidMat, false, 1)]) if (m) level1.add(m);
 
-      const lod = new THREE.LOD();
+      const lod = new NearestBoxLOD();
       lod.name = `FavelaBandLOD_${b}`;
       lod.position.set(origin.cx, origin.cy, origin.cz);
       lod.addLevel(level0, 0);

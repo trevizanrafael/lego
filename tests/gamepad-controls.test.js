@@ -59,10 +59,12 @@ describe('Gamepad — mapeamento escolhido pelo usuário', () => {
     assert.equal(ON_FOOT_BINDINGS.LT, 'mouse:2');
   });
 
-  it('veículos: gatilhos aceleram/freiam, A faz drift, aeronaves sobem/descem em A/B', () => {
+  it('veículos: gatilhos aceleram/freiam, B faz drift, A pula/grau, aeronaves sobem/descem em A/B', () => {
     assert.equal(GROUND_VEHICLE_BINDINGS.RT, 'KeyW');
     assert.equal(GROUND_VEHICLE_BINDINGS.LT, 'KeyS');
-    assert.equal(GROUND_VEHICLE_BINDINGS.A, 'ShiftLeft', 'A segurado = drift no carro');
+    assert.equal(GROUND_VEHICLE_BINDINGS.A, 'Space', 'A = freio de mão / grau / pulo');
+    assert.equal(GROUND_VEHICLE_BINDINGS.B, 'ShiftLeft', 'B segurado = drift no carro');
+    assert.equal(GROUND_VEHICLE_BINDINGS.R3, 'mouse:0', 'R3 = arma do veículo');
     assert.equal(GROUND_VEHICLE_BINDINGS.LB, 'radio:open');
     assert.equal(AIR_VEHICLE_BINDINGS.A, 'Space');
     assert.equal(AIR_VEHICLE_BINDINGS.B, 'KeyC');
@@ -218,5 +220,36 @@ describe('Gamepad — transcrição dos prompts', async () => {
     assert.equal(translateKeyToken('Q', 'xbox', true), 'LB');
     assert.equal(translateKeyToken('1 / 2', 'xbox'), '◀/▶');
     assert.equal(translateBracketText('array[0] sem tecla', 'xbox'), 'array[0] sem tecla');
+  });
+});
+
+describe('Gamepad — mapa estilo GTA e luneta', async () => {
+  const { zoomMapAroundPoint, MAP_ZOOM_MAX } = await import('../src/controls/player/gamepad/GamepadMapNavigator.js');
+  it('zoom ancorado: o ponto sob o cursor não sai do lugar', () => {
+    const W = 1000, H = 800, px = 700, py = 300;
+    const s0 = { zoom: 1, panX: 40, panY: -20 };
+    const s1 = zoomMapAroundPoint(s0, px, py, W, H, 2);
+    const world = (st) => {
+      const sc = (0.088 / 3) * st.zoom; // WORLD_SCALE padrão = 3
+      return [(px - (W * 0.48 + st.panX)) / sc, (py - (H * 0.48 + st.panY)) / sc];
+    };
+    const [a, b] = [world(s0), world(s1)];
+    assert.ok(Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6);
+    assert.equal(s1.zoom, 2);
+    assert.ok(zoomMapAroundPoint({ zoom: MAP_ZOOM_MAX, panX: 0, panY: 0 }, 0, 0, W, H, 4).zoom <= MAP_ZOOM_MAX);
+  });
+
+  it('com a luneta da sniper, ▲/▼ dão e tiram zoom em vez de G/recarregar', () => {
+    const zooms = [];
+    const ctl = {
+      keys: { forward: false, backward: false, left: false, right: false }, yaw: 0, pitch: 0, position: { x: 0, y: 0, z: 0 },
+      operatorWeapons: { isScopedIn: true, handleScopeWheel: (dy) => zooms.push(dy) }
+    };
+    const { pad, events, rt } = makeRig({ controller: ctl });
+    press(pad, 'UP'); rt.poll(1 / 60);
+    press(pad, 'UP', false); rt.poll(1 / 60);
+    press(pad, 'DOWN'); rt.poll(1 / 60);
+    assert.deepEqual(zooms, [-1, 1]);
+    assert.ok(!events.some(([c]) => c === 'KeyG' || c === 'KeyR'));
   });
 });

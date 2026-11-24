@@ -383,9 +383,12 @@ export function initLandmarkNeonAndLighthouses(mgr) {
   mgr.scene.add(heroCrownGlow);
 
   // 3.3 Fachada Dourada do Super Banco Central + Painéis Neon de Times Square
-  const bankGlowMat = makeNeonHaloMat(0xd99b16, 0.14);
-  const bankUplight = new THREE.Mesh(new THREE.BoxGeometry(88, 28, 6), bankGlowMat);
-  bankUplight.position.set(0, 15, IS_SCALED_WORLD ? ws(-117) - ROAD.mainWidth * 0.5 - 12 : -133);
+  // Etapa 2.1: era uma caixa aditiva 88×28×6 m na frente da fachada; com o bloom do M2 ela
+  // saturava em branco e escondia o banco inteiro. Agora é só uma faixa de luz rente ao chão
+  // (efeito de refletor de piso / uplight) que não cobre colunas nem janelas.
+  const bankGlowMat = makeNeonHaloMat(0xd99b16, 0.22);
+  const bankUplight = new THREE.Mesh(new THREE.BoxGeometry(88, 1.1, 2.2), bankGlowMat);
+  bankUplight.position.set(0, 0.6, IS_SCALED_WORLD ? ws(-117) - ROAD.mainWidth * 0.5 - 12 : -133);
   mgr.scene.add(bankUplight);
 
   const tsGlowMat = makeNeonHaloMat(0xd946ef, 0.28);

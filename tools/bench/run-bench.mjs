@@ -13,61 +13,11 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+import { startEmbeddedStaticServer, findCachedChromiumExecutable } from './bench-session.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const THREE_ROOT = path.join(ROOT_DIR, 'node_modules', 'three');
-
-const MIME_BY_EXT = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.mjs': 'application/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.mp3': 'audio/mpeg',
-  '.wav': 'audio/wav'
-};
-
-function startEmbeddedStaticServer(rootDir) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      try {
-        const rawUrl = decodeURIComponent((req.url || '/').split('?')[0]);
-        if (rawUrl === '/api/radio/catalog') {
-          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ stations: [] }));
-          return;
-        }
-        const rel = rawUrl === '/' ? 'index.html' : rawUrl.replace(/^\/+/, '');
-        const fullPath = path.resolve(rootDir, rel);
-        if (!fullPath.startsWith(rootDir) || !fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
-          res.writeHead(404);
-          res.end('Not found');
-          return;
-        }
-        const ext = path.extname(fullPath).toLowerCase();
-        res.writeHead(200, {
-          'Content-Type': MIME_BY_EXT[ext] || 'application/octet-stream',
-          'Cache-Control': 'no-store'
-        });
-        fs.createReadStream(fullPath).pipe(res);
-      } catch (err) {
-        res.writeHead(500);
-        res.end(String(err));
-      }
-    });
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address();
-      resolve({ server, baseUrl: `http://127.0.0.1:${addr.port}` });
-    });
-  });
-}
 
 function parseArgs(argv) {
   const out = { tag: 'M0', preset: 'auto', url: '' };
@@ -80,26 +30,6 @@ function parseArgs(argv) {
   return out;
 }
 
-function findCachedChromiumExecutable() {
-  const localApp = process.env.LOCALAPPDATA || '';
-  const playwrightRoot = path.join(localApp, 'ms-playwright');
-  if (fs.existsSync(playwrightRoot)) {
-    const dirs = fs.readdirSync(playwrightRoot).filter((d) => d.startsWith('chromium-')).sort().reverse();
-    for (const d of dirs) {
-      for (const sub of ['chrome-win64', 'chrome-win']) {
-        const exe = path.join(playwrightRoot, d, sub, 'chrome.exe');
-        if (fs.existsSync(exe)) return exe;
-      }
-    }
-  }
-  for (const c of [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
-  ]) {
-    if (fs.existsSync(c)) return c;
-  }
-  throw new Error('Nenhum executável Chromium/Chrome encontrado para o benchmark.');
-}
 
 const EXTRA_POINTS = [
   { id: 'X_fav_close', label: 'Favela CDD (Becos / Encosta)', x: -2080, y: 24, z: -390, yaw: 0.65, aerialH: 210, aerialDist: 220 },
