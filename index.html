@@ -12,7 +12,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,600;0,700;1,700&family=JetBrains+Mono:wght@700;800&family=Teko:wght@600;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=20261123m9" />
+  <link rel="stylesheet" href="./style.css?v=20261124g1" />
   <script type="importmap">
     {
       "imports": {
@@ -632,6 +632,22 @@
                 <button type="button" class="stepper-arrow stepper-next" data-stepper="invertY" data-dir="1">▸</button>
               </div>
             </div>
+            <div class="option-row" data-desc-key="gamepadSens">
+              <span id="lbl-gamepad-sens" class="option-title">SENSIBILIDADE DO CONTROLE</span>
+              <div class="option-slider-wrap">
+                <input id="slider-gamepad-sens" type="range" min="20" max="250" step="5" value="100"
+                  class="tactical-slider" />
+                <span id="val-gamepad-sens" class="option-val">100%</span>
+              </div>
+            </div>
+            <div class="option-row" data-desc-key="gamepadAimAssist">
+              <span id="lbl-gamepad-aim-assist" class="option-title">MIRA ASSISTIDA (CONTROLE)</span>
+              <div class="ui-stepper">
+                <button type="button" class="stepper-arrow stepper-prev" data-stepper="gamepadAimAssist" data-dir="-1">◂</button>
+                <span id="val-gamepad-aim-assist" class="stepper-value" data-stepper="gamepadAimAssist">LIGADO</span>
+                <button type="button" class="stepper-arrow stepper-next" data-stepper="gamepadAimAssist" data-dir="1">▸</button>
+              </div>
+            </div>
             <div class="option-row option-row-keymap" data-desc-key="controlsList">
               <span id="lbl-controls-list" class="option-title">LISTA DE CONTROLES</span>
               <div id="controls-keymap-grid" class="controls-keymap-grid"></div>
@@ -1120,7 +1136,7 @@
     <div class="aircraft-studio-orbit-hint">ARRASTE PARA GIRAR CÂMERA ORBITAL • SCROLL ZOOM</div>
   </div>
 
-  <script type="module" src="./src/main.js?v=20261123m9"></script>
+  <script type="module" src="./src/main.js?v=20261124g1"></script>
 </body>
 
 </html>

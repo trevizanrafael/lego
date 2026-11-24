@@ -180,7 +180,7 @@ export const groundVehicleDrivingMethods = {
       }
     }
 
-    const steerInput = (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
+    const steerInput = Number.isFinite(this.analogSteer) ? this.analogSteer : (this.keys.left ? 1 : 0) - (this.keys.right ? 1 : 0);
     const targetSteer = steerInput * (this.isDrifting ? 0.65 : 0.52);
     this.vehicleSteerAngle = THREE.MathUtils.lerp(this.vehicleSteerAngle, targetSteer, Math.min(1, dt * 14));
 

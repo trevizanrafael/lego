@@ -10,82 +10,8 @@ export const controllerInputAndEventsMethods = {
     window.addEventListener('keyup', (e) => this._onKey(e, false));
     this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    this.domElement.addEventListener('mousedown', (e) => {
-      if (
-        this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen ||
-        this.hud?.isCreatorOpen || this.hud?.isCustomsOpen ||
-        this.hud?.isAircraftStudioOpen || this.hud?.isTikTokRadioOpen ||
-        this.hud?.isCharacterGridOpen || this.hud?.isHeroWheelOpen
-      ) {
-        return;
-      }
-      const wasEnteredGame = Boolean(this.hasEnteredGame);
-      this.hasEnteredGame = true;
-      const promptEl = document.getElementById('pointer-prompt');
-      const promptWasVisible = Boolean(promptEl?.classList?.contains?.('visible'));
-      if (promptEl) promptEl.classList.remove('visible');
-
-      if (!document.pointerLockElement && this.domElement.requestPointerLock) {
-        this.relockPointer();
-        if (!wasEnteredGame && promptWasVisible && e.button === 0) {
-          this.isDraggingMouse = true;
-          return;
-        }
-      }
-
-      if (e.button === 0) {
-        this.isDraggingMouse = true;
-        this.mouseButtons.left = true;
-        this.minifigure?.stopEmote?.();
-        if (this.activeRide) return;
-        if (this.currentVehicle) {
-          this._fireVehicleWeapon();
-        } else if (this.operatorWeapons?.isOperatorActive()) {
-          this.operatorWeapons.handlePrimaryMouseDown();
-        } else {
-          this._firePrimaryAction();
-        }
-      } else if (e.button === 2) {
-        this.mouseButtons.right = true;
-        this.minifigure?.stopEmote?.();
-        if (this.activeRide) return;
-        const hero = this.minifigure.currentHeroKey;
-        if (isFactionOperatorKey(hero)) {
-          this.operatorWeapons?.syncScopeState?.();
-          return;
-        }
-        if (this.currentVehicle) {
-          if (hero === 'turbo') this._summonAndMountTurboGhostBike();
-        } else if (hero === 'caveira') {
-          this._throwCaveiraGrenade();
-        } else if (hero === 'tita') {
-          this._toggleTitaCarGrabOrThrow();
-        } else if (hero === 'vingador') {
-          this._cycleVingadorWeapon();
-        } else if (hero === 'sombra') {
-          this._triggerSombraGrapple();
-        } else if (hero === 'turbo') {
-          this._summonAndMountTurboGhostBike();
-        } else if (hero === 'voltaico') {
-          this._triggerVoltaicoLightningBlink();
-        } else if (hero === 'vortex') {
-          this._triggerVortexAbyssalLasso();
-        } else if (hero === 'op09') {
-          this.customHeroPowers?.triggerMobilityKey();
-        }
-      }
-    });
-
-    window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) {
-        this.isDraggingMouse = false;
-        this.mouseButtons.left = false;
-        this.operatorWeapons?.handlePrimaryMouseUp?.();
-      } else if (e.button === 2) {
-        this.mouseButtons.right = false;
-        this.operatorWeapons?.syncScopeState?.();
-      }
-    });
+    this.domElement.addEventListener('mousedown', (e) => this._handlePointerButtonDown(e.button, { fromGamepad: false }));
+    window.addEventListener('mouseup', (e) => this._handlePointerButtonUp(e.button));
 
     window.addEventListener('blur', () => this.resetHeldInputs());
     document.addEventListener('visibilitychange', () => {
@@ -189,6 +115,84 @@ export const controllerInputAndEventsMethods = {
       },
       { passive: true }
     );
+  },
+
+  /** Clique do mouse ou gatilho do controle (RT = 0, LT = 2). */
+  _handlePointerButtonDown(button, { fromGamepad = false } = {}) {
+    if (
+      this.hud?.isTitleScreenActive || this.hud?.isPauseMenuOpen ||
+      this.hud?.isCreatorOpen || this.hud?.isCustomsOpen ||
+      this.hud?.isAircraftStudioOpen || this.hud?.isTikTokRadioOpen ||
+      this.hud?.isCharacterGridOpen || this.hud?.isHeroWheelOpen
+    ) {
+      return;
+    }
+    const wasEnteredGame = Boolean(this.hasEnteredGame);
+    this.hasEnteredGame = true;
+    const promptEl = document.getElementById('pointer-prompt');
+    const promptWasVisible = Boolean(promptEl?.classList?.contains?.('visible'));
+    if (promptEl) promptEl.classList.remove('visible');
+
+    if (!fromGamepad && !document.pointerLockElement && this.domElement.requestPointerLock) {
+      this.relockPointer();
+      if (!wasEnteredGame && promptWasVisible && button === 0) {
+        this.isDraggingMouse = true;
+        return;
+      }
+    }
+
+    if (button === 0) {
+      if (!fromGamepad) this.isDraggingMouse = true;
+      this.mouseButtons.left = true;
+      this.minifigure?.stopEmote?.();
+      if (this.activeRide) return;
+      if (this.currentVehicle) {
+        this._fireVehicleWeapon();
+      } else if (this.operatorWeapons?.isOperatorActive()) {
+        this.operatorWeapons.handlePrimaryMouseDown();
+      } else {
+        this._firePrimaryAction();
+      }
+    } else if (button === 2) {
+      this.mouseButtons.right = true;
+      this.minifigure?.stopEmote?.();
+      if (this.activeRide) return;
+      const hero = this.minifigure.currentHeroKey;
+      if (isFactionOperatorKey(hero)) {
+        this.operatorWeapons?.syncScopeState?.();
+        return;
+      }
+      if (this.currentVehicle) {
+        if (hero === 'turbo') this._summonAndMountTurboGhostBike();
+      } else if (hero === 'caveira') {
+        this._throwCaveiraGrenade();
+      } else if (hero === 'tita') {
+        this._toggleTitaCarGrabOrThrow();
+      } else if (hero === 'vingador') {
+        this._cycleVingadorWeapon();
+      } else if (hero === 'sombra') {
+        this._triggerSombraGrapple();
+      } else if (hero === 'turbo') {
+        this._summonAndMountTurboGhostBike();
+      } else if (hero === 'voltaico') {
+        this._triggerVoltaicoLightningBlink();
+      } else if (hero === 'vortex') {
+        this._triggerVortexAbyssalLasso();
+      } else if (hero === 'op09') {
+        this.customHeroPowers?.triggerMobilityKey();
+      }
+    }
+  },
+
+  _handlePointerButtonUp(button) {
+    if (button === 0) {
+      this.isDraggingMouse = false;
+      this.mouseButtons.left = false;
+      this.operatorWeapons?.handlePrimaryMouseUp?.();
+    } else if (button === 2) {
+      this.mouseButtons.right = false;
+      this.operatorWeapons?.syncScopeState?.();
+    }
   },
 
   resetHeldInputs() {

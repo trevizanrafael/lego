@@ -2,6 +2,7 @@ import { soundFX } from '../../audio/SoundFX.js';
 import { UI_TEXTS, DEFAULT_GAME_SETTINGS, saveGameSettings } from '../FactionIconsAndSaveSystem.js';
 import { definePrototypeMethods } from './HudConstantsAndPortraits.js';
 import { playMenuMoveSound, playMenuBackSound } from './ConfirmDialog.js';
+import { buildGamepadHelpRows } from '../../controls/player/gamepad/GamepadBindings.js';
 
 export const SETTINGS_TABS = ['audio', 'video', 'controls', 'game'];
 const GRAPHICS_ORDER = ['auto', 'low', 'medium', 'ultra'];
@@ -30,7 +31,7 @@ function mkEl(tag, id = '', cls = [], attrs = {}, kids = []) {
 const PANEL_SPECS = {
   audio: [['s', 'masterVol', 'lbl-master-vol', 'slider-master-vol', 'val-master-vol', 0, 100, 5, 85], ['s', 'musicVol', 'lbl-music-vol', 'slider-music-vol', 'val-music-vol', 0, 100, 5, 55], ['s', 'sfxVol', 'lbl-sfx-vol', 'slider-sfx-vol', 'val-sfx-vol', 0, 100, 5, 90]],
   video: [['st', 'graphicsQuality', 'lbl-graphics-quality', 'graphicsQuality', 'val-graphics-quality'], ['s', 'fov', 'lbl-fov', 'slider-fov', 'val-fov', 50, 85, 1, 60], ['st', 'fullscreen', 'lbl-fullscreen', 'fullscreen', 'val-fullscreen'], ['st', 'timeMode', 'lbl-time-mode', 'timeMode', 'btn-pause-time-mode'], ['st', 'killEffect', 'lbl-kill-effect', 'killEffect', 'val-kill-effect'], ['st', 'showFps', 'lbl-show-fps', 'showFps', 'val-show-fps']],
-  controls: [['s', 'mouseSens', 'lbl-mouse-sens', 'slider-mouse-sens', 'val-mouse-sens', 20, 250, 5, 100], ['st', 'invertY', 'lbl-invert-y', 'invertY', 'val-invert-y'], ['km', 'controlsList', 'lbl-controls-list', 'controls-keymap-grid']],
+  controls: [['s', 'mouseSens', 'lbl-mouse-sens', 'slider-mouse-sens', 'val-mouse-sens', 20, 250, 5, 100], ['st', 'invertY', 'lbl-invert-y', 'invertY', 'val-invert-y'], ['s', 'gamepadSens', 'lbl-gamepad-sens', 'slider-gamepad-sens', 'val-gamepad-sens', 20, 250, 5, 100], ['st', 'gamepadAimAssist', 'lbl-gamepad-aim-assist', 'gamepadAimAssist', 'val-gamepad-aim-assist'], ['km', 'controlsList', 'lbl-controls-list', 'controls-keymap-grid']],
   game: [['st', 'language', 'lbl-lang-select', 'language', 'btn-pause-language'], ['st', 'regionToast', 'lbl-region-toast', 'regionToast', 'btn-toggle-region-toast'], ['st', 'damageNumbers', 'lbl-damage-numbers', 'damageNumbers', 'val-damage-numbers'], ['a', 'row-reset-territories', 'resetTerritories', 'lbl-reset-territories', 'btn-pause-reset-territories', 'resetTerritories', 1]]
 };
 
@@ -95,7 +96,7 @@ export function installSettingsScreenController(LegoHud) {
         ['valGraphicsQualityEl', 'val-graphics-quality'], ['sliderFovEl', 'slider-fov'], ['valFovEl', 'val-fov'],
         ['valFullscreenEl', 'val-fullscreen'], ['btnPauseTimeModeEl', 'btn-pause-time-mode'], ['valKillEffectEl', 'val-kill-effect'],
         ['valShowFpsEl', 'val-show-fps'], ['valDamageNumbersEl', 'val-damage-numbers'],
-        ['sliderMouseSensEl', 'slider-mouse-sens'], ['valMouseSensEl', 'val-mouse-sens'], ['valInvertYEl', 'val-invert-y'],
+        ['sliderMouseSensEl', 'slider-mouse-sens'], ['valMouseSensEl', 'val-mouse-sens'], ['valInvertYEl', 'val-invert-y'], ['sliderGamepadSensEl', 'slider-gamepad-sens'], ['valGamepadSensEl', 'val-gamepad-sens'], ['valGamepadAimAssistEl', 'val-gamepad-aim-assist'],
         ['controlsKeymapGridEl', 'controls-keymap-grid'], ['btnPauseLangEl', 'btn-pause-language'], ['btnToggleRegionToastEl', 'btn-toggle-region-toast'],
         ['rowResetTerritoriesEl', 'row-reset-territories'], ['settingsOptionDescEl', 'settings-option-desc'],
         ['btnRestoreDefaultsEl', 'btn-settings-restore-defaults'], ['settingsKeyhintsRowEl', 'settings-keyhints-row']
@@ -168,13 +169,20 @@ export function installSettingsScreenController(LegoHud) {
         this._scheduleSaveSettings();
       });
 
+      bindRange(this.sliderGamepadSensEl, () => {
+        const pct = Math.max(20, Math.min(250, Math.round(Number(this.sliderGamepadSensEl?.value ?? 100))));
+        this.settings.gamepadSensitivity = Number((pct / 100).toFixed(2));
+        if (this.valGamepadSensEl) this.valGamepadSensEl.textContent = `${pct}%`;
+        this._scheduleSaveSettings();
+      });
+
       const stepperNodes = [];
       if (typeof Element !== 'undefined' && this.settingsSubviewEl instanceof Element) stepperNodes.push(...Array.from(this.settingsSubviewEl.querySelectorAll('[data-stepper]')));
       else { const walk = (n) => { if (n?.dataset?.stepper) stepperNodes.push(n); if (Array.isArray(n?.children)) for (const c of n.children) walk(c); }; walk(this.settingsSubviewEl); }
       for (const node of stepperNodes) {
         if (!node._stepperBound) { node._stepperBound = true; node.addEventListener?.('click', () => this._stepSettingValue(node.dataset.stepper, Number(node.dataset?.dir) < 0 ? -1 : 1)); }
       }
-      for (const [node, key] of [[this.valGraphicsQualityEl, 'graphicsQuality'], [this.valFullscreenEl, 'fullscreen'], [this.btnPauseTimeModeEl, 'timeMode'], [this.valKillEffectEl, 'killEffect'], [this.valShowFpsEl, 'showFps'], [this.valInvertYEl, 'invertY'], [this.btnPauseLangEl, 'language'], [this.btnToggleRegionToastEl, 'regionToast'], [this.valDamageNumbersEl, 'damageNumbers']]) {
+      for (const [node, key] of [[this.valGraphicsQualityEl, 'graphicsQuality'], [this.valFullscreenEl, 'fullscreen'], [this.btnPauseTimeModeEl, 'timeMode'], [this.valKillEffectEl, 'killEffect'], [this.valShowFpsEl, 'showFps'], [this.valInvertYEl, 'invertY'], [this.valGamepadAimAssistEl, 'gamepadAimAssist'], [this.btnPauseLangEl, 'language'], [this.btnToggleRegionToastEl, 'regionToast'], [this.valDamageNumbersEl, 'damageNumbers']]) {
         if (node && !node._stepperBound) { node._stepperBound = true; node.addEventListener?.('click', () => this._stepSettingValue(key, 1)); }
       }
       for (const btn of this.graphicsQualityButtons || []) btn.addEventListener?.('click', () => this.setGraphicsQuality(btn.dataset?.quality || 'auto'));
@@ -289,6 +297,7 @@ export function installSettingsScreenController(LegoHud) {
         soundFX.playPlasticHit();
         return this._refreshSettingsTabsUI();
       }
+      if (stepperKey === 'gamepadAimAssist') { this.settings.gamepadAimAssist = this.settings.gamepadAimAssist === false; saveGameSettings(this.settings); soundFX.playPlasticHit(); return this._refreshSettingsTabsUI(); }
       if (stepperKey === 'invertY') { this.settings.invertY = !this.settings.invertY; saveGameSettings(this.settings); soundFX.playPlasticHit(); return this._refreshSettingsTabsUI(); }
       if (stepperKey === 'language') { if (cycle(LANG_ORDER, this.settings.language || 'pt-BR', dir) !== this.settings.language) this._toggleLanguage?.(); return; }
       if (stepperKey === 'regionToast') {
@@ -315,7 +324,7 @@ export function installSettingsScreenController(LegoHud) {
         this.setShowFpsEnabled?.(d.showFps);
         if (this._lastController?.camera) { this._lastController.camera.fov = d.fov; this._lastController.camera.updateProjectionMatrix?.(); }
       } else if (tab === 'controls') {
-        Object.assign(this.settings, { mouseSensitivity: d.mouseSensitivity, invertY: d.invertY });
+        Object.assign(this.settings, { mouseSensitivity: d.mouseSensitivity, invertY: d.invertY, gamepadSensitivity: d.gamepadSensitivity, gamepadAimAssist: d.gamepadAimAssist });
       } else if (tab === 'game') {
         const prevLang = this.settings.language;
         Object.assign(this.settings, { language: d.language, showRegionToast: d.showRegionToast, damageNumbers: d.damageNumbers });
@@ -348,7 +357,7 @@ export function installSettingsScreenController(LegoHud) {
         ['tab-btn-video', t.settingsTabs?.video], ['tab-btn-controls', t.settingsTabs?.controls], ['tab-btn-game', t.settingsTabs?.game],
         ['lbl-master-vol', t.masterVol], ['lbl-music-vol', t.musicVol], ['lbl-sfx-vol', t.sfxVol],
         ['lbl-graphics-quality', t.graphicsQualityLabel], ['lbl-fov', t.fovLabel], ['lbl-fullscreen', t.fullscreenLabel],
-        ['lbl-time-mode', t.timeOfDayLabel], ['lbl-kill-effect', t.killEffectLabel], ['lbl-show-fps', t.showFpsLabel], ['lbl-mouse-sens', t.mouseSensLabel], ['lbl-invert-y', t.invertYLabel],
+        ['lbl-time-mode', t.timeOfDayLabel], ['lbl-kill-effect', t.killEffectLabel], ['lbl-show-fps', t.showFpsLabel], ['lbl-mouse-sens', t.mouseSensLabel], ['lbl-invert-y', t.invertYLabel], ['lbl-gamepad-sens', t.gamepadSensLabel], ['lbl-gamepad-aim-assist', t.gamepadAimAssistLabel],
         ['lbl-controls-list', t.controlsSectionTitle], ['lbl-lang-select', t.langLabel], ['lbl-region-toast', t.regionToastToggle],
         ['lbl-damage-numbers', t.damageNumbersLabel],
         ['lbl-reset-territories', t.resetTerritoriesBtn], ['btn-pause-reset-territories', t.resetTerritoriesBtn],
@@ -360,9 +369,10 @@ export function installSettingsScreenController(LegoHud) {
       const sPct = Math.round((this.settings.sfxVolume ?? 0.9) * 100);
       const fov = Math.max(50, Math.min(85, Math.round(Number(this.settings.fov ?? 60))));
       const sensPct = Math.max(20, Math.min(250, Math.round(Number(this.settings.mouseSensitivity ?? 1.0) * 100)));
+      const padSensPct = Math.max(20, Math.min(250, Math.round(Number(this.settings.gamepadSensitivity ?? 1.0) * 100)));
       for (const [sEl, vEl, num, suf] of [
         [this.sliderMasterEl, this.valMasterEl, mPct, '%'], [this.sliderMusicEl, this.valMusicEl, muPct, '%'],
-        [this.sliderSfxEl, this.valSfxEl, sPct, '%'], [this.sliderFovEl, this.valFovEl, fov, '°'], [this.sliderMouseSensEl, this.valMouseSensEl, sensPct, '%']
+        [this.sliderSfxEl, this.valSfxEl, sPct, '%'], [this.sliderFovEl, this.valFovEl, fov, '°'], [this.sliderMouseSensEl, this.valMouseSensEl, sensPct, '%'], [this.sliderGamepadSensEl, this.valGamepadSensEl, padSensPct, '%']
       ]) { if (sEl) sEl.value = String(num); if (vEl) vEl.textContent = `${num}${suf}`; }
 
       const qKey = this.settings.graphicsQuality || 'auto';
@@ -393,6 +403,11 @@ export function installSettingsScreenController(LegoHud) {
         this.valDamageNumbersEl.classList?.toggle('active', dmgOn);
       }
       if (this.valInvertYEl) this.valInvertYEl.textContent = this.settings.invertY ? t.toggleOn : t.toggleOff;
+      if (this.valGamepadAimAssistEl) {
+        const aaOn = this.settings.gamepadAimAssist !== false;
+        this.valGamepadAimAssistEl.textContent = aaOn ? t.toggleOn : t.toggleOff;
+        this.valGamepadAimAssistEl.classList?.toggle('active', aaOn);
+      }
       if (this.btnPauseLangEl) this.btnPauseLangEl.textContent = t.langModes?.[lang] || (isEn ? 'ENGLISH' : 'PORTUGUÊS');
       if (this.btnToggleRegionToastEl) {
         const on = Boolean(this.settings.showRegionToast);
@@ -400,7 +415,7 @@ export function installSettingsScreenController(LegoHud) {
         this.btnToggleRegionToastEl.textContent = on ? t.toggleOn : t.toggleOff;
       }
       if (this.controlsKeymapGridEl && Array.isArray(t.controlsList)) {
-        this.controlsKeymapGridEl.innerHTML = t.controlsList.map(([keys, label]) => `<div class="keymap-row"><span class="keymap-action">${label}</span><span class="keymap-keys">${keys}</span></div>`).join('');
+        this.controlsKeymapGridEl.innerHTML = [...t.controlsList, ...buildGamepadHelpRows(this._lastController?.gamepad?.family || 'xbox')].map(([keys, label]) => `<div class="keymap-row"><span class="keymap-action">${label}</span><span class="keymap-keys">${keys}</span></div>`).join('');
       }
       const khEl = this.settingsKeyhintsRowEl || byId('settings-keyhints-row');
       if (khEl) {

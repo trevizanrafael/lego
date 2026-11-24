@@ -1,0 +1,36 @@
+/* Controle (Gamepad): cursor virtual para telas de mouse + aviso de conexão — IDV Tático Angular */
+.gamepad-virtual-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  margin: -2px 0 0 -2px;
+  pointer-events: none;
+  z-index: 100000;
+  display: none;
+  background: var(--idv-alert, #d99b16);
+  clip-path: polygon(0 0, 100% 62%, 58% 62%, 36% 100%);
+  filter: drop-shadow(2px 2px 0 #04060a);
+}
+.gamepad-virtual-cursor.visible { display: block; }
+
+.gamepad-connected-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translate(-50%, -140%);
+  z-index: 99999;
+  padding: 8px 22px;
+  font-family: 'Chakra Petch', 'Teko', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: #04060a;
+  background: var(--idv-alert, #d99b16);
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  box-shadow: 4px 4px 0 #04060a;
+  pointer-events: none;
+  transition: transform 0.22s ease-out;
+}
+.gamepad-connected-toast.visible { transform: translate(-50%, 0); }
